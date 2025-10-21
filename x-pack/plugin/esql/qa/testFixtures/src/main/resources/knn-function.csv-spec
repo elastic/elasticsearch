@@ -1,7 +1,3 @@
-# TODO Most tests explicitly set k. Until knn function uses LIMIT as k, we need to explicitly set it to all values
-# in the dataset to avoid test failures due to docs allocation in different shards, which can impact results for a 
-# top-n query at the shard level 
-
 knnSearch
 required_capability: knn_function_v5
 
@@ -410,3 +406,52 @@ host:keyword | semantic_text_dense_field:text
 "host1"      | live long and prosper
 ;
 
+
+knnWithCasting
+required_capability: knn_function_v5
+required_capability: to_dense_vector_function
+
+from colors metadata _score
+| eval query = to_dense_vector([0, 120, 0])
+| where knn(rgb_vector, query) 
+| sort _score desc, color asc
+| keep color, rgb_vector
+| limit 10
+;
+
+color:text | rgb_vector:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+teal       | [0.0, 128.0, 128.0]
+lime       | [0.0, 255.0, 0.0]
+sienna     | [160.0, 82.0, 45.0]
+maroon     | [128.0, 0.0, 0.0]
+navy       | [0.0, 0.0, 128.0]
+gray       | [128.0, 128.0, 128.0]
+chartreuse | [127.0, 255.0, 0.0]
+;
+
+knnWithHexStringCasting
+required_capability: knn_function_v5
+required_capability: to_dense_vector_function
+
+from colors metadata _score
+| where knn(rgb_vector, "007800") 
+| sort _score desc, color asc
+| keep color, rgb_vector
+| limit 10
+;
+
+color:text | rgb_vector:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+teal       | [0.0, 128.0, 128.0]
+lime       | [0.0, 255.0, 0.0]
+sienna     | [160.0, 82.0, 45.0]
+maroon     | [128.0, 0.0, 0.0]
+navy       | [0.0, 0.0, 128.0]
+gray       | [128.0, 128.0, 128.0]
+chartreuse | [127.0, 255.0, 0.0]
+;

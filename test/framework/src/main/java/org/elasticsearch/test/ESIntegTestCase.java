@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -1396,65 +1397,63 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final List<SubscribableListener<ClusterStateResponse>> localStates = new ArrayList<>(cluster().size());
         final var masterName = internalCluster().getMasterName();
         for (Client client : cluster().getClients()) {
-            localStates.add(
-                SubscribableListener.newForked(l -> client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l))
-            );
+            localStates.add(SubscribableListener.newForked(l -> prepareClusterStateRequest(client).execute(l)));
         }
         try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
-            SubscribableListener.<ClusterStateResponse>newForked(
-                l -> client(masterName).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l)
-            ).andThenAccept(masterStateResponse -> {
-                byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
-                // remove local node reference
-                final ClusterState masterClusterState = ClusterState.Builder.fromBytes(
-                    masterClusterStateBytes,
-                    null,
-                    namedWriteableRegistry
-                );
-                Map<String, Object> masterStateMap = convertToMap(masterClusterState, xContentParams());
-                String masterId = masterClusterState.nodes().getMasterNodeId();
-                if (masterId == null) {
-                    logger.warn("Failed to find an elected master in the cluster state: " + masterClusterState);
-                    throw new AssertionError("Unable to find master in cluster state. Expecting a stable master node");
-                }
-                for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
-                    localStateListener.andThenAccept(localClusterStateResponse -> {
-                        byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterStateResponse.getState());
-                        // remove local node reference
-                        final ClusterState localClusterState = ClusterState.Builder.fromBytes(
-                            localClusterStateBytes,
-                            null,
-                            namedWriteableRegistry
-                        );
-                        final Map<String, Object> localStateMap = convertToMap(localClusterState, xContentParams());
-                        // Check that the non-master node has the same version of the cluster state as the master and
-                        // that the master node matches the master (otherwise there is no requirement for the cluster state to
-                        // match)
-                        if (masterClusterState.version() == localClusterState.version()
-                            && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
-                            try {
-                                assertEquals(
-                                    "cluster state UUID does not match",
-                                    masterClusterState.stateUUID(),
-                                    localClusterState.stateUUID()
-                                );
-                                // Compare JSON serialization
-                                assertNull(
-                                    "cluster state JSON serialization does not match",
-                                    differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
-                                );
-                            } catch (final AssertionError error) {
-                                logger.error(
-                                    "Cluster state from master:\n{}\nLocal cluster state:\n{}",
-                                    masterClusterState.toString(),
-                                    localClusterState.toString()
-                                );
-                                throw error;
+            SubscribableListener.<ClusterStateResponse>newForked(l -> prepareClusterStateRequest(client(masterName)).execute(l))
+                .andThenAccept(masterStateResponse -> {
+                    byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
+                    // remove local node reference
+                    final ClusterState masterClusterState = ClusterState.Builder.fromBytes(
+                        masterClusterStateBytes,
+                        null,
+                        namedWriteableRegistry
+                    );
+                    Map<String, Object> masterStateMap = convertToMap(masterClusterState, xContentParams());
+                    String masterId = masterClusterState.nodes().getMasterNodeId();
+                    if (masterId == null) {
+                        logger.warn("Failed to find an elected master in the cluster state: " + masterClusterState);
+                        throw new AssertionError("Unable to find master in cluster state. Expecting a stable master node");
+                    }
+                    for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
+                        localStateListener.andThenAccept(localClusterStateResponse -> {
+                            byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterStateResponse.getState());
+                            // remove local node reference
+                            final ClusterState localClusterState = ClusterState.Builder.fromBytes(
+                                localClusterStateBytes,
+                                null,
+                                namedWriteableRegistry
+                            );
+                            final Map<String, Object> localStateMap = convertToMap(localClusterState, xContentParams());
+                            // Check that the non-master node has the same version of the cluster state as the master and
+                            // that the master node matches the master (otherwise there is no requirement for the cluster state to
+                            // match)
+                            if (masterClusterState.version() == localClusterState.version()
+                                && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                                try {
+                                    assertEquals(
+                                        "cluster state UUID does not match",
+                                        masterClusterState.stateUUID(),
+                                        localClusterState.stateUUID()
+                                    );
+                                    // Compare JSON serialization
+                                    assertNull(
+                                        "cluster state JSON serialization does not match",
+                                        differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
+                                    );
+                                } catch (final AssertionError error) {
+                                    logger.error(
+                                        "Cluster state from master:\n{}\nLocal cluster state:\n{}",
+                                        masterClusterState.toString(),
+                                        localClusterState.toString()
+                                    );
+                                    throw error;
+                                }
                             }
-                        }
-                    }).addListener(refCountingListener.acquire());
-                }
-            }).addListener(refCountingListener.acquire());
+                        }).addListener(refCountingListener.acquire());
+                    }
+                })
+                .addListener(refCountingListener.acquire());
         }
         safeGet(future);
     }
@@ -1462,7 +1461,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             final Client masterClient = client();
-            Metadata metadata = masterClient.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().get().getState().metadata();
+            Metadata metadata = prepareClusterStateRequest(masterClient).get().getState().metadata();
             final Map<String, String> serializationParams = Maps.newMapWithExpectedSize(2);
             serializationParams.put("binary", "true");
             serializationParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
@@ -1563,6 +1562,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
             }
         }
+    }
+
+    private ClusterStateRequestBuilder prepareClusterStateRequest(Client client) {
+        return client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().setMultiproject(multiProjectIntegrationTest());
     }
 
     private static void ensureClusterInfoServiceRunning() {

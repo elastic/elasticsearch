@@ -1467,7 +1467,12 @@ public class EsqlCapabilities {
         /**
          * Support for the Present function
          */
-        FN_PRESENT;
+        FN_PRESENT,
+
+        /**
+         * TO_DENSE_VECTOR function.
+         */
+        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

@@ -552,6 +552,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionManyMatchesManyFields
   issue: https://github.com/elastic/elasticsearch/issues/136791
+- class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
+  method: testRerank
+  issue: https://github.com/elastic/elasticsearch/issues/136872
 
 # Examples:
 #

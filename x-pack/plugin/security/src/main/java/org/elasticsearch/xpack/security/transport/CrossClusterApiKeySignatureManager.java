@@ -77,7 +77,6 @@ public class CrossClusterApiKeySignatureManager {
                     true
                 ) ? wrapInDiagnosticTrustManager(trustConfig.createTrustManager()) : trustConfig.createTrustManager();
 
-                trustConfig.createTrustManager();
                 if (newTrustManager.getAcceptedIssuers().length == 0) {
                     logger.warn("Cross cluster API Key trust configuration [{}] has no accepted certificate issuers", trustConfig);
                     trustManager.set(null);

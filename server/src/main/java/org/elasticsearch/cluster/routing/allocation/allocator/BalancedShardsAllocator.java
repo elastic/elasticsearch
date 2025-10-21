@@ -705,7 +705,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             highIdx = relevantNodes - 1;
 
                             if (routingNodes.getRelocatingShardCount() > 0) {
-                                // Check routingNodes.getRelocatingShardCount() > 0 in case the first relocation is a THROTTLE.
                                 shardBalanced = true;
                             } else {
                                 // A THROTTLE decision can happen when not simulating

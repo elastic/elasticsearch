@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -42,6 +44,8 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
     PostCalendarEventsAction.Request,
     PostCalendarEventsAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportPostCalendarEventsAction.class);
+
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
@@ -75,6 +79,9 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
         List<ScheduledEvent> events = request.getScheduledEvents();
 
         ActionListener<Calendar> calendarListener = ActionListener.wrap(calendar -> {
+            logger.info("Calendar [{}] triggering update for {} jobs with {} new events", 
+                request.getCalendarId(), calendar.getJobIds().size(), events.size());
+            
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
             for (ScheduledEvent event : events) {
@@ -102,10 +109,15 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
                 new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse response) {
+                        long startTime = System.currentTimeMillis();
                         jobManager.updateProcessOnCalendarChanged(
                             calendar.getJobIds(),
                             ActionListener.wrap(
-                                r -> listener.onResponse(new PostCalendarEventsAction.Response(events)),
+                                r -> {
+                                    long duration = System.currentTimeMillis() - startTime;
+                                    logger.info("Calendar [{}] update completed in [{}ms]", request.getCalendarId(), duration);
+                                    listener.onResponse(new PostCalendarEventsAction.Response(events));
+                                },
                                 listener::onFailure
                             )
                         );

@@ -75,7 +75,12 @@ public class UpdateJobProcessNotifier {
     }
 
     boolean submitJobUpdate(UpdateParams update, ActionListener<Boolean> listener) {
-        return orderedJobUpdates.offer(new UpdateHolder(update, listener));
+        boolean offered = orderedJobUpdates.offer(new UpdateHolder(update, listener));
+        if (!offered) {
+            logger.warn("Update queue is full ({}), failed to submit update for job [{}]", 
+                orderedJobUpdates.size(), update.getJobId());
+        }
+        return offered;
     }
 
     private void start() {
@@ -95,7 +100,13 @@ public class UpdateJobProcessNotifier {
         List<UpdateHolder> updates = new ArrayList<>(orderedJobUpdates.size());
         try {
             orderedJobUpdates.drainTo(updates);
-            executeProcessUpdates(new VolatileCursorIterator<>(updates));
+            if (!updates.isEmpty()) {
+                logger.info("Processing [{}] queued job updates", updates.size());
+                long startTime = System.currentTimeMillis();
+                executeProcessUpdates(new VolatileCursorIterator<>(updates));
+                long duration = System.currentTimeMillis() - startTime;
+                logger.info("Processed [{}] job updates in [{}ms]", updates.size(), duration);
+            }
         } catch (Exception e) {
             logger.error("Error while processing next job update", e);
         }
@@ -134,7 +145,7 @@ public class UpdateJobProcessNotifier {
             @Override
             public void onResponse(Response response) {
                 if (response.isUpdated()) {
-                    logger.info("Successfully updated remote job [{}]", update.getJobId());
+                    logger.debug("Successfully updated remote job [{}]", update.getJobId());
                     updateHolder.listener.onResponse(true);
                 } else {
                     String msg = "Failed to update remote job [" + update.getJobId() + "]";

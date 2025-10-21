@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
@@ -55,6 +56,9 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
@@ -70,6 +74,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -443,5 +448,56 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     protected static String createJsonRecord(Map<String, Object> keyValueMap) throws IOException {
         return Strings.toString(JsonXContent.contentBuilder().map(keyValueMap)) + "\n";
+    }
+
+    /**
+     * Helper method to wait for calendar update audit message
+     */
+    protected void waitForCalendarUpdateAuditMessage(String jobId) throws Exception {
+        assertBusy(() -> {
+            SearchRequestBuilder searchRequest = prepareSearch(".ml-notifications")
+                .setSize(1)
+                .addSort("timestamp", SortOrder.DESC)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("job_id", jobId))
+                        .filter(QueryBuilders.termQuery("level", "info"))
+                        .filter(QueryBuilders.termQuery("message", "Updated calendars in running process"))
+                );
+            
+            assertResponse(searchRequest, searchResponse -> {
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                assertThat("Job " + jobId + " should have calendar update audit message", hits.length, equalTo(1));
+            });
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Helper method to create and open multiple jobs
+     */
+    protected List<String> createAndOpenMultipleJobs(String prefix, int count, TimeValue bucketSpan) {
+        List<String> jobIds = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            String jobId = prefix + "-" + i;
+            Job.Builder job = createJob(jobId, bucketSpan);
+            putJob(job);
+            openJob(jobId);
+            jobIds.add(jobId);
+        }
+        return jobIds;
+    }
+
+    /**
+     * Helper method to create a job
+     */
+    protected Job.Builder createJob(String jobId, TimeValue bucketSpan) {
+        Detector.Builder detector = new Detector.Builder("count", null);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        Job.Builder job = new Job.Builder(jobId);
+        job.setAnalysisConfig(analysisConfig);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        job.setDataDescription(dataDescription);
+        return job;
     }
 }

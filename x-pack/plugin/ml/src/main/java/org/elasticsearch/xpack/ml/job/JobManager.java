@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -68,12 +70,15 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -617,6 +622,10 @@ public class JobManager {
     public void updateProcessOnCalendarChanged(List<String> calendarJobIds, ActionListener<Boolean> updateListener) {
         ClusterState clusterState = clusterService.state();
         Set<String> openJobIds = openJobIds(clusterState);
+        
+        logger.info("Updating process for calendar change: {} calendar job IDs, {} open jobs", 
+            calendarJobIds.size(), openJobIds.size());
+        
         if (openJobIds.isEmpty()) {
             updateListener.onResponse(Boolean.TRUE);
             return;
@@ -624,6 +633,7 @@ public class JobManager {
 
         boolean appliesToAllJobs = calendarJobIds.stream().anyMatch(Metadata.ALL::equals);
         if (appliesToAllJobs) {
+            logger.info("Calendar change applies to all jobs");
             submitJobEventUpdate(openJobIds, updateListener);
             return;
         }
@@ -644,17 +654,43 @@ public class JobManager {
     }
 
     private void submitJobEventUpdate(Collection<String> jobIds, ActionListener<Boolean> updateListener) {
-        for (String jobId : jobIds) {
-            updateJobProcessNotifier.submitJobUpdate(
-                UpdateParams.scheduledEventsUpdate(jobId),
-                ActionListener.wrap(
-                    isUpdated -> auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)),
-                    e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)
-                )
-            );
+        logger.info("Submitting calendar event updates for [{}] jobs", jobIds.size());
+        
+        AtomicInteger succeeded = new AtomicInteger();
+        AtomicInteger failed = new AtomicInteger();
+        
+        try (var refs = new RefCountingListener(updateListener.delegateFailureAndWrap((l, v) -> {
+            logger.info("Completed calendar updates: {} succeeded, {} failed", succeeded.get(), failed.get());
+            l.onResponse(true);
+        }))) {
+            for (String jobId : jobIds) {
+                UpdateProcessAction.Request request = new UpdateProcessAction.Request(
+                    jobId, null, null, null, null, true  // updateScheduledEvents=true
+                );
+                
+                executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request,
+                    refs.acquire().delegateResponse((l, e) -> {
+                        if (isExpectedFailure(e)) {
+                            logger.debug("[{}] Calendar update skipped: {}", jobId, e.getMessage());
+                        } else {
+                            failed.incrementAndGet();
+                            logger.warn("[{}] Calendar update failed", jobId, e);
+                        }
+                        l.onResponse(null);  // Don't fail the whole operation
+                    }).map(response -> {
+                        succeeded.incrementAndGet();
+                        auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS));
+                        return null;
+                    })
+                );
+            }
         }
-
-        updateListener.onResponse(Boolean.TRUE);
+    }
+    
+    private boolean isExpectedFailure(Exception e) {
+        // Job deleted, closed, etc. - not real errors
+        return ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException
+            || e.getMessage().contains("is not open");
     }
 
     public void revertSnapshot(

@@ -1703,7 +1703,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
 
-            var expectRefreshBlock = 0 < nbReplicas && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+            var expectRefreshBlock = 0 < nbReplicas && minTransportVersion.supports(TransportVersions.V_8_18_0);
             assertThat(updatedClusterState.blocks().indices(projectId), is(aMapWithSize(expectRefreshBlock ? 1 : 0)));
             assertThat(
                 updatedClusterState.blocks().hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
@@ -1739,7 +1739,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         );
         assertThat(
             blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
-            is(isStateless && useRefreshBlock && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK))
+            is(isStateless && useRefreshBlock && minTransportVersion.supports(TransportVersions.V_8_18_0))
         );
     }
 

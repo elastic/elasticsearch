@@ -64,6 +64,18 @@ public class BasicPageTests extends SerializationTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             in,
             page -> new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()),
+            page -> new Page(
+                blockFactory.newIntArrayVector(new int[] {}, 0).asBlock(),
+                blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()
+            ),
+            Page::releaseBlocks
+        );
+        in.releaseBlocks();
+
+        in = new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            in,
+            page -> new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()),
             page -> new Page(blockFactory.newIntArrayVector(new int[] { 1 }, 1).asBlock()),
             Page::releaseBlocks
         );
@@ -129,17 +141,31 @@ public class BasicPageTests extends SerializationTestCase {
         };
 
         final EqualsHashCodeTestUtils.MutateFunction<Page> mutatePageFunction = page -> {
-            assert page.getPositionCount() > 0;
-            Block[] blocks = new Block[page.getBlockCount()];
-            int positions = randomInt(page.getPositionCount() - 1);
-            for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-                Block block = page.getBlock(blockIndex);
-                blocks[blockIndex] = block.elementType()
-                    .newBlockBuilder(positions, TestBlockFactory.getNonBreakingInstance())
-                    .copyFrom(block, 0, page.getPositionCount() - 1)
-                    .build();
+            if (page.getPositionCount() > 0) {
+                Block[] blocks = new Block[page.getBlockCount()];
+                int positions = randomInt(page.getPositionCount() - 1);
+                for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+                    Block block = page.getBlock(blockIndex);
+                    blocks[blockIndex] = block.elementType()
+                        .newBlockBuilder(positions, TestBlockFactory.getNonBreakingInstance())
+                        .copyFrom(block, 0, positions)
+                        .build();
+                }
+                return new Page(positions, blocks);
+            } else {
+                Block[] blocks = new Block[page.getBlockCount() + 1];
+                for (int blockIndex = 0; blockIndex < page.getBlockCount(); blockIndex++) {
+                    blocks[blockIndex] = page.getBlock(blockIndex);
+                }
+
+                ElementType newBlockType = randomValueOtherThanMany(
+                    x -> x == ElementType.DOC || x == ElementType.COMPOSITE || x == ElementType.UNKNOWN,
+                    () -> randomFrom(ElementType.values())
+                );
+
+                blocks[blocks.length - 1] = newBlockType.newBlockBuilder(0, TestBlockFactory.getNonBreakingInstance()).build();
+                return new Page(0, blocks);
             }
-            return new Page(blocks);
         };
 
         int positions = randomIntBetween(0, 512);

@@ -41,15 +41,18 @@
     "params": {
       "from": {
         "type": "int",
+        "default": 0,
         "description": "skips a number of calendars"
       },
       "size": {
         "type": "int",
+        "default": 10000,
         "description": "specifies a max number of calendars to get"
       }
     },
     "body": {
-      "description": "The from and size parameters optionally sent in the body"
+      "description": "The from and size parameters optionally sent in the body",
+      "required": false
     }
   }
 }

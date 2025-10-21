@@ -26,6 +26,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
+
 public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCase {
 
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES815HnswBitVectorsFormat());
@@ -56,9 +61,10 @@ public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestC
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    assertEquals(2, offHeap.size());
-                    assertTrue(offHeap.get("vec") > 0L);
-                    assertEquals(1L, (long) offHeap.get("vex"));
+
+                    assertThat(offHeap, aMapWithSize(2));
+                    assertThat(offHeap, hasEntry("vex", 1L));
+                    assertThat(offHeap, hasEntry(equalTo("vec"), greaterThan(0L)));
                 }
             }
         }

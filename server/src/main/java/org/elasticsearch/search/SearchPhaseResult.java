@@ -30,7 +30,7 @@ import java.io.IOException;
  */
 public abstract class SearchPhaseResult extends TransportResponse {
 
-    private SearchShardTarget searchShardTarget;
+    protected SearchShardTarget searchShardTarget;
     private int shardIndex = -1;
     protected ShardSearchContextId contextId;
     private ShardSearchRequest shardSearchRequest;

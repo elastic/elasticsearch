@@ -133,6 +133,7 @@ public class SearchTransportService {
         ShardSearchContextId contextId,
         ActionListener<SearchFreeContextResponse> listener
     ) {
+        // logger.info("sendfreeContext [{}], stack [{}]", contextId, Arrays.toString(new RuntimeException().getStackTrace()));
         transportService.sendRequest(
             connection,
             FREE_CONTEXT_SCROLL_ACTION_NAME,
@@ -391,8 +392,8 @@ public class SearchTransportService {
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
-            logger.trace("releasing search context [{}]", request.id());
             boolean freed = searchService.freeReaderContext(request.id());
+            logger.trace("releasing search context [{}], [{}]", request.id(), freed);
             channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
         final Executor freeContextExecutor = buildFreeContextExecutor(transportService);

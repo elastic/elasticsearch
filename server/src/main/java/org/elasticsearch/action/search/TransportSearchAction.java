@@ -1369,6 +1369,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         SearchPhaseProvider searchPhaseProvider
     ) {
+        logger.info("Executing search locally.");
         if (searchRequest.allowPartialSearchResults() == null) {
             // No user preference defined in search request - apply cluster service default
             searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
@@ -1960,11 +1961,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     try {
                         final ShardIterator shards = OperationRouting.getShards(projectState.routingTable(), shardId);
                         // Prefer executing shard requests on nodes that are part of PIT first.
-                        if (projectState.cluster().nodes().nodeExists(perNode.getNode())) {
+                        boolean nodeExists = projectState.cluster().nodes().nodeExists(perNode.getNode());
+                        if (nodeExists) {
                             targetNodes.add(perNode.getNode());
+                        } else {
+                            logger.debug(
+                                "Node [{}] referenced in PIT context id [{}] no longer exists.",
+                                perNode.getNode(),
+                                perNode.getSearchContextId()
+                            );
                         }
-                        ShardSearchContextId shardSearchContextId = perNode.getSearchContextId();
-                        if (shardSearchContextId.isRetryable()) {
+                        if (perNode.getSearchContextId().isRetryable() || nodeExists == false) {
                             for (ShardRouting shard : shards) {
                                 if (shard.currentNodeId().equals(perNode.getNode()) == false) {
                                     targetNodes.add(shard.currentNodeId());

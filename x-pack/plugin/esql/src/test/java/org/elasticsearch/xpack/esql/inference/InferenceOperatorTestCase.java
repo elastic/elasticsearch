@@ -31,6 +31,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.junit.After;
@@ -47,7 +48,16 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Before
     public void setThreadPool() {
-        threadPool = createThreadPool();
+        threadPool = createThreadPool(
+            new ScalingExecutorBuilder(
+                "inference_response",
+                0,
+                10,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.inference_response_thread_pool"
+            )
+        );
     }
 
     @Before
@@ -124,6 +134,10 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                     listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
                 });
             }
+
+            private void runWithRandomDelay(Runnable runnable) {
+                threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.executor("inference_response"));
+            }
         };
 
         return new InferenceService(mockClient);
@@ -198,10 +212,6 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
             }
         };
-    }
-
-    private void runWithRandomDelay(Runnable runnable) {
-        threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.generic());
     }
 
     public static class BlockStringReader {

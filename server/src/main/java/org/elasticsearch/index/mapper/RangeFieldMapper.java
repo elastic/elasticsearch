@@ -377,8 +377,6 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     public static class DateRangeDocValuesReader extends BlockDocValuesReader {
-        private final BytesRef spare = new BytesRef();
-
         private final BinaryDocValues numericDocValues;
 
         public DateRangeDocValuesReader(BinaryDocValues numericDocValues) {

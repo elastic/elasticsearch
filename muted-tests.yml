@@ -576,6 +576,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests
   method: testEvalWithScoreExplicitLimit
   issue: https://github.com/elastic/elasticsearch/issues/136920
+- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests
+  method: testEvalWithScoreImplicitLimit
+  issue: https://github.com/elastic/elasticsearch/issues/136921
 
 # Examples:
 #

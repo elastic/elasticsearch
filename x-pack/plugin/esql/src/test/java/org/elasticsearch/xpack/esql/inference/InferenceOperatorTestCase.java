@@ -36,6 +36,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -55,15 +56,14 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Before
     public void setThreadPool() {
-        threadPool = new TestThreadPool(
-            getTestClass().getSimpleName(),
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-                between(1, 10),
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
+        threadPool = createThreadPool(
+            new ScalingExecutorBuilder(
+                "inference_response",
+                0,
+                10,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.inference_response_thread_pool"
             )
         );
     }
@@ -78,8 +78,13 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     @Override
+    protected int largeInputSize() {
+        return between(100, 1_000);
+    }
+
+    @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
+        return new AbstractBlockSourceOperator(blockFactory, between(100, 8 * 1024)) {
             @Override
             protected int remaining() {
                 return size - currentPosition;

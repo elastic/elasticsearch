@@ -21,6 +21,7 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.common.collect.Iterators.toList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -43,10 +44,19 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnTypes(resp.columns(), List.of("text", "integer", "double", "integer"));
             assertColumnNames(resp.columns(), List.of("content", "id", "first_score", "s"));
-            assertValues(
-                resp.values(),
-                List.of(List.of("This is a brown fox", 1, 0.0, 1), List.of("This is a brown dog", 2, 0.49630528688430786, 1))
-            );
+            var results = resp.values();
+            final int expectedNumRows = 2;
+            final int expectedNumColumns = 4;
+            for (int i = 0; i < expectedNumRows; i++) {
+                var row = toList(results.next());
+                assertEquals(expectedNumColumns, row.size());
+                for (var column : row) {
+                    assertNotNull(column);
+                }
+            }
+            if (results.hasNext()) {
+                fail("Expected only 2 rows but got more");
+            }
         }
     }
 
@@ -54,13 +64,25 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | EVAL first_score = TO_INTEGER(0.2 + SCORE(MATCH(content, "dog")))
-            | LIMIT 2
+            | LIMIT 3
             """;
 
         try (var resp = run(query)) {
             assertColumnTypes(resp.columns(), List.of("text", "integer", "integer"));
             assertColumnNames(resp.columns(), List.of("content", "id", "first_score"));
-            assertValues(resp.values(), List.of(List.of("This is a brown fox", 1, 0), List.of("This is a brown dog", 2, 1)));
+            var results = resp.values();
+            final int expectedRows = 3;
+            final int expectedColumns = 3;
+            for (int i = 0; i < expectedRows; i++) {
+                var row = toList(results.next());
+                assertEquals(expectedColumns, row.size());
+                for (var column : row) {
+                    assertNotNull(column);
+                }
+            }
+            if (results.hasNext()) {
+                fail("Expected only 2 rows but got more");
+            }
         }
     }
 

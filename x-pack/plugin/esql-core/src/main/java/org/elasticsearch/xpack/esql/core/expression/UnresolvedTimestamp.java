@@ -21,7 +21,7 @@ public class UnresolvedTimestamp extends UnresolvedAttribute {
         this(source, null, MetadataAttribute.TIMESTAMP_FIELD, null, null, null, errorMessage);
     }
 
-    private UnresolvedTimestamp(
+    public UnresolvedTimestamp(
         Source source,
         String qualifier,
         String name,
@@ -42,7 +42,7 @@ public class UnresolvedTimestamp extends UnresolvedAttribute {
             qualifier(),
             name(),
             id(),
-            unresolvedMessage(),
+            super.unresolvedMessage(),
             resolutionMetadata(),
             errorMessage
         );

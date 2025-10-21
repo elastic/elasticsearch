@@ -5,19 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.chunking;
+package org.elasticsearch.xpack.core.inference.chunking;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.List;
 
 /**
  * A {@link Chunker} implementation that returns the input unchanged (no chunking is performed).
  *
- * <p><b>WARNING</b>If the input exceeds the maximum token limit, some services (such as {@link OpenAiEmbeddingsModel})
+ * <p><b>WARNING</b>If the input exceeds the maximum token limit, some services (such as OpenAI embeddings)
  * may return an error.
  * </p>
  */

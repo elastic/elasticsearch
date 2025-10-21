@@ -108,13 +108,13 @@ public class DownsampleConfigTests extends AbstractXContentSerializingTestCase<D
     }
 
     public void testEffectiveSamplingMethod() {
-        assertThat(DownsampleConfig.SamplingMethod.getEffective(null), is(DownsampleConfig.SamplingMethod.AGGREGATE));
+        assertThat(DownsampleConfig.SamplingMethod.getOrDefault(null), is(DownsampleConfig.SamplingMethod.AGGREGATE));
         assertThat(
-            DownsampleConfig.SamplingMethod.getEffective(DownsampleConfig.SamplingMethod.AGGREGATE),
+            DownsampleConfig.SamplingMethod.getOrDefault(DownsampleConfig.SamplingMethod.AGGREGATE),
             is(DownsampleConfig.SamplingMethod.AGGREGATE)
         );
         assertThat(
-            DownsampleConfig.SamplingMethod.getEffective(DownsampleConfig.SamplingMethod.LAST_VALUE),
+            DownsampleConfig.SamplingMethod.getOrDefault(DownsampleConfig.SamplingMethod.LAST_VALUE),
             is(DownsampleConfig.SamplingMethod.LAST_VALUE)
         );
 

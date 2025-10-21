@@ -230,8 +230,8 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     /**
      * @return the sampling method that will be used based on this configuration.
      */
-    public SamplingMethod getEffectiveSamplingMethod() {
-        return SamplingMethod.getEffective(samplingMethod);
+    public SamplingMethod getOrDefault() {
+        return SamplingMethod.getOrDefault(samplingMethod);
     }
 
     @Override
@@ -378,7 +378,7 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         }
 
         /**
-         * Retrieves the configured sampling method from the index metadata. In case that it is null
+         * Retrieves the configured sampling method from the index metadata. In case that it is null,
          * it checks if the index is downsampled and returns the `aggregate` that was the only sampling
          * method before we introduced last value.
          * @return the used sampling method, or null if the index is not downsampled.
@@ -389,6 +389,9 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
             if (method != null) {
                 return method;
             }
+            // Indices downsampled before the sampling method was introduced, will not have the sampling method in their metadata.
+            // For this reason, we first verify that they are indeed downsampled, and then we return `aggregate` because this was
+            // the only option available at the time.
             boolean isIndexDownsampled = indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL_KEY) != null;
             return isIndexDownsampled ? AGGREGATE : null;
         }
@@ -397,7 +400,7 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
          * @return the sampling method that will be used based on this configuration. Default to {@link SamplingMethod#AGGREGATE}
          * when the provided sampling method is null.
          */
-        public static SamplingMethod getEffective(@Nullable SamplingMethod samplingMethod) {
+        public static SamplingMethod getOrDefault(@Nullable SamplingMethod samplingMethod) {
             return samplingMethod == null ? SamplingMethod.AGGREGATE : samplingMethod;
         }
 

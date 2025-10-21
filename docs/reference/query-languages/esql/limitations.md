@@ -67,7 +67,6 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
     * `binary`
     * `completion`
-    * `dense_vector`
     * `double_range`
     * `flattened`
     * `float_range`
@@ -97,6 +96,10 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
 
 
 In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
+
+* `dense_vector` field type is partially supported. [`KNN` function](elasticsearch://reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) queries will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when the `KNN` function is not used.
+
+This means that `FROM test` will not retrieve `dense_vector` data. But, `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])` will retrieve data.
 
 
 ## _source availability [esql-_source-availability]

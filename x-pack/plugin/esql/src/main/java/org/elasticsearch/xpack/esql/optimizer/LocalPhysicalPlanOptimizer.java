@@ -36,7 +36,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     private static final List<Batch<PhysicalPlan>> RULES = rules(true);
 
-    private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
+    private final PhysicalVerifier verifier = PhysicalVerifier.LOCAL_INSTANCE;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
@@ -47,7 +47,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     PhysicalPlan verify(PhysicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes) {
-        Failures failures = verifier.verify(optimizedPlan, true, expectedOutputAttributes);
+        Failures failures = verifier.verify(optimizedPlan, expectedOutputAttributes);
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

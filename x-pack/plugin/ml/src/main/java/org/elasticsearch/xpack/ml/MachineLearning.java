@@ -160,8 +160,8 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
-import org.elasticsearch.xpack.core.ml.action.ResetAuditorAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
+import org.elasticsearch.xpack.core.ml.action.ResetMlComponentsAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
@@ -271,8 +271,8 @@ import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelVocabularyAction;
-import org.elasticsearch.xpack.ml.action.TransportResetAuditorAction;
 import org.elasticsearch.xpack.ml.action.TransportResetJobAction;
+import org.elasticsearch.xpack.ml.action.TransportResetMlComponentsAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportSetResetModeAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
@@ -805,7 +805,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<LearningToRankService> learningToRankService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
-    private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
+    private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterService = new SetOnce<>();
 
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
 
@@ -1315,7 +1315,7 @@ public class MachineLearning extends Plugin
             clusterService,
             threadPool
         );
-        trainedModelAllocationClusterServiceSetOnce.set(
+        trainedModelAllocationClusterService.set(
             new TrainedModelAssignmentClusterService(
                 settings,
                 clusterService,
@@ -1391,7 +1391,8 @@ public class MachineLearning extends Plugin
             trainedModelCacheMetadataService,
             trainedModelProvider,
             trainedModelAssignmentService,
-            trainedModelAllocationClusterServiceSetOnce.get(),
+            trainedModelAllocationClusterService.get(),
+            trainedModelStatsService,
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
@@ -1564,7 +1565,7 @@ public class MachineLearning extends Plugin
         actionHandlers.add(new ActionHandler(MlMemoryAction.INSTANCE, TransportMlMemoryAction.class));
         actionHandlers.add(new ActionHandler(SetUpgradeModeAction.INSTANCE, TransportSetUpgradeModeAction.class));
         actionHandlers.add(new ActionHandler(SetResetModeAction.INSTANCE, TransportSetResetModeAction.class));
-        actionHandlers.add(new ActionHandler(ResetAuditorAction.INSTANCE, TransportResetAuditorAction.class));
+        actionHandlers.add(new ActionHandler(ResetMlComponentsAction.INSTANCE, TransportResetMlComponentsAction.class));
         // Included in this section as it's used by MlMemoryAction
         actionHandlers.add(new ActionHandler(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
         actionHandlers.add(new ActionHandler(GetMlAutoscalingStats.INSTANCE, TransportGetMlAutoscalingStats.class));
@@ -2177,17 +2178,17 @@ public class MachineLearning extends Plugin
         });
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> resetAuditors = ActionListener.wrap(success -> {
-            // reset the auditors as aliases used may be removed
+            // reset components, such as the auditors the trained model stats queue
             client.execute(
-                ResetAuditorAction.INSTANCE,
-                ResetAuditorAction.Request.RESET_AUDITOR_REQUEST,
+                ResetMlComponentsAction.INSTANCE,
+                ResetMlComponentsAction.Request.RESET_AUDITOR_REQUEST,
                 ActionListener.wrap(ignored -> unsetResetModeListener.onResponse(success), unsetResetModeListener::onFailure)
             );
         }, failure -> {
             logger.error("failed to reset machine learning", failure);
             client.execute(
-                ResetAuditorAction.INSTANCE,
-                ResetAuditorAction.Request.RESET_AUDITOR_REQUEST,
+                ResetMlComponentsAction.INSTANCE,
+                ResetMlComponentsAction.Request.RESET_AUDITOR_REQUEST,
                 ActionListener.wrap(ignored -> unsetResetModeListener.onFailure(failure), unsetResetModeListener::onFailure)
             );
         });
@@ -2329,11 +2330,11 @@ public class MachineLearning extends Plugin
             );
             client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, delegate);
         }).delegateFailureAndWrap((delegate, acknowledgedResponse) -> {
-            if (trainedModelAllocationClusterServiceSetOnce.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
+            if (trainedModelAllocationClusterService.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
                 delegate.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAssignments(delegate);
+            trainedModelAllocationClusterService.get().removeAllModelAssignments(delegate);
         });
 
         // validate no pipelines are using machine learning models

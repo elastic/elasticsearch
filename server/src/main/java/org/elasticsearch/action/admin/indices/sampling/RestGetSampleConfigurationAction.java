@@ -27,25 +27,23 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
- * REST action for updating sampling configurations for indices.
+ * REST action for getting sampling configurations for indices.
  * <p>
- * Handles PUT requests to /{index}/_sample/config endpoint and delegates
- * to the PutSampleConfigurationAction transport action.
+ * Handles GET requests to /{index}/_sample/config endpoint and delegates
+ * to the GetSampleConfigurationAction transport action.
  * </p>
  *
  * <p>Example usage:</p>
  * GET /my-index/_sample/config
  * returns
- * [
  *  {
  *      "index": "logs",
- *      "configuration:
+ *      "configuration":
  *      {
  *          "rate": "5%",
  *          "if": "ctx?.network?.name == 'Guest'"
  *      }
  *  }
- * ]
  */
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetSampleConfigurationAction extends BaseRestHandler {
@@ -65,7 +63,7 @@ public class RestGetSampleConfigurationAction extends BaseRestHandler {
         String[] indexNames = request.param("index").split(",");
         if (indexNames.length > 1) {
             throw new ActionRequestValidationException().addValidationError(
-                "Can only get sampling configuration for a single index at a time, but found "
+                "Provided endpoint can only get sampling configuration for a single index at a time, but found "
                     + Arrays.stream(indexNames).collect(Collectors.joining(", ", "[", "]"))
             );
         }

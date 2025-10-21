@@ -47,7 +47,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * {
  *  "index": "logs",
  *  "configuration": {
- *      "rate": ".0",
+ *      "rate": ".5",
  *      "if": "ctx?.network?.name == 'Guest'"
  *  }
  * }

@@ -345,9 +345,11 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
 
     @Override
     public int rerankerWindowSize(String modelId) {
+        // OpenShift AI uses Cohere and JinaAI rerank protocols for reranking
+        // JinaAI rerank model has 8000 tokens limit length https://jina.ai/models/jina-reranker-v2-base-multilingual
         // Cohere rerank model truncates at 4096 tokens https://docs.cohere.com/reference/rerank
-        // Using 1 token = 0.75 words as a rough estimate, we get 3072 words
-        // allowing for some headroom, we set the window size below 3072
+        // We choose a conservative limit based on these two models
+        // Using 1 token = 0.75 words as a rough estimate, we get 3072 words allowing for some headroom, we set the window size below 3072
         return 2800;
     }
 

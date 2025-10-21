@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsTestUtils;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
@@ -28,7 +29,7 @@ public class PutConnectorSecretResponseBWCSerializingTests extends AbstractBWCWi
 
     @Override
     protected PutConnectorSecretResponse mutateInstance(PutConnectorSecretResponse instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new PutConnectorSecretResponse(randomValueOtherThan(instance.result, () -> randomFrom(DocWriteResponse.Result.values())));
     }
 
     @Override

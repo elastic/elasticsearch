@@ -455,8 +455,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
      */
     protected void waitForCalendarUpdateAuditMessage(String jobId) throws Exception {
         assertBusy(() -> {
-            SearchRequestBuilder searchRequest = prepareSearch(".ml-notifications")
-                .setSize(1)
+            SearchRequestBuilder searchRequest = prepareSearch(".ml-notifications").setSize(1)
                 .addSort("timestamp", SortOrder.DESC)
                 .setQuery(
                     QueryBuilders.boolQuery()
@@ -464,7 +463,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
                         .filter(QueryBuilders.termQuery("level", "info"))
                         .filter(QueryBuilders.termQuery("message", "Updated calendars in running process"))
                 );
-            
+
             assertResponse(searchRequest, searchResponse -> {
                 SearchHit[] hits = searchResponse.getHits().getHits();
                 assertThat("Job " + jobId + " should have calendar update audit message", hits.length, equalTo(1));

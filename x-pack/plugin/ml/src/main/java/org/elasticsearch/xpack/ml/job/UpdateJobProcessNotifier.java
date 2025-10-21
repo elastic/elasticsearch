@@ -77,8 +77,7 @@ public class UpdateJobProcessNotifier {
     boolean submitJobUpdate(UpdateParams update, ActionListener<Boolean> listener) {
         boolean offered = orderedJobUpdates.offer(new UpdateHolder(update, listener));
         if (!offered) {
-            logger.warn("Update queue is full ({}), failed to submit update for job [{}]", 
-                orderedJobUpdates.size(), update.getJobId());
+            logger.warn("Update queue is full ({}), failed to submit update for job [{}]", orderedJobUpdates.size(), update.getJobId());
         }
         return offered;
     }

@@ -55,11 +55,15 @@ public class IncrementalBulkService {
     public IncrementalBulkService(Client client, IndexingPressure indexingPressure, MeterRegistry meterRegistry) {
         this.client = client;
         this.indexingPressure = indexingPressure;
-        this.chunkWaitTimeMillisHistogram = meterRegistry.registerLongHistogram(
-            CHUNK_WAIT_TIME_HISTOGRAM_NAME,
-            "Total time in millis spent waiting for next chunk of a bulk request",
-            "ms"
-        );
+        var chunkWaitTimeMillisHistogram = meterRegistry.getLongHistogram(CHUNK_WAIT_TIME_HISTOGRAM_NAME);
+        if (chunkWaitTimeMillisHistogram == null) {
+            chunkWaitTimeMillisHistogram = meterRegistry.registerLongHistogram(
+                CHUNK_WAIT_TIME_HISTOGRAM_NAME,
+                "Total time in millis spent waiting for next chunk of a bulk request",
+                "ms"
+            );
+        }
+        this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
     }
 
     public Handler newBulkRequest() {

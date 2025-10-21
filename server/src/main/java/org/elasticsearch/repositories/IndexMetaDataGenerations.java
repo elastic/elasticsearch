@@ -216,8 +216,9 @@ public final class IndexMetaDataGenerations {
             return null;
         }
 
-        // The uniqueIdentifier was built in buildUniqueIdentifier, and is of the format IndexUUID-String-long-long-long
-        // The regex accounts for the fact that the IndexUUID can also contain the DELIMITER value
+        // The uniqueIdentifier was built in buildUniqueIdentifier, is of the format IndexUUID-String-long-long-long,
+        // and uses '-' as a delimiter.
+        // The below regex accounts for the fact that the IndexUUID can also contain the '-' character
         Pattern pattern = Pattern.compile("^(.*?)-[^-]+-\\d+-\\d+-\\d+$");
         Matcher matcher = pattern.matcher(uniqueIdentifier);
         if (matcher.matches()) {

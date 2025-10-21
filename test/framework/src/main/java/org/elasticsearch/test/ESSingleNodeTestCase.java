@@ -411,7 +411,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected void deleteIndex(String index) {
         assertAcked(indicesAdmin().prepareDelete(index).get());
-        // Optionally, wait for the cluster to be green after deletion
+        // Wait for the cluster to be green after deletion
         ensureGreen();
     }
 

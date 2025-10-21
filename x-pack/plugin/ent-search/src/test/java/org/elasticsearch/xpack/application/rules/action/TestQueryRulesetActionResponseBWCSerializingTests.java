@@ -32,7 +32,7 @@ public class TestQueryRulesetActionResponseBWCSerializingTests extends AbstractB
         List<TestQueryRulesetAction.MatchedRule> matchedRules = instance.matchedRules();
         switch (randomIntBetween(0, 1)) {
             case 0 -> totalMatchedRules = randomValueOtherThan(totalMatchedRules, () -> randomIntBetween(0, 10));
-            case 1 -> matchedRules = randomValueOtherThan(matchedRules, () -> randomMatchedRules(instance.totalMatchedRules()));
+            case 1 -> matchedRules = randomValueOtherThan(matchedRules, () -> randomMatchedRules());
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new TestQueryRulesetAction.Response(totalMatchedRules, matchedRules);
@@ -41,12 +41,12 @@ public class TestQueryRulesetActionResponseBWCSerializingTests extends AbstractB
     @Override
     protected TestQueryRulesetAction.Response createTestInstance() {
         int totalMatchedRules = randomIntBetween(0, 10);
-        List<TestQueryRulesetAction.MatchedRule> matchedRules = randomMatchedRules(totalMatchedRules);
+        List<TestQueryRulesetAction.MatchedRule> matchedRules = randomMatchedRules();
         return new TestQueryRulesetAction.Response(totalMatchedRules, matchedRules);
     }
 
-    private static List<TestQueryRulesetAction.MatchedRule> randomMatchedRules(int maxRuleCount) {
-        return IntStream.range(0, randomIntBetween(0, maxRuleCount))
+    private static List<TestQueryRulesetAction.MatchedRule> randomMatchedRules() {
+        return IntStream.range(0, randomIntBetween(0, 10))
             .mapToObj(i -> new TestQueryRulesetAction.MatchedRule(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)))
             .toList();
     }

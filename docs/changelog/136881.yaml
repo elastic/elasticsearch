@@ -1,0 +1,5 @@
+pr: 136881
+summary: Disallow `dot_product` and `max_inner_product` for int8_hnsw GPU type
+area: Search
+type: bug
+issues: []

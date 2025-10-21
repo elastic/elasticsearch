@@ -4108,7 +4108,8 @@ null             | null                            | null            | null     
 ;
 
 
-inlineStatsAfterPruningAggregate7
+inlineStatsAfterPruningAggregate7-Ignore
+// temporarily forbid LIMIT before INLINE STATS
 // https://github.com/elastic/elasticsearch/issues/135679
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
@@ -4135,8 +4136,9 @@ VizcTbjMnBlQ:long | wXPJguff:double
 ;
 
 
-inlineStatsAfterPruningAggregate8
+inlineStatsAfterPruningAggregate8-Ignore
 // https://github.com/elastic/elasticsearch/issues/135679
+// temporarily forbid LIMIT before INLINE STATS
 required_capability: inline_stats_double_release_fix
 
 from dense_vector,airport_city_boundaries

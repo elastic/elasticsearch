@@ -76,8 +76,9 @@ public class UpdateJobProcessNotifier {
 
     boolean submitJobUpdate(UpdateParams update, ActionListener<Boolean> listener) {
         boolean offered = orderedJobUpdates.offer(new UpdateHolder(update, listener));
-        if (!offered) {
-            logger.warn("Update queue is full ({}), failed to submit update for job [{}]", orderedJobUpdates.size(), update.getJobId());
+        if (offered == false) {
+            logger.warn("Update queue is full ({}), failed to submit update for job [{}]",
+                orderedJobUpdates.size(), update.getJobId());
         }
         return offered;
     }
@@ -99,7 +100,7 @@ public class UpdateJobProcessNotifier {
         List<UpdateHolder> updates = new ArrayList<>(orderedJobUpdates.size());
         try {
             orderedJobUpdates.drainTo(updates);
-            if (!updates.isEmpty()) {
+            if (updates.isEmpty() == false) {
                 logger.info("Processing [{}] queued job updates", updates.size());
                 long startTime = System.currentTimeMillis();
                 executeProcessUpdates(new VolatileCursorIterator<>(updates));

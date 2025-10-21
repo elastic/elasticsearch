@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.search;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -245,7 +243,9 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
             this.startGate = startGate;
         }
 
-        void start() { startGate.countDown(); }
+        void start() {
+            startGate.countDown();
+        }
 
         void stopAndAwait(TimeValue timeout) throws InterruptedException {
             running.set(false);

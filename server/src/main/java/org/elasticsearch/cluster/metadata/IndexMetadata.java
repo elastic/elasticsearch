@@ -152,6 +152,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     // 'event.ingested' (part of Elastic Common Schema) range is tracked in cluster state, along with @timestamp
     public static final String EVENT_INGESTED_FIELD_NAME = "event.ingested";
 
+    private static final TransportVersion INDEX_RESHARDING_METADATA = TransportVersion.fromName("index_resharding_metadata");
+
     @Nullable
     public String getDownsamplingInterval() {
         return settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL_KEY);
@@ -1196,71 +1198,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return numberOfShards;
     }
 
-    /**
-     * This method is used in the context of the resharding feature.
-     * Given a {@code shardId} and {@code minShardState} i.e. the minimum target shard state required for
-     * an operation to be routed to target shards,
-     * this method returns the "effective" shard count as seen by this IndexMetadata.
-     *
-     * The reshardSplitShardCountSummary tells us whether the coordinator routed requests to the source shard or
-     * to both source and target shards. Requests are routed to both source and target shards
-     * once the target shards are ready for an operation.
-     *
-     * The coordinator routes requests to source and target shards, based on its cluster state view of the state of shards
-     * undergoing a resharding operation. This method is used to populate a field in the shard level requests sent to
-     * source and target shards, as a proxy for the cluster state version. The same calculation is then done at the source shard
-     * to verify if the coordinator and source node's view of the resharding state have a mismatch.
-     * See {@link org.elasticsearch.action.support.replication.ReplicationRequest#reshardSplitShardCountSummary}
-     * for a detailed description of how this value is used.
-     *
-     * @param shardId  Input shardId for which we want to calculate the effective shard count
-     * @param minShardState Minimum target shard state required for the target to be considered ready
-     * @return Effective shard count as seen by an operation using this IndexMetadata
-     */
-    private int getReshardSplitShardCountSummary(int shardId, IndexReshardingState.Split.TargetShardState minShardState) {
-        assert shardId >= 0 && shardId < getNumberOfShards() : "shardId is out of bounds";
-        int shardCount = getNumberOfShards();
-        if (reshardingMetadata != null) {
-            if (reshardingMetadata.getSplit().isTargetShard(shardId)) {
-                int sourceShardId = reshardingMetadata.getSplit().sourceShard(shardId);
-                // Requests cannot be routed to target shards until they are ready
-                assert reshardingMetadata.getSplit().allTargetStatesAtLeast(sourceShardId, minShardState) : "unexpected target state";
-                shardCount = reshardingMetadata.getSplit().shardCountAfter();
-            } else if (reshardingMetadata.getSplit().isSourceShard(shardId)) {
-                if (reshardingMetadata.getSplit().allTargetStatesAtLeast(shardId, minShardState)) {
-                    shardCount = reshardingMetadata.getSplit().shardCountAfter();
-                } else {
-                    shardCount = reshardingMetadata.getSplit().shardCountBefore();
-                }
-            }
-        }
-        return shardCount;
-    }
-
-    /**
-     * This method is used in the context of the resharding feature.
-     * Given a {@code shardId}, this method returns the "effective" shard count
-     * as seen by this IndexMetadata, for indexing operations.
-     *
-     * See {@code getReshardSplitShardCountSummary} for more details.
-     * @param shardId  Input shardId for which we want to calculate the effective shard count
-     */
-    public int getReshardSplitShardCountSummaryForIndexing(int shardId) {
-        return (getReshardSplitShardCountSummary(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF));
-    }
-
-    /**
-     * This method is used in the context of the resharding feature.
-     * Given a {@code shardId}, this method returns the "effective" shard count
-     * as seen by this IndexMetadata, for search operations.
-     *
-     * See {@code getReshardSplitShardCount} for more details.
-     * @param shardId  Input shardId for which we want to calculate the effective shard count
-     */
-    public int getReshardSplitShardCountSummaryForSearch(int shardId) {
-        return (getReshardSplitShardCountSummary(shardId, IndexReshardingState.Split.TargetShardState.SPLIT));
-    }
-
     public int getNumberOfReplicas() {
         return numberOfReplicas;
     }
@@ -1810,7 +1747,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 eventIngestedRange = IndexLongFieldRange.UNKNOWN;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+            if (in.getTransportVersion().supports(INDEX_RESHARDING_METADATA)) {
                 reshardingMetadata = in.readOptionalWriteable(IndexReshardingMetadata::new);
             } else {
                 reshardingMetadata = null;
@@ -1853,7 +1790,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeOptionalLong(shardSizeInBytesForecast);
             }
             eventIngestedRange.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+            if (out.getTransportVersion().supports(INDEX_RESHARDING_METADATA)) {
                 out.writeOptionalWriteable(reshardingMetadata);
             }
         }
@@ -1960,7 +1897,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
         builder.eventIngestedRange(IndexLongFieldRange.readFrom(in));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+        if (in.getTransportVersion().supports(INDEX_RESHARDING_METADATA)) {
             builder.reshardingMetadata(in.readOptionalWriteable(IndexReshardingMetadata::new));
         }
         return builder.build(true);
@@ -2012,7 +1949,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalLong(shardSizeInBytesForecast);
         }
         eventIngestedRange.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+        if (out.getTransportVersion().supports(INDEX_RESHARDING_METADATA)) {
             out.writeOptionalWriteable(reshardingMetadata);
         }
     }

@@ -25,6 +25,8 @@ import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionAction.Request> {
 
+    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
+
     public void testValidation_ReturnsException_When_UnifiedCompletionRequestMessage_Is_Null() {
         var request = new UnifiedCompletionAction.Request(
             "inference_id",
@@ -81,14 +83,14 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             instance,
             getNamedWriteableRegistry(),
             instanceReader(),
-            TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
+            TransportVersions.V_8_18_0
         );
         assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
     }
 
     @Override
     protected UnifiedCompletionAction.Request mutateInstanceForVersion(UnifiedCompletionAction.Request instance, TransportVersion version) {
-        if (version.before(TransportVersions.INFERENCE_CONTEXT)) {
+        if (version.supports(INFERENCE_CONTEXT) == false) {
             return new UnifiedCompletionAction.Request(
                 instance.getInferenceEntityId(),
                 instance.getTaskType(),
@@ -112,14 +114,30 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             randomAlphaOfLength(10),
             randomFrom(TaskType.values()),
             UnifiedCompletionRequestTests.randomUnifiedCompletionRequest(),
-            InferenceContext.EMPTY_INSTANCE,
+            new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
     }
 
     @Override
     protected UnifiedCompletionAction.Request mutateInstance(UnifiedCompletionAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String inferenceEntityId = instance.getInferenceEntityId();
+        TaskType taskType = instance.getTaskType();
+        UnifiedCompletionRequest unifiedCompletionRequest = instance.getUnifiedCompletionRequest();
+        InferenceContext inferenceContext = instance.getContext();
+        TimeValue timeout = instance.getTimeout();
+        switch (between(0, 4)) {
+            case 0 -> inferenceEntityId = randomValueOtherThan(inferenceEntityId, () -> randomAlphaOfLength(10));
+            case 1 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
+            case 2 -> unifiedCompletionRequest = randomValueOtherThan(
+                unifiedCompletionRequest,
+                () -> UnifiedCompletionRequestTests.randomUnifiedCompletionRequest()
+            );
+            case 3 -> inferenceContext = randomValueOtherThan(inferenceContext, () -> new InferenceContext(randomAlphaOfLength(10)));
+            case 4 -> timeout = randomValueOtherThan(timeout, () -> TimeValue.timeValueMillis(randomLongBetween(1, 2048)));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UnifiedCompletionAction.Request(inferenceEntityId, taskType, unifiedCompletionRequest, timeout);
     }
 
     @Override

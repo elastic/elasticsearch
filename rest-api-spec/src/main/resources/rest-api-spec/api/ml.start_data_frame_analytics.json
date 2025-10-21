@@ -33,11 +33,13 @@
     "params": {
       "timeout": {
         "type": "time",
+        "default": "20s",
         "description": "Controls the time to wait until the task has started. Defaults to 20 seconds"
       }
     },
     "body": {
-      "description": "The start data frame analytics parameters"
+      "description": "The start data frame analytics parameters",
+      "required": false
     }
   }
 }

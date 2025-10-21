@@ -36,6 +36,10 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationSerializationTests extends ESTestCase {
 
+    private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
+        "security_cloud_api_key_realm_and_type"
+    );
+
     public void testWriteToAndReadFrom() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
         BytesStreamOutput output = new BytesStreamOutput();
@@ -148,7 +152,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
             final TransportVersion version = TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersions.V_8_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)
+                TransportVersionUtils.getPreviousVersion(SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)
             );
             out.setTransportVersion(version);
 
@@ -157,7 +161,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                        + SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
                         + "] can't handle cloud API key authentication and attempted to send to ["
                         + out.getTransportVersion().toReleaseVersion()
                         + "]"

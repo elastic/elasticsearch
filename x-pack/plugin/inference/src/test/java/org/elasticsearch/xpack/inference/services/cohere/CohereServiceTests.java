@@ -39,8 +39,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -69,13 +69,13 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
@@ -1351,7 +1351,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1362,7 +1362,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
                 assertArrayEquals(
                     new float[] { 0.223f, -0.223f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1448,10 +1448,10 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 var byteResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(byteResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 1), byteResult.chunks().get(0).offset());
-                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingByteResults.Embedding.class));
+                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingByteResults.Embedding.class));
                 assertArrayEquals(
                     new byte[] { 23, -23 },
-                    ((TextEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
+                    ((DenseEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
                 );
             }
             {
@@ -1459,10 +1459,10 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 var byteResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(byteResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 2), byteResult.chunks().get(0).offset());
-                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingByteResults.Embedding.class));
+                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingByteResults.Embedding.class));
                 assertArrayEquals(
                     new byte[] { 24, -24 },
-                    ((TextEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
+                    ((DenseEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
                 );
             }
 
@@ -1556,7 +1556,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                             "model_id": {
                                 "description": "The name of the model to use for the inference task.",
                                 "label": "Model ID",
-                                "required": false,
+                                "required": true,
                                 "sensitive": false,
                                 "updatable": false,
                                 "type": "str",

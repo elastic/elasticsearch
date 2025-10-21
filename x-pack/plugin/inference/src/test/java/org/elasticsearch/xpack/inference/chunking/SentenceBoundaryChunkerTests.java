@@ -11,6 +11,8 @@ import com.ibm.icu.text.BreakIterator;
 
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;

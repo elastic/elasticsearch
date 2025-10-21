@@ -107,7 +107,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
-    private final DiscoveryNodes discoveryNodes;
+    private final Supplier<DiscoveryNodes> discoveryNodes;
 
     AbstractSearchAsyncAction(
         String name,
@@ -163,7 +163,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
         this.mintransportVersion = clusterState.getMinTransportVersion();
-        this.discoveryNodes = clusterState.nodes();
+        this.discoveryNodes = () -> clusterState.nodes();
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
         // register the release of the query consumer to free up the circuit breaker memory
@@ -636,7 +636,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     namedWriteableRegistry,
                     mintransportVersion,
                     searchTransportService,
-                    discoveryNodes,
+                    discoveryNodes.get(),
                     logger
                 );
             } else {

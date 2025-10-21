@@ -168,6 +168,42 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:DEBUG",
         reason = "ensure we're skipping reroute for the right reason"
     )
+    public void testRerouteIsNotCalledInAnAllNodesAreHotSpottingCluster() {
+        final int numberOfNodes = randomIntBetween(1, 5);
+        final TestState testState = createTestStateWithNumberOfNodesAndHotSpots(numberOfNodes, numberOfNodes);
+        final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
+            testState.clusterSettings,
+            testState.currentTimeSupplier,
+            () -> testState.clusterState,
+            testState.mockRerouteService
+        );
+        try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "don't reroute when all nodes are hot-spotting",
+                    WriteLoadConstraintMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "Nodes * are above the queue latency threshold, but there are no nodes below the threshold. Cannot rebalance shards."
+                )
+            );
+
+            writeLoadConstraintMonitor.onNewInfo(
+                createClusterInfoWithHotSpots(
+                    testState.clusterState,
+                    numberOfNodes,
+                    testState.latencyThresholdMillis,
+                    testState.highUtilizationThresholdPercent
+                )
+            );
+            mockLog.assertAllExpectationsMatched();
+            verifyNoInteractions(testState.mockRerouteService);
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:DEBUG",
+        reason = "ensure we're skipping reroute for the right reason"
+    )
     public void testRerouteIsNotCalledAgainBeforeMinimumIntervalHasPassed() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
         final TimeValue minimumInterval = testState.clusterSettings.get(
@@ -281,9 +317,14 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     private TestState createRandomTestStateThatWillTriggerReroute() {
+        int numberOfNodes = randomIntBetween(3, 10);
+        int numberOfHotSpottingNodes = numberOfNodes - 2; // Leave at least 1 non-hot-spotting node.
+        return createTestStateWithNumberOfNodesAndHotSpots(numberOfNodes, numberOfHotSpottingNodes);
+    }
+
+    private TestState createTestStateWithNumberOfNodesAndHotSpots(int numberOfNodes, int numberOfHotSpottingNodes) {
         final long queueLatencyThresholdMillis = randomLongBetween(1000, 5000);
         final int highUtilizationThresholdPercent = randomIntBetween(70, 100);
-        final int numberOfNodes = randomIntBetween(3, 10);
         final ClusterSettings clusterSettings = createClusterSettings(
             WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED,
             queueLatencyThresholdMillis,
@@ -297,7 +338,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final RerouteService rerouteService = mock(RerouteService.class);
         final ClusterInfo clusterInfo = createClusterInfoWithHotSpots(
             state,
-            randomIntBetween(1, numberOfNodes - 2),
+            randomIntBetween(1, numberOfHotSpottingNodes),
             queueLatencyThresholdMillis,
             highUtilizationThresholdPercent
         );
@@ -354,6 +395,13 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         long queueLatencyThresholdMillis,
         int highUtilizationThresholdPercent
     ) {
+        assert numberOfNodesHotSpotting <= state.getRoutingNodes().size()
+            : "Requested "
+                + numberOfNodesHotSpotting
+                + " hot spotting nodes, but there are only "
+                + state.getRoutingNodes().size()
+                + " nodes in the cluster";
+
         final float maxRatioForUnderUtilised = (highUtilizationThresholdPercent - 1) / 100.0f;
         final AtomicInteger hotSpottingNodes = new AtomicInteger(numberOfNodesHotSpotting);
         return ClusterInfo.builder()

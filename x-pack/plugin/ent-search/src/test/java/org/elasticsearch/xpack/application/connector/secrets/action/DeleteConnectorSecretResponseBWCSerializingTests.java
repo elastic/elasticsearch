@@ -28,7 +28,7 @@ public class DeleteConnectorSecretResponseBWCSerializingTests extends AbstractBW
 
     @Override
     protected DeleteConnectorSecretResponse mutateInstance(DeleteConnectorSecretResponse instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new DeleteConnectorSecretResponse(instance.isDeleted() == false);
     }
 
     @Override

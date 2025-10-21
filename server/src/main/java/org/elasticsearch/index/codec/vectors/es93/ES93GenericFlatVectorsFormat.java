@@ -26,7 +26,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     // TODO: replace with DenseVectorFieldMapper.ElementType
     public enum ElementType {
         STANDARD,
-        BIT,    // only supports byte[]
+        BIT,        // only supports byte[]
         BFLOAT16    // only supports float[]
     }
 
@@ -47,7 +47,14 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     private static final DirectIOCapableFlatVectorsFormat standardVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
-    private static final DirectIOCapableFlatVectorsFormat bitVectorFormat = new ES93BitFlatVectorsFormat();
+    private static final DirectIOCapableFlatVectorsFormat bitVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+        ES93FlatBitVectorScorer.INSTANCE
+    ) {
+        @Override
+        public String getName() {
+            return "ES93BitFlatVectorsFormat";
+        }
+    };
     // TODO: a separate scorer for bfloat16
     private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()

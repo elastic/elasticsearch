@@ -9,156 +9,112 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
-import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
-import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
-import org.apache.lucene.index.KnnVectorValues;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 
 import java.io.IOException;
+import java.util.Map;
 
-public final class ES93BitFlatVectorsFormat extends DirectIOCapableFlatVectorsFormat {
+public final class ES93BitFlatVectorsFormat extends KnnVectorsFormat {
 
-    private static final DirectIOCapableFlatVectorsFormat delegate = new DirectIOCapableLucene99FlatVectorsFormat(
-        FlatBitVectorScorer.INSTANCE
+    private static final String NAME = "ES93BitFlatVectorsFormat";
+
+    private static final ES93GenericFlatVectorsFormat delegate = new ES93GenericFlatVectorsFormat(
+        ES93GenericFlatVectorsFormat.ElementType.BIT,
+        false
     );
 
     public ES93BitFlatVectorsFormat() {
-        super("ES93BitFlatVectorsFormat");
+        super(NAME);
     }
 
     @Override
-    public FlatVectorsScorer flatVectorsScorer() {
-        return FlatBitVectorScorer.INSTANCE;
+    public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        return delegate.fieldsWriter(state);
     }
 
     @Override
-    public FlatVectorsWriter fieldsWriter(SegmentWriteState segmentWriteState) throws IOException {
-        return delegate.fieldsWriter(segmentWriteState);
+    public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        return new FlatVectorReader(delegate.fieldsReader(state));
     }
 
     @Override
-    protected FlatVectorsReader createReader(SegmentReadState state) throws IOException {
-        return delegate.fieldsReader(state);
+    public int getMaxDimensions(String fieldName) {
+        return delegate.getMaxDimensions(fieldName);
     }
 
     @Override
-    public FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException {
-        return delegate.fieldsReader(state, useDirectIO);
+    public String toString() {
+        return NAME;
     }
 
-    static class FlatBitVectorScorer implements FlatVectorsScorer {
+    static class FlatVectorReader extends KnnVectorsReader {
 
-        static final FlatBitVectorScorer INSTANCE = new FlatBitVectorScorer();
+        private final FlatVectorsReader reader;
 
-        static void checkDimensions(int queryLen, int fieldLen) {
-            if (queryLen != fieldLen) {
-                throw new IllegalArgumentException("vector query dimension: " + queryLen + " differs from field dimension: " + fieldLen);
-            }
+        FlatVectorReader(FlatVectorsReader reader) {
+            super();
+            this.reader = reader;
         }
 
         @Override
-        public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
-            VectorSimilarityFunction vectorSimilarityFunction,
-            KnnVectorValues vectorValues
-        ) throws IOException {
-            assert vectorValues instanceof ByteVectorValues;
-            assert vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-            if (vectorValues instanceof ByteVectorValues byteVectorValues) {
-                assert byteVectorValues instanceof QuantizedByteVectorValues == false;
-                return new HammingScorerSupplier(byteVectorValues);
-            }
-            throw new IllegalArgumentException("Unsupported vector type or similarity function");
+        public void checkIntegrity() throws IOException {
+            reader.checkIntegrity();
         }
 
         @Override
-        public RandomVectorScorer getRandomVectorScorer(
-            VectorSimilarityFunction vectorSimilarityFunction,
-            KnnVectorValues vectorValues,
-            byte[] target
-        ) throws IOException {
-            assert vectorValues instanceof ByteVectorValues;
-            assert vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-            if (vectorValues instanceof ByteVectorValues byteVectorValues) {
-                checkDimensions(target.length, byteVectorValues.dimension());
-                return new HammingVectorScorer(byteVectorValues, target);
-            }
-            throw new IllegalArgumentException("Unsupported vector type or similarity function");
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            return reader.getFloatVectorValues(field);
         }
 
         @Override
-        public RandomVectorScorer getRandomVectorScorer(
-            VectorSimilarityFunction similarityFunction,
-            KnnVectorValues vectorValues,
-            float[] target
-        ) throws IOException {
-            throw new IllegalArgumentException("Unsupported vector type");
-        }
-    }
-
-    static float hammingScore(byte[] a, byte[] b) {
-        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
-    }
-
-    static class HammingVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
-        private final byte[] query;
-        private final ByteVectorValues byteValues;
-
-        HammingVectorScorer(ByteVectorValues byteValues, byte[] query) {
-            super(byteValues);
-            this.query = query;
-            this.byteValues = byteValues;
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            return reader.getByteVectorValues(field);
         }
 
         @Override
-        public float score(int i) throws IOException {
-            return hammingScore(byteValues.vectorValue(i), query);
-        }
-    }
-
-    static class HammingScorerSupplier implements RandomVectorScorerSupplier {
-        private final ByteVectorValues byteValues, targetValues;
-
-        HammingScorerSupplier(ByteVectorValues byteValues) throws IOException {
-            this.byteValues = byteValues;
-            this.targetValues = byteValues.copy();
+        public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+            collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
         }
 
-        @Override
-        public UpdateableRandomVectorScorer scorer() throws IOException {
-            return new UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer(targetValues) {
-                private final byte[] query = new byte[targetValues.dimension()];
-                private int currentOrd = -1;
-
-                @Override
-                public void setScoringOrdinal(int i) throws IOException {
-                    if (currentOrd == i) {
-                        return;
-                    }
-                    System.arraycopy(targetValues.vectorValue(i), 0, query, 0, query.length);
-                    this.currentOrd = i;
+        private void collectAllMatchingDocs(KnnCollector knnCollector, AcceptDocs acceptDocs, RandomVectorScorer scorer)
+            throws IOException {
+            OrdinalTranslatedKnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
+            Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
+            for (int i = 0; i < scorer.maxOrd(); i++) {
+                if (acceptedOrds == null || acceptedOrds.get(i)) {
+                    collector.collect(i, scorer.score(i));
+                    collector.incVisitedCount(1);
                 }
-
-                @Override
-                public float score(int i) throws IOException {
-                    return hammingScore(targetValues.vectorValue(i), query);
-                }
-            };
+            }
+            assert collector.earlyTerminated() == false;
         }
 
         @Override
-        public RandomVectorScorerSupplier copy() throws IOException {
-            return new HammingScorerSupplier(byteValues);
+        public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+            collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+        }
+
+        @Override
+        public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+            return reader.getOffHeapByteSize(fieldInfo);
+        }
+
+        @Override
+        public void close() throws IOException {
+            reader.close();
         }
     }
-
 }

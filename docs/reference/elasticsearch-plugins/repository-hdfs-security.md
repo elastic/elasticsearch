@@ -55,6 +55,7 @@ PUT _snapshot/my_hdfs_repository
   }
 }
 ```
+% TEST[skip:we don't have hdfs set up while testing this]
 
 If you are using different service principals for each node, you can use the `_HOST` pattern in your principal name. Elasticsearch will automatically replace the pattern with the hostname of the node at runtime:
 
@@ -69,7 +70,7 @@ PUT _snapshot/my_hdfs_repository
   }
 }
 ```
-
+% TEST[skip:we don't have hdfs set up while testing this]
 
 ## Authorization [repository-hdfs-security-authorization]
 

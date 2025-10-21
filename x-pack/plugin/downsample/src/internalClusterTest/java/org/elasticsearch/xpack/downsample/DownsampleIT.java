@@ -127,7 +127,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         downsampleAndAssert(dataStreamName, mapping, sourceSupplier, randomBoolean() ? null : DownsampleConfig.SamplingMethod.AGGREGATE);
     }
 
-    public void testDownsamplingDownsamplingMode() throws Exception {
+    public void testDownsamplingMode() throws Exception {
         String dataStreamName = "metrics-foo";
         String mapping = """
             {

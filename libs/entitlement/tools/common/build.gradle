@@ -12,3 +12,9 @@ apply plugin: 'elasticsearch.build'
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
+
+dependencies {
+  implementation(project(':libs:core'))
+  implementation 'org.ow2.asm:asm:9.8'
+  implementation 'org.ow2.asm:asm-util:9.8'
+}

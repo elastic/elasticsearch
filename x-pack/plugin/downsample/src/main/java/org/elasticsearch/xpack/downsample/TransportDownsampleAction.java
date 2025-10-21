@@ -747,7 +747,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final XContentBuilder builder
     ) {
         // The last value sampling method preserves the source mapping.
-        if (config.getOrDefault() == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+        if (config.getSamplingMethodOrDefault() == DownsampleConfig.SamplingMethod.LAST_VALUE) {
             return;
         }
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
@@ -872,10 +872,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 } catch (IllegalArgumentException exception) {
                     e.addValidationError("Source index is a downsampled index. " + exception.getMessage());
                 }
-                if (Objects.equals(sourceSamplingMethod, config.getOrDefault()) == false) {
+                if (Objects.equals(sourceSamplingMethod, config.getSamplingMethodOrDefault()) == false) {
                     e.addValidationError(
                         "Source index is a downsampled index. Downsampling method ["
-                            + config.getOrDefault()
+                            + config.getSamplingMethodOrDefault()
                             + "] is not compatible with the source index downsampling method ["
                             + sourceSamplingMethod
                             + "]."
@@ -988,7 +988,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
             .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.STARTED)
             .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsampleInterval)
-            .put(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey(), request.getDownsampleConfig().getOrDefault().toString())
+            .put(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey(), request.getDownsampleConfig().getSamplingMethodOrDefault().toString())
             .put(IndexSettings.MODE.getKey(), sourceIndexMetadata.getIndexMode())
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths())
             .put(

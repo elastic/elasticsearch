@@ -230,7 +230,7 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     /**
      * @return the sampling method that will be used based on this configuration.
      */
-    public SamplingMethod getOrDefault() {
+    public SamplingMethod getSamplingMethodOrDefault() {
         return SamplingMethod.getOrDefault(samplingMethod);
     }
 

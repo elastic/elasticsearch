@@ -2550,45 +2550,43 @@ public class InternalEngine extends Engine {
         if (onlyExpungeDeletes && maxNumSegments >= 0) {
             throw new IllegalArgumentException("only_expunge_deletes and max_num_segments are mutually exclusive");
         }
-        try (var reader = DirectoryReader.open(indexWriter)) {
-            final var segmentCommitInfos = SegmentInfos.readCommit(reader.directory(), reader.getIndexCommit().getSegmentsFileName());
-            if (hasUncommittedChanges()) {
-                return false;
-            }
-
-            final var segmentsToMerge = new HashMap<SegmentCommitInfo, Boolean>();
-            for (int i = 0; i < segmentCommitInfos.size(); i++) {
-                final var segmentInfo = segmentCommitInfos.info(i);
-                if (onlyExpungeDeletes && segmentInfo.hasDeletions()) {
-                    return false;
-                }
-                segmentsToMerge.put(segmentInfo, Boolean.TRUE);
-            }
-            if (onlyExpungeDeletes) {
-                return true;
-            }
-
-            final MergePolicy.MergeSpecification mergeSpecification;
-            if (maxNumSegments < 0) {
-                mergeSpecification = indexWriter.getConfig()
-                    .getMergePolicy()
-                    .findMerges(MergeTrigger.EXPLICIT, segmentCommitInfos, indexWriter);
-            } else {
-                mergeSpecification = indexWriter.getConfig()
-                    .getMergePolicy()
-                    .findForcedMerges(segmentCommitInfos, maxNumSegments, segmentsToMerge, indexWriter);
-            }
-            if (mergeSpecification != null && mergeSpecification.merges.isEmpty() == false) {
-                return false;
-            }
-            if (hasUncommittedChanges()) {
-                return false;
-            }
-            final var latestCommit = SegmentInfos.readCommit(reader.directory(), reader.getIndexCommit().getSegmentsFileName());
-            // We check if the latest commit is the same as the one we initially read. If not, something changed while we were checking,
-            // so we return false to be safe.
-            return latestCommit.getGeneration() == segmentCommitInfos.getGeneration();
+        final var segmentCommitInfos = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        if (hasUncommittedChanges()) {
+            return false;
         }
+
+        final var segmentsToMerge = new HashMap<SegmentCommitInfo, Boolean>();
+        for (int i = 0; i < segmentCommitInfos.size(); i++) {
+            final var segmentInfo = segmentCommitInfos.info(i);
+            if (onlyExpungeDeletes && segmentInfo.hasDeletions()) {
+                return false;
+            }
+            segmentsToMerge.put(segmentInfo, Boolean.TRUE);
+        }
+        if (onlyExpungeDeletes) {
+            return true;
+        }
+
+        final MergePolicy.MergeSpecification mergeSpecification;
+        if (maxNumSegments < 0) {
+            mergeSpecification = indexWriter.getConfig()
+                .getMergePolicy()
+                .findMerges(MergeTrigger.EXPLICIT, segmentCommitInfos, indexWriter);
+        } else {
+            mergeSpecification = indexWriter.getConfig()
+                .getMergePolicy()
+                .findForcedMerges(segmentCommitInfos, maxNumSegments, segmentsToMerge, indexWriter);
+        }
+        if (mergeSpecification != null && mergeSpecification.merges.isEmpty() == false) {
+            return false;
+        }
+        if (hasUncommittedChanges()) {
+            return false;
+        }
+        final var latestCommit = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        // We check if the latest commit is the same as the one we initially read. If not, something changed while we were checking,
+        // so we return false to be safe.
+        return latestCommit.getGeneration() == segmentCommitInfos.getGeneration();
     }
 
     private IndexCommitRef acquireIndexCommitRef(final Supplier<IndexCommit> indexCommitSupplier) {

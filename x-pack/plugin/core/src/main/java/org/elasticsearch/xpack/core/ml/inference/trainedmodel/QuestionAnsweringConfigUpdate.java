@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -51,7 +52,10 @@ public class QuestionAnsweringConfigUpdate extends NlpConfigUpdate implements Na
     }
 
     @SuppressWarnings({ "unchecked" })
-    private static final ObjectParser<Builder, Void> STRICT_PARSER = new ObjectParser<>(NAME, Builder::new);
+    private static final ObjectParser<QuestionAnsweringConfigUpdate.Builder, Void> STRICT_PARSER = new ObjectParser<>(
+        NAME,
+        QuestionAnsweringConfigUpdate.Builder::new
+    );
 
     static {
         STRICT_PARSER.declareString(Builder::setQuestion, QUESTION);
@@ -175,7 +179,9 @@ public class QuestionAnsweringConfigUpdate extends NlpConfigUpdate implements Na
         return question;
     }
 
-    public static class Builder implements InferenceConfigUpdate.Builder<Builder, QuestionAnsweringConfigUpdate> {
+    public static class Builder
+        implements
+            InferenceConfigUpdate.Builder<QuestionAnsweringConfigUpdate.Builder, QuestionAnsweringConfigUpdate> {
         private Integer numTopClasses;
         private Integer maxAnswerLength;
         private String resultsField;
@@ -183,7 +189,7 @@ public class QuestionAnsweringConfigUpdate extends NlpConfigUpdate implements Na
         private String question;
 
         @Override
-        public Builder setResultsField(String resultsField) {
+        public QuestionAnsweringConfigUpdate.Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
             return this;
         }
@@ -216,6 +222,6 @@ public class QuestionAnsweringConfigUpdate extends NlpConfigUpdate implements Na
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TransportVersions.V_8_3_0;
     }
 }

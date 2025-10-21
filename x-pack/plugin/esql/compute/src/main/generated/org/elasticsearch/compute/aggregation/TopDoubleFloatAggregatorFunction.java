@@ -126,18 +126,20 @@ public final class TopDoubleFloatAggregatorFunction implements AggregatorFunctio
 
   private void addRawBlock(DoubleBlock vBlock, FloatBlock outputValueBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      if (outputValueBlock.isNull(p)) {
+      int outputValueValueCount = outputValueBlock.getValueCount(p);
+      if (outputValueValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         int outputValueStart = outputValueBlock.getFirstValueIndex(p);
-        int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(p);
+        int outputValueEnd = outputValueStart + outputValueValueCount;
         for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
           float outputValueValue = outputValueBlock.getFloat(outputValueOffset);
           TopDoubleFloatAggregator.combine(state, vValue, outputValueValue);
@@ -151,18 +153,20 @@ public final class TopDoubleFloatAggregatorFunction implements AggregatorFunctio
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      if (outputValueBlock.isNull(p)) {
+      int outputValueValueCount = outputValueBlock.getValueCount(p);
+      if (outputValueValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         int outputValueStart = outputValueBlock.getFirstValueIndex(p);
-        int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(p);
+        int outputValueEnd = outputValueStart + outputValueValueCount;
         for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
           float outputValueValue = outputValueBlock.getFloat(outputValueOffset);
           TopDoubleFloatAggregator.combine(state, vValue, outputValueValue);

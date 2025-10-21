@@ -3176,5 +3176,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             builder.appendDouble(similarityFunction.calculateSimilarity(value, vectorAsBytes));
         }
+
+        public SimilarityFunction getSimilarityFunction() {
+            return similarityFunction;
+        }
     }
 }

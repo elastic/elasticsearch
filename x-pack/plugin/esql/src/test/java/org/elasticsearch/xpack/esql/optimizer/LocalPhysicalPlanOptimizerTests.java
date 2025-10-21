@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldFunctionAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -51,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -125,8 +129,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOptimizerTests {
 
     public static final List<DataType> UNNECESSARY_CASTING_DATA_TYPES = List.of(
@@ -1402,6 +1407,97 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var queryBuilder = as(queryExec.query(), MatchQueryBuilder.class);
         assertThat(queryBuilder.fieldName(), is("emp_no"));
         assertThat(queryBuilder.value(), is(123456));
+    }
+
+    /**
+     * Expcets
+     * ProjectExec[[s{r}#4]]
+     * \_TopNExec[[Order[s{r}#4,DESC,FIRST]],1000[INTEGER],8]
+     *   \_ExchangeExec[[s{r}#4],false]
+     *     \_ProjectExec[[s{r}#4]]
+     *       \_TopNExec[[Order[s{r}#4,DESC,FIRST]],1000[INTEGER],36]
+     *         \_EvalExec[[dense_vector_replaced_1{f}#29 AS s#4]]
+     *           \_FieldExtractExec[dense_vector_replaced_1{f}#29]
+     *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[], sort[] estimatedRowSize[20]
+     *             queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     */
+    public void testSimilarityFunctionPushdown() {
+        String query = """
+            from test
+            | eval s = v_dot_product(dense_vector, [0.1, 0.2, 0.3])
+            | sort s desc
+            | keep s
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        var project1 = as(plan, ProjectExec.class);
+        var topN1 = as(project1.child(), TopNExec.class);
+        var exchange = as(topN1.child(), ExchangeExec.class);
+        var project2 = as(exchange.child(), ProjectExec.class);
+        var topN2 = as(project2.child(), TopNExec.class);
+        assertThat(as(topN2.limit(), Literal.class).value(), is(1000));
+        var eval = as(topN2.child(), EvalExec.class);
+
+        // Alias is replaced by field function attribute
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("s"));
+        var fieldFunctionAttr = as(alias.child(), FieldFunctionAttribute.class);
+        assertThat(fieldFunctionAttr.fieldName().string(), is("dense_vector"));
+        assertThat(fieldFunctionAttr.name(), is("dense_vector_replaced_1"));
+        assertThat(fieldFunctionAttr.field().getName(), is("dense_vector"));
+        var blockLoaderFunction = as(fieldFunctionAttr.getBlockLoaderValueFunction(), DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction.class);
+        assertThat(blockLoaderFunction.getSimilarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+
+        // Field extract contains the replaced attribute and NOT the original dense vector field
+        var fieldExtract = as(eval.child(), FieldExtractExec.class);
+        assertThat(fieldExtract.attributesToExtract().stream().map(Attribute::name).toList(), contains("dense_vector_replaced_1"));
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+    }
+
+    /** Expects
+     * ProjectExec[[dense_vector{f}#28, s{r}#4]]
+     * \_TopNExec[[Order[s{r}#4,DESC,FIRST]],1000[INTEGER],4104]
+     *   \_ExchangeExec[[dense_vector{f}#28, s{r}#4],false]
+     *     \_ProjectExec[[dense_vector{f}#28, s{r}#4]]
+     *       \_TopNExec[[Order[s{r}#4,DESC,FIRST]],1000[INTEGER],4132]
+     *         \_EvalExec[[dense_vector_replaced_1{f}#30 AS s#4]]
+     *           \_FieldExtractExec[dense_vector_replaced_1{f}#30, dense_vector{f}#28]
+     *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#29], limit[], sort[]
+     *             estimatedRowSize[4116] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     */
+    public void testSimilarityFunctionPushdownWithDenseVector() {
+        String query = """
+            from test
+            | eval s = v_dot_product(dense_vector, [0.1, 0.2, 0.3])
+            | sort s desc
+            | keep dense_vector, s
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        var project1 = as(plan, ProjectExec.class);
+        var topN1 = as(project1.child(), TopNExec.class);
+        var exchange = as(topN1.child(), ExchangeExec.class);
+        var project2 = as(exchange.child(), ProjectExec.class);
+        var topN2 = as(project2.child(), TopNExec.class);
+        assertThat(as(topN2.limit(), Literal.class).value(), is(1000));
+        var eval = as(topN2.child(), EvalExec.class);
+
+        // Alias is replaced by field function attribute
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("s"));
+        var fieldFunctionAttr = as(alias.child(), FieldFunctionAttribute.class);
+        assertThat(fieldFunctionAttr.fieldName().string(), is("dense_vector"));
+        assertThat(fieldFunctionAttr.name(), is("dense_vector_replaced_1"));
+        assertThat(fieldFunctionAttr.field().getName(), is("dense_vector"));
+        var blockLoaderFunction = as(fieldFunctionAttr.getBlockLoaderValueFunction(), DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction.class);
+        assertThat(blockLoaderFunction.getSimilarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+
+        // Field extract contains both the replaced attribute and the original dense vector field
+        var fieldExtract = as(eval.child(), FieldExtractExec.class);
+        assertThat(fieldExtract.attributesToExtract().stream().map(Attribute::name).toList(), containsInAnyOrder("dense_vector_replaced_1", "dense_vector"));
+        as(fieldExtract.child(), EsQueryExec.class);
     }
 
     public void testMatchFunction() {

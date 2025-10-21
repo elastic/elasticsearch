@@ -369,7 +369,7 @@ class APMJvmOptions {
 
         try (var apmStream = Files.list(apmModule)) {
             final List<Path> paths = apmStream.filter(
-                path -> path.getFileName().toString().matches("elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")
+                path -> path.getFileName().toString().matches("elastic-apm-agent-java8-\\d+\\.\\d+\\.\\d+\\.jar")
             ).toList();
 
             if (paths.size() > 1) {

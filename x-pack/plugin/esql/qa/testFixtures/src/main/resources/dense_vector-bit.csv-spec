@@ -3,6 +3,10 @@ required_capability: dense_vector_agg_metric_double_if_versions
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
+<<<<<<< HEAD
+=======
+| EVAL k = v_l2_norm(bit_vector, [1,2])  // workaround to enable fetching dense_vector
+>>>>>>> main
 | KEEP id, bit_vector
 | SORT id
 ;

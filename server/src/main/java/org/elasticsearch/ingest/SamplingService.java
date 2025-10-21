@@ -9,23 +9,36 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.IngestConditionalScript;
@@ -41,9 +54,13 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
@@ -58,6 +75,17 @@ public class SamplingService implements ClusterStateListener {
     private final ProjectResolver projectResolver;
     private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
+    private final MasterServiceTaskQueue<UpdateSamplingConfigurationTask> updateSamplingConfigurationTaskQueue;
+    private final MasterServiceTaskQueue<DeleteSampleConfigurationTask> deleteSamplingConfigurationTaskQueue;
+
+    private static final Setting<Integer> MAX_CONFIGURATIONS_SETTING = Setting.intSetting(
+        "sampling.max_configurations",
+        100,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /*
      * This Map contains the samples that exist on this node. They are not persisted to disk. They are stored as SoftReferences so that
      * sampling does not contribute to a node running out of memory. The idea is that access to samples is desirable, but not critical. We
@@ -75,6 +103,16 @@ public class SamplingService implements ClusterStateListener {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.relativeMillisTimeSupplier = relativeMillisTimeSupplier;
+        this.updateSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
+            "update-sampling-configuration",
+            Priority.NORMAL,
+            new UpdateSamplingConfigurationExecutor()
+        );
+        this.deleteSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
+            "delete-sampling-configuration",
+            Priority.NORMAL,
+            new DeleteSampleConfigurationExecutor()
+        );
     }
 
     /**
@@ -147,8 +185,12 @@ public class SamplingService implements ClusterStateListener {
         SampleStats stats = sampleInfo.stats;
         stats.potentialSamples.increment();
         try {
-            if (sampleInfo.hasCapacity() == false) {
+            if (sampleInfo.isFull) {
                 stats.samplesRejectedForMaxSamplesExceeded.increment();
+                return;
+            }
+            if (sampleInfo.getSizeInBytes() + indexRequest.source().length() > samplingConfig.maxSize().getBytes()) {
+                stats.samplesRejectedForSize.increment();
                 return;
             }
             if (Math.random() >= samplingConfig.rate()) {
@@ -257,9 +299,112 @@ public class SamplingService implements ClusterStateListener {
         }
     }
 
+    public void updateSampleConfiguration(
+        ProjectId projectId,
+        String index,
+        SamplingConfiguration samplingConfiguration,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        // Early validation: check if adding a new configuration would exceed the limit
+        ClusterState clusterState = clusterService.state();
+        boolean maxConfigLimitBreached = checkMaxConfigLimitBreached(projectId, index, clusterState);
+        if (maxConfigLimitBreached) {
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(clusterState.getMetadata().settings());
+            listener.onFailure(
+                new IllegalStateException(
+                    "Cannot add sampling configuration for index ["
+                        + index
+                        + "]. Maximum number of sampling configurations ("
+                        + maxConfigurations
+                        + ") already reached."
+                )
+            );
+            return;
+        }
+
+        updateSamplingConfigurationTaskQueue.submitTask(
+            "Updating Sampling Configuration",
+            new UpdateSamplingConfigurationTask(projectId, index, samplingConfiguration, ackTimeout, listener),
+            masterNodeTimeout
+        );
+    }
+
+    public void deleteSampleConfiguration(
+        ProjectId projectId,
+        String index,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        deleteSamplingConfigurationTaskQueue.submitTask(
+            "deleting sampling configuration for index " + index,
+            new DeleteSampleConfigurationTask(projectId, index, ackTimeout, listener),
+            masterNodeTimeout
+        );
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        // TODO: React to sampling config changes
+        if (RANDOM_SAMPLING_FEATURE_FLAG == false) {
+            return;
+        }
+        if (samples.isEmpty()) {
+            return;
+        }
+        // We want to remove any samples if their sampling configuration has been deleted or modified.
+        if (event.metadataChanged()) {
+            /*
+             * First, we collect the union of all project ids in the current state and the previous one. We include the project ids from the
+             * previous state in case an entire project has been deleted -- in that case we would want to delete all of its samples.
+             */
+            Set<ProjectId> allProjectIds = Sets.union(
+                event.state().metadata().projects().keySet(),
+                event.previousState().metadata().projects().keySet()
+            );
+            for (ProjectId projectId : allProjectIds) {
+                if (event.customMetadataChanged(projectId, SamplingMetadata.TYPE)) {
+                    Map<String, SamplingConfiguration> oldSampleConfigsMap = Optional.ofNullable(
+                        event.previousState().metadata().projects().get(projectId)
+                    )
+                        .map(p -> (SamplingMetadata) p.custom(SamplingMetadata.TYPE))
+                        .map(SamplingMetadata::getIndexToSamplingConfigMap)
+                        .orElse(Map.of());
+                    Map<String, SamplingConfiguration> newSampleConfigsMap = Optional.ofNullable(
+                        event.state().metadata().projects().get(projectId)
+                    )
+                        .map(p -> (SamplingMetadata) p.custom(SamplingMetadata.TYPE))
+                        .map(SamplingMetadata::getIndexToSamplingConfigMap)
+                        .orElse(Map.of());
+                    Set<String> indicesWithRemovedConfigs = new HashSet<>(oldSampleConfigsMap.keySet());
+                    indicesWithRemovedConfigs.removeAll(newSampleConfigsMap.keySet());
+                    /*
+                     * These index names no longer have sampling configurations associated with them. So we remove their samples. We are OK
+                     * with the fact that we have a race condition here -- it is possible that in maybeSample() the configuration still
+                     * exists but before the sample is read from samples it is deleted by this method and gets recreated. In the worst case
+                     * we'll have a small amount of memory being used until the sampling configuration is recreated or the TTL checker
+                     * reclaims it. The advantage is that we can avoid locking here, which could slow down ingestion.
+                     */
+                    for (String indexName : indicesWithRemovedConfigs) {
+                        logger.debug("Removing sample info for {} because its configuration has been removed", indexName);
+                        samples.remove(new ProjectIndex(projectId, indexName));
+                    }
+                    /*
+                     * Now we check if any of the sampling configurations have changed. If they have, we remove the existing sample. Same as
+                     * above, we have a race condition here that we can live with.
+                     */
+                    for (Map.Entry<String, SamplingConfiguration> entry : newSampleConfigsMap.entrySet()) {
+                        String indexName = entry.getKey();
+                        if (entry.getValue().equals(oldSampleConfigsMap.get(indexName)) == false) {
+                            logger.debug("Removing sample info for {} because its configuration has changed", indexName);
+                            samples.remove(new ProjectIndex(projectId, indexName));
+                        }
+                    }
+                }
+            }
+            // TODO: If an index has been deleted, we want to remove its sampling configuration
+        }
     }
 
     private boolean evaluateCondition(
@@ -289,6 +434,29 @@ public class SamplingService implements ClusterStateListener {
         }
     }
 
+    // Checks whether the maximum number of sampling configurations has been reached for the given project.
+    // If the limit is breached, it notifies the listener with an IllegalStateException and returns true.
+    private static boolean checkMaxConfigLimitBreached(ProjectId projectId, String index, ClusterState currentState) {
+        Metadata currentMetadata = currentState.metadata();
+        ProjectMetadata projectMetadata = currentMetadata.getProject(projectId);
+
+        if (projectMetadata != null) {
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+            Map<String, SamplingConfiguration> existingConfigs = samplingMetadata != null
+                ? samplingMetadata.getIndexToSamplingConfigMap()
+                : Map.of();
+
+            boolean isUpdate = existingConfigs.containsKey(index);
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(currentMetadata.settings());
+
+            // Only check limit for new configurations, not updates
+            if (isUpdate == false && existingConfigs.size() >= maxConfigurations) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /*
      * This represents a raw document as the user sent it to us in an IndexRequest. It only holds onto the information needed for the
      * sampling API, rather than holding all of the fields a user might send in an IndexRequest.
@@ -304,6 +472,10 @@ public class SamplingService implements ClusterStateListener {
             out.writeString(indexName);
             out.writeByteArray(source);
             XContentHelper.writeTo(out, contentType);
+        }
+
+        public long getSizeInBytes() {
+            return indexName.length() + source.length;
         }
 
         @Override
@@ -346,6 +518,7 @@ public class SamplingService implements ClusterStateListener {
         final LongAdder samplesRejectedForCondition = new LongAdder();
         final LongAdder samplesRejectedForRate = new LongAdder();
         final LongAdder samplesRejectedForException = new LongAdder();
+        final LongAdder samplesRejectedForSize = new LongAdder();
         final LongAdder timeSamplingInNanos = new LongAdder();
         final LongAdder timeEvaluatingConditionInNanos = new LongAdder();
         final LongAdder timeCompilingConditionInNanos = new LongAdder();
@@ -367,6 +540,7 @@ public class SamplingService implements ClusterStateListener {
             long samplesRejectedForCondition,
             long samplesRejectedForRate,
             long samplesRejectedForException,
+            long samplesRejectedForSize,
             TimeValue timeSampling,
             TimeValue timeEvaluatingCondition,
             TimeValue timeCompilingCondition,
@@ -378,6 +552,7 @@ public class SamplingService implements ClusterStateListener {
             this.samplesRejectedForCondition.add(samplesRejectedForCondition);
             this.samplesRejectedForRate.add(samplesRejectedForRate);
             this.samplesRejectedForException.add(samplesRejectedForException);
+            this.samplesRejectedForSize.add(samplesRejectedForSize);
             this.timeSamplingInNanos.add(timeSampling.nanos());
             this.timeEvaluatingConditionInNanos.add(timeEvaluatingCondition.nanos());
             this.timeCompilingConditionInNanos.add(timeCompilingCondition.nanos());
@@ -390,6 +565,7 @@ public class SamplingService implements ClusterStateListener {
             samplesRejectedForCondition.add(in.readLong());
             samplesRejectedForRate.add(in.readLong());
             samplesRejectedForException.add(in.readLong());
+            samplesRejectedForSize.add(in.readLong());
             samples.add(in.readLong());
             timeSamplingInNanos.add(in.readLong());
             timeEvaluatingConditionInNanos.add(in.readLong());
@@ -423,6 +599,10 @@ public class SamplingService implements ClusterStateListener {
 
         public long getSamplesRejectedForException() {
             return samplesRejectedForException.longValue();
+        }
+
+        public long getSamplesRejectedForSize() {
+            return samplesRejectedForSize.longValue();
         }
 
         public TimeValue getTimeSampling() {
@@ -475,6 +655,7 @@ public class SamplingService implements ClusterStateListener {
             dest.samplesRejectedForCondition.add(source.samplesRejectedForCondition.longValue());
             dest.samplesRejectedForRate.add(source.samplesRejectedForRate.longValue());
             dest.samplesRejectedForException.add(source.samplesRejectedForException.longValue());
+            dest.samplesRejectedForSize.add(source.samplesRejectedForSize.longValue());
             dest.samples.add(source.samples.longValue());
             dest.timeSamplingInNanos.add(source.timeSamplingInNanos.longValue());
             dest.timeEvaluatingConditionInNanos.add(source.timeEvaluatingConditionInNanos.longValue());
@@ -492,6 +673,7 @@ public class SamplingService implements ClusterStateListener {
             builder.field("samples_rejected_for_condition", samplesRejectedForCondition.longValue());
             builder.field("samples_rejected_for_rate", samplesRejectedForRate.longValue());
             builder.field("samples_rejected_for_exception", samplesRejectedForException.longValue());
+            builder.field("samples_rejected_for_size", samplesRejectedForSize.longValue());
             builder.field("samples_accepted", samples.longValue());
             builder.humanReadableField("time_sampling_millis", "time_sampling", TimeValue.timeValueNanos(timeSamplingInNanos.longValue()));
             builder.humanReadableField(
@@ -515,6 +697,7 @@ public class SamplingService implements ClusterStateListener {
             out.writeLong(samplesRejectedForCondition.longValue());
             out.writeLong(samplesRejectedForRate.longValue());
             out.writeLong(samplesRejectedForException.longValue());
+            out.writeLong(samplesRejectedForSize.longValue());
             out.writeLong(samples.longValue());
             out.writeLong(timeSamplingInNanos.longValue());
             out.writeLong(timeEvaluatingConditionInNanos.longValue());
@@ -558,6 +741,9 @@ public class SamplingService implements ClusterStateListener {
             if (samplesRejectedForException.longValue() != that.samplesRejectedForException.longValue()) {
                 return false;
             }
+            if (samplesRejectedForSize.longValue() != that.samplesRejectedForSize.longValue()) {
+                return false;
+            }
             if (timeSamplingInNanos.longValue() != that.timeSamplingInNanos.longValue()) {
                 return false;
             }
@@ -598,6 +784,7 @@ public class SamplingService implements ClusterStateListener {
                 samplesRejectedForCondition.longValue(),
                 samplesRejectedForRate.longValue(),
                 samplesRejectedForException.longValue(),
+                samplesRejectedForSize.longValue(),
                 timeSamplingInNanos.longValue(),
                 timeEvaluatingConditionInNanos.longValue(),
                 timeCompilingConditionInNanos.longValue()
@@ -637,6 +824,16 @@ public class SamplingService implements ClusterStateListener {
      */
     private static final class SampleInfo {
         private final RawDocument[] rawDocuments;
+        /*
+         * This stores the maximum index in rawDocuments that has data currently. This is incremented speculatively before writing data to
+         * the array, so it is possible that this index is rawDocuments.length or greater.
+         */
+        private final AtomicInteger rawDocumentsIndex = new AtomicInteger(-1);
+        /*
+         * This caches the size of all raw documents in the rawDocuments array up to and including the data at the index on the left side
+         * of the tuple. The size in bytes is the right side of the tuple.
+         */
+        private volatile Tuple<Integer, Long> sizeInBytesAtIndex = Tuple.tuple(-1, 0L);
         private final SampleStats stats;
         private final long expiration;
         private final TimeValue timeToLive;
@@ -644,17 +841,12 @@ public class SamplingService implements ClusterStateListener {
         private volatile IngestConditionalScript.Factory factory;
         private volatile boolean compilationFailed = false;
         private volatile boolean isFull = false;
-        private final AtomicInteger arrayIndex = new AtomicInteger(0);
 
         SampleInfo(int maxSamples, TimeValue timeToLive, long relativeNowMillis) {
             this.timeToLive = timeToLive;
             this.rawDocuments = new RawDocument[maxSamples];
             this.stats = new SampleStats();
             this.expiration = (timeToLive == null ? TimeValue.timeValueDays(5).millis() : timeToLive.millis()) + relativeNowMillis;
-        }
-
-        public boolean hasCapacity() {
-            return isFull == false;
         }
 
         /*
@@ -666,10 +858,54 @@ public class SamplingService implements ClusterStateListener {
         }
 
         /*
+         * This gets an approximate size in bytes for this sample. It only takes the size of the raw documents into account, since that is
+         * the only part of the sample that is not a fixed size. This method favors speed over 100% correctness -- it is possible during
+         * heavy concurrent ingestion that it under-reports the current size.
+         */
+        public long getSizeInBytes() {
+            /*
+             * This method could get called very frequently during ingestion. Looping through every RawDocument every time would get
+             * expensive. Since the data in the rawDocuments array is immutable once it has been written, we store the index and value of
+             * the computed size if all raw documents up to that index are non-null (i.e. no documents were still in flight as we were
+             * counting). That way we don't have to re-compute the size for documents we've already looked at.
+             */
+            Tuple<Integer, Long> knownIndexAndSize = sizeInBytesAtIndex;
+            int knownSizeIndex = knownIndexAndSize.v1();
+            long knownSize = knownIndexAndSize.v2();
+            // It is possible that rawDocumentsIndex is beyond the end of rawDocuments
+            int currentRawDocumentsIndex = Math.min(rawDocumentsIndex.get(), rawDocuments.length - 1);
+            if (currentRawDocumentsIndex == knownSizeIndex) {
+                return knownSize;
+            }
+            long size = knownSize;
+            boolean anyNulls = false;
+            for (int i = knownSizeIndex + 1; i <= currentRawDocumentsIndex; i++) {
+                RawDocument rawDocument = rawDocuments[i];
+                if (rawDocument == null) {
+                    /*
+                     * Some documents were in flight and haven't been stored in the array yet, so we'll move past this. The size will be a
+                     * little low on this method call. So we're going to set this flag so that we don't store this value for future use.
+                     */
+                    anyNulls = true;
+                } else {
+                    size += rawDocuments[i].getSizeInBytes();
+                }
+            }
+            /*
+             * The most important thing is for this method to be fast. It is OK if we store the same value twice, or even if we store a
+             * slightly out-of-date copy, as long as we don't do any locking. The correct size will be calculated next time.
+             */
+            if (anyNulls == false) {
+                sizeInBytesAtIndex = Tuple.tuple(currentRawDocumentsIndex, size);
+            }
+            return size;
+        }
+
+        /*
          * Adds the rawDocument to the sample if there is capacity. Returns true if it adds it, or false if it does not.
          */
         public boolean offer(RawDocument rawDocument) {
-            int index = arrayIndex.getAndIncrement();
+            int index = rawDocumentsIndex.incrementAndGet();
             if (index < rawDocuments.length) {
                 rawDocuments[index] = rawDocument;
                 if (index == rawDocuments.length - 1) {
@@ -683,6 +919,180 @@ public class SamplingService implements ClusterStateListener {
         void setScript(Script script, IngestConditionalScript.Factory factory) {
             this.script = script;
             this.factory = factory;
+        }
+    }
+
+    static class UpdateSamplingConfigurationTask extends AckedBatchedClusterStateUpdateTask {
+        private final ProjectId projectId;
+        private final String indexName;
+        private final SamplingConfiguration samplingConfiguration;
+
+        UpdateSamplingConfigurationTask(
+            ProjectId projectId,
+            String indexName,
+            SamplingConfiguration samplingConfiguration,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.projectId = projectId;
+            this.indexName = indexName;
+            this.samplingConfiguration = samplingConfiguration;
+        }
+    }
+
+    static class UpdateSamplingConfigurationExecutor extends SimpleBatchedAckListenerTaskExecutor<UpdateSamplingConfigurationTask> {
+        private static final Logger logger = LogManager.getLogger(UpdateSamplingConfigurationExecutor.class);
+
+        UpdateSamplingConfigurationExecutor() {}
+
+        @Override
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+            UpdateSamplingConfigurationTask updateSamplingConfigurationTask,
+            ClusterState clusterState
+        ) {
+            logger.debug(
+                "Updating sampling configuration for index [{}] with rate [{}],"
+                    + " maxSamples [{}], maxSize [{}], timeToLive [{}], condition [{}], creationTime [{}]",
+                updateSamplingConfigurationTask.indexName,
+                updateSamplingConfigurationTask.samplingConfiguration.rate(),
+                updateSamplingConfigurationTask.samplingConfiguration.maxSamples(),
+                updateSamplingConfigurationTask.samplingConfiguration.maxSize(),
+                updateSamplingConfigurationTask.samplingConfiguration.timeToLive(),
+                updateSamplingConfigurationTask.samplingConfiguration.condition(),
+                updateSamplingConfigurationTask.samplingConfiguration.creationTime()
+            );
+
+            // Get sampling metadata
+            Metadata metadata = clusterState.getMetadata();
+            ProjectMetadata projectMetadata = metadata.getProject(updateSamplingConfigurationTask.projectId);
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+
+            boolean isNewConfiguration = samplingMetadata == null; // for logging
+            int existingConfigCount = isNewConfiguration ? 0 : samplingMetadata.getIndexToSamplingConfigMap().size();
+            logger.trace(
+                "Current sampling metadata state: {} (number of existing configurations: {})",
+                isNewConfiguration ? "null" : "exists",
+                existingConfigCount
+            );
+
+            // Update with new sampling configuration if it exists or create new sampling metadata with the configuration
+            Map<String, SamplingConfiguration> updatedConfigMap = new HashMap<>();
+            if (samplingMetadata != null) {
+                updatedConfigMap.putAll(samplingMetadata.getIndexToSamplingConfigMap());
+            }
+            boolean isUpdate = updatedConfigMap.containsKey(updateSamplingConfigurationTask.indexName);
+
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(metadata.settings());
+            // check if adding a new configuration would exceed the limit
+            boolean maxConfigLimitBreached = checkMaxConfigLimitBreached(
+                updateSamplingConfigurationTask.projectId,
+                updateSamplingConfigurationTask.indexName,
+                clusterState
+            );
+            if (maxConfigLimitBreached) {
+                throw new IllegalStateException(
+                    "Cannot add sampling configuration for index ["
+                        + updateSamplingConfigurationTask.indexName
+                        + "]. Maximum number of sampling configurations ("
+                        + maxConfigurations
+                        + ") already reached."
+                );
+            }
+            updatedConfigMap.put(updateSamplingConfigurationTask.indexName, updateSamplingConfigurationTask.samplingConfiguration);
+
+            logger.trace(
+                "{} sampling configuration for index [{}], total configurations after update: {}",
+                isUpdate ? "Updated" : "Added",
+                updateSamplingConfigurationTask.indexName,
+                updatedConfigMap.size()
+            );
+
+            SamplingMetadata newSamplingMetadata = new SamplingMetadata(updatedConfigMap);
+
+            // Update cluster state
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, newSamplingMetadata);
+
+            // Return tuple with updated cluster state and the original listener
+            ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+
+            logger.debug(
+                "Successfully {} sampling configuration for index [{}]",
+                isUpdate ? "updated" : "created",
+                updateSamplingConfigurationTask.indexName
+            );
+            return new Tuple<>(updatedClusterState, updateSamplingConfigurationTask);
+        }
+    }
+
+    static final class DeleteSampleConfigurationTask extends AckedBatchedClusterStateUpdateTask {
+        private final ProjectId projectId;
+        private final String indexName;
+
+        DeleteSampleConfigurationTask(
+            ProjectId projectId,
+            String indexName,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.projectId = projectId;
+            this.indexName = indexName;
+        }
+    }
+
+    static final class DeleteSampleConfigurationExecutor extends SimpleBatchedAckListenerTaskExecutor<DeleteSampleConfigurationTask> {
+        private static final Logger logger = LogManager.getLogger(DeleteSampleConfigurationExecutor.class);
+
+        DeleteSampleConfigurationExecutor() {}
+
+        @Override
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+            DeleteSampleConfigurationTask deleteSampleConfigurationTask,
+            ClusterState clusterState
+        ) {
+            // Get sampling metadata
+            Metadata metadata = clusterState.getMetadata();
+            ProjectMetadata projectMetadata = metadata.getProject(deleteSampleConfigurationTask.projectId);
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+            Map<String, SamplingConfiguration> oldConfigMap = validateConfigExists(
+                deleteSampleConfigurationTask.indexName,
+                samplingMetadata
+            );
+            logger.debug("Deleting sampling configuration for index [{}]", deleteSampleConfigurationTask.indexName);
+
+            // Delete the sampling configuration if it exists
+            Map<String, SamplingConfiguration> updatedConfigMap = new HashMap<>(oldConfigMap);
+            updatedConfigMap.remove(deleteSampleConfigurationTask.indexName);
+            SamplingMetadata newSamplingMetadata = new SamplingMetadata(updatedConfigMap);
+
+            // Update cluster state
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, newSamplingMetadata);
+
+            // Return tuple with updated cluster state and the original listener
+            ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+
+            logger.debug(
+                "Successfully deleted sampling configuration for index [{}], total configurations after deletion: [{}]",
+                deleteSampleConfigurationTask.indexName,
+                updatedConfigMap.size()
+            );
+            return new Tuple<>(updatedClusterState, deleteSampleConfigurationTask);
+        }
+
+        // Validates that the configuration exists, returns the index to config map if it does.
+        private static Map<String, SamplingConfiguration> validateConfigExists(String indexName, SamplingMetadata samplingMetadata) {
+            final String exceptionMessage = "provided index [" + indexName + "] has no sampling configuration";
+            if (samplingMetadata == null) {
+                throw new ResourceNotFoundException(exceptionMessage);
+            }
+            Map<String, SamplingConfiguration> configMap = samplingMetadata.getIndexToSamplingConfigMap();
+            if (configMap == null || configMap.containsKey(indexName) == false) {
+                throw new ResourceNotFoundException(exceptionMessage);
+            }
+            return configMap;
         }
     }
 

@@ -152,7 +152,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             : null;
     }
 
-    boolean isForceMergeIndex() {
+    public boolean isForceMergeIndex() {
         return forceMergeIndex;
     }
 

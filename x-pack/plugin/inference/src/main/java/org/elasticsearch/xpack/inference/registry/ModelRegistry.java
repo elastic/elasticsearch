@@ -707,9 +707,16 @@ public class ModelRegistry implements ClusterStateListener {
         ActionListener<List<ModelStoreResponse>> listener,
         TimeValue timeout
     ) {
+        if (models.isEmpty()) {
+            listener.onResponse(List.of());
+            return;
+        }
+
+        var modelsWithoutDuplicates = models.stream().distinct().toList();
+
         var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (var model : models) {
+        for (var model : modelsWithoutDuplicates) {
             bulkRequestBuilder.add(
                 createIndexRequestBuilder(model.getInferenceEntityId(), InferenceIndex.INDEX_NAME, model.getConfigurations(), false, client)
             );
@@ -719,7 +726,7 @@ public class ModelRegistry implements ClusterStateListener {
             );
         }
 
-        bulkRequestBuilder.execute(getStoreMultipleModelsListener(models, updateClusterState, listener, timeout));
+        bulkRequestBuilder.execute(getStoreMultipleModelsListener(modelsWithoutDuplicates, updateClusterState, listener, timeout));
     }
 
     private ActionListener<BulkResponse> getStoreMultipleModelsListener(

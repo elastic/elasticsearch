@@ -599,6 +599,14 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), Matchers.is("Inference endpoint not found [1]"));
     }
 
+    public void testStoreModels_ReturnsEmptyList_WhenGivenNoModelsToStore() {
+        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        modelRegistry.storeModels(List.of(), storeListener, TimeValue.THIRTY_SECONDS);
+
+        var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
+        assertThat(response, is(List.of()));
+    }
+
     public void testStoreModels_StoresSingleInferenceEndpoint() {
         var inferenceId = "1";
         var secrets = "secret";
@@ -722,6 +730,40 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertNotNull(cause);
         assertThat(cause, instanceOf(VersionConflictEngineException.class));
         assertThat(cause.getMessage(), containsString("[model_1]: version conflict, document already exists"));
+
+        assertModelAndMinimalSettingsWithSecrets(modelRegistry, model1, secrets);
+        assertIndicesContainExpectedDocsCount(model1, 2);
+    }
+
+    public void testStoreModels_StoresOneModel_RemovesSecondDuplicateModelFromList_DoesNotThrowException() {
+        var secrets = "secret";
+        var inferenceId = "1";
+        var temperature = randomInt(3);
+
+        var model1 = new TestModel(
+            inferenceId,
+            TaskType.SPARSE_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(temperature),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        var model2 = new TestModel(
+            inferenceId,
+            TaskType.SPARSE_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(temperature),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        modelRegistry.storeModels(List.of(model1, model1, model2), storeListener, TimeValue.THIRTY_SECONDS);
+
+        var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
+        assertThat(response.size(), Matchers.is(1));
+        assertThat(response.get(0), Matchers.is(new ModelRegistry.ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
 
         assertModelAndMinimalSettingsWithSecrets(modelRegistry, model1, secrets);
         assertIndicesContainExpectedDocsCount(model1, 2);

@@ -4,17 +4,16 @@
 
 ```esql
 TS k8s
-| STATS bytes_in = sum(network.bytes_in),
-        // our network cards are rate-limited to 200bps so we clamp to that (just an example)
-        clamped_network_bytes_in = sum(clamp(network.bytes_in, 0, 200))
-        BY time_bucket = bucket(@timestamp,1minute)
+| EVAL full_clamped_cost = clamp(network.cost, clamp_max(network.bytes_in, 5), network.bytes_in / 100)
+| KEEP full_clamped_cost, @timestamp
 ```
 
-| bytes_in:long | clamped_network_bytes_in:long | time_bucket:datetime |
-| --- | --- | --- |
-| 1849 | 600 | 2024-05-10T00:00:00.000Z |
-| 2334 | 800 | 2024-05-10T00:01:00.000Z |
-| 3487 | 1178 | 2024-05-10T00:02:00.000Z |
-| 2941 | 861 | 2024-05-10T00:03:00.000Z |
+| full_clamped_cost:double | @timestamp:datetime |
+| --- | --- |
+| 10.0 | 2024-05-10T00:18:33.000Z |
+| 9.0 | 2024-05-10T00:04:49.000Z |
+| 9.0 | 2024-05-10T00:15:51.000Z |
+| 9.0 | 2024-05-10T00:17:12.000Z |
+| 9.0 | 2024-05-10T00:20:46.000Z |
 
 

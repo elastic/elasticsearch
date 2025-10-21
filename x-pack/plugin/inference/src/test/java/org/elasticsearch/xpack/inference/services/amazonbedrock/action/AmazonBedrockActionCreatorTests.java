@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.hamcrest.Matchers.is;
 
@@ -53,8 +53,8 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
 
     public void testEmbeddingsRequestAction_Titan() throws IOException {
         var serviceComponents = ServiceComponentsTests.createWithEmptySettings(threadPool);
-        var mockedFloatResults = List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F }));
-        var mockedResult = new TextEmbeddingFloatResults(mockedFloatResults);
+        var mockedFloatResults = List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F }));
+        var mockedResult = new DenseEmbeddingFloatResults(mockedFloatResults);
         try (var sender = new AmazonBedrockMockRequestSender()) {
             sender.enqueue(mockedResult);
             var creator = new AmazonBedrockActionCreator(sender, serviceComponents, TIMEOUT);
@@ -91,8 +91,8 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
 
     public void testEmbeddingsRequestAction_Cohere() throws IOException {
         var serviceComponents = ServiceComponentsTests.createWithEmptySettings(threadPool);
-        var mockedFloatResults = List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F }));
-        var mockedResult = new TextEmbeddingFloatResults(mockedFloatResults);
+        var mockedFloatResults = List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F }));
+        var mockedResult = new DenseEmbeddingFloatResults(mockedFloatResults);
         try (var sender = new AmazonBedrockMockRequestSender()) {
             sender.enqueue(mockedResult);
             var creator = new AmazonBedrockActionCreator(sender, serviceComponents, TIMEOUT);

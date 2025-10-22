@@ -52,10 +52,23 @@ public interface ClusterStateAckListener {
     /**
      * @return acknowledgement timeout, i.e. the maximum time interval to wait for a full set of acknowledgements. This time interval is
      *         measured from the start of the publication (which is after computing the new cluster state and serializing it as a transport
-     *         message). If the cluster state is committed (i.e. a quorum of master-eligible nodes have accepted the new state) and then
-     *         the timeout elapses then this listener is completed via {@link #onAckTimeout()}. This timeout does not apply while the
-     *         cluster state is not committed: if the cluster state update fails before committing then the failure is reported via
-     *         {@link #onAckFailure(Exception)} instead.
+     *         message). If the cluster state is committed (i.e. a quorum of master-eligible nodes have accepted the new state) and then the
+     *         timeout elapses then the corresponding listener is completed via {@link
+     *         org.elasticsearch.cluster.ClusterStateAckListener#onAckTimeout()}. Although the time interval is measured from the start of
+     *         the publication, it does not have any effect until the cluster state is not committed:
+     *         <ul>
+     *             <li>
+     *                If the cluster state update fails before committing then the failure is always reported via {@link
+     *                org.elasticsearch.cluster.ClusterStateAckListener#onAckFailure(Exception)} rather than {@link
+     *                org.elasticsearch.cluster.ClusterStateAckListener#onAckTimeout()}, and this may therefore happen some time after the
+     *                timeout period elapses.
+     *             </li>
+     *             <li>
+     *                If the cluster state update is eventually committed, but takes longer than {@code ackTimeout} to do so, then the
+     *                corresponding listener will be completed via {@link org.elasticsearch.cluster.ClusterStateAckListener#onAckTimeout()}
+     *                when it is committed, and this may therefore happen some time after the timeout period elapses.
+     *             </li>
+     *         </ul>
      *         <p>
      *         A timeout of {@link TimeValue#MINUS_ONE} means that the master should wait indefinitely for acknowledgements.
      *         <p>

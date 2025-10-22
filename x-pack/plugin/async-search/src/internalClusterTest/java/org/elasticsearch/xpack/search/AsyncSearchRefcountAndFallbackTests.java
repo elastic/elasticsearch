@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -17,7 +16,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
@@ -34,8 +32,6 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.junit.After;
 import org.junit.Before;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -115,23 +111,16 @@ public class AsyncSearchRefcountAndFallbackTests extends ESSingleNodeTestCase {
      * When the in-memory MutableSearchResponse has been released (tryIncRef == false),
      * the task falls back to the async-search store and returns the persisted response (200 OK).
      */
-    @SuppressForbidden(reason = "access violation required in order to read private field for this test")
     public void testFallbackToStoreWhenInMemoryResponseReleased() throws Exception {
         // Create an AsyncSearchTask
         AsyncSearchTask task = createAsyncSearchTask();
         assertNotNull(task);
 
-        // Get response instance and method from task
-        Field f = AsyncSearchTask.class.getDeclaredField("searchResponse");
-        f.setAccessible(true);
-        Method getResponse = AsyncSearchTask.class.getDeclaredMethod("getResponse", boolean.class, ActionListener.class);
-        getResponse.setAccessible(true);
-
         // Build a SearchResponse (ssr refCount -> 1) to be stored in the index
         SearchResponse storedSearchResponse = createSearchResponse(totalShards, totalShards, skippedShards);
 
         // Take a ref - (msr refCount -> 1, ssr refCount -> 2)
-        MutableSearchResponse msr = (MutableSearchResponse) f.get(task);
+        MutableSearchResponse msr = task.getSearchResponse();
         msr.updateShardsAndClusters(totalShards, skippedShards, /*clusters*/ null);
         msr.updateFinalResponse(storedSearchResponse, /*ccsMinimizeRoundtrips*/ false);
 
@@ -168,7 +157,7 @@ public class AsyncSearchRefcountAndFallbackTests extends ESSingleNodeTestCase {
         msr.decRef();
 
         PlainActionFuture<AsyncSearchResponse> future = new PlainActionFuture<>();
-        getResponse.invoke(task, true, future);
+        task.getResponse(future);
 
         AsyncSearchResponse resp = future.actionGet();
         assertNotNull("Expected response loaded from store", resp);
@@ -183,18 +172,11 @@ public class AsyncSearchRefcountAndFallbackTests extends ESSingleNodeTestCase {
      * When both the in-memory MutableSearchResponse has been released AND the stored
      * document has been deleted or not found, the task returns GONE (410).
      */
-    @SuppressForbidden(reason = "access violation required in order to read private field for this test")
     public void testGoneWhenInMemoryReleasedAndStoreMissing() throws Exception {
         AsyncSearchTask task = createAsyncSearchTask();
 
-        Field f = AsyncSearchTask.class.getDeclaredField("searchResponse");
-        f.setAccessible(true);
-        Method getResponse = AsyncSearchTask.class.getDeclaredMethod("getResponse", boolean.class, ActionListener.class);
-        getResponse.setAccessible(true);
-
         SearchResponse searchResponse = createSearchResponse(totalShards, totalShards, skippedShards);
-
-        MutableSearchResponse msr = (MutableSearchResponse) f.get(task);
+        MutableSearchResponse msr = task.getSearchResponse();
         msr.updateShardsAndClusters(totalShards, skippedShards, null);
         msr.updateFinalResponse(searchResponse, false);
 
@@ -223,9 +205,10 @@ public class AsyncSearchRefcountAndFallbackTests extends ESSingleNodeTestCase {
         del.actionGet();
 
         // Now the task must surface GONE
-        PlainActionFuture<AsyncSearchResponse> fut = new PlainActionFuture<>();
-        getResponse.invoke(task, /*restoreHeaders*/ true, fut);
-        Exception ex = expectThrows(Exception.class, fut::actionGet);
+        PlainActionFuture<AsyncSearchResponse> future = new PlainActionFuture<>();
+        task.getResponse(future);
+
+        Exception ex = expectThrows(Exception.class, future::actionGet);
         Throwable cause = ExceptionsHelper.unwrapCause(ex);
         assertThat(cause, instanceOf(ElasticsearchStatusException.class));
         assertThat(ExceptionsHelper.status(cause), is(RestStatus.GONE));

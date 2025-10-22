@@ -370,8 +370,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     /**
      * Invokes the listener with the current {@link AsyncSearchResponse}
      * without restoring response headers into the calling thread context.
+     *
+     * Visible for testing
      */
-    private void getResponse(ActionListener<AsyncSearchResponse> listener) {
+     void getResponse(ActionListener<AsyncSearchResponse> listener) {
         getResponse(false, listener);
     }
 
@@ -424,6 +426,11 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         } finally {
             mutableSearchResponse.decRef();
         }
+    }
+
+    // Visible for testing.
+    MutableSearchResponse getSearchResponse() {
+        return searchResponse;
     }
 
     // checks if the search task should be cancelled

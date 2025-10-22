@@ -197,8 +197,10 @@ public class AggregatorImplementer {
         builder.addMethod(addRawInput());
         builder.addMethod(addRawInputExploded(true));
         builder.addMethod(addRawInputExploded(false));
-        builder.addMethod(addRawVector(false));
-        builder.addMethod(addRawVector(true));
+        if (aggParams.getFirst() instanceof BlockArgument == false) {
+            builder.addMethod(addRawVector(false));
+            builder.addMethod(addRawVector(true));
+        }
         builder.addMethod(addRawBlock(false));
         builder.addMethod(addRawBlock(true));
         builder.addMethod(addIntermediateInput());
@@ -344,9 +346,9 @@ public class AggregatorImplementer {
                 + (hasMask ? ", mask" : "")
                 + ")";
 
-            if (isBlockArgument == false) {
-                a.resolveVectors(builder, rawBlock, "return");
-            } else {
+            a.resolveVectors(builder, rawBlock, "return");
+
+            if (isBlockArgument) {
                 builder.addStatement(rawBlock);
             }
         }
@@ -360,10 +362,9 @@ public class AggregatorImplementer {
     }
 
     private MethodSpec addRawVector(boolean masked) {
-        MethodSpec.Builder builder = initAddRaw(true, masked);
+        MethodSpec.Builder builder = initAddRaw(false, masked);
         if (aggParams.getFirst() instanceof BlockArgument) {
-            builder.addComment("This type does not support vectors because all values are multi-valued");
-            return builder.build();
+            throw new IllegalStateException("The BlockArgument type does not support vectors because all values are multi-valued");
         }
 
         if (first != null) {
@@ -421,7 +422,7 @@ public class AggregatorImplementer {
     }
 
     private MethodSpec addRawBlock(boolean masked) {
-        MethodSpec.Builder builder = initAddRaw(false, masked);
+        MethodSpec.Builder builder = initAddRaw(true, masked);
 
         builder.beginControlFlow("for (int p = 0; p < $L.getPositionCount(); p++)", aggParams.getFirst().blockName());
         {
@@ -484,16 +485,11 @@ public class AggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec.Builder initAddRaw(boolean valuesAreVector, boolean masked) {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder(valuesAreVector ? "addRawVector" : "addRawBlock");
+    private MethodSpec.Builder initAddRaw(boolean blockStyle, boolean masked) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(blockStyle ? "addRawBlock" : "addRawVector");
         builder.addModifiers(Modifier.PRIVATE);
         for (Argument a : aggParams) {
-            boolean isBlockArgument = a instanceof BlockArgument;
-            TypeName typeName = isBlockArgument ? Types.elementType(a.type()) : a.type();
-            builder.addParameter(
-                valuesAreVector ? vectorType(typeName) : blockType(typeName),
-                valuesAreVector ? a.vectorName() : a.blockName()
-            );
+            a.declareProcessParameter(builder, blockStyle);
         }
         if (masked) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");

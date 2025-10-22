@@ -26,6 +26,8 @@ import javax.lang.model.type.TypeMirror;
 
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.vectorType;
 import static org.elasticsearch.compute.gen.argument.StandardArgument.isBlockType;
 
 /**
@@ -48,7 +50,7 @@ public interface Argument {
 
         Position position = v.getAnnotation(Position.class);
         if (position != null) {
-            return new PositionArgument();
+            return new PositionArgument(type, name);
         }
 
         if (type instanceof ClassName c
@@ -106,6 +108,10 @@ public interface Argument {
     String name();
 
     TypeName type();
+
+    default TypeName elementType() {
+        return type();
+    }
 
     /**
      * Type containing the actual data for a page of values for this field. Usually a
@@ -196,6 +202,16 @@ public interface Argument {
             params += ", " + scratchName();
         }
         builder.addStatement("$T $L = $L.$L($L)", type(), valueName(), accessor, getMethod(type()), params);
+    }
+
+    /**
+     * Adds the parameter declaration for this argument to the method spec.
+     */
+    default void declareProcessParameter(MethodSpec.Builder builder, boolean blockStyle) {
+        TypeName typeName = elementType();
+        ClassName parameterType = blockStyle ? blockType(typeName) : vectorType(typeName);
+        String parameterName = blockStyle ? blockName() : vectorName();
+        builder.addParameter(parameterType, parameterName);
     }
 
     /**

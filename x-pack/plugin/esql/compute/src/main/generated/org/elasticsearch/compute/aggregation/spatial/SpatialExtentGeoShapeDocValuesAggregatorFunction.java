@@ -80,14 +80,6 @@ public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements A
     addRawBlock(valuesBlock);
   }
 
-  private void addRawVector(IntVector valuesVector) {
-    // This type does not support vectors because all values are multi-valued
-  }
-
-  private void addRawVector(IntVector valuesVector, BooleanVector mask) {
-    // This type does not support vectors because all values are multi-valued
-  }
-
   private void addRawBlock(IntBlock valuesBlock) {
     for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
       int valuesValueCount = valuesBlock.getValueCount(p);

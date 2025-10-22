@@ -16,17 +16,7 @@ import java.util.List;
 /**
  * The position in a block.
  */
-public record PositionArgument() implements Argument {
-    @Override
-    public String name() {
-        return null;
-    }
-
-    @Override
-    public TypeName type() {
-        return null;
-    }
-
+public record PositionArgument(TypeName type, String name) implements Argument {
     @Override
     public TypeName dataType(boolean blockStyle) {
         return TypeName.INT;

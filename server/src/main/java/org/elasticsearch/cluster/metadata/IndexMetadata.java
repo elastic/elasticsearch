@@ -1363,6 +1363,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_DOWNSAMPLE_STATUS_KEY = "index.downsample.status";
     public static final String INDEX_DOWNSAMPLE_INTERVAL_KEY = "index.downsample.interval";
+    public static final String INDEX_DOWNSAMPLE_METHOD_KEY = "index.downsample.sampling_method";
     public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_UUID = Setting.simpleString(
         INDEX_DOWNSAMPLE_SOURCE_UUID_KEY,
         Property.IndexScope,
@@ -1407,6 +1408,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final Setting<String> INDEX_DOWNSAMPLE_INTERVAL = Setting.simpleString(
         INDEX_DOWNSAMPLE_INTERVAL_KEY,
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> INDEX_DOWNSAMPLE_METHOD = Setting.simpleString(
+        INDEX_DOWNSAMPLE_METHOD_KEY,
         Property.IndexScope,
         Property.InternalIndex
     );

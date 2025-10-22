@@ -1187,6 +1187,84 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testRenameOrDropTimestmapWithLastOverTime() {
+        assertThat(
+            error(
+                "TS k8s | RENAME @timestamp AS newTs | STATS max(last_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
+                k8s
+            ),
+            equalTo("1:49: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(last_over_time(network.eth0.tx))", k8s),
+            equalTo("1:38: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithFirstOverTime() {
+        assertThat(
+            error(
+                "TS k8s | RENAME @timestamp AS newTs | STATS max(first_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
+                k8s
+            ),
+            equalTo("1:49: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(first_over_time(network.eth0.tx))", k8s),
+            equalTo("1:38: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithIncrease() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(increase(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(increase(network.eth0.tx))", k8s),
+            equalTo("1:38: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithIRate() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(irate(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(irate(network.eth0.tx))", k8s),
+            equalTo("1:38: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithDelta() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(delta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(delta(network.eth0.tx))", k8s),
+            equalTo("1:38: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithIDelta() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(idelta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(idelta(network.eth0.tx))", k8s),
+            equalTo("1:38: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
     public void testRenameOrDropTimestampWithTBucket() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)", k8s),

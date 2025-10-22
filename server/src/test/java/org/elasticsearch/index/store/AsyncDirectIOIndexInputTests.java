@@ -12,13 +12,18 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class AsyncDirectIOIndexInputTests extends ESTestCase {
@@ -169,4 +174,88 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
         }
     }
 
+    public void testPrefetchGetsCleanUp() throws IOException {
+        int numVectors = randomIntBetween(100, 1000);
+        int numDimensions = randomIntBetween(100, 10000);
+        Path path = createTempDir("testDirectIODirectory");
+        byte[] bytes = new byte[numDimensions * Float.BYTES];
+        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+        float[][] vectors = new float[numVectors][numDimensions];
+        try (Directory dir = new NIOFSDirectory(path)) {
+            try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
+                for (int i = 0; i < numVectors; i++) {
+                    random().nextBytes(bytes);
+                    output.writeBytes(bytes, bytes.length);
+                    buffer.asFloatBuffer().get(vectors[i]);
+                }
+            }
+
+            final int blockSize = getBlockSize(path);
+            final int bufferSize = 8192;
+            // fetch all
+            try (AsyncDirectIOIndexInput actualInput = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, bufferSize, 64)) {
+                assertPrefetchSlots(actualInput, numDimensions, numVectors, i -> i, vectors);
+            }
+            // fetch all in slice
+            try (AsyncDirectIOIndexInput actualInput = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, bufferSize, 64)) {
+                int start = randomIntBetween(0, numVectors - 1);
+                float[][] vectorsSlice = Arrays.copyOfRange(vectors, start, numVectors);
+                long sliceStart = (long) start * bytes.length;
+                assertPrefetchSlots(
+                    (AsyncDirectIOIndexInput) actualInput.slice("slice", sliceStart, actualInput.length() - sliceStart),
+                    numDimensions,
+                    vectorsSlice.length,
+                    i -> i,
+                    vectorsSlice
+                );
+            }
+            // random fetch
+            List<Integer> tempList = new ArrayList<>(numVectors);
+            for (int i = 0; i < numVectors; i++) {
+                tempList.add(i);
+            }
+            Collections.shuffle(tempList, random());
+            List<Integer> subList = tempList.subList(0, randomIntBetween(1, numVectors));
+            Collections.sort(subList);
+            try (AsyncDirectIOIndexInput actualInput = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, bufferSize, 64)) {
+                assertPrefetchSlots(actualInput, numDimensions, subList.size(), subList::get, vectors);
+            }
+        }
+    }
+
+    private static void assertPrefetchSlots(
+        AsyncDirectIOIndexInput actualInput,
+        int numDimensions,
+        int numVectors,
+        IntToIntFunction ords,
+        float[][] vectors
+    ) throws IOException {
+        int prefetchSize = randomIntBetween(1, 64);
+        float[] floats = new float[numDimensions];
+        long bytesLength = (long) numDimensions * Float.BYTES;
+        int limit = numVectors - prefetchSize + 1;
+        int i = 0;
+        for (; i < limit; i += prefetchSize) {
+            int ord = ords.apply(i);
+            for (int j = 0; j < prefetchSize; j++) {
+                actualInput.prefetch((ord + j) * bytesLength, bytesLength);
+            }
+            for (int j = 0; j < prefetchSize; j++) {
+                actualInput.seek((ord + j) * bytesLength);
+                actualInput.readFloats(floats, 0, floats.length);
+                assertArrayEquals(vectors[ord + j], floats, 0.0f);
+            }
+            assertEquals(0, actualInput.prefetchSlots());
+        }
+        for (int k = i; k < numVectors; k++) {
+            actualInput.prefetch(ords.apply(k) * bytesLength, bytesLength);
+        }
+        for (; i < numVectors; i++) {
+            int ord = ords.apply(i);
+            actualInput.seek(ord * bytesLength);
+            actualInput.readFloats(floats, 0, floats.length);
+            assertArrayEquals(vectors[ord], floats, 0.0f);
+        }
+        assertEquals(0, actualInput.prefetchSlots());
+    }
 }

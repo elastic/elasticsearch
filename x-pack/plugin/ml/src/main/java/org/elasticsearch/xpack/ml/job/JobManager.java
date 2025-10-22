@@ -632,7 +632,6 @@ public class JobManager {
 
         // Respond immediately to prevent API timeouts
         updateListener.onResponse(Boolean.TRUE);
-
         // Continue with background processing
         processCalendarUpdatesAsync(calendarJobIds, openJobIds);
     }
@@ -660,33 +659,35 @@ public class JobManager {
         }
 
         logger.info("Starting background calendar event updates for [{}] jobs", jobIds.size());
-
         AtomicInteger succeeded = new AtomicInteger();
         AtomicInteger failed = new AtomicInteger();
+        AtomicInteger skipped = new AtomicInteger();
         long startTime = System.currentTimeMillis();
 
         ActionListener<Boolean> backgroundListener = ActionListener.wrap(success -> {
             long duration = System.currentTimeMillis() - startTime;
             logger.info(
-                "Background calendar updates completed in [{}ms]: {} succeeded, {} failed",
+                "Background calendar updates completed in [{}ms]: {} succeeded, {} failed, {} skipped",
                 duration,
                 succeeded.get(),
-                failed.get()
+                failed.get(),
+                skipped.get()
             );
         }, failure -> {
             long duration = System.currentTimeMillis() - startTime;
             logger.error(
-                "Background calendar updates failed after [{}ms]: {} succeeded, {} failed",
+                "Background calendar updates failed after [{}ms]: {} succeeded, {} failed, {} skipped",
                 duration,
                 succeeded.get(),
                 failed.get(),
+                skipped.get(),
                 failure
             );
         });
 
         // Execute on utility thread pool to avoid blocking transport threads
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            submitJobEventUpdateSync(jobIds, backgroundListener, succeeded, failed);
+            submitJobEventUpdateSync(jobIds, backgroundListener, succeeded, failed, skipped);
         });
     }
 
@@ -694,8 +695,10 @@ public class JobManager {
         Collection<String> jobIds,
         ActionListener<Boolean> updateListener,
         AtomicInteger succeeded,
-        AtomicInteger failed
+        AtomicInteger failed,
+        AtomicInteger skipped
     ) {
+        // Use RefCountingListener to track all parallel updates and complete the listener when all updates are completed.
         try (var refs = new RefCountingListener(updateListener.delegateFailureAndWrap((l, v) -> { l.onResponse(true); }))) {
             // Instead of calling `updateJobProcessNotifier.submitJobUpdate()`, directly call `UpdateProcessAction`
             // to bypass the queue and avoid the scalability issues. Since calendar and filter updates fetch the latest state from the
@@ -705,6 +708,7 @@ public class JobManager {
 
                 executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request, refs.acquire().delegateResponse((l, e) -> {
                     if (isExpectedFailure(e)) {
+                        skipped.incrementAndGet();
                         logger.debug("[{}] Calendar update skipped: {}", jobId, e.getMessage());
                     } else {
                         failed.incrementAndGet();

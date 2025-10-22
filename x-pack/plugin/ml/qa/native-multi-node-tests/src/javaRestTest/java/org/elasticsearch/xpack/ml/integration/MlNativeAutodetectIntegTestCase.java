@@ -472,21 +472,6 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     /**
-     * Helper method to create and open multiple jobs
-     */
-    protected List<String> createAndOpenMultipleJobs(String prefix, int count, TimeValue bucketSpan) {
-        List<String> jobIds = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            String jobId = prefix + "-" + i;
-            Job.Builder job = createJob(jobId, bucketSpan);
-            putJob(job);
-            openJob(jobId);
-            jobIds.add(jobId);
-        }
-        return jobIds;
-    }
-
-    /**
      * Helper method to create a job
      */
     protected Job.Builder createJob(String jobId, TimeValue bucketSpan) {

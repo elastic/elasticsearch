@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -106,14 +105,8 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(3),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            )
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2h")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(3), new DateHistogramInterval("2h"))
                         )
                     )
                     .buildTemplate()
@@ -129,14 +122,8 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(30),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            )
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2h")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(30), new DateHistogramInterval("2h"))
                         )
                     )
                     .buildTemplate()
@@ -149,14 +136,8 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(30),
-                                new DownsampleConfig(new DateHistogramInterval("3h"))
-                            )
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2h")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(30), new DateHistogramInterval("3h"))
                         )
                     )
                     .buildTemplate()
@@ -180,7 +161,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
                             .map(
                                 i -> new DataStreamLifecycle.DownsamplingRound(
                                     TimeValue.timeValueDays(i),
-                                    new DownsampleConfig(new DateHistogramInterval(i + "h"))
+                                    new DateHistogramInterval(i + "h")
                                 )
                             )
                             .toList()
@@ -195,12 +176,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
                 IllegalArgumentException.class,
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
-                        List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2m"))
-                            )
-                        )
+                        List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2m")))
                     )
                     .buildTemplate()
             );

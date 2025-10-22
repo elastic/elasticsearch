@@ -556,7 +556,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
                 DOWNSAMPLED_INDEX_PREFIX,
                 backingIndex,
-                round.config().getFixedInterval()
+                round.fixedInterval()
             );
             IndexMetadata targetDownsampleIndexMeta = project.index(downsampleIndexName);
             boolean targetDownsampleIndexExists = targetDownsampleIndexMeta != null;
@@ -601,7 +601,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             sourceIndex,
             downsampleIndexName,
             null,
-            round.config()
+            new DownsampleConfig(round.fixedInterval(), null)
         );
         transportActionsDeduplicator.executeOnce(
             Tuple.tuple(projectId, request),

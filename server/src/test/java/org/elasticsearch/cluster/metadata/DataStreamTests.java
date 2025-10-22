@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -1592,17 +1591,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueMillis(2000),
-                                new DownsampleConfig(new DateHistogramInterval("10m"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueMillis(3200),
-                                new DownsampleConfig(new DateHistogramInterval("100m"))
-                            ),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(2000), new DateHistogramInterval("10m")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(3200), new DateHistogramInterval("100m")),
                             new DataStreamLifecycle.DownsamplingRound(
                                 TimeValue.timeValueMillis(3500),
-                                new DownsampleConfig(new DateHistogramInterval("1000m"))
+                                new DateHistogramInterval("1000m")
 
                             )
                         )
@@ -1650,18 +1643,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueMillis(2000),
-                                new DownsampleConfig(new DateHistogramInterval("10m"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueMillis(3200),
-                                new DownsampleConfig(new DateHistogramInterval("100m"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueMillis(3500),
-                                new DownsampleConfig(new DateHistogramInterval("1000m"))
-                            )
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(2000), new DateHistogramInterval("10m")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(3200), new DateHistogramInterval("100m")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(3500), new DateHistogramInterval("1000m"))
                         )
 
                     )

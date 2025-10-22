@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -217,14 +216,8 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(3),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            )
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2h")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(3), new DateHistogramInterval("2h"))
                         )
                     )
                     .build()
@@ -240,14 +233,8 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(30),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            )
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2h")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(30), new DateHistogramInterval("2h"))
                         )
                     )
                     .build()
@@ -260,14 +247,8 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(30),
-                                new DownsampleConfig(new DateHistogramInterval("3h"))
-                            )
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2h")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(30), new DateHistogramInterval("3h"))
                         )
                     )
                     .build()
@@ -291,7 +272,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                             .map(
                                 i -> new DataStreamLifecycle.DownsamplingRound(
                                     TimeValue.timeValueDays(i),
-                                    new DownsampleConfig(new DateHistogramInterval(i + "h"))
+                                    new DateHistogramInterval(i + "h")
                                 )
                             )
                             .toList()
@@ -306,12 +287,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                 IllegalArgumentException.class,
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
                     .downsampling(
-                        List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2m"))
-                            )
-                        )
+                        List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2m")))
                     )
                     .build()
             );
@@ -533,7 +509,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
         List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
         var previous = new DataStreamLifecycle.DownsamplingRound(
             randomTimeValue(1, 365, TimeUnit.DAYS),
-            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+            new DateHistogramInterval(randomIntBetween(1, 24) + "h")
         );
         rounds.add(previous);
         for (int i = 0; i < count; i++) {
@@ -546,9 +522,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
 
     private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
-        );
+        var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
     }
 

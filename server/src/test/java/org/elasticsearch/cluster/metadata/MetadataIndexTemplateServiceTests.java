@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
@@ -1104,14 +1103,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         DataStreamLifecycle.Template lifecycle45d = DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(TimeValue.timeValueDays(45))
-            .downsampling(
-                List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueDays(30),
-                        new DownsampleConfig(new DateHistogramInterval("3h"))
-                    )
-                )
-            )
+            .downsampling(List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(30), new DateHistogramInterval("3h"))))
             .buildTemplate();
         String ct45d = "ct_45d";
         project = addComponentTemplate(service, project, ct45d, lifecycle45d);

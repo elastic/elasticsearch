@@ -58,6 +58,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     // Versions over the wire
     public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
+    public static final TransportVersion ADD_LAST_VALUE_DOWNSAMPLE_DLM = TransportVersion.fromName("add_last_value_downsample_dlm");
     public static final String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
@@ -522,9 +523,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     /**
      * A round represents the configuration for when and how elasticsearch will downsample a backing index.
      * @param after is a TimeValue configuring how old (based on generation age) should a backing index be before downsampling
-     * @param config contains the interval that the backing index is going to be downsampled.
+     * @param fixedInterval contains the interval that the backing index is going to be downsampled.
      */
-    public record DownsamplingRound(TimeValue after, DownsampleConfig config) implements Writeable, ToXContentObject {
+    public record DownsamplingRound(TimeValue after, DateHistogramInterval fixedInterval) implements Writeable, ToXContentObject {
 
         public static final ParseField AFTER_FIELD = new ParseField("after");
         public static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
@@ -533,7 +534,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         private static final ConstructingObjectParser<DownsamplingRound, Void> PARSER = new ConstructingObjectParser<>(
             "downsampling_round",
             false,
-            (args, unused) -> new DownsamplingRound((TimeValue) args[0], new DownsampleConfig((DateHistogramInterval) args[1]))
+            (args, unused) -> new DownsamplingRound((TimeValue) args[0], (DateHistogramInterval) args[1])
         );
 
         static {
@@ -545,7 +546,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             PARSER.declareField(
                 constructorArg(),
                 p -> new DateHistogramInterval(p.text()),
-                new ParseField(FIXED_INTERVAL_FIELD.getPreferredName()),
+                FIXED_INTERVAL_FIELD,
                 ObjectParser.ValueType.STRING
             );
         }
@@ -576,22 +577,23 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                                 + "."
                         );
                     }
-                    DownsampleConfig.validateSourceAndTargetIntervals(
-                        previous.config().getFixedInterval(),
-                        round.config().getFixedInterval()
-                    );
+                    DownsampleConfig.validateSourceAndTargetIntervals(previous.fixedInterval(), round.fixedInterval());
                 }
             }
         }
 
         public static DownsamplingRound read(StreamInput in) throws IOException {
-            return new DownsamplingRound(in.readTimeValue(), new DownsampleConfig(in));
+            TimeValue after = in.readTimeValue();
+            DateHistogramInterval fixedInterval = in.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)
+                ? new DateHistogramInterval(in)
+                : new DownsampleConfig(in).getFixedInterval();
+            return new DownsamplingRound(after, fixedInterval);
         }
 
         public DownsamplingRound {
-            if (config.getFixedInterval().estimateMillis() < FIVE_MINUTES_MILLIS) {
+            if (fixedInterval.estimateMillis() < FIVE_MINUTES_MILLIS) {
                 throw new IllegalArgumentException(
-                    "A downsampling round must have a fixed interval of at least five minutes but found: " + config.getFixedInterval()
+                    "A downsampling round must have a fixed interval of at least five minutes but found: " + fixedInterval
                 );
             }
         }
@@ -599,14 +601,18 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeTimeValue(after);
-            out.writeWriteable(config);
+            if (out.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)) {
+                out.writeWriteable(fixedInterval);
+            } else {
+                out.writeWriteable(new DownsampleConfig(fixedInterval, null));
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(AFTER_FIELD.getPreferredName(), after.getStringRep());
-            config.toXContentFragment(builder);
+            builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval().toString());
             builder.endObject();
             return builder;
         }

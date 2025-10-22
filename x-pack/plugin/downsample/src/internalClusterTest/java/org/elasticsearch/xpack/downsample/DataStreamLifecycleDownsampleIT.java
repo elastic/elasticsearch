@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.downsample;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -45,14 +44,8 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
                 List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(0),
-                        new DownsampleConfig(new DateHistogramInterval("5m"))
-                    ),
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueSeconds(10),
-                        new DownsampleConfig(new DateHistogramInterval("10m"))
-                    )
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
                 )
             )
             .buildTemplate();
@@ -117,16 +110,10 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
                 List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(0),
-                        new DownsampleConfig(new DateHistogramInterval("5m"))
-                    ),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
                     // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
                     // least 2 seconds since rollover. only the 10 seconds round should be executed.
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(10),
-                        new DownsampleConfig(new DateHistogramInterval("10m"))
-                    )
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(10), new DateHistogramInterval("10m"))
                 )
             )
             .buildTemplate();
@@ -184,16 +171,10 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
                 List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(0),
-                        new DownsampleConfig(new DateHistogramInterval("5m"))
-                    ),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
                     // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
                     // least 2 seconds since rollover. only the 10 seconds round should be executed.
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(10),
-                        new DownsampleConfig(new DateHistogramInterval("10m"))
-                    )
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(10), new DateHistogramInterval("10m"))
                 )
             )
             .buildTemplate();
@@ -246,12 +227,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         // `10s` interval downsample index, downsample it to `20m` and replace it in the data stream instead of the `10s` one.
         DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsampling(
-                List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(10),
-                        new DownsampleConfig(new DateHistogramInterval("20m"))
-                    )
-                )
+                List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(10), new DateHistogramInterval("20m")))
             )
             .build();
         assertAcked(

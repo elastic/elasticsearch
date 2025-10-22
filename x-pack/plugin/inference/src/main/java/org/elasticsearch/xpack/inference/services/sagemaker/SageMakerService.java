@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.sagemaker;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,7 +30,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
@@ -55,6 +54,8 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     private static final List<String> ALIASES = List.of("sagemaker", "amazonsagemaker");
     private static final int DEFAULT_BATCH_SIZE = 256;
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.THIRTY_SECONDS;
+    private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
+
     private final SageMakerModelBuilder modelBuilder;
     private final SageMakerClient client;
     private final SageMakerSchemas schemas;
@@ -322,7 +323,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_SAGEMAKER;
+        return ML_INFERENCE_SAGEMAKER;
     }
 
     @Override

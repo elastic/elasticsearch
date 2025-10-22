@@ -24,6 +24,7 @@ toc:
       - file: configuration-reference/node-settings.md
       - file: configuration-reference/networking-settings.md
       - file: configuration-reference/node-query-cache-settings.md
+      - file: configuration-reference/remote-clusters.md
       - file: configuration-reference/search-settings.md
       - file: configuration-reference/security-settings.md
       - file: configuration-reference/shard-request-cache-settings.md
@@ -63,7 +64,6 @@ toc:
         - file: index-settings/path.md
   - file: index-lifecycle-actions/index.md
     children:
-        - file: index-lifecycle-actions/index.md
         - file: index-lifecycle-actions/ilm-allocate.md
         - file: index-lifecycle-actions/ilm-delete.md
         - file: index-lifecycle-actions/ilm-forcemerge.md
@@ -173,7 +173,11 @@ toc:
           - file: mapping-reference/semantic-text.md
           - file: mapping-reference/shape.md
           - file: mapping-reference/sparse-vector.md
-          - file: mapping-reference/text.md
+          - file: mapping-reference/text-type-family.md
+            children:
+            - file: mapping-reference/text.md
+            - file: mapping-reference/pattern-text.md
+            - file: mapping-reference/match-only-text.md
           - file: mapping-reference/token-count.md
           - file: mapping-reference/unsigned-long.md
           - file: mapping-reference/version.md

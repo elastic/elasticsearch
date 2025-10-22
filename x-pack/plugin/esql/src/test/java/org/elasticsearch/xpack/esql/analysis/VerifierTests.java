@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
@@ -38,7 +39,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
@@ -2295,6 +2295,9 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
         }
+        if (EsqlCapabilities.Cap.KQL_FUNCTION_OPTIONS.isEnabled()) {
+            checkOptionDataTypes(Kql.ALLOWED_OPTIONS, "FROM test | WHERE KQL(\"title: Jean\", {\"%s\": %s})");
+        }
     }
 
     /**
@@ -2689,6 +2692,25 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testNoDimensionsInAggsOnlyInByClause() {
+        assertThat(
+            error("TS test | STATS count(host) BY bucket(@timestamp, 1 minute)", tsdb),
+            equalTo(
+                "1:11: implicit time-series aggregation function [count(last_over_time(host))] "
+                    + "generated from [count(host)] doesn't support type [keyword], only numeric types are supported; "
+                    + "use the FROM command instead of the TS command"
+            )
+        );
+        assertThat(
+            error("TS test | STATS max(name) BY bucket(@timestamp, 1 minute)", tsdb),
+            equalTo(
+                "1:11: implicit time-series aggregation function [max(last_over_time(name))] "
+                    + "generated from [max(name)] doesn't support type [keyword], only numeric types are supported; "
+                    + "use the FROM command instead of the TS command"
+            )
+        );
+    }
+
     public void testSortInTimeSeries() {
         assertThat(
             error("TS test | SORT host | STATS avg(last_over_time(network.connections))", tsdb),
@@ -2712,7 +2734,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidQuery() {
-        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
         assertThat(
             error("from test | EVAL embedding = TEXT_EMBEDDING(null, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
             equalTo("1:30: first argument of [TEXT_EMBEDDING(null, ?)] cannot be null, received [null]")
@@ -2730,7 +2751,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidInferenceId() {
-        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
         assertThat(
             error("from test | EVAL embedding = TEXT_EMBEDDING(?, null)", defaultAnalyzer, "query text"),
             equalTo("1:30: second argument of [TEXT_EMBEDDING(?, null)] cannot be null, received [null]")
@@ -2747,6 +2767,64 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testInlineStatsInTSNotAllowed() {
+        assertThat(error("TS test | INLINE STATS max(network.connections)", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
+
+        assertThat(error("""
+            TS test |
+            INLINE STATS max(network.connections) |
+            STATS max(max_over_time(network.connections)) BY host, time_bucket = bucket(@timestamp,1minute)""", tsdb), equalTo("""
+            2:1: INLINE STATS [INLINE STATS max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
+
+        assertThat(error("TS test | INLINE STATS max_bytes=max(to_long(network.bytes_in)) BY host", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max_bytes=max(to_long(network.bytes_in)) BY host] \
+            can only be used after STATS when used with TS command"""));
+
+        assertThat(error("TS test | INLINE STATS max(60 * rate(network.bytes_in)), max(network.connections)", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max(60 * rate(network.bytes_in)), max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
+
+        assertThat(error("TS test METADATA _tsid | INLINE STATS cnt = count_distinct(_tsid) BY metricset, host", tsdb), equalTo("""
+            1:26: INLINE STATS [INLINE STATS cnt = count_distinct(_tsid) BY metricset, host] \
+            can only be used after STATS when used with TS command"""));
+
+        assertThat(
+            error("""
+                TS test |
+                INLINE STATS max_cost=max(last_over_time(network.connections)) BY host, time_bucket = bucket(@timestamp,1minute)""", tsdb),
+            equalTo("""
+                2:1: INLINE STATS [INLINE STATS max_cost=max(last_over_time(network.connections)) \
+                BY host, time_bucket = bucket(@timestamp,1minute)] \
+                can only be used after STATS when used with TS command""")
+        );
+
+        assertThat(
+            error("TS test | INLINE STATS max_bytes=max(to_long(network.bytes_in)) BY host | SORT max_bytes DESC | keep max*, host", tsdb),
+            equalTo("""
+                1:11: INLINE STATS [INLINE STATS max_bytes=max(to_long(network.bytes_in)) BY host] \
+                can only be used after STATS when used with TS command""")
+        );
+
+        assertThat(error("TS test | INLINE STATS max(network.connections) | STATS max(network.connections) by host", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
+    }
+
+    public void testMvExpandBeforeTSStatsNotAllowed() {
+        assertThat(error("TS test | MV_EXPAND name | STATS max(network.connections)", tsdb), equalTo("""
+            1:11: mv_expand [MV_EXPAND name] in the time-series before the first aggregation \
+            [STATS max(network.connections)] is not allowed"""));
+
+        assertThat(error("TS test | MV_EXPAND name | MV_EXPAND network.connections | STATS max(network.connections)", tsdb), equalTo("""
+            1:28: mv_expand [MV_EXPAND network.connections] in the time-series before the first aggregation \
+            [STATS max(network.connections)] is not allowed
+            line 1:11: mv_expand [MV_EXPAND name] in the time-series before the first aggregation \
+            [STATS max(network.connections)] is not allowed"""));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
@@ -2756,7 +2834,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(parser.createStatement(query, TEST_CFG));
+        analyzer.analyze(parser.createStatement(query));
     }
 
     private String error(String query) {
@@ -2787,7 +2865,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters), TEST_CFG))
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
         );
         assertThat(e, instanceOf(exception));
 

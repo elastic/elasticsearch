@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,8 +21,6 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.TransportVersions.ESQL_FIELD_ATTRIBUTE_DROP_TYPE;
 
 /**
  * Attribute for an ES field.
@@ -48,6 +47,9 @@ public class FieldAttribute extends TypedAttribute {
         "FieldAttribute",
         FieldAttribute::readFrom
     );
+
+    // Only public for testing
+    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
 
     private final String parentName;
     private final EsField field;
@@ -104,11 +106,11 @@ public class FieldAttribute extends TypedAttribute {
         String parentName = ((PlanStreamInput) in).readOptionalCachedString();
         String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
         String name = ((PlanStreamInput) in).readCachedString();
-        if (in.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+        if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
             DataType.readFrom(in);
         }
         EsField field = EsField.readFrom(in);
-        if (in.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+        if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
             in.readOptionalString();
         }
         Nullability nullability = in.readEnum(Nullability.class);
@@ -124,11 +126,11 @@ public class FieldAttribute extends TypedAttribute {
             ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
             checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
             ((PlanStreamOutput) out).writeCachedString(name());
-            if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+            if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 dataType().writeTo(out);
             }
             field.writeTo(out);
-            if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+            if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);
             }
@@ -229,15 +231,14 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), parentName, field);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (FieldAttribute) o;
-        return super.innerEquals(other) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
+        return super.innerEquals(other, ignoreIds) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
     }
 
     @Override

@@ -45,6 +45,7 @@ import static org.elasticsearch.common.time.DateFormatter.forPattern;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
@@ -195,6 +196,15 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
         resolution = isString(field, sourceText(), format != null ? SECOND : FIRST);
         if (resolution.unresolved()) {
             return resolution;
+        }
+
+        // Validate options parameter if present
+        Expression options = options();
+        if (options != null) {
+            resolution = isMapExpression(options, sourceText(), THIRD);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
         }
 
         return TypeResolution.TYPE_RESOLVED;

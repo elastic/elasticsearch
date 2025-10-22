@@ -72,6 +72,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "unexpected byte", // https://github.com/elastic/elasticsearch/issues/136598
         "Rule execution limit", // https://github.com/elastic/elasticsearch/issues/136599
         "Output has changed from", // https://github.com/elastic/elasticsearch/issues/136797
+        "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -80,7 +81,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "time-series.*the first aggregation.*is not allowed",
         "count_star .* can't be used with TS command",
         "time_series aggregate.* can only be used with the TS command",
-        "implicit time-series aggregation function .* doesn't support type .*"
+        "implicit time-series aggregation function .* doesn't support type .*",
+        "INLINE STATS .* can only be used after STATS when used with TS command",
+        "cannot group by a metric field .* in a time-series aggregation"
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()

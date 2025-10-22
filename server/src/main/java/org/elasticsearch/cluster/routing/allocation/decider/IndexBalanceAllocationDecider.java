@@ -130,7 +130,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
                 index
             );
 
-            logger.debug(explanation);
+            logger.trace(explanation);
 
             return allocation.decision(Decision.NOT_PREFERRED, NAME, explanation);
         }

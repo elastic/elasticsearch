@@ -341,8 +341,6 @@ public class AggregatorImplementer {
             builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
         }
 
-        boolean isBlockArgument = aggParams.getFirst() instanceof BlockArgument;
-
         for (Argument a : aggParams) {
             String rawBlock = "addRawBlock("
                 + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
@@ -350,18 +348,20 @@ public class AggregatorImplementer {
                 + ")";
 
             a.resolveVectors(builder, rawBlock, "return");
-
-            if (isBlockArgument) {
-                builder.addStatement(rawBlock);
-            }
         }
 
-        if (isBlockArgument == false) {
-            builder.addStatement(
-                "addRawVector(" + aggParams.stream().map(a -> a.vectorName()).collect(joining(", ")) + (hasMask ? ", mask" : "") + ")"
-            );
-        }
+        builder.addStatement(invokeAddRaw(hasOnlyBlockArguments, hasMask));
         return builder.build();
+    }
+
+    private String invokeAddRaw(boolean blockStyle, boolean hasMask) {
+        return addRawName(blockStyle)
+            + "(" + aggParams.stream().map(a -> blockStyle ? a.blockName() : a.vectorName()).collect(joining(", "))
+            + (hasMask ? ", mask" : "") + ")";
+    }
+
+    private String addRawName(boolean blockStyle) {
+        return blockStyle ? "addRawBlock" : "addRawVector";
     }
 
     private MethodSpec addRawVector(boolean masked) {
@@ -489,7 +489,7 @@ public class AggregatorImplementer {
     }
 
     private MethodSpec.Builder initAddRaw(boolean blockStyle, boolean masked) {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder(blockStyle ? "addRawBlock" : "addRawVector");
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(addRawName(blockStyle));
         builder.addModifiers(Modifier.PRIVATE);
         for (Argument a : aggParams) {
             a.declareProcessParameter(builder, blockStyle);

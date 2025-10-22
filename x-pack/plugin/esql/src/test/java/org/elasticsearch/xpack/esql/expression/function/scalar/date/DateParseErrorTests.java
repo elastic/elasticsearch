@@ -34,27 +34,23 @@ public class DateParseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        // If the signature has 3 parameters and ONLY the third is invalid, we need to check for the MapExpression error
+        // Need custom matchers for the MapExpression case
         if (signature.size() == 3 && validPerPosition.size() >= 3) {
-            // Check if the first two parameters are valid
             boolean firstParamValid = validPerPosition.get(0).isEmpty() == false
                 && (signature.get(0) == null || validPerPosition.get(0).contains(signature.get(0)));
             boolean secondParamValid = validPerPosition.get(1).isEmpty() == false
                 && (signature.get(1) == null || validPerPosition.get(1).contains(signature.get(1)));
 
-            // Check if the third parameter is invalid
             boolean thirdParamInvalid = validPerPosition.get(2).isEmpty()
+                || signature.get(2) == DataType.NULL
                 || (validPerPosition.get(2).contains(signature.get(2)) == false && signature.get(2) != null);
 
-            // Only use the MapExpression error format if the first two are valid but the third is invalid
             if (firstParamValid && secondParamValid && thirdParamInvalid) {
-                // The third parameter uses isMapExpression which has a different error format
                 String ordinal = ParamOrdinal.THIRD.name().toLowerCase(Locale.ROOT);
                 return equalTo(ordinal + " argument of [" + sourceForSignature(signature) + "] must be a map expression, received []");
             }
         }
-
-        // For all other cases (including when multiple params are invalid), use the standard error format
+        
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, i) -> "string"));
     }
 }

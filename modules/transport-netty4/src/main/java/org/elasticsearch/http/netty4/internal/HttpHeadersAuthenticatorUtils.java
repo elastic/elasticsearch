@@ -43,8 +43,11 @@ public final class HttpHeadersAuthenticatorUtils {
      * The HTTP headers of the to-be-authenticated {@link HttpRequest} must be wrapped by the special
      * {@link HttpHeadersWithAuthenticationContext}, see {@link #wrapAsMessageWithAuthenticationContext(HttpMessage)}.
      */
-    public static Netty4HttpHeaderValidator getValidatorInboundHandler(HttpValidator validator, ThreadContext threadContext,
-                                                                       Tracer tracer) {
+    public static Netty4HttpHeaderValidator getValidatorInboundHandler(
+        HttpValidator validator,
+        ThreadContext threadContext,
+        Tracer tracer
+    ) {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
             // make sure authentication only runs on properly wrapped "authenticable" headers implementation
             if (httpRequest.headers() instanceof HttpHeadersWithAuthenticationContext httpHeadersWithAuthenticationContext) {

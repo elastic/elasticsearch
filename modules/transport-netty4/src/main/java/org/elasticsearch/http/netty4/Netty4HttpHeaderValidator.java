@@ -129,7 +129,7 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
         }
 
         void doValidate(ActionListener<Void> listener) {
-            //assert Transports.assertDefaultThreadContext(threadContext);
+            // assert Transports.assertDefaultThreadContext(threadContext);
             assert ctx.channel().eventLoop().inEventLoop();
             assert state == State.PASSING || state == State.DROPPING : state;
             state = State.VALIDATING;
@@ -144,7 +144,7 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
 
         @Override
         public void onResponse(Void unused) {
-            //assert Transports.assertDefaultThreadContext(threadContext);
+            // assert Transports.assertDefaultThreadContext(threadContext);
             assert ctx.channel().eventLoop().inEventLoop();
             assert state == State.VALIDATING : state;
             state = State.PASSING;
@@ -153,7 +153,7 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
 
         @Override
         public void onFailure(Exception e) {
-            //assert Transports.assertDefaultThreadContext(threadContext);
+            // assert Transports.assertDefaultThreadContext(threadContext);
             assert ctx.channel().eventLoop().inEventLoop();
             assert state == State.VALIDATING : state;
             httpRequest.setDecoderResult(DecoderResult.failure(e));

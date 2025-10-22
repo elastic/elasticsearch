@@ -4,7 +4,6 @@ import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
-
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.common.Randomness;

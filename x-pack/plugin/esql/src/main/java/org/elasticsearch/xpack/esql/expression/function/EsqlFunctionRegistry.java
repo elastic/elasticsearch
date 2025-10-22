@@ -435,7 +435,7 @@ public class EsqlFunctionRegistry {
                 def(DayName.class, DayName::new, "day_name"),
                 def(MonthName.class, MonthName::new, "month_name"),
                 def(Now.class, Now::new, "now"),
-                def(TRange.class, bic(TRange::new), "trange") },
+                def(TRange.class, TRange::new, "trange") },
             // spatial
             new FunctionDefinition[] {
                 def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
@@ -1269,10 +1269,6 @@ public class EsqlFunctionRegistry {
     }
 
     private static <T extends Function> BinaryBuilder<T> bi(BinaryBuilder<T> function) {
-        return function;
-    }
-
-    private static <T extends Function> BinaryConfigurationAwareBuilder<T> bic(BinaryConfigurationAwareBuilder<T> function) {
         return function;
     }
 

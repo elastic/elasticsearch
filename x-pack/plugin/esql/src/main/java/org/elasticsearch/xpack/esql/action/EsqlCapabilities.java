@@ -1590,6 +1590,12 @@ public class EsqlCapabilities {
         INLINE_STATS_WITH_NO_COLUMNS(INLINE_STATS.enabled),
 
         FIX_MV_CONSTANT_EQUALS_FIELD,
+
+        /**
+         * Support for base conversion in TO_LONG
+         */
+        TO_LONG_BASE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

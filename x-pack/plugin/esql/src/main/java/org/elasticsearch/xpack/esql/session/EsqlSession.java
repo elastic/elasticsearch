@@ -809,7 +809,7 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<PreAnalysisResult> listener
     ) {
-        if (result.indexResolutions.get(indexPattern).isValid()
+        if (result.indexResolution.get(indexPattern).isValid()
             && executionInfo.isCrossClusterSearch()
             && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
             LOGGER.debug("No more clusters to search, ending analysis stage");
@@ -902,12 +902,12 @@ public class EsqlSession {
     ) {
         LOGGER.debug("Analyzing the plan ({})", description);
         try {
-            if (result.indexResolutions.values().stream().anyMatch(IndexResolution::isValid) || requestFilter != null) {
+            if (result.indexResolution.values().stream().anyMatch(IndexResolution::isValid) || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
                     executionInfo,
-                    result.indexResolutions.values(),
+                    result.indexResolution.values(),
                     requestFilter != null
                 );
             }
@@ -963,7 +963,7 @@ public class EsqlSession {
 
     private LogicalPlan analyzedPlan(LogicalPlan parsed, Configuration configuration, PreAnalysisResult r, EsqlExecutionInfo executionInfo)
         throws Exception {
-        handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolutions());
+        handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
         Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, r), verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
         plan.setAnalyzed();
@@ -1009,7 +1009,7 @@ public class EsqlSession {
     public record PreAnalysisResult(
         Set<String> fieldNames,
         Set<String> wildcardJoinIndices,
-        Map<IndexPattern, IndexResolution> indexResolutions,
+        Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
@@ -1021,12 +1021,12 @@ public class EsqlSession {
         }
 
         PreAnalysisResult withIndices(IndexPattern indexPattern, IndexResolution indices) {
-            Map<IndexPattern, IndexResolution> newIndexResolutions = new HashMap<>(this.indexResolutions);
-            newIndexResolutions.put(indexPattern, indices);
+            Map<IndexPattern, IndexResolution> newIndexResolution = new HashMap<>(this.indexResolution);
+            newIndexResolution.put(indexPattern, indices);
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
-                newIndexResolutions,
+                newIndexResolution,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1043,7 +1043,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
-                indexResolutions,
+                indexResolution,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1055,7 +1055,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
-                indexResolutions,
+                indexResolution,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1073,7 +1073,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
-                indexResolutions,
+                indexResolution,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,

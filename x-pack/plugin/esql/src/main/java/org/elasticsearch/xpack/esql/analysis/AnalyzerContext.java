@@ -53,7 +53,7 @@ public record AnalyzerContext(
         this(
             configuration,
             functionRegistry,
-            result.indexResolutions(),
+            result.indexResolution(),
             result.lookupIndices(),
             result.enrichResolution(),
             result.inferenceResolution(),

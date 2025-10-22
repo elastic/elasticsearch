@@ -52,12 +52,13 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.core.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
@@ -73,8 +74,8 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsS
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResultsTests;
@@ -86,7 +87,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfig
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
-import org.elasticsearch.xpack.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.hamcrest.CoreMatchers;
@@ -1109,8 +1109,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     @SuppressWarnings("unchecked")
     private void testChunkInfer_e5(ChunkingSettings chunkingSettings) throws InterruptedException {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
-        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
-        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(MlDenseEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(MlDenseEmbeddingResultsTests.createRandomResults());
         var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
 
         Client client = mock(Client.class);
@@ -1136,20 +1136,20 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
             assertThat(result1.chunks(), hasSize(1));
-            assertThat(result1.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
-                ((MlTextEmbeddingResults) mlTrainedModelResults.get(0)).getInferenceAsFloat(),
-                ((TextEmbeddingFloatResults.Embedding) result1.chunks().get(0).embedding()).values(),
+                ((MlDenseEmbeddingResults) mlTrainedModelResults.get(0)).getInferenceAsFloat(),
+                ((DenseEmbeddingFloatResults.Embedding) result1.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
             assertThat(result2.chunks(), hasSize(1));
-            assertThat(result2.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
-                ((MlTextEmbeddingResults) mlTrainedModelResults.get(1)).getInferenceAsFloat(),
-                ((TextEmbeddingFloatResults.Embedding) result2.chunks().get(0).embedding()).values(),
+                ((MlDenseEmbeddingResults) mlTrainedModelResults.get(1)).getInferenceAsFloat(),
+                ((DenseEmbeddingFloatResults.Embedding) result2.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
@@ -1377,8 +1377,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     @SuppressWarnings("unchecked")
     public void testChunkInfer_FailsBatch() throws InterruptedException {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
-        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
-        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(MlDenseEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(MlDenseEmbeddingResultsTests.createRandomResults());
         mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
         var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
 
@@ -1454,7 +1454,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
             var mlTrainedModelResults = new ArrayList<InferenceResults>();
             for (int i = 0; i < request.numberOfDocuments(); i++) {
-                mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
+                mlTrainedModelResults.add(MlDenseEmbeddingResultsTests.createRandomResults());
             }
             var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
             listener.onResponse(response);

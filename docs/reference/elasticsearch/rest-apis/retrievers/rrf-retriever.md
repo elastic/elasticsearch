@@ -85,6 +85,7 @@ PUT /restaurants
     }
   }
 }
+
 POST /restaurants/_bulk?refresh
 {"index":{}}
 {"region": "Austria", "year": "2019", "vector": [10, 22, 77]}
@@ -94,7 +95,9 @@ POST /restaurants/_bulk?refresh
 {"region": "Austria", "year": "2020", "vector": [10, 22, 79]}
 {"index":{}}
 {"region": "France", "year": "2020", "vector": [10, 22, 80]}
+
 PUT /movies
+
 PUT /books
 {
   "mappings": {
@@ -116,6 +119,7 @@ PUT /books
     }
   }
 }
+
 PUT _query_rules/my-ruleset
 {
     "rules": [
@@ -139,6 +143,7 @@ PUT _query_rules/my-ruleset
 }
 ```
 % TESTSETUP
+
 ```console
 DELETE /restaurants
 DELETE /movies

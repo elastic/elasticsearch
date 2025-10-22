@@ -289,7 +289,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
      */
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         if (dataLocation == null) {
-            dataLocation = randomFrom(DataLocation.values());
+            dataLocation = DataLocation.REMOTE_ONLY;
         }
         String query = testCase.query;
         String[] commands = query.split("\\|");

@@ -113,8 +113,8 @@ PUT stats-index/_doc/2
   }
 }
 ```
-%  TEST[continued]
-%  TEST[s/_doc\/2/_doc\/2?refresh=wait_for/]
+% TEST[continued]
+% TEST[s/_doc\/2/_doc\/2?refresh=wait_for/]
 
 You can run `min`, `max`, `sum`, `value_count`, and `avg` aggregations on a `agg_metric` field.
 

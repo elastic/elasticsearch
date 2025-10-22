@@ -176,6 +176,6 @@ GET node_upgrade/_search
   }
 }
 ```
-%  TEST[setup:node_upgrade]
-%  TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[setup:node_upgrade]
+% TEST[s/_search/_search?filter_path=aggregations/]
 

@@ -146,7 +146,7 @@ Note the following configuration fields:
         }
     }
     ```
-    %  NOTCONSOLE
+    % NOTCONSOLE
 
 
 `graphql_variables`
@@ -172,7 +172,7 @@ Note the following configuration fields:
         "organization.users": "user_id"
     }
     ```
-    %  NOTCONSOLE
+    % NOTCONSOLE
 
     In this example `user_id` is unique in every user document. Therefore, we set `user_id` as the value for `organization.users`.
 
@@ -190,7 +190,7 @@ Note the following configuration fields:
         "content-type": "Application/json"
     }
     ```
-    %  NOTCONSOLE
+    % NOTCONSOLE
 
 
 `pagination_model` (required)
@@ -217,7 +217,7 @@ Note the following configuration fields:
         }
     }
     ```
-    %  NOTCONSOLE
+    % NOTCONSOLE
 
     The value of `pagination_key` is `sampleData.users` so it must contain:
 

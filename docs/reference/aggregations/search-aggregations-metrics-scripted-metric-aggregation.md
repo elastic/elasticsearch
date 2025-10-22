@@ -59,8 +59,8 @@ The response for the above aggregation:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 218/"took": $body.took/]
-%  TESTRESPONSE[s/\.\.\./"_shards": $body._shards, "hits": $body.hits, "timed_out": false,/]
+% TESTRESPONSE[s/"took": 218/"took": $body.took/]
+% TESTRESPONSE[s/\.\.\./"_shards": $body._shards, "hits": $body.hits, "timed_out": false,/]
 
 The above example can also be specified using stored scripts as follows:
 

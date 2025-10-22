@@ -151,6 +151,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ```
+% TEST[continued]
 
 This returns the following response based on the final rrf score for each result.
 
@@ -191,7 +192,8 @@ This returns the following response based on the final rrf score for each result
     }
 }
 ```
-
+% TESTRESPONSE[s/"took": 42/"took": $body.took/]
+% TESTRESPONSE[s/"value": 3/"value": $body.hits.total.value/]
 ::::
 
 
@@ -212,6 +214,7 @@ So, let’s now specify the `linear` retriever whose final score is computed as 
 score = weight(standard) * score(standard) + weight(knn) * score(knn)
 score = 2 * score(standard) + 1.5 * score(knn)
 ```
+% NOTCONSOLE
 
 ```console
 GET /retrievers_example/_search
@@ -256,6 +259,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ```
+% TEST[continued]
 
 This returns the following response based on the normalized weighted score for each result.
 
@@ -296,6 +300,8 @@ This returns the following response based on the normalized weighted score for e
     }
 }
 ```
+% TESTRESPONSE[s/"took": 26/"took": $body.took/]
+% TESTRESPONSE[s/"value": 3/"value": $body.hits.total.value/]
 
 ::::
 
@@ -363,6 +369,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ```
+% TEST[continued]
 
 Which would return the following results:
 
@@ -408,7 +415,10 @@ Which would return the following results:
     }
 }
 ```
-
+% TESTRESPONSE[s/"took": 42/"took": $body.took/]
+% TESTRESPONSE[s/"value": 4/"value": $body.hits.total.value/]
+% TESTRESPONSE[s/"max_score": 3.5/"max_score": $body.hits.max_score/]
+% TESTRESPONSE[s/\.\.\./$body.hits.hits/]
 ::::
 
 
@@ -442,6 +452,7 @@ GET /retrievers_example/_search
     }
 }
 ```
+% TEST[continued]
 
 This returns the following response based on the final rrf score for each result.
 
@@ -482,7 +493,9 @@ This returns the following response based on the final rrf score for each result
     }
 }
 ```
-
+% TESTRESPONSE[s/"took": 42/"took": $body.took/]
+% TESTRESPONSE[s/"value": 3/"value": $body.hits.total.value/]
+% TESTRESPONSE[s/"max_score": 0.8333334/"max_score": $body.hits.max_score/]
 ::::
 
 We can also use the `fields` parameter to explicitly specify the fields to query.
@@ -499,6 +512,7 @@ GET /retrievers_example/_search
     }
 }
 ```
+% TEST[continued]
 
 ::::{note}
 The `fields` parameter also accepts [wildcard field patterns](/reference/elasticsearch/rest-apis/retrievers.md#multi-field-wildcard-field-patterns).
@@ -543,7 +557,9 @@ This returns the following response based on the final rrf score for each result
     }
 }
 ```
-
+% TESTRESPONSE[s/"took": 42/"took": $body.took/]
+% TESTRESPONSE[s/"value": 3/"value": $body.hits.total.value/]
+% TESTRESPONSE[s/"max_score": 0.8333334/"max_score": $body.hits.max_score/]
 ::::
 
 
@@ -572,6 +588,7 @@ GET /retrievers_example/_search
     }
 }
 ```
+% TEST[continued]
 
 This returns the following response based on the normalized score for each result:
 
@@ -612,7 +629,9 @@ This returns the following response based on the normalized score for each resul
     }
 }
 ```
-
+% TESTRESPONSE[s/"took": 42/"took": $body.took/]
+% TESTRESPONSE[s/"value": 3/"value": $body.hits.total.value/]
+% TESTRESPONSE[s/"max_score": 2.0/"max_score": $body.hits.max_score/]
 ::::
 
 ## Example: Grouping results by year with `collapse` [retrievers-examples-collapsing-retriever-results]
@@ -665,6 +684,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ```
+% TEST[continued]
 
 This returns the following response with collapsed results.
 
@@ -760,7 +780,9 @@ This returns the following response with collapsed results.
     }
 }
 ```
-
+% TESTRESPONSE[s/"took": 42/"took": $body.took/]
+% TESTRESPONSE[s/"value": 3/"value": $body.hits.total.value/]
+% TESTRESPONSE[s/"max_score": 0.8333334/"max_score": $body.hits.max_score/]
 ::::
 
 
@@ -813,6 +835,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ```
+% TEST[continued]
 
 This would highlight the `text` field, based on the matches produced by the `standard` retriever. The highlighted snippets would then be included in the response as usual, i.e. under each search hit.
 
@@ -863,7 +886,9 @@ This would highlight the `text` field, based on the matches produced by the `sta
     }
 }
 ```
-
+% TESTRESPONSE[s/"took": 42/"took": $body.took/]
+% TESTRESPONSE[s/"value": 3/"value": $body.hits.total.value/]
+% TESTRESPONSE[s/"max_score": 0.8333334/"max_score": $body.hits.max_score/]
 ::::
 
 
@@ -963,6 +988,7 @@ POST /retrievers_example_nested/_doc/3
 
 POST /retrievers_example_nested/_refresh
 ```
+% TEST[continued]
 
 Now we can run an `rrf` retriever query and also compute [inner hits](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md) for the `nested_field.nested_vector` field, based on the `knn` query specified.
 
@@ -1018,6 +1044,7 @@ GET /retrievers_example_nested/_search
     ]
 }
 ```
+% TEST[continued]
 
 This would propagate the `inner_hits` defined for the `knn` query to the `rrf` retriever, and compute inner hits for `rrf`'s top results.
 
@@ -1183,7 +1210,8 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
     }
 }
 ```
-
+% TESTRESPONSE[s/"took": 42/"took" : $body.took/]
+% TESTRESPONSE[s/"value": 3/"value": $body.hits.total.value/]
 ::::
 
 
@@ -1235,6 +1263,7 @@ GET retrievers_example/_search
     }
 }
 ```
+% TEST[continued]
 
 ::::{dropdown} Example response
 ```console-result
@@ -1318,7 +1347,7 @@ GET retrievers_example/_search
     }
 }
 ```
-
+% TESTRESPONSE[s/"took": 42/"took" : $body.took/]
 ::::
 
 
@@ -1382,6 +1411,7 @@ GET /retrievers_example/_search
     "explain": true
 }
 ```
+% TEST[continued]
 
 The output of which, albeit a bit verbose, will provide all the necessary info to assist in debugging and reason with ranking.
 
@@ -1437,16 +1467,12 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
                                                         {
                                                             "value": 1.4064829,
                                                             "description": "weight(text:information in 0) [PerFieldSimilarity], result of:",
-                                                            "details": [
-                                                                ***
-                                                            ]
+                                                            "details": [...]
                                                         },
                                                         {
                                                             "value": 1.4064829,
                                                             "description": "weight(text:retrieval in 0) [PerFieldSimilarity], result of:",
-                                                            "details": [
-                                                                ***
-                                                            ]
+                                                            "details": [...]
                                                         }
                                                     ]
                                                 }
@@ -1480,7 +1506,9 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
     }
 }
 ```
-
+% TESTRESPONSE[s/"took": 42/"took": $body.took/]
+% TESTRESPONSE[s/\.\.\./$body.hits.hits.0._explanation.details.0.details.1.details.0.details.0.details.0.details.1.details.0/]
+% TESTRESPONSE[s/jnrdZFKS3abUgWVsVdj2Vg/$body.hits.hits.0._node/]
 ::::
 
 
@@ -1501,6 +1529,7 @@ PUT _inference/rerank/my-rerank-model
  }
 }
 ```
+% TEST[skip: no_access_to_ml]
 
 Let’s start by reranking the results of the `rrf` retriever in our previous example.
 We'll also apply a `chunk_rescorer` to ensure that we only consider the best scoring chunks when sending information to the reranker.
@@ -1550,13 +1579,13 @@ GET retrievers_example/_search
                     "max_chunk_size": 300,
                     "sentence_overlap": 0
                 }
-            },
+            }
         }
     },
     "_source": false
 }
 ```
-
+% TEST[skip: no_access_to_ml]
 
 ## Example: RRF with semantic reranker [retrievers-examples-rrf-ranking-on-text-similarity-reranker-results]
 
@@ -1604,7 +1633,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ```
-
+% TEST[skip: no_access_to_ml]
 
 ## Example: Chaining multiple semantic rerankers [retrievers-examples-chaining-text-similarity-reranker-retrievers]
 
@@ -1644,6 +1673,7 @@ GET retrievers_example/_search
     "_source": false
 }
 ```
+% TEST[skip: no_access_to_ml]
 
 Note that our example applies two reranking steps. First, we rerank the top 100 documents from the `knn` search using the `my-rerank-model` reranker. Then we pick the top 10 results and rerank them using the more fine-grained `my-other-more-expensive-rerank-model`.
 

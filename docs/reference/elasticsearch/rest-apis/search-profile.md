@@ -272,9 +272,9 @@ The overall structure of the profile response is as follows:
 % TESTRESPONSE[s/"id": "\[q2aE02wS1R8qQFnYu6vDVQ\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 % TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.shards.0.node_id",/]
 % TESTRESPONSE[s/"query": \[\.\.\.\]/"query": $body.$_path/]
-% TESTRESPONSE[s/"collector": \[\.\.\.​\]/"collector": $body.$_path/]
+% TESTRESPONSE[s/"collector": \[\.\.\.\]/"collector": $body.$_path/]
 % TESTRESPONSE[s/"aggregations": \[\.\.\.\]/"aggregations": []/]
-% TESTRESPONSE[s/"fetch": \{\.\.\.​\}/"fetch": $body.$_path/]
+% TESTRESPONSE[s/"fetch": \{\.\.\.\}/"fetch": $body.$_path/]
 
 1. A profile is returned for each shard that participated in the response, and is identified by a unique ID.
 2. If the query was run on the local cluster, the cluster name is left out of the composite id and is marked "(local)" here. For a profile running on a remote_cluster using cross-cluster search, the "id" value would be something like `[q2aE02wS1R8qQFnYu6vDVQ][remote1:my-index-000001][0]` and the "cluster" value would be `remote1`.
@@ -338,7 +338,7 @@ The `query` section contains detailed timing of the query tree executed by Lucen
 % TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n/]
 % TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
 % TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
-% TESTRESPONSE[s/"breakdown": \{\.\.\.​\}/"breakdown": $body.$_path/]
+% TESTRESPONSE[s/"breakdown": \{\.\.\.\}/"breakdown": $body.$_path/]
 
 1. The breakdown timings are omitted for simplicity.
 

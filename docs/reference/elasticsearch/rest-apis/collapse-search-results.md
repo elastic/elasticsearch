@@ -257,8 +257,8 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
-%  TEST[s/_search/_search\?filter_path=hits.hits/]
+% TEST[continued]
+% TEST[s/_search/_search\?filter_path=hits.hits/]
 
 ```console-result
 {

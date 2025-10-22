@@ -54,14 +54,28 @@ Combining `query` and `retrievers` is not supported.
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
-Each entry in the `retrievers` array can specify the following parameters:
+Each entry in the `retrievers` array can be specified in two ways:
+
+**Without custom weight** (uses default weight of `1.0`):
+```json
+{ "standard": { "query": {...} } }
+```
+
+**With custom weight** {applies_to}`stack: ga 9.2`:
+```json
+{ "retriever": { "standard": { "query": {...} } }, "weight": 2.0 }
+```
+
+When you need to specify a custom weight, wrap your retriever in an object with `retriever` and `weight` fields. {applies_to}`stack: ga 9.2`
+
+The wrapped form supports these parameters:
 
 `retriever`
 :   (Optional, a retriever object)
 
-    Specifies a child retriever. Can be omitted when using the direct format (e.g., `{ "standard": {...} }`).
+    Specifies a child retriever. Any valid retriever type can be used (e.g., `standard`, `knn`, `text_similarity_reranker`, etc.).
 
-`weight`
+`weight` {applies_to}`stack: ga 9.2`
 :   (Optional, float)
 
     The weight that each score of this retriever's top docs will be multiplied with in the RRF formula. Higher values increase this retriever's influence on the final ranking. Must be non-negative. Defaults to `1.0`.
@@ -195,10 +209,10 @@ GET /restaurants/_search
 5. The rank constant for the RRF retriever.
 6. The rank window size for the RRF retriever.
 
-## Example: Weighted hybrid search [rrf-retriever-example-weighted]
+## Example: Weighted hybrid search [rrf-retriever-example-weighted] {applies_to}`stack: ga 9.2`
 
 This example demonstrates how to use weights to adjust the influence of different retrievers in the RRF ranking.
-In this case, we're giving more importance to lexical matches (weight 2.0) compared to vector similarity (weight 1.0):
+In this case, we're giving the `standard` retriever more importance (weight 2.0) compared to the `knn` retriever (weight 1.0):
 
 ```console
 GET /restaurants/_search

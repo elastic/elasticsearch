@@ -220,7 +220,6 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         int bucketCount,
         double confidenceLevel
     ) {
-        System.out.println("@computeConfidenceInterval: " + Arrays.toString(estimates));
         Mean means = new Mean();
         Mean stddevs = new Mean();
         Mean skews = new Mean();

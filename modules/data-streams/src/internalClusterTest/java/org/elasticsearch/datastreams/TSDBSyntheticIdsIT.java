@@ -10,15 +10,18 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageTestUtils;
 import org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageStats;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -33,16 +36,17 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Test suite for time series indices that use synthetic ids for documents.
@@ -60,6 +64,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalSettingsPlugin.class);
+        plugins.add(DataStreamsPlugin.class);
         return plugins;
     }
 
@@ -93,39 +98,18 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     public void testSyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var indexName = randomIdentifier();
-        assertAcked(
-            prepareCreate(indexName).setSettings(
-                indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-                    .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
-                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
-                    .build()
-            )
-                .setMapping(
-                    "@timestamp",
-                    "type=date",
-                    "hostname",
-                    "type=keyword,time_series_dimension=true",
-                    "metric.field",
-                    "type=keyword",
-                    "metric.value",
-                    "type=integer"
-                )
-        );
-        ensureGreen(indexName);
+        putDataStreamTemplate(random(), indexName);
 
-        final var timestamp = Instant.ofEpochMilli(1760957415027L);
+        final var timestamp = Instant.now();
 
-        // Index 5 docs + 1 update
-        var results = indexDocuments(
+        // Index 5 docs in datastream
+        var results = createDocuments(
             indexName,
-            document(timestamp, "vm-dev01", "cpu-load", 0),
-            document(timestamp.plusSeconds(2), "vm-dev01", "cpu-load", 1),
-            document(timestamp.plusSeconds(2), "vm-dev01", "cpu-load", 2), // update
-            document(timestamp, "vm-dev02", "cpu-load", 3),
-            document(timestamp.plusSeconds(2), "vm-dev03", "cpu-load", 4),
-            document(timestamp.plusSeconds(3), "vm-dev03", "cpu-load", 5)
+            document(timestamp, "vm-dev01", "cpu-load", 0),                                // will be updated
+            document(timestamp.plusSeconds(2), "vm-dev01", "cpu-load", 1),    // will be deleted
+            document(timestamp, "vm-dev02", "cpu-load", 2),
+            document(timestamp.plusSeconds(2), "vm-dev03", "cpu-load", 3),
+            document(timestamp.plusSeconds(3), "vm-dev03", "cpu-load", 4)
         );
 
         // Verify documents
@@ -135,9 +119,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertThat(results[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
         assertThat(results[1].getVersion(), equalTo(1L));
 
-        assertThat(results[2].getId(), equalTo(results[1].getId()));
-        assertThat(results[2].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED)); // update
-        assertThat(results[2].getVersion(), equalTo(2L));
+        assertThat(results[2].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        assertThat(results[2].getVersion(), equalTo(1L));
 
         assertThat(results[3].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
         assertThat(results[3].getVersion(), equalTo(1L));
@@ -145,77 +128,137 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertThat(results[4].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
         assertThat(results[4].getVersion(), equalTo(1L));
 
-        assertThat(results[5].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        assertThat(results[5].getVersion(), equalTo(1L));
+        final var docIndex = results[1].getIndex();
+        final var docId = results[1].getId();
 
-        // Not refreshed yet
-        assertHitCount(client().prepareSearch(indexName).setSize(0), 0L);
-
-        switch (randomInt(2)) {
-            case 0:
+        enum Operation { FLUSH, REFRESH, NONE }
+        switch (randomFrom(Operation.values())) {
+            case FLUSH:
                 flush(indexName);
                 break;
-            case 1:
+            case REFRESH:
                 refresh(indexName);
                 break;
-            case 2:
+            case NONE:
             default:
                 break;
         }
 
         // Get by synthetic _id
         // Note: before synthetic _id this would have required postings on disks
-        final var docId = results[1].getId();
-        var getResponse = client().prepareGet(indexName, docId).setFetchSource(true).execute().actionGet();
+        var getResponse = client().prepareGet(docIndex, docId).setFetchSource(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getVersion(), equalTo(2L));
-        assertThat(getResponse.getId(), equalTo(docId));
+        assertThat(getResponse.getVersion(), equalTo(1L));
         var source = asInstanceOf(Map.class, getResponse.getSourceAsMap().get("metric"));
-        assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(2));
+        assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(1));
+
+        // Update by synthetic _id
+        // Note: it doesn't work, is that expected? Is is blocked by IndexRouting.ExtractFromSource.updateShard
+        var exception = expectThrows(IllegalArgumentException.class, () -> {
+            var doc = document(timestamp, "vm-dev01", "cpu-load", 10); // update
+            client().prepareUpdate(docIndex, docId).setDoc(doc).get();
+        });
+        assertThat(
+            exception.getMessage(),
+            containsString("update is not supported because the destination index [" + docIndex + "] is in time_series mode")
+        );
+
+        // Delete by synthetic _id
+        var deleteResponse = client().prepareDelete(docIndex, docId).get();
+        assertThat(deleteResponse.getId(), equalTo(docId));
+        assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
+        assertThat(deleteResponse.getVersion(), equalTo(2L));
+
+        // Index more docs
+        // TODO Randomize this to have segments only composed of deleted docs
+        createDocuments(
+            indexName,
+            document(timestamp.plusSeconds(4), "vm-dev03", "cpu-load", 5),
+            document(timestamp.plusSeconds(5), "vm-dev03", "cpu-load", 6)
+        );
 
         flushAndRefresh(indexName);
 
         // Check that synthetic _id field has no postings on disk
-        var diskUsage = diskUsage(indexName);
+        var diskUsage = diskUsage(docIndex);
         var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
         assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+
+        // TODO Search datastream and count hits
     }
 
-    @FunctionalInterface
-    private interface DocumentSource extends CheckedSupplier<XContentBuilder, IOException> {}
-
-    private static DocumentSource document(Instant timestamp, String hostName, String metricField, Integer metricValue) {
-        return () -> {
-            var source = XContentFactory.jsonBuilder();
-            source.startObject();
+    private static XContentBuilder document(Instant timestamp, String hostName, String metricField, Integer metricValue)
+        throws IOException {
+        var source = XContentFactory.jsonBuilder();
+        source.startObject();
+        {
+            source.field("@timestamp", DATE_FORMATTER.format(timestamp));
+            source.field("hostname", hostName);
+            source.startObject("metric");
             {
-                source.field("@timestamp", DATE_FORMATTER.format(timestamp));
-                source.field("hostname", hostName);
-                source.startObject("metric");
-                {
-                    source.field("field", metricField);
-                    source.field("value", metricValue);
+                source.field("field", metricField);
+                source.field("value", metricValue);
 
-                }
-                source.endObject();
             }
             source.endObject();
-            return source;
-        };
+        }
+        source.endObject();
+        return source;
     }
 
-    private static BulkItemResponse[] indexDocuments(String indexName, DocumentSource... docs) throws IOException {
+    private static BulkItemResponse[] createDocuments(String indexName, XContentBuilder... docs) throws IOException {
         assertThat(docs, notNullValue());
         final var client = client();
         var bulkRequest = client.prepareBulk();
         for (var doc : docs) {
-            try (var source = doc.get()) {
-                bulkRequest.add(client.prepareIndex(indexName).setSource(source));
-            }
+            bulkRequest.add(client.prepareIndex(indexName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
         }
         var bulkResponse = bulkRequest.get();
         assertNoFailures(bulkResponse);
         return bulkResponse.getItems();
+    }
+
+    private static void putDataStreamTemplate(Random random, String indexPattern) throws IOException {
+        final var settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+
+        final var mappings = """
+            {
+                "_doc": {
+                    "properties": {
+                        "@timestamp": {
+                            "type": "date"
+                        },
+                        "hostname": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "metric": {
+                            "properties": {
+                                "field": {
+                                    "type": "keyword"
+                                },
+                                "value": {
+                                    "type": "integer",
+                                    "time_series_metric": "counter"
+                                }
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(getTestClass().getName().toLowerCase(Locale.ROOT))
+            .indexTemplate(
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of(indexPattern))
+                    .template(new Template(settings.build(), new CompressedXContent(mappings), null))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                    .build()
+            );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet());
     }
 
     private static IndexDiskUsageStats diskUsage(String indexName) {
@@ -227,11 +270,5 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var indexDiskUsageStats = AnalyzeIndexDiskUsageTestUtils.getIndexStats(diskUsageResponse, indexName);
         assertNotNull(indexDiskUsageStats);
         return indexDiskUsageStats;
-    }
-
-    private static IndexDiskUsageStats.PerFieldDiskUsage diskUsageForField(IndexDiskUsageStats indexDiskUsageStats, String fieldName) {
-        var fieldDiskUsage = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(indexDiskUsageStats, fieldName);
-        assertNotNull(fieldDiskUsage);
-        return fieldDiskUsage;
     }
 }

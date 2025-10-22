@@ -263,16 +263,18 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
      */
     private class FakePostingsEnum extends PostingsEnum {
 
+        private final int startDocID;
         private final BytesRef latestTsId;
         private final long latestTimestamp;
         private final int maxDocs;
         private int docID;
 
         private FakePostingsEnum(int docID, BytesRef latestTsId, long latestTimestamp, int maxDocs) {
-            this.docID = docID;
+            this.startDocID = docID;
             this.latestTsId = latestTsId;
             this.latestTimestamp = latestTimestamp;
             this.maxDocs = maxDocs;
+            this.docID = -1;
         }
 
         @Override
@@ -284,16 +286,19 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         public int nextDoc() throws IOException {
             if (docID == DocIdSetIterator.NO_MORE_DOCS) {
                 return docID;
-            }
-            var tempDocID = docID + 1;
-            if (maxDocs <= tempDocID) {
-                docID = DocIdSetIterator.NO_MORE_DOCS;
-                return docID;
+            } else if (docID == -1) {
+                docID = startDocID;
+            } else {
+                docID = docID + 1;
+                if (maxDocs <= docID) {
+                    docID = DocIdSetIterator.NO_MORE_DOCS;
+                    return docID;
+                }
             }
 
             // Retrieve _tsid
             SortedDocValues tsIdDocValues = docValuesProducer.getSorted(fieldInfos.fieldInfo(TS_ID));
-            boolean found = tsIdDocValues.advanceExact(tempDocID);
+            boolean found = tsIdDocValues.advanceExact(docID);
             assert found;
             int tsIdOrd = tsIdDocValues.ordValue();
             BytesRef tsId = tsIdDocValues.lookupOrd(tsIdOrd);
@@ -307,13 +312,13 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
             // Retrieve timestamp
             SortedNumericDocValues timestampDocValues = docValuesProducer.getSortedNumeric(fieldInfos.fieldInfo(TIMESTAMP));
-            found = timestampDocValues.advanceExact(tempDocID);
+            found = timestampDocValues.advanceExact(docID);
             assert found;
             assert timestampDocValues.docValueCount() == 1;
             long timestamp = timestampDocValues.nextValue();
 
             if (latestTimestamp != -1L && latestTimestamp != timestamp) {
-                // Different @timsteamp, stop here
+                // Different @timestamp, stop here
                 docID = DocIdSetIterator.NO_MORE_DOCS;
                 return docID;
             }
@@ -322,11 +327,10 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             var tsRoutingHash = fieldInfos.fieldInfo(TimeSeriesRoutingHashFieldMapper.NAME);
             assert tsRoutingHash != null;
             SortedDocValues routingHashDocValues = docValuesProducer.getSorted(tsRoutingHash);
-            found = routingHashDocValues.advanceExact(tempDocID);
+            found = routingHashDocValues.advanceExact(docID);
             assert found;
             BytesRef routingHashBytes = routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
             assert routingHashBytes != null;
-            docID = tempDocID;
             return docID;
         }
 

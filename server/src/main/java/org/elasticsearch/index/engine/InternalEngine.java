@@ -1481,21 +1481,7 @@ public class InternalEngine extends Engine {
     private void logDocumentsDetails(List<LuceneDocument> docs) {
         if (useTsdbSyntheticId && logger.isTraceEnabled()) {
             for (var doc : docs) {
-                var id = doc.getField("_id");
-                var tsId = doc.getField("_tsid");
-                var timestamp = doc.getField("@timestamp");
-                var seqNo = doc.getField("_seq_no");
-                var primaryTerm = doc.getField("_primary_term");
-                var tsRoutingHash = doc.getField("_ts_routing_hash");
-                logger.trace(
-                    "indexing document [_id: {}, _seq_no: {}, _primary_term: {}, _tsid: {}, @timestamp: {}, _ts_routing_hash: {}]",
-                    id,
-                    seqNo,
-                    primaryTerm,
-                    tsId,
-                    timestamp,
-                    tsRoutingHash
-                );
+                logger.trace("indexing document fields [{}]", doc.getFields());
             }
         }
     }

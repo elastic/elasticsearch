@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -60,6 +61,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -298,8 +300,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 };
             }
             if (scriptValues != null) {
-                Function<List<Geometry>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
-                return FieldValues.valueListFetcher(scriptValues, formatter, context);
+                return new DocValueFetcher(
+                    docValueFormat(format, null),
+                    context.getForField(this, FielddataOperation.SEARCH),
+                    StoredFieldsSpec.NO_REQUIREMENTS
+                );
             }
             return super.valueFetcher(context, format);
         }

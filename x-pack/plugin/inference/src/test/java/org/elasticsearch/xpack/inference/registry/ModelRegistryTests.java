@@ -151,6 +151,15 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testDeleteModels_Succeeds_WhenNoInferenceIdsAreProvided() {
+        var model = TestModel.createRandomInstance();
+        assertStoreModel(registry, model);
+
+        var listener = new PlainActionFuture<Boolean>();
+        registry.deleteModels(Set.of(), listener);
+        assertTrue(listener.actionGet(TIMEOUT));
+    }
+
     public static void assertStoreModel(ModelRegistry registry, Model model) {
         PlainActionFuture<Boolean> storeListener = new PlainActionFuture<>();
         registry.storeModel(model, storeListener, TimeValue.THIRTY_SECONDS);

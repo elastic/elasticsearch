@@ -743,7 +743,18 @@ public class ModelRegistry implements ClusterStateListener {
 
             var storageResponses = responses.stream().map(StoreResponseWithIndexInfo::modelStoreResponse).toList();
 
-            deleteModels(inferenceIdsToBeRemoved, ActionListener.running(() -> delegate.onResponse(storageResponses)));
+            ActionListener<Boolean> deleteListener = ActionListener.wrap(ignored -> delegate.onResponse(storageResponses), e -> {
+                logger.atWarn()
+                    .withThrowable(e)
+                    .log(
+                        "Failed to clean up partially stored inference endpoints {}. "
+                            + "The service may be in an inconsistent state. Please try deleting and re-adding the endpoints.",
+                        inferenceIdsToBeRemoved
+                    );
+                delegate.onResponse(storageResponses);
+            });
+
+            deleteModels(inferenceIdsToBeRemoved, deleteListener);
         });
 
         return ActionListener.wrap(bulkItemResponses -> {
@@ -950,6 +961,11 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     private void deleteModels(Set<String> inferenceEntityIds, boolean updateClusterState, ActionListener<Boolean> listener) {
+        if (inferenceEntityIds.isEmpty()) {
+            listener.onResponse(true);
+            return;
+        }
+
         var lockedInferenceIds = new HashSet<>(inferenceEntityIds);
         lockedInferenceIds.retainAll(preventDeletionLock);
 

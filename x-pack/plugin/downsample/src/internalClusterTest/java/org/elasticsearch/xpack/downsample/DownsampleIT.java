@@ -216,55 +216,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         };
         bulkIndex(dataStreamName, sourceSupplier, 100);
 
-        // Rollover to ensure the index we will downsample is not the write index
-        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String sourceIndex = backingIndices.get(0);
-        String secondIndex = backingIndices.get(1);
-        String interval = "5m";
-        String targetIndex = "downsample-" + interval + "-" + sourceIndex;
-        // Set the source index to read-only state
-        assertAcked(
-            indicesAdmin().prepareUpdateSettings(sourceIndex)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
-        );
-
-        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval));
-        assertAcked(
-            client().execute(
-                DownsampleAction.INSTANCE,
-                new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, targetIndex, TIMEOUT, downsampleConfig)
-            )
-        );
-
-        // Wait for downsampling to complete
-        SubscribableListener<Void> listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-            final var indexMetadata = clusterState.metadata().getProject().index(targetIndex);
-            if (indexMetadata == null) {
-                return false;
-            }
-            var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
-            return downsampleStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS;
-        });
-        safeAwait(listener);
-
-        assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
-
-        // remove old backing index and replace with downsampled index and delete old so old is not queried
-        assertAcked(
-            client().execute(
-                ModifyDataStreamsAction.INSTANCE,
-                new ModifyDataStreamsAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    TEST_REQUEST_TIMEOUT,
-                    List.of(
-                        DataStreamAction.removeBackingIndex(dataStreamName, sourceIndex),
-                        DataStreamAction.addBackingIndex(dataStreamName, targetIndex)
-                    )
-                )
-            ).actionGet()
-        );
-        assertAcked(client().execute(TransportDeleteIndexAction.TYPE, new DeleteIndexRequest(sourceIndex)).actionGet());
+        String secondBackingIndex = rolloverAndDownsample(dataStreamName, 0, "5m");
 
         // index to the next backing index; random time between 31 and 59m in the future to because default look_ahead_time is 30m and we
         // don't want to conflict with the previous backing index
@@ -311,7 +263,99 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 )
             );
         }
+        testEsqlMetrics(dataStreamName, secondBackingIndex);
+    }
 
+    public void testPartialNullMetricsAfterDownsampling() throws Exception {
+        String dataStreamName = "metrics-foo";
+        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster")).build();
+        putTSDBIndexTemplate("my-template", List.of("metrics-foo"), settings, """
+            {
+              "properties": {
+                "host": {
+                  "type": "keyword",
+                  "time_series_dimension": true
+                },
+                "cluster" : {
+                  "type": "keyword",
+                  "time_series_dimension": true
+                },
+                "cpu": {
+                  "type": "double",
+                  "time_series_metric": "gauge"
+                },
+                "request": {
+                  "type": "double",
+                  "time_series_metric": "counter"
+                }
+              }
+            }
+            """, null, null);
+
+        // Create data stream by indexing documents with no values in numerics
+        final Instant now = Instant.now();
+        Supplier<XContentBuilder> sourceSupplier = () -> {
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.minusSeconds(60 * 15).toEpochMilli());
+            try {
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", ts)
+                    .field("host", randomFrom("host1", "host2", "host3"))
+                    .field("cluster", randomFrom("cluster1", "cluster2", "cluster3"))
+                    .endObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        bulkIndex(dataStreamName, sourceSupplier, 100);
+        // And index documents with values
+        sourceSupplier = () -> {
+            String ts = randomDateForRange(now.minusSeconds(60 * 14).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            try {
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", ts)
+                    .field("host", randomFrom("host1", "host2", "host3"))
+                    .field("cluster", randomFrom("cluster1", "cluster2", "cluster3"))
+                    .field("cpu", randomDouble())
+                    .field("request", randomDoubleBetween(0, 100, true))
+                    .endObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        bulkIndex(dataStreamName, sourceSupplier, 100);
+        String secondBackingIndex = rolloverAndDownsample(dataStreamName, 0, "5m");
+
+        Supplier<XContentBuilder> nextSourceSupplier = () -> {
+            String ts = randomDateForRange(now.plusSeconds(60 * 31).toEpochMilli(), now.plusSeconds(60 * 59).toEpochMilli());
+            try {
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", ts)
+                    .field("host", randomFrom("host1", "host2", "host3"))
+                    .field("cluster", randomFrom("cluster1", "cluster2", "cluster3"))
+                    .field("cpu", randomDouble())
+                    .field("request", randomDoubleBetween(0, 100, true))
+                    .endObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        bulkIndex(dataStreamName, nextSourceSupplier, 100);
+
+        // check that aggregate metric double is available
+        var response = clusterAdmin().nodesCapabilities(
+            new NodesCapabilitiesRequest().method(RestRequest.Method.POST)
+                .path("/_query")
+                .capabilities(AGGREGATE_METRIC_DOUBLE_V0.capabilityName())
+        ).actionGet();
+        assumeTrue("Require aggregate_metric_double casting", response.isSupported().orElse(Boolean.FALSE));
+
+        testEsqlMetrics(dataStreamName, secondBackingIndex);
+    }
+
+    private void testEsqlMetrics(String dataStreamName, String nonDownsampledIndex) throws Exception {
         // test _over_time commands with implicit casting of aggregate_metric_double
         for (String outerCommand : List.of("min", "max", "sum", "count")) {
             String expectedType = outerCommand.equals("count") ? "long" : "double";
@@ -338,7 +382,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             // TODO: add to counter tests below when support for counters is added
             for (String innerCommand : List.of("first_over_time", "last_over_time")) {
                 String command = outerCommand + " (" + innerCommand + "(cpu))";
-                try (var resp = esqlCommand("TS " + secondIndex + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)")) {
+                try (
+                    var resp = esqlCommand("TS " + nonDownsampledIndex + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)")
+                ) {
                     var columns = resp.columns();
                     assertThat(columns, hasSize(3));
                     assertThat(
@@ -379,6 +425,60 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 }
             }
         }
+    }
+
+    private String rolloverAndDownsample(String dataStreamName, int timesDownsampledAlready, String interval) throws Exception {
+        // returns the name of the new backing index
+        // Rollover to ensure the index we will downsample is not the write index
+        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
+        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, timesDownsampledAlready + 2);
+        String sourceIndex = backingIndices.get(timesDownsampledAlready);
+        String secondIndex = backingIndices.get(timesDownsampledAlready + 1);
+        String targetIndex = "downsample-" + interval + "-" + sourceIndex;
+        // Set the source index to read-only state
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(sourceIndex)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
+        );
+
+        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval));
+        assertAcked(
+            client().execute(
+                DownsampleAction.INSTANCE,
+                new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, targetIndex, TIMEOUT, downsampleConfig)
+            )
+        );
+
+        // Wait for downsampling to complete
+        SubscribableListener<Void> listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            final var indexMetadata = clusterState.metadata().getProject().index(targetIndex);
+            if (indexMetadata == null) {
+                return false;
+            }
+            var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
+            return downsampleStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS;
+        });
+        safeAwait(listener);
+
+        assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
+
+        // remove old backing index and replace with downsampled index and delete old so old is not queried
+        assertAcked(
+            client().execute(
+                ModifyDataStreamsAction.INSTANCE,
+                new ModifyDataStreamsAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    List.of(
+                        DataStreamAction.removeBackingIndex(dataStreamName, sourceIndex),
+                        DataStreamAction.addBackingIndex(dataStreamName, targetIndex)
+                    )
+                )
+            ).actionGet()
+        );
+        assertAcked(client().execute(TransportDeleteIndexAction.TYPE, new DeleteIndexRequest(sourceIndex)).actionGet());
+
+        return secondIndex;
     }
 
     private EsqlQueryResponse esqlCommand(String command) throws IOException {

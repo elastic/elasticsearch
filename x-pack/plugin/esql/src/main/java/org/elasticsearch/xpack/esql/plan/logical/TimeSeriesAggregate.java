@@ -193,6 +193,17 @@ public class TimeSeriesAggregate extends Aggregate {
                     )
                 );
             }
+            // reject `TS metrics | MV_EXPAND ... | STATS ...`
+            if (p instanceof MvExpand mvExpand) {
+                failures.add(
+                    fail(
+                        mvExpand,
+                        "mv_expand [{}] in the time-series before the first aggregation [{}] is not allowed",
+                        mvExpand.sourceText(),
+                        this.sourceText()
+                    )
+                );
+            }
         });
     }
 

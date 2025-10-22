@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.BWCVersions.getAllBWCVersions;
@@ -36,7 +37,14 @@ public class TestQueryRulesetActionRequestBWCSerializingTests extends AbstractBW
 
     @Override
     protected TestQueryRulesetAction.Request mutateInstance(TestQueryRulesetAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String rulesetId = instance.rulesetId();
+        Map<String, Object> matchCriteria = instance.matchCriteria();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> rulesetId = randomValueOtherThan(rulesetId, () -> randomAlphaOfLength(10));
+            case 1 -> matchCriteria = randomValueOtherThan(matchCriteria, () -> EnterpriseSearchModuleTestUtils.randomMatchCriteria());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new TestQueryRulesetAction.Request(rulesetId, matchCriteria);
     }
 
     @Override

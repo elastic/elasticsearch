@@ -82,6 +82,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
 
     private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
+    private static final TransportVersion BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE = TransportVersion.fromName(
+        "batched_response_might_include_reduction_failure"
+    );
 
     private final SearchProgressListener progressListener;
 
@@ -229,8 +232,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         public NodeQueryResponse(StreamInput in) throws IOException {
             this.results = in.readArray(i -> i.readBoolean() ? new QuerySearchResult(i) : i.readException(), Object[]::new);
-            boolean hasReductionFailure = in.readBoolean();
-            if (hasReductionFailure) {
+            if (in.getTransportVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) && in.readBoolean()) {
                 this.reductionFailure = in.readException();
                 this.mergeResult = null;
                 this.topDocsStats = null;
@@ -260,10 +262,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     writePerShardResult(out, (QuerySearchResult) result);
                 }
             }
-            boolean hasReductionFailure = reductionFailure != null;
-            out.writeBoolean(hasReductionFailure);
-            if (hasReductionFailure) {
-                out.writeException(reductionFailure);
+            if (out.getTransportVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE)) {
+                boolean hasReductionFailure = reductionFailure != null;
+                out.writeBoolean(hasReductionFailure);
+                if (hasReductionFailure) {
+                    out.writeException(reductionFailure);
+                } else {
+                    writeMergeResult(out, mergeResult, topDocsStats);
+                }
             } else {
                 writeMergeResult(out, mergeResult, topDocsStats);
             }

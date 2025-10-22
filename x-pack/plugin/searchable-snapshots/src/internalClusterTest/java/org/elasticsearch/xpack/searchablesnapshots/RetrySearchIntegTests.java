@@ -189,7 +189,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                     updatedPit.set(resp.pointInTimeId());
                 }
             );
-            logger.info("--> first search after node restart finished");
+            logger.info("---> first search after node restart finished");
 
             // At this point we should have re-created all contexts, running a second search
             // should not re-trigger creation of new contexts. Lets check this.
@@ -210,7 +210,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                     assertHitCount(resp, docCount);
                 }
             );
-            logger.info("--> second search after node restart finished");
+            logger.info("---> second search after node restart finished");
             if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
                 assertThat("Search should not create new contexts", newContexts.get(), equalTo(0L));
             }

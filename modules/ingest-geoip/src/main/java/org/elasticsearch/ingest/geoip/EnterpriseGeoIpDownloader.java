@@ -407,12 +407,12 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             logger.debug("Not restarting periodic run because task is cancelled, completed, or shutting down");
             return;
         }
-        logger.trace("Restarting periodic run");
+        logger.debug("Restarting periodic run");
         // We synchronize to ensure we only have one scheduledPeriodicRun at a time.
         synchronized (this) {
             if (scheduledPeriodicRun != null) {
                 final boolean cancelSuccessful = scheduledPeriodicRun.cancel();
-                logger.trace("Cancelled scheduled run: [{}]", cancelSuccessful);
+                logger.debug("Cancelled scheduled run: [{}]", cancelSuccessful);
             }
             // This is based on the premise that the poll interval is sufficiently large that we don't need to worry about
             // the scheduled `runPeriodic` running before this method completes.
@@ -484,9 +484,10 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         // Capture the current queue size, so that if another run is requested while we're running, we'll know at the end of this method
         // whether we need to run again.
         final int currentQueueSize = queuedRuns.get();
-        logger.debug("Running downloader on demand");
+        logger.trace("Running downloader on demand");
         try {
             runDownloader();
+            logger.trace("Downloader completed successfully");
         } finally {
             // If any exception was thrown during runDownloader, we still want to check queuedRuns.
             // Subtract this "batch" of runs from queuedRuns.

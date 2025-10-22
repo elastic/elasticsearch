@@ -143,6 +143,29 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             "Line 1:1: java.lang.IllegalArgumentException: "
                                 + "failed to parse date field [not a date] with format [yyyy-MM-dd]"
                         )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.OBJECT),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.KEYWORD, "pattern"),
+                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "date"),
+                            new TestCaseSupplier.TypedData(
+                                new MapExpression(
+                                    Source.EMPTY,
+                                    List.of(
+                                        new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                                        new Literal(Source.EMPTY, new BytesRef("UTC"), DataType.KEYWORD)
+                                    )
+                                ),
+                                DataType.OBJECT,
+                                "options"
+                            ).forceLiteral()
+                        ),
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
+                        DataType.DATETIME,
+                        equalTo(1683244800000L)
+                    )
                 )
             )
         );

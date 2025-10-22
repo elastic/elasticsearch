@@ -61,9 +61,9 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
     private static final String TIME_ZONE_PARAM_NAME = "time_zone";
     private static final String LOCALE_PARAM_NAME = "locale";
 
-    private final Expression field;
-    private final Expression format;
-    private final Expression options;
+    private final Expression first;
+    private final Expression second;
+    private final Expression third;
 
     @FunctionInfo(
         returnType = "date",
@@ -100,24 +100,53 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
             description = "(Optional) Additional options for date parsing, specifying time zone and locale "
                 + "as <<esql-function-named-params,function named parameters>>.",
             optional = true
-        ) Expression options
+        ) Expression third
     ) {
-        super(source, fields(first, second, options));
-        this.field = second != null ? second : first;
-        this.format = second != null ? first : null;
-        this.options = options;
+        super(source, fields(first, second, third));
+        this.first = first;
+        this.second = second;
+        this.third = third;
     }
 
-    private static List<Expression> fields(Expression field, Expression format, Expression options) {
+    private static List<Expression> fields(Expression first, Expression second, Expression third) {
         List<Expression> list = new ArrayList<>(3);
-        list.add(field);
-        if (format != null) {
-            list.add(format);
+        list.add(first);
+        if (second != null) {
+            list.add(second);
         }
-        if (options != null) {
-            list.add(options);
+        if (third != null) {
+            list.add(third);
         }
         return list;
+    }
+
+    private Expression field() {
+        // If second is a MapExpression, then: first=date, second=options, third=null
+        // If second is not a MapExpression and second exists, then: first=pattern, second=date, third=options
+        // If only first exists, then: first=date, second=null, third=null
+        if (second instanceof MapExpression) {
+            return first;
+        }
+        return second != null ? second : first;
+    }
+
+    private Expression format() {
+        // If second is a MapExpression, then: first=date, second=options, third=null (no format)
+        // If second is not a MapExpression and second exists, then: first=pattern, second=date, third=options
+        // If only first exists, then: first=date, second=null, third=null (no format)
+        if (second instanceof MapExpression || second == null) {
+            return null;
+        }
+        return first;
+    }
+
+    private Expression options() {
+        // If second is a MapExpression, then: first=date, second=options, third=null
+        // If second is not a MapExpression and third exists, then: first=pattern, second=date, third=options
+        if (second instanceof MapExpression) {
+            return second;
+        }
+        return third;
     }
 
     private DateParse(StreamInput in) throws IOException {
@@ -154,6 +183,7 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
         }
 
         TypeResolution resolution;
+        Expression format = format();
         if (format != null) {
             resolution = isStringAndExact(format, sourceText(), FIRST);
             if (resolution.unresolved()) {
@@ -161,6 +191,7 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
             }
         }
 
+        Expression field = field();
         resolution = isString(field, sourceText(), format != null ? SECOND : FIRST);
         if (resolution.unresolved()) {
             return resolution;
@@ -171,6 +202,8 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
 
     @Override
     public boolean foldable() {
+        Expression field = field();
+        Expression format = format();
         return field.foldable() && (format == null || format.foldable());
     }
 
@@ -191,16 +224,19 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
 
     private Map<String, Object> parseOptions() throws InvalidArgumentException {
         Map<String, Object> matchOptions = new HashMap<>();
-        if (this.options == null) {
+        Expression options = options();
+        if (options == null) {
             return matchOptions;
         }
 
-        Options.populateMap((MapExpression) this.options, matchOptions, source(), THIRD, ALLOWED_OPTIONS);
+        Options.populateMap((MapExpression) options, matchOptions, source(), THIRD, ALLOWED_OPTIONS);
         return matchOptions;
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        Expression field = field();
+        Expression format = format();
         ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
             return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
@@ -256,6 +292,9 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
 
     @Override
     protected NodeInfo<? extends Expression> info() {
+        Expression format = format();
+        Expression field = field();
+        Expression options = options();
         Expression first = format != null ? format : field;
         Expression second = format != null ? field : null;
         return NodeInfo.create(this, DateParse::new, first, second, options);

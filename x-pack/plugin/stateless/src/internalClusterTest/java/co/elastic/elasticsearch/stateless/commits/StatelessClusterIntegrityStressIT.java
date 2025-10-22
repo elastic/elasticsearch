@@ -76,10 +76,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -138,9 +138,11 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
     @TestLogging(
         value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.shard_files_deletes:debug,"
             + "org.elasticsearch.blobcache.shared.SharedBlobCacheService:warn," // disable logs of "No free regions ..."
-            + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:debug,"
             + "co.elastic.elasticsearch.stateless.commits.HollowShardsService:debug,"
             + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction:debug,"
+            // https://github.com/elastic/elasticsearch-serverless/issues/4458
+            + "org.elasticsearch.index.engine.Engine:trace,"
+            + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:trace,"
             + "org.elasticsearch.indices.recovery:debug",
         reason = "ensure shard file deletion on DEBUG level"
     )
@@ -506,10 +508,10 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     final WriteRequest.RefreshPolicy refreshPolicy = rarely()
                         ? WriteRequest.RefreshPolicy.WAIT_UNTIL
                         : randomFrom(WriteRequest.RefreshPolicy.IMMEDIATE, WriteRequest.RefreshPolicy.NONE);
-                    final Set<String> targetIndices = new HashSet<>();
+                    final Map<String, Integer> indexToDocCount = new TreeMap<>();
                     IntStream.range(0, numDocs).forEach(i -> {
                         final String index = randomFrom(indices.keySet());
-                        targetIndices.add(index);
+                        indexToDocCount.merge(index, 1, Integer::sum);
                         bulkRequest.add(
                             prepareIndex(index).setSource(
                                 "field",
@@ -522,12 +524,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                         );
                     });
                     bulkRequest.setRefreshPolicy(refreshPolicy);
-                    logger.info(
-                        "--> bulk indexing [{}] docs into {} with refresh policy [{}]",
-                        numDocs,
-                        targetIndices.stream().sorted().toList(),
-                        refreshPolicy
-                    );
+                    logger.info("--> bulk indexing [{}] docs into {} with refresh policy [{}]", numDocs, indexToDocCount, refreshPolicy);
                     final BulkResponse bulkResponse = bulkRequest.get(defaultTestTimeout);
 
                     // Add docIds that are visible after refresh
@@ -538,12 +535,12 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                             }
                         });
                     } else {
-                        logger.info("--> refreshing {} separately after bulk indexing", targetIndices);
+                        logger.info("--> refreshing {} separately after bulk indexing", indexToDocCount.keySet());
                         final var refreshResponse = client().admin()
                             .indices()
-                            .prepareRefresh(targetIndices.toArray(String[]::new))
+                            .prepareRefresh(indexToDocCount.keySet().toArray(String[]::new))
                             .get(defaultTestTimeout);
-                        logger.info("--> completed refreshing {}", targetIndices);
+                        logger.info("--> completed refreshing {}", indexToDocCount.keySet());
                         // For simplicity, only track docIds if there is no failed shards
                         if (refreshResponse.getFailedShards() == 0) {
                             Arrays.stream(bulkResponse.getItems()).forEach(bulkItemResponse -> {
@@ -551,7 +548,18 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                                     indices.get(bulkItemResponse.getIndex()).docIds.add(bulkItemResponse.getId());
                                 }
                             });
+                        } else {
+                            logger.info(
+                                "--> not tracking [{}] indexed docs for indices {} due to [{}] failed shards during refresh : {}",
+                                numDocs,
+                                indexToDocCount.keySet(),
+                                refreshResponse.getFailedShards(),
+                                Arrays.toString(refreshResponse.getShardFailures())
+                            );
                         }
+                    }
+                    if (bulkResponse.hasFailures()) {
+                        logger.info("--> bulk indexing [{}] docs completed with failures: {}", numDocs, bulkResponse.buildFailureMessage());
                     }
                 } catch (Exception e) {
                     // Failure can happen the shard is failed or node restart/replace/isolated concurrently. Just ignore them

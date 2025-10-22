@@ -375,3 +375,21 @@ data stream settings ilm:
             number_of_shards: 2
   - match: { data_streams.0.name: metrics-generic.otel-default }
   - match: { data_streams.0.applied_to_data_stream: true }
+---
+"@timestamp field should have type date (and not date_nanos as other signals)":
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","attributes":{"processor.pid": 17}}'
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: timestamp_index }
+  - do:
+      indices.get_mapping:
+        index: $timestamp_index
+  - match: { .$timestamp_index.mappings.properties.@timestamp.type: "date" }

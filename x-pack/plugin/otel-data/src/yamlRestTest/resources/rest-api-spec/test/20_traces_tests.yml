@@ -158,3 +158,21 @@ traces@lifecycle:
       indices.get_mapping:
         index: $idx0name
   - match: { .$idx0name.mappings.properties.attributes.properties.elastic\.profiler_stack_trace_ids.type: 'counted_keyword' }
+---
+"@timestamp field should have type date_nanos":
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-10-22T12:00:00.123456789Z","data_stream":{"dataset":"generic.otel","namespace":"default"},"span_id":"1"}'
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: traces-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: timestamp_index }
+  - do:
+      indices.get_mapping:
+        index: $timestamp_index
+  - match: { .$timestamp_index.mappings.properties.@timestamp.type: "date_nanos" }

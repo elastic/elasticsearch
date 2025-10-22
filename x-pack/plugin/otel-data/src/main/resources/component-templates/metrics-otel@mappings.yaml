@@ -8,6 +8,10 @@ template:
     index.mapping.total_fields.limit: 10000
   mappings:
     properties:
+      # In general, we use date_nanos in OTel, but for metrics, the very high frequency
+      # could destroy the high efficiency of the delta of delta encoding resulting in increased storage.
+      "@timestamp":
+        type: date
       start_timestamp:
         type: date
       metrics:

@@ -114,7 +114,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         fieldCapsAction.executeRequest(
             task,
             request,
-            listener.map(resp -> new EsqlResolveFieldsResponse(resp, TransportVersion.current()))
+            listener.map(resp -> new EsqlResolveFieldsResponse(resp, resp.minTransportVersion()))
         );
     }
 

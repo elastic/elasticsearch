@@ -337,10 +337,8 @@ public class InferencePlugin extends Plugin
 
         var eisComponents = new ElasticInferenceServiceComponents(inferenceServiceSettings.getElasticInferenceServiceUrl());
 
-        var authTaskExecutor = new AuthorizationTaskExecutor(
-            services.client(),
+        var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
-            services.threadPool(),
             new AuthorizationPoller.Parameters(
                 serviceComponents.get(),
                 authorizationHandler,
@@ -351,7 +349,6 @@ public class InferencePlugin extends Plugin
                 services.client()
             )
         );
-        authTaskExecutor.init();
         authorizationTaskExecutorRef.set(authTaskExecutor);
 
         var sageMakerSchemas = new SageMakerSchemas();

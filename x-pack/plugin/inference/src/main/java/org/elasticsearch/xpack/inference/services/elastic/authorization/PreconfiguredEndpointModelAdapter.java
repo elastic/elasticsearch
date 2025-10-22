@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconf
 public class PreconfiguredEndpointModelAdapter {
     public static List<Model> getModels(Set<String> inferenceIds, ElasticInferenceServiceComponents elasticInferenceServiceComponents) {
         return inferenceIds.stream()
+            .sorted()
             .filter(EIS_PRECONFIGURED_ENDPOINT_IDS::contains)
             .map(id -> createModel(InternalPreconfiguredEndpoints.getWithInferenceId(id), elasticInferenceServiceComponents))
             .toList();

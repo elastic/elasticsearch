@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContent;
@@ -23,7 +22,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller.TASK_NAME;
 
 public class AuthorizationTaskParams implements PersistentTaskParams {
-    private static final AuthorizationTaskParams INSTANCE = new AuthorizationTaskParams();
+    public static final AuthorizationTaskParams INSTANCE = new AuthorizationTaskParams();
 
     private static final ObjectParser<AuthorizationTaskParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, () -> INSTANCE);
 
@@ -61,7 +60,7 @@ public class AuthorizationTaskParams implements PersistentTaskParams {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return obj instanceof HealthNodeTaskParams;
+    public boolean equals(Object o) {
+        return this == o || (o != null && getClass() == o.getClass());
     }
 }

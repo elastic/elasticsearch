@@ -11,10 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -25,7 +25,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -33,6 +32,7 @@ import org.elasticsearch.xcontent.ParseField;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller.TASK_NAME;
@@ -44,27 +44,43 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final AuthorizationPoller.Parameters pollerParameters;
+    private final AtomicReference<AuthorizationPoller> currentTask = new AtomicReference<>();
 
-    public AuthorizationTaskExecutor(
-        Client client,
+    public static AuthorizationTaskExecutor create(ClusterService clusterService, AuthorizationPoller.Parameters parameters) {
+        Objects.requireNonNull(clusterService);
+        Objects.requireNonNull(parameters);
+
+        var executor = new AuthorizationTaskExecutor(
+            clusterService,
+            new PersistentTasksService(clusterService, parameters.serviceComponents().threadPool(), parameters.client()),
+            parameters
+        );
+        executor.init();
+        return executor;
+    }
+
+    // default for testing
+    AuthorizationTaskExecutor(
         ClusterService clusterService,
-        ThreadPool threadPool,
+        PersistentTasksService persistentTasksService,
         AuthorizationPoller.Parameters pollerParameters
     ) {
-        super(TASK_NAME, threadPool.executor(UTILITY_THREAD_POOL_NAME));
+        super(TASK_NAME, pollerParameters.serviceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME));
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+        this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
         this.pollerParameters = Objects.requireNonNull(pollerParameters);
     }
 
-    public void init() {
-        clusterService.addListener(this);
+    // default for testing
+    void init() {
+        // If the EIS url is not configured, then we won't be able to interact with the service, so don't start the task.
+        if (Strings.isNullOrEmpty(pollerParameters.eisComponents().elasticInferenceServiceUrl()) == false) {
+            clusterService.addListener(this);
+        }
     }
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, AuthorizationTaskParams params, PersistentTaskState state) {
-        // TODO remove
-        logger.warn("Starting authorization poller task");
         var authPoller = (AuthorizationPoller) task;
         authPoller.start();
     }
@@ -83,7 +99,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         PersistentTasksCustomMetadata.PersistentTask<AuthorizationTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        return new AuthorizationPoller(
+        return AuthorizationPoller.create(
             new AuthorizationPoller.TaskFields(id, type, action, getDescription(taskInProgress), parentTaskId, headers),
             pollerParameters
         );
@@ -100,9 +116,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
             TASK_NAME,
             new AuthorizationTaskParams(),
             TimeValue.THIRTY_SECONDS,
-            ActionListener.wrap(persistentTask -> {
-                logger.warn("Created authorization poller task");
-            }, e -> {
+            ActionListener.wrap(persistentTask -> logger.debug("Created authorization poller task"), e -> {
                 var t = e instanceof RemoteTransportException ? e.getCause() : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
                     logger.error("Failed to create authorization poller task", e);

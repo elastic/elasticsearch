@@ -28,6 +28,10 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.is;
@@ -222,7 +226,68 @@ public class AuthorizationPollerTests extends ESTestCase {
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
     }
 
-    public void testSendsTwoAuthorizationRequests() {
-        fail("TODO");
+    public void testSendsTwoAuthorizationRequests() throws InterruptedException {
+        var mockRegistry = mock(ModelRegistry.class);
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
+        doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                // this is an unknown model id so it won't trigger storing an inference endpoint because
+                                // it doesn't map to a known one
+                                "abc",
+                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
+                            )
+                        )
+                    )
+                )
+            );
+            return Void.TYPE;
+        }).when(mockAuthHandler).getAuthorization(any(), any());
+
+        var mockClient = mock(Client.class);
+        var eisComponents = new ElasticInferenceServiceComponents("");
+
+        var callbackCount = new AtomicInteger(0);
+        var latch = new CountDownLatch(2);
+        final var pollerRef = new AtomicReference<AuthorizationPoller>();
+
+        Runnable callback = () -> {
+            var count = callbackCount.incrementAndGet();
+            latch.countDown();
+
+            // we only want to run the tasks twice, so advance the time on the queue
+            // which flags the scheduled authorization request to be ready to run
+            if (count == 1) {
+                taskQueue.advanceTime();
+            } else {
+                pollerRef.get().shutdown();
+            }
+        };
+
+        var poller = new AuthorizationPoller(
+            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
+            createWithEmptySettings(taskQueue.getThreadPool()),
+            mockAuthHandler,
+            mock(Sender.class),
+            ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+            eisComponents,
+            mockRegistry,
+            mockClient,
+            callback
+        );
+        pollerRef.set(poller);
+        poller.start();
+        taskQueue.runAllRunnableTasks();
+        latch.await(TimeValue.THIRTY_SECONDS.getSeconds(), TimeUnit.SECONDS);
+
+        assertThat(callbackCount.get(), is(2));
+        verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 }

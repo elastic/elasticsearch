@@ -5,5 +5,5 @@ The population variance of a numeric field.
 
 ```esql
 FROM employees
-| STATS std_var_height = STD_VAR(height)
+| STATS std_var_height = VARIANCE(height)
 ```

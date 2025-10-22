@@ -42,7 +42,7 @@
     }
   ],
   "examples" : [
-    "FROM employees\n| STATS std_var_height = STD_VAR(height)"
+    "FROM employees\n| STATS std_var_height = VARIANCE(height)"
   ],
   "preview" : false,
   "snapshot_only" : false

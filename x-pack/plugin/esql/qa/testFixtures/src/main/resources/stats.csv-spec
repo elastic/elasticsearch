@@ -2974,7 +2974,7 @@ required_capability: variance_stddev_over_time
 
 // tag::stdvar[]
 FROM employees
-| STATS std_var_height = STD_VAR(height)
+| STATS std_var_height = VARIANCE(height)
 // end::stdvar[]
 | EVAL std_var_height = ROUND(std_var_height, 7)
 ;

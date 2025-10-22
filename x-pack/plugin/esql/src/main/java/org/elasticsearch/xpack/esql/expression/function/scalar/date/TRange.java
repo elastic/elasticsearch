@@ -105,7 +105,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
         this(source, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD), first, second, configuration);
     }
 
-    protected TRange(Source source, Expression timestamp, Expression first, Expression second, Configuration configuration) {
+    public TRange(Source source, Expression timestamp, Expression first, Expression second, Configuration configuration) {
         super(source, second != null ? List.of(timestamp, first, second) : List.of(timestamp, first), configuration);
         this.timestamp = timestamp;
         this.first = first;

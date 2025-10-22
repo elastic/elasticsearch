@@ -1,0 +1,193 @@
+---
+"Test get sample for basic sample config":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.create:
+        index: sample_test
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - match: { sample: [] }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - length: { sample: 2 }
+  - match: { sample.0.index: "sample_test" }
+  - match: { sample.0.source.animal: "dog" }
+  - match: { sample.0.source.foo: "bar" }
+  - match: { sample.1.source.animal: "cat" }
+  - match: { sample.1.source.foo: "baz" }
+
+---
+"Test get sample for conditional sample config":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.create:
+        index: sample_test
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+          if: "ctx?.animal == 'dog'"
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - match: { sample: [] }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - length: { sample: 1 }
+  - match: { sample.0.index: "sample_test" }
+  - match: { sample.0.source.animal: "dog" }
+  - match: { sample.0.source.foo: "bar" }
+
+---
+"Test that deleting sample config deletes sample":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.create:
+        index: sample_test
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - match: { sample: [] }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - length: { sample: 1 }
+
+  - do:
+      indices.delete_sample_configuration:
+        index: sample_test
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+      catch: missing
+
+---
+"Test that deleting index deletes sample":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.create:
+        index: sample_test
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - match: { sample: [] }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - length: { sample: 2 }
+
+  - do:
+      indices.delete:
+        index: sample_test
+
+  - do:
+      indices.get_sample_configuration:
+        index: sample_test
+      catch: missing
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+      catch: missing
+
+---
+teardown:
+
+  - do:
+      indices.delete:
+        index: sample_test
+        ignore_unavailable: true

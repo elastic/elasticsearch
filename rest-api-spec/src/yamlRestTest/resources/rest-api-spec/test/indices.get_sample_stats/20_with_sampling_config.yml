@@ -171,11 +171,11 @@
           rate: 1.0
           max_samples: 100
 
-#  - do:
-#      indices.get_sample_stats:
-#        index: sample_test
-#        human: true
-#  - match: { potential_samples: 0 }
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 0 }
 
   - do:
       bulk:
@@ -186,11 +186,11 @@
           - '{"index": {"_index": "sample_test"}}'
           - '{"animal": "cat", "foo": "baz"}'
 
-#  - do:
-#      indices.get_sample_stats:
-#        index: sample_test
-#        human: true
-#  - match: { potential_samples: 2 }
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 2 }
 
   - do:
       indices.delete:

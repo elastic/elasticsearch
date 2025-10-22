@@ -120,7 +120,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
         scripts.put(NUMERIC_VALUES_SCRIPT, vars -> {
             final Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            return (ScriptDocValues<?>) doc.get("numbers");
+            return doc.get("numbers");
         });
 
         MockScriptEngine scriptEngine = new MockScriptEngine(
@@ -830,8 +830,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertNotNull(cardinality);
             assertEquals("cardinality", cardinality.getName());
             assertEquals(numDocs, cardinality.getValue(), 0);
-            assertEquals(cardinality, ((InternalAggregation) global).getProperty("cardinality"));
-            assertEquals(numDocs, (double) ((InternalAggregation) global).getProperty("cardinality.value"), 0);
+            assertEquals(cardinality, global.getProperty("cardinality"));
+            assertEquals(numDocs, (double) global.getProperty("cardinality.value"), 0);
             assertEquals(numDocs, (double) ((InternalAggregation) cardinality).getProperty("value"), 0);
         }, new AggTestConfig(aggregationBuilder, fieldType));
     }

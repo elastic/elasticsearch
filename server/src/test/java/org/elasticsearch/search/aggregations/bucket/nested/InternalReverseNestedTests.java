@@ -10,12 +10,12 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.SingleBucketAggregationTestCase;
 
 import java.util.List;
 import java.util.Map;
 
-public class InternalReverseNestedTests extends InternalSingleBucketAggregationTestCase<InternalReverseNested> {
+public class InternalReverseNestedTests extends SingleBucketAggregationTestCase<InternalReverseNested> {
     @Override
     protected InternalReverseNested createTestInstance(
         String name,

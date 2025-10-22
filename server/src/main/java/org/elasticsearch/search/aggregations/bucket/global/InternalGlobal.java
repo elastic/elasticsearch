@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
 import java.io.IOException;
@@ -20,7 +19,7 @@ import java.util.Map;
  * A global scope get (the document set on which we aggregate is all documents in the search context (ie. index + type)
  * regardless the query.
  */
-public class InternalGlobal extends InternalSingleBucketAggregation implements SingleBucketAggregation {
+public class InternalGlobal extends SingleBucketAggregation {
     InternalGlobal(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
         super(name, docCount, aggregations, metadata);
     }
@@ -38,7 +37,7 @@ public class InternalGlobal extends InternalSingleBucketAggregation implements S
     }
 
     @Override
-    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+    protected SingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalGlobal(name, docCount, subAggregations, getMetadata());
     }
 }

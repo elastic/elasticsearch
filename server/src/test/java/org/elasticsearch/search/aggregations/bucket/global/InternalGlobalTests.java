@@ -10,12 +10,12 @@
 package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.SingleBucketAggregationTestCase;
 
 import java.util.List;
 import java.util.Map;
 
-public class InternalGlobalTests extends InternalSingleBucketAggregationTestCase<InternalGlobal> {
+public class InternalGlobalTests extends SingleBucketAggregationTestCase<InternalGlobal> {
     @Override
     protected InternalGlobal createTestInstance(
         String name,

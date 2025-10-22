@@ -50,7 +50,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -453,9 +452,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         assertNotNull(max);
         assertEquals("max", max.getName());
         assertEquals(10.0, max.value(), 0);
-        assertEquals(max, ((InternalAggregation) global).getProperty("max"));
-        assertEquals(10.0, (double) ((InternalAggregation) global).getProperty("max.value"), 0);
-        assertEquals(10.0, (double) ((InternalAggregation) max).getProperty("value"), 0);
+        assertEquals(max, global.getProperty("max"));
+        assertEquals(10.0, (double) global.getProperty("max.value"), 0);
+        assertEquals(10.0, (double) max.getProperty("value"), 0);
 
         indexReader.close();
         directory.close();

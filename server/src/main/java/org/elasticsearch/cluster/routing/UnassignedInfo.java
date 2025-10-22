@@ -141,7 +141,7 @@ public record UnassignedInfo(
          */
         REROUTE_CANCELLED,
         /**
-         * When a shard moves from started back to initializing.
+         * Unassigned as a result of the recovery source (the primary shard) changed during initialization.
          */
         REINITIALIZED,
         /**

@@ -79,8 +79,9 @@ public class WriteLoadConstraintMonitor {
         final Set<String> nodeIdsExceedingQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
         final Set<String> nodeIdsBelowQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
         clusterInfo.getNodeUsageStatsForThreadPools().forEach((nodeId, usageStats) -> {
-            if (state.getNodes().get(nodeId).getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
-                // Currently only index nodes are supported.
+            if (state.getNodes().get(nodeId).getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
+                // Search nodes are not expected to have write load hot-spots and are not considered for shard relocation.
+                // TODO (ES-13314): consider stateful data tiers
                 return;
             }
             final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = usageStats.threadPoolUsageStatsMap()

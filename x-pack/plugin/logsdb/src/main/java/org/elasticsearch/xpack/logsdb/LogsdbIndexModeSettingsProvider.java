@@ -47,6 +47,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -61,6 +62,10 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         .stream()
         .flatMap(v -> Stream.of(v, "_doc." + v))
         .collect(Collectors.toSet());
+    private static final Function<Map<String, Object>, Map<String, Object>> MAPPING_INCLUDES_FILTER = XContentMapValues.filter(
+        MAPPING_INCLUDES.toArray(String[]::new),
+        new String[0]
+    );
 
     private final LogsdbLicenseService licenseService;
     private final SetOnce<CheckedFunction<IndexMetadata, MapperService, IOException>> mapperServiceFactory = new SetOnce<>();
@@ -264,14 +269,13 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     // The _doc.properties.host* is needed to determine whether host.name field can be injected.
                     // The _doc.subobjects is needed to determine whether subobjects is enabled.
                     List<CompressedXContent> filteredMappings = new ArrayList<>(combinedTemplateMappings.size());
-                    String[] mappingIncludesArray = MAPPING_INCLUDES.toArray(String[]::new);
                     for (CompressedXContent mappingSource : combinedTemplateMappings) {
                         var ref = mappingSource.compressedReference();
                         Map<String, Object> map;
                         if (maybeUsesPatternText == false) {
                             var fullMap = XContentHelper.convertToMap(ref, true, XContentType.JSON).v2();
                             maybeUsesPatternText = checkMappingForPatternText(fullMap);
-                            map = XContentMapValues.filter(fullMap, mappingIncludesArray, new String[0]);
+                            map = MAPPING_INCLUDES_FILTER.apply(fullMap);
                         } else {
                             map = XContentHelper.convertToMap(ref, true, XContentType.JSON, MAPPING_INCLUDES, Set.of()).v2();
                         }

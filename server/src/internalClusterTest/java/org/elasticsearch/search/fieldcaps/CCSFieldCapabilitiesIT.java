@@ -401,7 +401,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
             remoteExpression.localExpressions().localIndexResolutionResult(),
             ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
         );
-        assertEquals(1, remoteExpression.localExpressions().expressions().size());
+        assertEquals(1, remoteExpression.localExpressions().indices().size());
         assertEquals(remoteIndex, remoteResolvedExpressions.get(0).original());
     }
 }

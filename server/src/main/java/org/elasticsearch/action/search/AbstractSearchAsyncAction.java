@@ -46,10 +46,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -80,7 +78,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
     protected final SearchRequest request;
-    private final Set<PitShardToUpdate> pitShardToUpdates;
+    private final Map<RetriedPitShard, ShardSearchFailure> retriedPitShard = new HashMap<>();
 
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
@@ -174,7 +172,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         addReleasable(resultConsumer);
         this.clusters = clusters;
         this.searchResponseMetrics = searchResponseMetrics;
-        this.pitShardToUpdates = new HashSet<>(iterators.size());
     }
 
     protected void notifyListShards(
@@ -524,11 +521,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures != null) {
-            ShardSearchFailure shardSearchFailure = shardFailures.get(result.getShardIndex());
-            if (shardSearchFailure != null && shardSearchFailure.getCause() instanceof SearchContextMissingException) {
-                pitShardToUpdates.add(
-                    new PitShardToUpdate(shardSearchFailure.shard().getShardId(), shardSearchFailure.shard().getClusterAlias())
-                );
+            if (request.pointInTimeBuilder() != null) {
+                // if we have a PIT request, we keep track of original shard failures to use that information when updating the PIT id later
+                ShardSearchFailure shardSearchFailure = shardFailures.get(result.getShardIndex());
+                if (shardSearchFailure != null) {
+                    retriedPitShard.put(
+                        new RetriedPitShard(shardSearchFailure.shard().getShardId(), shardSearchFailure.shard().getClusterAlias()),
+                        shardSearchFailure
+                    );
+                }
             }
             shardFailures.set(result.getShardIndex(), null);
         }
@@ -634,29 +635,24 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    record PitShardToUpdate(ShardId shardId, String clusterAlias) {}
+    record RetriedPitShard(ShardId shardId, String clusterAlias) {}
 
     protected BytesReference buildSearchContextId(ShardSearchFailure[] failures) {
         BytesReference searchContextId = null;
         SearchSourceBuilder source = request.source();
-        // only (re-)build a search context id if we have a point in time
+        // only (re-)build a search context id if we are running a long-lived point-in-time request
         if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
             if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
-                // we want to change node ids in the PIT id if any shards and its PIT context have potentially moved
-                if (pitShardToUpdates.isEmpty() == false) {
-                    searchContextId = maybeReEncodeNodeIds(
-                        source.pointInTimeBuilder(),
-                        results.getAtomicArray().asList(),
-                        pitShardToUpdates,
-                        namedWriteableRegistry,
-                        mintransportVersion,
-                        searchTransportService,
-                        discoveryNodes.get(),
-                        logger
-                    );
-                } else {
-                    searchContextId = source.pointInTimeBuilder().getEncodedId();
-                }
+                searchContextId = maybeReEncodeNodeIds(
+                    source.pointInTimeBuilder(),
+                    results.getAtomicArray().asList(),
+                    retriedPitShard,
+                    namedWriteableRegistry,
+                    mintransportVersion,
+                    searchTransportService,
+                    discoveryNodes.get(),
+                    logger
+                );
             } else {
                 searchContextId = source.pointInTimeBuilder().getEncodedId();
             }
@@ -667,7 +663,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     static <Result extends SearchPhaseResult> BytesReference maybeReEncodeNodeIds(
         PointInTimeBuilder originalPit,
         List<Result> results,
-        Set<PitShardToUpdate> pitIdsToUpdate,
+        Map<RetriedPitShard, ShardSearchFailure> pitIdsToUpdate,
         NamedWriteableRegistry namedWriteableRegistry,
         TransportVersion mintransportVersion,
         SearchTransportService searchTransportService,
@@ -679,6 +675,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // only create the following maps if we detect a change
         Map<ShardId, SearchContextIdForNode> updatedShardMap = null;
         Collection<SearchContextIdForNode> contextsToClose = null;
+        logger.info("---> Re-encoding PIT id for node changes");
         for (Result result : results) {
             SearchShardTarget searchShardTarget = result.getSearchShardTarget();
             ShardId shardId = searchShardTarget.getShardId();
@@ -686,23 +683,30 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (originalShard != null && originalShard.getSearchContextId() != null && originalShard.getSearchContextId().isRetryable()) {
                 // check if the node is different, if so we need to re-encode the PIT
                 String originalNode = originalShard.getNode();
-                if (originalNode != null
-                    && originalNode.equals(searchShardTarget.getNodeId()) == false
-                    && pitIdsToUpdate.contains(new PitShardToUpdate(shardId, originalShard.getClusterAlias()))) {
-                    // the target node for this shard entry in the PIT has changed, we need to update it
-                    idChanged = true;
-                    if (updatedShardMap == null) {
-                        // initialize the map with entries from old map to keep ids for shards that have not responded in this results
-                        updatedShardMap = new HashMap<>(original.shards());
-                        contextsToClose = new ArrayList<>();
-                    }
-                    SearchContextIdForNode updatedId = new SearchContextIdForNode(
-                        searchShardTarget.getClusterAlias(),
-                        searchShardTarget.getNodeId(),
-                        result.getContextId()
+                if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
+                    logger.debug("---> node id change for pit id [{}], new node [{}].", originalShard, searchShardTarget.getNodeId());
+
+                    ShardSearchFailure shardSearchFailure = pitIdsToUpdate.get(
+                        new RetriedPitShard(shardId, originalShard.getClusterAlias())
                     );
-                    updatedShardMap.put(shardId, updatedId);
-                    contextsToClose.add(original.shards().get(shardId));
+                    if (shardSearchFailure != null && isExceptionFromRetriedPit(shardSearchFailure)) {
+                        idChanged = true;
+                        if (updatedShardMap == null) {
+                            // initialize the map with entries from old map to keep ids for shards that have not responded in this results
+                            updatedShardMap = new HashMap<>(original.shards());
+                            contextsToClose = new ArrayList<>();
+                        }
+                        SearchContextIdForNode updatedId = new SearchContextIdForNode(
+                            searchShardTarget.getClusterAlias(),
+                            searchShardTarget.getNodeId(),
+                            result.getContextId()
+                        );
+                        logger.info("---> changing id for [{}] to [{}]", originalShard, updatedId);
+                        updatedShardMap.put(shardId, updatedId);
+                        contextsToClose.add(original.shards().get(shardId));
+                    } else {
+                        logger.debug("Not re-encoding PIT id [{}]. Previous shard failure: [{}]", originalShard, shardSearchFailure);
+                    }
                 }
             }
         }
@@ -726,6 +730,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             return originalPit.getEncodedId();
         }
+    }
+
+    private static boolean isExceptionFromRetriedPit(ShardSearchFailure failure) {
+        Throwable cause = failure.getCause();
+        return cause instanceof SearchContextMissingException || cause instanceof NoShardAvailableActionException;
     }
 
     /**

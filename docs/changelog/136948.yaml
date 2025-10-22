@@ -1,0 +1,5 @@
+pr: 136948
+summary: Fix filtering on TEXT fieds with MV value
+area: ES|QL
+type: bug
+issues: []

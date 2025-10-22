@@ -333,6 +333,11 @@ public class ClusterStateCreationUtils {
         return state.build();
     }
 
+    /**
+     * Creates cluster state with an index that has #(numberOfPrimaries) primary shards in the started state and no replicas. The cluster
+     * state contains #(numberOfIndexNodes) nodes with {@link DiscoveryNodeRole#INDEX_ROLE}, assigning the primary shards to those nodes,
+     * and #(numberOfSearchNodes) nodes with {@link DiscoveryNodeRole#SEARCH_ROLE}.
+     */
     public static ClusterState buildServerlessRoleNodes(
         String indexName,
         int numberOfPrimaries,
@@ -365,8 +370,7 @@ public class ClusterStateCreationUtils {
     }
 
     public record IndexState(IndexMetadata indexMetadata, IndexRoutingTable.Builder indexRoutingTableBuilder) {}
-
-    private static IndexState buildIndex(String indexName, int numberOfPrimaries, Set<String> indexNodeIds) {
+    private static IndexState buildIndex(String indexName, int numberOfPrimaries, Set<String> nodeIds) {
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .build();
@@ -376,7 +380,7 @@ public class ClusterStateCreationUtils {
             ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
             indexShardRoutingBuilder.addShard(
-                TestShardRouting.newShardRouting(shardId, randomFrom(indexNodeIds), true, ShardRoutingState.STARTED)
+                TestShardRouting.newShardRouting(shardId, randomFrom(nodeIds), true, ShardRoutingState.STARTED)
             );
             indexRoutingTable.addIndexShard(indexShardRoutingBuilder);
         }

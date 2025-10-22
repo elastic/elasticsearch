@@ -344,7 +344,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             randomIdentifier(), // index name
             randomIntBetween(1, numberOfIndexNodes),  // num shard primaries
             numberOfIndexNodes, // number of index role nodes
-            0 // number of search role nodes
+            numberOfSearchNodes // number of search role nodes
         );
 
         final RerouteService rerouteService = mock(RerouteService.class);

@@ -34,7 +34,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -64,7 +63,6 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             settings,
             Decision.Type.YES,
             String.format(
-                Locale.ROOT,
                 "below threshold [cluster.routing.allocation.cluster_concurrent_rebalance=-1] for concurrent rebalances, "
                     + "current rebalance shard count [%d]",
                 relocations
@@ -81,7 +79,6 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             settings,
             Decision.Type.YES,
             String.format(
-                Locale.ROOT,
                 "below threshold [cluster.routing.allocation.cluster_concurrent_rebalance=%d] for concurrent rebalances, "
                     + "current rebalance shard count [%d]",
                 relocationLimit,
@@ -93,7 +90,6 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             settings,
             Decision.Type.YES,
             String.format(
-                Locale.ROOT,
                 "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
                 relocationLimit,
                 relocations
@@ -115,7 +111,6 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             settings,
             Decision.Type.YES,
             String.format(
-                Locale.ROOT,
                 "below threshold [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=-1] for concurrent frozen "
                     + "rebalances, current frozen rebalance shard count [%d]",
                 relocations
@@ -132,7 +127,6 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             settings,
             Decision.Type.YES,
             String.format(
-                Locale.ROOT,
                 "below threshold [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=%d] for concurrent frozen "
                     + "rebalances, current frozen rebalance shard count [%d]",
                 relocationLimit,
@@ -144,7 +138,6 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             settings,
             Decision.Type.YES,
             String.format(
-                Locale.ROOT,
                 "below threshold [%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
                 relocationLimit,
                 relocations
@@ -166,7 +159,6 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             settings,
             Decision.Type.THROTTLE,
             String.format(
-                Locale.ROOT,
                 "reached the limit of concurrently rebalancing shards [%d] for concurrent rebalances, "
                     + "cluster setting [cluster.routing.allocation.cluster_concurrent_rebalance=%d], "
                     + "and [0] for concurrent frozen rebalances, frozen cluster setting "
@@ -180,7 +172,6 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             settings,
             Decision.Type.THROTTLE,
             String.format(
-                Locale.ROOT,
                 "reached the limit of concurrently rebalancing shards [%d], "
                     + "cluster setting [cluster.routing.allocation.cluster_concurrent_rebalance=%d]",
                 relocations,
@@ -203,7 +194,6 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             settings,
             Decision.Type.THROTTLE,
             String.format(
-                Locale.ROOT,
                 "reached the limit of concurrently rebalancing shards [0] for concurrent rebalances, "
                     + "cluster setting [cluster.routing.allocation.cluster_concurrent_rebalance=0], "
                     + "and [%d] for concurrent frozen rebalances, "
@@ -217,7 +207,6 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             settings,
             Decision.Type.THROTTLE,
             String.format(
-                Locale.ROOT,
                 "reached the limit of concurrently rebalancing frozen shards [%d], "
                     + "cluster setting [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=%d]",
                 relocations,

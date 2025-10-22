@@ -481,12 +481,12 @@ public class BlockFactory {
         return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
     }
 
-    public DateRangeBlockBuilder newDateRangeBlockBuilder(int estimatedSize) {
-        return new DateRangeBlockBuilder(estimatedSize, this);
+    public LongRangeBlockBuilder newLongRangeBlockBuilder(int estimatedSize) {
+        return new LongRangeBlockBuilder(estimatedSize, this);
     }
 
-    public DateRangeBlock newConstantDateRangeBlock(DateRangeBlockBuilder.DateRangeLiteral value, int positions) {
-        try (var builder = newDateRangeBlockBuilder(positions)) {
+    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+        try (var builder = newLongRangeBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (value.from() == null) {
                     builder.from().appendNull();
@@ -503,10 +503,10 @@ public class BlockFactory {
         }
     }
 
-    public DateRangeBlock newDateRangeBlock(long[] fromValues, long[] toValues, int positions) {
+    public LongRangeBlock newLongRangeBlock(long[] fromValues, long[] toValues, int positions) {
         var from = newLongArrayVector(fromValues, positions).asBlock();
         var to = newLongArrayVector(toValues, positions).asBlock();
-        return new DateRangeArrayBlock(from, to);
+        return new LongRangeArrayBlock(from, to);
     }
 
     /**

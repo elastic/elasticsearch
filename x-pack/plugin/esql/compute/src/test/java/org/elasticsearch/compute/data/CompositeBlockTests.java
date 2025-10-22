@@ -25,7 +25,7 @@ public class CompositeBlockTests extends ComputeTestCase {
                 && e != ElementType.UNKNOWN
                 && e != ElementType.DOC
                 && e != ElementType.AGGREGATE_METRIC_DOUBLE
-                && e != ElementType.DATE_RANGE
+                && e != ElementType.LONG_RANGE
         )
         .toList();
 

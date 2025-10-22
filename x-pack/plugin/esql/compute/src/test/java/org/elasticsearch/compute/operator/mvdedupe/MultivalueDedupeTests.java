@@ -65,7 +65,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                 ElementType.COMPOSITE,
                 ElementType.FLOAT,
                 ElementType.AGGREGATE_METRIC_DOUBLE,
-                ElementType.DATE_RANGE
+                ElementType.LONG_RANGE
             )) {
                 continue;
             }

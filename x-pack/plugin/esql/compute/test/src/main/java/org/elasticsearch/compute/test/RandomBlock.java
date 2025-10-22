@@ -13,12 +13,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -52,7 +52,7 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                 || e == ElementType.NULL
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
-                || e == ElementType.DATE_RANGE
+                || e == ElementType.LONG_RANGE
                 || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
         );
@@ -161,13 +161,13 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             b.count().appendInt(count);
                             valuesAtPosition.add(new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count));
                         }
-                        case DATE_RANGE -> {
-                            var b = (DateRangeBlockBuilder) builder;
+                        case LONG_RANGE -> {
+                            var b = (LongRangeBlockBuilder) builder;
                             var from = randomMillisUpToYear9999();
                             var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
                             b.from().appendLong(from);
                             b.to().appendLong(to);
-                            valuesAtPosition.add(new DateRangeBlockBuilder.DateRangeLiteral(from, to));
+                            valuesAtPosition.add(new LongRangeBlockBuilder.LongRange(from, to));
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

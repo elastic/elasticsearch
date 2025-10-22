@@ -17,9 +17,9 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Aggregat
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
@@ -65,7 +65,7 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                 }
-                case DATE_RANGE -> {
+                case LONG_RANGE -> {
                     cases.add(valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> randomDateRange(true)));
                     cases.add(valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> randomDateRange(false)));
                 }
@@ -259,11 +259,11 @@ public class ExtractorTests extends ESTestCase {
         );
     }
 
-    private static DateRangeBlockBuilder.DateRangeLiteral randomDateRange(boolean haveNulls) {
+    private static LongRangeBlockBuilder.LongRange randomDateRange(boolean haveNulls) {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
         return haveNulls
-            ? new DateRangeBlockBuilder.DateRangeLiteral(randomBoolean() ? from : null, randomBoolean() ? to : null)
-            : new DateRangeBlockBuilder.DateRangeLiteral(from, to);
+            ? new LongRangeBlockBuilder.LongRange(randomBoolean() ? from : null, randomBoolean() ? to : null)
+            : new LongRangeBlockBuilder.LongRange(from, to);
     }
 }

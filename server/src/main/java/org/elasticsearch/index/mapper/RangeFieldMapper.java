@@ -64,7 +64,7 @@ public class RangeFieldMapper extends FieldMapper {
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
-    public static final TransportVersion ESQL_DATE_RANGE_CREATED_VERSION = TransportVersion.fromName("esql_date_range_created_version");
+    public static final TransportVersion ESQL_LONG_RANGES = TransportVersion.fromName("esql_long_ranges");
 
     public static class Defaults {
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -398,7 +398,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
             throws IOException {
-            try (BlockLoader.DateRangeBuilder builder = factory.dateRangeBuilder(docs.count() - offset)) {
+            try (BlockLoader.LongRangeBuilder builder = factory.dateRangeBuilder(docs.count() - offset)) {
                 int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -424,7 +424,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public void read(int doc, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-            var blockBuilder = (BlockLoader.DateRangeBuilder) builder;
+            var blockBuilder = (BlockLoader.LongRangeBuilder) builder;
             this.docId = doc;
             if (false == numericDocValues.advanceExact(doc)) {
                 blockBuilder.appendNull();

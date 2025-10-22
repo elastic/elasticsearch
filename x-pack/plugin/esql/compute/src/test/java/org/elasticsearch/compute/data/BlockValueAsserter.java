@@ -42,7 +42,7 @@ public class BlockValueAsserter {
                         valueCount,
                         expectedRowValues
                     );
-                    case DATE_RANGE -> assertDteRangeValues((DateRangeBlock) block, firstValueIndex, valueCount, expectedRowValues);
+                    case LONG_RANGE -> assertDteRangeValues((LongRangeBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     default -> throw new IllegalArgumentException("Unsupported element type [" + block.elementType() + "]");
                 }
             }
@@ -119,9 +119,9 @@ public class BlockValueAsserter {
         }
     }
 
-    private static void assertDteRangeValues(DateRangeBlock block, int firstValueIdx, int valueCount, List<Object> expectedRowValues) {
+    private static void assertDteRangeValues(LongRangeBlock block, int firstValueIdx, int valueCount, List<Object> expectedRowValues) {
         for (int idx = 0; idx < valueCount; idx++) {
-            var expectedValue = (DateRangeBlockBuilder.DateRangeLiteral) expectedRowValues.get(idx);
+            var expectedValue = (LongRangeBlockBuilder.LongRange) expectedRowValues.get(idx);
             assertThat(block.getFromBlock().getLong(firstValueIdx + idx), equalTo(expectedValue.from()));
             assertThat(block.getToBlock().getLong(firstValueIdx + idx), equalTo(expectedValue.to()));
         }

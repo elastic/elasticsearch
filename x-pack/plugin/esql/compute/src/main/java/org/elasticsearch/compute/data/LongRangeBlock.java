@@ -13,18 +13,18 @@ import org.elasticsearch.core.ReleasableIterator;
 /**
  * Block that stores aggregate_metric_double values.
  */
-public sealed interface DateRangeBlock extends Block permits DateRangeArrayBlock, ConstantNullBlock {
+public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock, ConstantNullBlock {
     @Override
-    DateRangeBlock filter(int... positions);
+    LongRangeBlock filter(int... positions);
 
     @Override
-    DateRangeBlock keepMask(BooleanVector mask);
+    LongRangeBlock keepMask(BooleanVector mask);
 
     @Override
-    ReleasableIterator<? extends DateRangeBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+    ReleasableIterator<? extends LongRangeBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override
-    DateRangeBlock expand();
+    LongRangeBlock expand();
 
     /**
      * Returns {@code true} if the given blocks are equal to each other, otherwise {@code false}.
@@ -32,7 +32,7 @@ public sealed interface DateRangeBlock extends Block permits DateRangeArrayBlock
      * values (including absent null values) in the same order. This definition ensures that the
      * equals method works properly across different implementations of the AggregateMetricDoubleBlock interface.
      */
-    static boolean equals(DateRangeBlock lhs, DateRangeBlock rhs) {
+    static boolean equals(LongRangeBlock lhs, LongRangeBlock rhs) {
         if (lhs == rhs) {
             return true;
         }
@@ -42,7 +42,7 @@ public sealed interface DateRangeBlock extends Block permits DateRangeArrayBlock
         return LongBlock.equals(lhs.getFromBlock(), rhs.getFromBlock()) && LongBlock.equals(lhs.getToBlock(), rhs.getToBlock());
     }
 
-    static int hash(DateRangeBlock block) {
+    static int hash(LongRangeBlock block) {
         final int positions = block.getPositionCount();
         int ret = 1;
         for (int pos = 0; pos < positions; pos++) {

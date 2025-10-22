@@ -188,7 +188,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
             case DOC -> throw new IllegalArgumentException("can't read values from [doc] block");
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from [composite] block");
             case AGGREGATE_METRIC_DOUBLE -> throw new IllegalArgumentException("can't read values from [aggregate metric double] block");
-            case DATE_RANGE -> throw new IllegalArgumentException("can't read values from [date range] block");
+            case LONG_RANGE -> throw new IllegalArgumentException("can't read values from [long range] block");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }

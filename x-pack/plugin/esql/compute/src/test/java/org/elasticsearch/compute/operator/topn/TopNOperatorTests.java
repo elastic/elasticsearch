@@ -77,11 +77,11 @@ import static org.elasticsearch.compute.data.ElementType.AGGREGATE_METRIC_DOUBLE
 import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
-import static org.elasticsearch.compute.data.ElementType.DATE_RANGE;
 import static org.elasticsearch.compute.data.ElementType.DOUBLE;
 import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
 import static org.elasticsearch.compute.data.ElementType.LONG;
+import static org.elasticsearch.compute.data.ElementType.LONG_RANGE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
@@ -606,7 +606,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == DATE_RANGE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == LONG_RANGE) {
                 continue;
             }
             elementTypes.add(e);
@@ -1038,7 +1038,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomValueOtherThanMany(
-                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE || t == AGGREGATE_METRIC_DOUBLE || t == DATE_RANGE,
+                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE || t == AGGREGATE_METRIC_DOUBLE || t == LONG_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);

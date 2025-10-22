@@ -14,7 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.DateRangeBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -876,7 +876,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<DateRangeBlockBuilder.DateRangeLiteral, Object> expectedValue,
+        Function<LongRangeBlockBuilder.LongRange, Object> expectedValue,
         List<String> warnings
     ) {
         unary(
@@ -884,7 +884,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             expectedEvaluatorToString,
             dateRangeCases(),
             expectedType,
-            v -> expectedValue.apply((DateRangeBlockBuilder.DateRangeLiteral) v),
+            v -> expectedValue.apply((LongRangeBlockBuilder.LongRange) v),
             warnings
         );
     }
@@ -1531,10 +1531,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
     }
 
-    static DateRangeBlockBuilder.DateRangeLiteral randomDateRange() {
+    static LongRangeBlockBuilder.LongRange randomDateRange() {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
-        return new DateRangeBlockBuilder.DateRangeLiteral(from, to);
+        return new LongRangeBlockBuilder.LongRange(from, to);
     }
 
     public static String getCastEvaluator(String original, DataType current, DataType target) {

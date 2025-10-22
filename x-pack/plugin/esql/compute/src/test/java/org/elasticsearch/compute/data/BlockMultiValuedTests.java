@@ -50,7 +50,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
                 || e == ElementType.AGGREGATE_METRIC_DOUBLE
-                || e == ElementType.DATE_RANGE) {
+                || e == ElementType.LONG_RANGE) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {

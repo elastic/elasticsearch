@@ -20,8 +20,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
-import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasable;
@@ -470,7 +470,7 @@ public final class CsvTestUtils {
             BytesRef.class
         ),
         IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
-        DATE_RANGE(EsqlDataTypeConverter::dateRangeToLiteral, DateRangeBlockBuilder.DateRangeLiteral.class),
+        DATE_RANGE(EsqlDataTypeConverter::parseDateRange, LongRangeBlockBuilder.LongRange.class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
         DATETIME(
@@ -593,7 +593,7 @@ public final class CsvTestUtils {
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
                 case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
-                case DATE_RANGE -> DATE_RANGE;
+                case LONG_RANGE -> DATE_RANGE;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

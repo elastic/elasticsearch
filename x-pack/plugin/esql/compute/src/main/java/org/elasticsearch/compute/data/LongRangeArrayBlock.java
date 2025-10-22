@@ -15,11 +15,11 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
-public final class DateRangeArrayBlock extends AbstractNonThreadSafeRefCounted implements DateRangeBlock {
+public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted implements LongRangeBlock {
     private final LongBlock fromBlock;
     private final LongBlock toBlock;
 
-    public DateRangeArrayBlock(LongBlock fromBlock, LongBlock toBlock) {
+    public LongRangeArrayBlock(LongBlock fromBlock, LongBlock toBlock) {
         this.fromBlock = fromBlock;
         this.toBlock = toBlock;
     }
@@ -66,7 +66,7 @@ public final class DateRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public ElementType elementType() {
-        return ElementType.DATE_RANGE;
+        return ElementType.LONG_RANGE;
     }
 
     @Override
@@ -106,14 +106,14 @@ public final class DateRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
-    public DateRangeBlock filter(int... positions) {
-        DateRangeBlock result = null;
+    public LongRangeBlock filter(int... positions) {
+        LongRangeBlock result = null;
         LongBlock newFromBlock = null;
         LongBlock newToBlock = null;
         try {
             newFromBlock = fromBlock.filter(positions);
             newToBlock = toBlock.filter(positions);
-            result = new DateRangeArrayBlock(newFromBlock, newToBlock);
+            result = new LongRangeArrayBlock(newFromBlock, newToBlock);
             return result;
         } finally {
             if (result == null) {
@@ -123,14 +123,14 @@ public final class DateRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
-    public DateRangeBlock keepMask(BooleanVector mask) {
-        DateRangeBlock result = null;
+    public LongRangeBlock keepMask(BooleanVector mask) {
+        LongRangeBlock result = null;
         LongBlock newFromBlock = null;
         LongBlock newToBlock = null;
         try {
             newFromBlock = fromBlock.keepMask(mask);
             newToBlock = toBlock.keepMask(mask);
-            result = new DateRangeArrayBlock(newFromBlock, newToBlock);
+            result = new LongRangeArrayBlock(newFromBlock, newToBlock);
             return result;
         } finally {
             if (result == null) {
@@ -140,7 +140,7 @@ public final class DateRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
-    public ReleasableIterator<? extends DateRangeBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+    public ReleasableIterator<? extends LongRangeBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         // TODO: support
         throw new UnsupportedOperationException("can't lookup values from DateRangeBlock");
     }
@@ -152,20 +152,20 @@ public final class DateRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
-    public DateRangeBlock expand() {
+    public LongRangeBlock expand() {
         this.incRef();
         return this;
     }
 
     @Override
     public Block deepCopy(BlockFactory blockFactory) {
-        DateRangeBlock ret = null;
+        LongRangeBlock ret = null;
         LongBlock newFromBlock = null;
         LongBlock newToBlock = null;
         try {
             newFromBlock = fromBlock.deepCopy(blockFactory);
             newToBlock = toBlock.deepCopy(blockFactory);
-            ret = new DateRangeArrayBlock(newFromBlock, newToBlock);
+            ret = new LongRangeArrayBlock(newFromBlock, newToBlock);
             return ret;
         } finally {
             if (ret == null) {
@@ -188,7 +188,7 @@ public final class DateRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
         try {
             from = LongBlock.readFrom(blockStreamInput);
             to = LongBlock.readFrom(blockStreamInput);
-            var result = new DateRangeArrayBlock(from, to);
+            var result = new LongRangeArrayBlock(from, to);
             success = true;
             return result;
         } finally {
@@ -205,14 +205,14 @@ public final class DateRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof DateRangeBlock that) {
-            return DateRangeBlock.equals(this, that);
+        if (obj instanceof LongRangeBlock that) {
+            return LongRangeBlock.equals(this, that);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return DateRangeBlock.hash(this);
+        return LongRangeBlock.hash(this);
     }
 }

@@ -19,9 +19,9 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
-import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
@@ -237,8 +237,6 @@ public class EsqlDataTypeConverter {
         INTERVALS.YR,
         INTERVALS.Y
     );
-
-    public record Range<T>(T from, T to) {}
 
     public static final String INVALID_INTERVAL_ERROR =
         "Invalid interval value in [{}], expected integer followed by one of {} but got [{}]";
@@ -660,19 +658,14 @@ public class EsqlDataTypeConverter {
         return formatter == null ? nanoTimeToString(dateTime) : formatter.formatNanos(dateTime);
     }
 
-    public static Range<Long> dateRangeToLongs(String s) {
+    public static LongRangeBlockBuilder.LongRange parseDateRange(String s) {
         var ss = s.split("\\.\\.");
         assert ss.length == 2 : "can't parse range: " + s;
-        return new Range<>(dateTimeToLong(ss[0]), dateTimeToLong(ss[1]) - 1);
+        return new LongRangeBlockBuilder.LongRange(dateTimeToLong(ss[0]), dateTimeToLong(ss[1]) - 1);
     }
 
-    public static DateRangeBlockBuilder.DateRangeLiteral dateRangeToLiteral(String s) {
-        var range = dateRangeToLongs(s);
-        return new DateRangeBlockBuilder.DateRangeLiteral(range.from, range.to);
-    }
-
-    public static String dateRangeLiteralToString(DateRangeBlockBuilder.DateRangeLiteral lit) {
-        return dateRangeToString(lit.from(), lit.to());
+    public static String dateRangeToString(LongRangeBlockBuilder.LongRange range) {
+        return dateRangeToString(range.from(), range.to());
     }
 
     public static String dateRangeToString(long from, long to) {

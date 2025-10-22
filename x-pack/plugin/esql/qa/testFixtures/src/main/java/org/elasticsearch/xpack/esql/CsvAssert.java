@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.DateRangeBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
@@ -435,8 +435,8 @@ public final class CsvAssert {
             );
             case DATE_RANGE -> rebuildExpected(
                 expectedValue,
-                DateRangeBlockBuilder.DateRangeLiteral.class,
-                x -> EsqlDataTypeConverter.dateRangeLiteralToString((DateRangeBlockBuilder.DateRangeLiteral) x)
+                LongRangeBlockBuilder.LongRange.class,
+                x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
             default -> expectedValue;
         };

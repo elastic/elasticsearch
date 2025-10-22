@@ -16,14 +16,14 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.DateRangeBlock;
-import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -69,10 +69,10 @@ public class BlockTestUtils {
                 randomDouble(),
                 randomNonNegativeInt()
             );
-            case DATE_RANGE -> {
+            case LONG_RANGE -> {
                 var from = randomMillisUpToYear9999();
                 var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
-                yield new DateRangeBlockBuilder.DateRangeLiteral(from, to);
+                yield new LongRangeBlockBuilder.LongRange(from, to);
             }
             case DOC -> new BlockUtils.Doc(
                 randomIntBetween(0, 255), // Shard ID should be small and non-negative.
@@ -222,7 +222,7 @@ public class BlockTestUtils {
             b.count().appendInt(aggMetric.count());
             return;
         }
-        if (builder instanceof DateRangeBlockBuilder b && value instanceof DateRangeBlockBuilder.DateRangeLiteral lit) {
+        if (builder instanceof LongRangeBlockBuilder b && value instanceof LongRangeBlockBuilder.LongRange lit) {
             b.from().appendLong(lit.from());
             b.to().appendLong(lit.to());
             return;
@@ -316,9 +316,9 @@ public class BlockTestUtils {
                         yield literal;
 
                     }
-                    case DATE_RANGE -> {
-                        var b = (DateRangeBlock) block;
-                        var lit = new DateRangeBlockBuilder.DateRangeLiteral(b.getFromBlock().getLong(i), b.getToBlock().getLong(i));
+                    case LONG_RANGE -> {
+                        var b = (LongRangeBlock) block;
+                        var lit = new LongRangeBlockBuilder.LongRange(b.getFromBlock().getLong(i), b.getToBlock().getLong(i));
                         i++;
                         yield lit;
                     }

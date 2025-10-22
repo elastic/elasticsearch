@@ -15,11 +15,11 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DateRangeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.XContentParser;
@@ -142,8 +142,8 @@ public final class ResponseValueUtils {
             case GEOHEX, GEOHASH, GEOTILE -> geoGridToString(((LongBlock) block).getLong(offset), dataType);
             case AGGREGATE_METRIC_DOUBLE -> aggregateMetricDoubleBlockToString((AggregateMetricDoubleBlock) block, offset);
             case DATE_RANGE -> {
-                var from = ((DateRangeBlock) block).getFromBlock().getLong(offset);
-                var to = ((DateRangeBlock) block).getToBlock().getLong(offset);
+                var from = ((LongRangeBlock) block).getFromBlock().getLong(offset);
+                var to = ((LongRangeBlock) block).getToBlock().getLong(offset);
                 yield dateRangeToString(from, to);
             }
             case UNSUPPORTED -> (String) null;

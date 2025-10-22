@@ -10,19 +10,19 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DateRangeBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 
-public class ResultBuilderForDateRange implements ResultBuilder {
+public class ResultBuilderForLongRange implements ResultBuilder {
 
-    private final DateRangeBlockBuilder builder;
+    private final LongRangeBlockBuilder builder;
 
-    ResultBuilderForDateRange(BlockFactory blockFactory, int positions) {
-        this.builder = blockFactory.newDateRangeBlockBuilder(positions);
+    ResultBuilderForLongRange(BlockFactory blockFactory, int positions) {
+        this.builder = blockFactory.newLongRangeBlockBuilder(positions);
     }
 
     @Override
     public void decodeKey(BytesRef keys) {
-        throw new AssertionError("DateRangeBlock can't be a key");
+        throw new AssertionError("LongRangeBlock can't be a key");
     }
 
     @Override
@@ -51,7 +51,7 @@ public class ResultBuilderForDateRange implements ResultBuilder {
 
     @Override
     public String toString() {
-        return "ResultBuilderForDateRange";
+        return "ResultBuilderForLongRange";
     }
 
     @Override

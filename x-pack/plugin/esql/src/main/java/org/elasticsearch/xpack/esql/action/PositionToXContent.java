@@ -14,11 +14,11 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DateRangeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -206,8 +206,8 @@ public abstract class PositionToXContent {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
-                    var from = ((DateRangeBlock) block).getFromBlock().getLong(valueIndex);
-                    var to = ((DateRangeBlock) block).getToBlock().getLong(valueIndex);
+                    var from = ((LongRangeBlock) block).getFromBlock().getLong(valueIndex);
+                    var to = ((LongRangeBlock) block).getToBlock().getLong(valueIndex);
                     return builder.value(dateRangeToString(from, to));
                 }
             };

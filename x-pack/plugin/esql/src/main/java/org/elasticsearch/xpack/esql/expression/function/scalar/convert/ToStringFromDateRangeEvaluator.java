@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DateRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -39,7 +39,7 @@ public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.Abst
         return evalBlock(v.asBlock());
     }
 
-    private static BytesRef evalValue(DateRangeBlock block, int idx) {
+    private static BytesRef evalValue(LongRangeBlock block, int idx) {
         return new BytesRef(
             (EsqlDataTypeConverter.dateTimeToString(block.getFromBlock().getLong(idx))
                 + ".."
@@ -49,7 +49,7 @@ public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.Abst
 
     @Override
     public Block evalBlock(Block b) {
-        var block = (DateRangeBlock) b;
+        var block = (LongRangeBlock) b;
         int positionCount = block.getPositionCount();
         try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {

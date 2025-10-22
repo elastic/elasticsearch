@@ -35,7 +35,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
                 || elementType == ElementType.DOC
                 || elementType == ElementType.BYTES_REF
                 || elementType == ElementType.AGGREGATE_METRIC_DOUBLE
-                || elementType == ElementType.DATE_RANGE) {
+                || elementType == ElementType.LONG_RANGE) {
                 continue;
             }
             params.add(new Object[] { elementType });
@@ -119,7 +119,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private Vector.Builder vectorBuilder(int size, BlockFactory blockFactory) {
         return switch (elementType) {
-            case NULL, BYTES_REF, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, DATE_RANGE, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, BYTES_REF, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, LONG_RANGE, UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorFixedBuilder(size);
             case DOUBLE -> blockFactory.newDoubleVectorFixedBuilder(size);
             case FLOAT -> blockFactory.newFloatVectorFixedBuilder(size);

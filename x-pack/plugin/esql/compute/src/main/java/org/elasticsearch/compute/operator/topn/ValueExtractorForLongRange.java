@@ -7,13 +7,13 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.compute.data.DateRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
-public class ValueExtractorForDateRange implements ValueExtractor {
-    private final DateRangeBlock block;
+public class ValueExtractorForLongRange implements ValueExtractor {
+    private final LongRangeBlock block;
 
-    ValueExtractorForDateRange(TopNEncoder encoder, DateRangeBlock block) {
+    ValueExtractorForLongRange(TopNEncoder encoder, LongRangeBlock block) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE;
         this.block = block;
     }
@@ -37,6 +37,6 @@ public class ValueExtractorForDateRange implements ValueExtractor {
 
     @Override
     public String toString() {
-        return "ValueExtractorForDateRange";
+        return "ValueExtractorForLongRange";
     }
 }

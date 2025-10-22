@@ -497,7 +497,7 @@ public interface BlockLoader {
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
 
-        DateRangeBuilder dateRangeBuilder(int count);
+        LongRangeBuilder dateRangeBuilder(int count);
     }
 
     /**
@@ -626,7 +626,7 @@ public interface BlockLoader {
         IntBuilder count();
     }
 
-    interface DateRangeBuilder extends Builder {
+    interface LongRangeBuilder extends Builder {
         LongBuilder from();
 
         LongBuilder to();

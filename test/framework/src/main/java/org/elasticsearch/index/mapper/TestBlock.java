@@ -420,8 +420,8 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.DateRangeBuilder dateRangeBuilder(int expectedSize) {
-                return new DateRangeBuilder(expectedSize);
+            public BlockLoader.LongRangeBuilder dateRangeBuilder(int expectedSize) {
+                return new LongRangeBuilder(expectedSize);
             }
         };
     }
@@ -631,11 +631,11 @@ public class TestBlock implements BlockLoader.Block {
         }
     }
 
-    public static class DateRangeBuilder implements BlockLoader.DateRangeBuilder {
+    public static class LongRangeBuilder implements BlockLoader.LongRangeBuilder {
         private final LongBuilder from;
         private final LongBuilder to;
 
-        DateRangeBuilder(int expectedSize) {
+        LongRangeBuilder(int expectedSize) {
             from = new LongBuilder(expectedSize);
             to = new LongBuilder(expectedSize);
         }

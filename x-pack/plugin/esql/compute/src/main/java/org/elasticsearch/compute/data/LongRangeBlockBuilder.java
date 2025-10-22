@@ -17,14 +17,14 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_DATE_RANGE_CREATED_VERSION;
+import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
 
-public class DateRangeBlockBuilder extends AbstractBlockBuilder implements BlockLoader.DateRangeBuilder {
+public class LongRangeBlockBuilder extends AbstractBlockBuilder implements BlockLoader.LongRangeBuilder {
 
     private LongBlockBuilder fromBuilder;
     private LongBlockBuilder toBuilder;
 
-    public DateRangeBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+    public LongRangeBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         fromBuilder = null;
         toBuilder = null;
@@ -59,14 +59,14 @@ public class DateRangeBlockBuilder extends AbstractBlockBuilder implements Block
     }
 
     @Override
-    public DateRangeBlockBuilder copyFrom(Block b, int beginInclusive, int endExclusive) {
+    public LongRangeBlockBuilder copyFrom(Block b, int beginInclusive, int endExclusive) {
         Block fromBlock;
         Block toBlock;
         if (b.areAllValuesNull()) {
             fromBlock = b;
             toBlock = b;
         } else {
-            var block = (DateRangeArrayBlock) b;
+            var block = (LongRangeArrayBlock) b;
             fromBlock = block.getFromBlock();
             toBlock = block.getToBlock();
         }
@@ -75,7 +75,7 @@ public class DateRangeBlockBuilder extends AbstractBlockBuilder implements Block
         return this;
     }
 
-    public DateRangeBlockBuilder copyFrom(DateRangeBlock block, int pos) {
+    public LongRangeBlockBuilder copyFrom(LongRangeBlock block, int pos) {
         if (block.isNull(pos)) {
             appendNull();
             return this;
@@ -96,13 +96,13 @@ public class DateRangeBlockBuilder extends AbstractBlockBuilder implements Block
     }
 
     @Override
-    public DateRangeBlockBuilder appendNull() {
+    public LongRangeBlockBuilder appendNull() {
         fromBuilder.appendNull();
         toBuilder.appendNull();
         return this;
     }
 
-    public DateRangeBlockBuilder appendDateRange(DateRangeLiteral lit) {
+    public LongRangeBlockBuilder appendDateRange(LongRange lit) {
         if (lit.from == null) {
             fromBuilder.appendNull();
         } else {
@@ -117,14 +117,14 @@ public class DateRangeBlockBuilder extends AbstractBlockBuilder implements Block
     }
 
     @Override
-    public DateRangeBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+    public LongRangeBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         fromBuilder.mvOrdering(mvOrdering);
         toBuilder.mvOrdering(mvOrdering);
         return this;
     }
 
     @Override
-    public DateRangeBlock build() {
+    public LongRangeBlock build() {
         LongBlock fromBlock = null;
         LongBlock toBlock = null;
         boolean success = false;
@@ -132,7 +132,7 @@ public class DateRangeBlockBuilder extends AbstractBlockBuilder implements Block
             finish();
             fromBlock = fromBuilder.build();
             toBlock = toBuilder.build();
-            var block = new DateRangeArrayBlock(fromBlock, toBlock);
+            var block = new LongRangeArrayBlock(fromBlock, toBlock);
             success = true;
             return block;
         } finally {
@@ -157,25 +157,25 @@ public class DateRangeBlockBuilder extends AbstractBlockBuilder implements Block
         return toBuilder;
     }
 
-    public record DateRangeLiteral(Long from, Long to) implements GenericNamedWriteable {
+    public record LongRange(Long from, Long to) implements GenericNamedWriteable {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             GenericNamedWriteable.class,
-            "DateRangeLiteral",
-            DateRangeLiteral::new
+            "LongRange",
+            LongRange::new
         );
 
-        public DateRangeLiteral(StreamInput in) throws IOException {
+        public LongRange(StreamInput in) throws IOException {
             this(in.readOptionalLong(), in.readOptionalLong());
         }
 
         @Override
         public String getWriteableName() {
-            return "DateRangeLiteral";
+            return ENTRY.name;
         }
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return ESQL_DATE_RANGE_CREATED_VERSION;
+            return ESQL_LONG_RANGES;
         }
 
         @Override

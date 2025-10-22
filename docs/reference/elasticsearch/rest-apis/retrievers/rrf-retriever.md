@@ -78,7 +78,7 @@ The wrapped form supports these parameters:
 `weight` {applies_to}`stack: ga 9.2`
 :   (Optional, float)
 
-    The weight that each score of this retriever's top docs will be multiplied with in the RRF formula. Higher values increase this retriever's influence on the final ranking. Must be non-negative.
+    The weight that each score of this retriever's top docs will be multiplied in the RRF formula. Higher values increase this retriever's influence on the final ranking. Must be non-negative.
     
     When weight is not specified, all retrievers are equally weighted against each other (each with a weight of 1.0).
 
@@ -211,7 +211,9 @@ GET /restaurants/_search
 5. The rank constant for the RRF retriever.
 6. The rank window size for the RRF retriever.
 
-## Example: Weighted hybrid search [rrf-retriever-example-weighted] {applies_to}`stack: ga 9.2`
+## Example: Weighted hybrid search [rrf-retriever-example-weighted]
+
+{applies_to}`stack: ga 9.2`
 
 This example demonstrates how to use weights to adjust the influence of different retrievers in the RRF ranking.
 In this case, we're giving the `standard` retriever more importance (weight 2.0) compared to the `knn` retriever (weight 1.0):

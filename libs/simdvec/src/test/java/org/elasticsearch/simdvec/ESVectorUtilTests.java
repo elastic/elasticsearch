@@ -402,7 +402,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         // 5 bits
         // binary lower bits 1 1 0 0 1
         // binary upper bits 0 1 1 0 0
-        // resulting dibit   1 3 2 0 1
+        // resulting dibit 1 3 2 0 1
         int[] toPack = new int[] { 1, 3, 2, 0, 1 };
         byte[] packed = new byte[2];
         ESVectorUtil.packDibit(toPack, packed);
@@ -411,7 +411,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         // 8 bits
         // binary lower bits 1 1 0 0 1 0 1 0
         // binary upper bits 0 1 1 0 0 1 0 1
-        // resulting dibit   1 3 2 0 1 2 1 2
+        // resulting dibit 1 3 2 0 1 2 1 2
         toPack = new int[] { 1, 3, 2, 0, 1, 2, 1, 2 };
         packed = new byte[2];
         ESVectorUtil.packDibit(toPack, packed);

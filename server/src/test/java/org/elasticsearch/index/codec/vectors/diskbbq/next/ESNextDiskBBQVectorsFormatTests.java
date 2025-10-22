@@ -59,7 +59,9 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     @Before
     @Override
     public void setUp() throws Exception {
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
+        )];
         if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,

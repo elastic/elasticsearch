@@ -1479,35 +1479,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(andEndsWith.value(), equalTo("*ast"));
     }
 
-    public void testPushTRangeFunction() {
-        String startRange = "2023-10-23T12:00:00.000Z";
-        String endRange = "2023-10-23T14:00:00.000Z";
-
-        String query = String.format(Locale.ROOT, """
-            FROM k8s
-            | WHERE TRANGE("%s", "%s")
-            """, startRange, endRange);
-
-        var plan = physicalPlan(query, metricsData);
-        var optimized = optimizedPlan(plan);
-        var topLimit = as(optimized, LimitExec.class);
-        var exchange = asRemoteExchange(topLimit.child());
-        var project = as(exchange.child(), ProjectExec.class);
-        var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var source = source(fieldExtract.child());
-
-        var singleValue = as(source.query(), SingleValueQuery.Builder.class);
-        assertThat(singleValue.fieldName(), equalTo("@timestamp"));
-
-        var rangeQuery = as(sv(singleValue, "@timestamp"), RangeQueryBuilder.class);
-
-        assertThat(rangeQuery.fieldName(), equalTo("@timestamp"));
-        assertThat(rangeQuery.from(), equalTo(startRange));
-        assertThat(rangeQuery.to(), equalTo(endRange));
-        assertFalse(rangeQuery.includeLower());
-        assertTrue(rangeQuery.includeUpper());
-    }
-
     public void testLimit() {
         var optimized = optimizedPlan(physicalPlan("""
             from test
@@ -8729,6 +8700,63 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
         Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
+    }
+
+    /**
+     * <code>
+     * LimitExec[1000[INTEGER],1774]
+     * \_ExchangeExec[[@timestamp{f}#3, client.ip{f}#7, cluster{f}#4, event{f}#9, event_city{f}#12, event_city_boundary{f}#13, event
+     * _location{f}#15, event_log{f}#10, event_shape{f}#14, events_received{f}#11, network.bytes_in{f}#17, network.cost{f}#20, ...],
+     * false]
+     *   \_ProjectExec[[@timestamp{f}#3, client.ip{f}#7, cluster{f}#4, event{f}#9, event_city{f}#12, event_city_boundary{f}#13, event
+     * _location{f}#15, event_log{f}#10, event_shape{f}#14, events_received{f}#11, network.bytes_in{f}#17, network.cost{f}#20, ...]]
+     *     \_FieldExtractExec[@timestamp{f}#3, client.ip{f}#7, cluster{f}#4, even..]
+     *       \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#30], limit[1000], sort[] estimatedRowSize[1778] queryBuilderAndTags
+     *       [[QueryBuilderAndTags{queryBuilder=[{
+     *   "esql_single_value" : {
+     *     "field" : "@timestamp",
+     *     "next" : {
+     *       "range" : {
+     *         "@timestamp" : {
+     *           "gt" : "2023-10-23T12:00:00.000Z",
+     *           "lte" : "2023-10-23T14:00:00.000Z",
+     *           "format" : "strict_date_optional_time",
+     *           "boost" : 0.0
+     *         }
+     *       }
+     *     },
+     *     "source" : "TRANGE(\"2023-10-23T12:00:00.000Z\", \"2023-10-23T14:00:00.000Z\")@2:9"
+     *   }
+     * }], tags=[]}]]
+     * </code>
+     */
+    public void testPushTRangeFunction() {
+        String startRange = "2023-10-23T12:00:00.000Z";
+        String endRange = "2023-10-23T14:00:00.000Z";
+
+        String query = String.format(Locale.ROOT, """
+            FROM k8s
+            | WHERE TRANGE("%s", "%s")
+            """, startRange, endRange);
+
+        var plan = physicalPlan(query, metricsData);
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+
+        var singleValue = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat(singleValue.fieldName(), equalTo("@timestamp"));
+
+        var rangeQuery = as(sv(singleValue, "@timestamp"), RangeQueryBuilder.class);
+
+        assertThat(rangeQuery.fieldName(), equalTo("@timestamp"));
+        assertThat(rangeQuery.from(), equalTo(startRange));
+        assertThat(rangeQuery.to(), equalTo(endRange));
+        assertFalse(rangeQuery.includeLower());
+        assertTrue(rangeQuery.includeUpper());
     }
 
     @Override

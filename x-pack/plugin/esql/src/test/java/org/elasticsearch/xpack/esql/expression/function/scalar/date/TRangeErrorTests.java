@@ -7,18 +7,23 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -50,6 +55,83 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.DATE_NANOS), () -> null));
 
         return suppliers;
+    }
+
+    public void testGetRangeExceptions() {
+        // Invalid offset type in single parameter mode
+        expectThrows(InvalidArgumentException.class, equalTo("invalid time range for []: Unsupported offset type [BytesRef]"), () -> {
+            TRange trange = new TRange(
+                Source.EMPTY,
+                new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                Literal.keyword(Source.EMPTY, "invalid_offset"),
+                null,
+                EsqlTestUtils.configuration(StringUtils.EMPTY)
+            );
+            trange.surrogate();
+        });
+
+        // Invalid datetime string in two parameter mode
+        expectThrows(
+            InvalidArgumentException.class,
+            equalTo(
+                "invalid time range for []: TRANGE start_time_or_offset parameter must be a valid datetime string, got: "
+                    + BytesRefs.toBytesRef("invalid_offset")
+            ),
+            () -> {
+                TRange trange = new TRange(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                    Literal.keyword(Source.EMPTY, "invalid_offset"),
+                    Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
+                    EsqlTestUtils.configuration(StringUtils.EMPTY)
+                );
+                trange.surrogate();
+            }
+        );
+
+        // Start time after end time in two parameter mode
+        expectThrows(
+            InvalidArgumentException.class,
+            equalTo("TRANGE rangeStart time [2024-01-01T12:00:00Z] must be before rangeEnd time [2024-01-01T10:00:00Z]"),
+            () -> {
+                TRange trange = new TRange(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                    Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
+                    Literal.keyword(Source.EMPTY, "2024-01-01T10:00:00Z"),
+                    EsqlTestUtils.configuration(StringUtils.EMPTY)
+                );
+                trange.surrogate();
+            }
+        );
+
+        // Unsupported value type in parseToInstant
+        expectThrows(
+            InvalidArgumentException.class,
+            equalTo("invalid time range for []: Unsupported time value type [Double] for parameter [start_time_or_offset]"),
+            () -> {
+                TRange trange = new TRange(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                    Literal.fromDouble(Source.EMPTY, 123.45),
+                    Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
+                    EsqlTestUtils.configuration(StringUtils.EMPTY)
+                );
+                trange.surrogate();
+            }
+        );
+
+        // Invalid offset type in timeWithOffset
+        expectThrows(InvalidArgumentException.class, equalTo("invalid time range for []: Unsupported offset type [Double]"), () -> {
+            TRange trange = new TRange(
+                Source.EMPTY,
+                new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                Literal.fromDouble(Source.EMPTY, 123.45),
+                null,
+                EsqlTestUtils.configuration(StringUtils.EMPTY)
+            );
+            trange.surrogate();
+        });
     }
 
     @Override

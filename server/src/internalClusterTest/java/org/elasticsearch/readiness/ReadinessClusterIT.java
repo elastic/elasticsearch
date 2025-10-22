@@ -272,8 +272,8 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         writeFileSettings(testJSON);
 
         logger.info("--> start data node / non master node");
-        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         String masterNode = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
 
         awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
         assertBusy(() -> assertTrue("master node ready", internalCluster().getInstance(ReadinessService.class, masterNode).ready()));

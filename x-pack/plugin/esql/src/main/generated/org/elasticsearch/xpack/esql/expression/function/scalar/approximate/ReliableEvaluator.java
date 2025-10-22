@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Reliable}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ReliableDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ReliableDoubleEvaluator.class);
+public final class ReliableEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ReliableEvaluator.class);
 
   private final Source source;
 
@@ -37,7 +37,7 @@ public final class ReliableDoubleEvaluator implements EvalOperator.ExpressionEva
 
   private Warnings warnings;
 
-  public ReliableDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator estimatesBlock,
+  public ReliableEvaluator(Source source, EvalOperator.ExpressionEvaluator estimatesBlock,
       EvalOperator.ExpressionEvaluator trialCountBlock,
       EvalOperator.ExpressionEvaluator bucketCountBlock, DriverContext driverContext) {
     this.source = source;
@@ -93,7 +93,7 @@ public final class ReliableDoubleEvaluator implements EvalOperator.ExpressionEva
 
   @Override
   public String toString() {
-    return "ReliableDoubleEvaluator[" + "estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + "]";
+    return "ReliableEvaluator[" + "estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + "]";
   }
 
   @Override
@@ -132,13 +132,13 @@ public final class ReliableDoubleEvaluator implements EvalOperator.ExpressionEva
     }
 
     @Override
-    public ReliableDoubleEvaluator get(DriverContext context) {
-      return new ReliableDoubleEvaluator(source, estimatesBlock.get(context), trialCountBlock.get(context), bucketCountBlock.get(context), context);
+    public ReliableEvaluator get(DriverContext context) {
+      return new ReliableEvaluator(source, estimatesBlock.get(context), trialCountBlock.get(context), bucketCountBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ReliableDoubleEvaluator[" + "estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + "]";
+      return "ReliableEvaluator[" + "estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + "]";
     }
   }
 }

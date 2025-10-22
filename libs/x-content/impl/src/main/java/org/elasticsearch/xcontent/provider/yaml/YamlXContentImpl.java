@@ -10,6 +10,7 @@
 package org.elasticsearch.xcontent.provider.yaml;
 
 import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
@@ -51,6 +52,8 @@ public final class YamlXContentImpl implements XContent {
         yamlFactory.configure(YAMLParser.Feature.EMPTY_STRING_AS_NULL, true);
         yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         yamlFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
+        // Speeds up deserialization a lot.
+        yamlFactory.configure(JsonFactory.Feature.CANONICALIZE_FIELD_NAMES, false);
         yamlXContent = new YamlXContentImpl();
     }
 

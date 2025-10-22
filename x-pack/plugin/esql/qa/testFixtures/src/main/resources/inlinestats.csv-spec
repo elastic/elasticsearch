@@ -4166,3 +4166,39 @@ from employees
 c:long
 1
 ;
+
+
+// https://github.com/elastic/elasticsearch/issues/136851
+propagateEmptyStubRelation
+required_capability: fix_propagate_empty_stub_relation
+required_capability: fork_v9
+
+from countries_bbox_web 
+| limit 307 
+| drop `id` 
+| drop name 
+| inline stats  `shape` = count(*), UKmoYKgHt = count(*), jEHxaMcLul = count(*), VRjIowfF = count(*) 
+| drop UKmoYKgHt, UKmoYKgH*, shape 
+| FORK  (where  NOT true) (where  NOT false) (where  NOT VRjIowfF >= 50) (where jEHxaMcLul > 50 AND true | where  NOT false AND jEHxaMcLul == 50  | where false OR false OR  NOT false AND  NOT false) (where false AND  NOT false) 
+| WHERE _fork == "fork3" 
+| DROP _fork 
+| stats  oYhFLywK = avg(VRjIowfF) + count(VRjIowfF) + max(VRjIowfF), sygFReMcRSnf = count(*), WmxejCVu = count(*), REnkUKYklmVO = absent(VRjIowfF + VRjIowfF)
+;
+
+oYhFLywK:double | sygFReMcRSnf:long | WmxejCVu:long | REnkUKYklmVO:boolean
+248.0           | 248               | 248           | false
+;
+
+
+propagateEmptyStubRelation2
+required_capability: fix_propagate_empty_stub_relation
+
+ROW a = 12 
+| drop a 
+| inline stats b = count(*)
+;
+
+b:long
+0
+;
+

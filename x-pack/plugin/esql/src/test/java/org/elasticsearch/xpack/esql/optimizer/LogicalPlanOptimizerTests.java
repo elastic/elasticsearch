@@ -9215,6 +9215,47 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
+     * EsqlProject[[b{r}#6]]
+     * \_Eval[[0[LONG] AS b#6]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_LocalRelation[[a{r}#3],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=12]]]}]
+     * }</pre>
+     */
+    public void testPropagateEmptyStubRelation() {
+        var query = """
+            ROW a = 12
+            | drop a
+            | inline stats b = count(*)
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), contains("b"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("b"));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), equalTo("b"));
+        // The count(*) on empty stub should be 0
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), equalTo(0L));
+
+        var limit = asLimit(eval.child(), 1000, false);
+
+        var localRelation = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(localRelation.output()), contains("a"));
+
+        // Verify the local relation has one row with a = 12
+        Page page = localRelation.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        assertThat(page.getPositionCount(), is(1));
+    }
+
+    /**
      *
      * Project[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
      * nguages{f}#12 AS language_code_left#4, last_name{f}#13, long_noidx{f}#19, salary{f}#14, language_code{f}#20, language_name{f}#21]]

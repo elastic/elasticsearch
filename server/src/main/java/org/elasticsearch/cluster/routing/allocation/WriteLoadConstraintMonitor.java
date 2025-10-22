@@ -95,15 +95,13 @@ public class WriteLoadConstraintMonitor {
         });
 
         if (nodeIdsExceedingQueueLatencyThreshold.isEmpty()) {
-            logger.trace("No hot-spotting nodes detected");
+            logger.trace("No hot-spotting write nodes detected");
             return;
         }
         if (nodeIdsBelowQueueLatencyThreshold.isEmpty()) {
-            logger.debug(
-                """
-                    Nodes [{}] are above the queue latency threshold, but there are no nodes below the threshold. Cannot rebalance shards.""",
-                nodeSummary(nodeIdsExceedingQueueLatencyThreshold)
-            );
+            logger.debug("""
+                Nodes [{}] are above the queue latency threshold, but there are no write nodes below the threshold. \
+                Cannot rebalance shards.""", nodeSummary(nodeIdsExceedingQueueLatencyThreshold));
             return;
         }
 

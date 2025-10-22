@@ -60,7 +60,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 "no hot-spots detected",
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.TRACE,
-                "No hot-spotting nodes detected"
+                "No hot-spotting write nodes detected"
             )
         );
 
@@ -130,7 +130,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 "no hot-spots detected",
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.TRACE,
-                "No hot-spotting nodes detected"
+                "No hot-spotting write nodes detected"
             )
         );
     }

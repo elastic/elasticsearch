@@ -1535,7 +1535,12 @@ public class EsqlCapabilities {
          * Support for pushing down EVAL with SCORE
          * https://github.com/elastic/elasticsearch/issues/133462
          */
-        PUSHING_DOWN_EVAL_WITH_SCORE
+        PUSHING_DOWN_EVAL_WITH_SCORE,
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/136939
+         */
+        FIX_TEXT_PUSHDOWN_MV
 
         ;
 

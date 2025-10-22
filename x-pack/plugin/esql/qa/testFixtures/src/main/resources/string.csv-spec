@@ -2532,6 +2532,18 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
 ;
 
+mvStringEqualsMv
+required_capability: fix_text_pushdown_mv
+FROM mv_text
+| WHERE message == ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
 mvStringEqualsLongString
 FROM mv_text
 | WHERE message == "More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100"

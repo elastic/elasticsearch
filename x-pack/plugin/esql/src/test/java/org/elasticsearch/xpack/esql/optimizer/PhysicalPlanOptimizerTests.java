@@ -3042,6 +3042,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(qb.field(), equalTo("job.raw"));
     }
 
+    // https://github.com/elastic/elasticsearch/issues/136939
+    public void testNoErrorWithTextMvFilter() {
+        var plan = physicalPlan("""
+            from test
+            | where job == ["foo", "bar"]
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = as(extract.child(), EsQueryExec.class);
+        var qb = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat(qb.field(), equalTo("job.raw"));
+    }
+
     public void testNoTextSortPushDown() {
         var plan = physicalPlan("""
             from test

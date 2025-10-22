@@ -1618,8 +1618,15 @@ public class EsqlCapabilities {
         /**
          * Fix double release in inline stats when LocalRelation is reused
          */
-        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled)
+        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled),
 
+        /**
+         * Fix attribute equality to respect the name id of the attribute.
+         */
+        ATTRIBUTE_EQUALS_RESPECTS_NAME_ID,
+
+        // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
+        // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;
 
         private final boolean enabled;

@@ -160,6 +160,10 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
                     maxShardUptimeInMillis = Math.max(maxShardUptimeInMillis, shardUptimeInMillis);
                 }
             }
+            // An index only contributes to the weighted average proportionally to its uptime
+            if (totalShardUptimeInMillis == 0) {
+                continue;
+            }
             double weightedAverageShardWriteLoad = totalShardWriteLoad / totalShardUptimeInMillis;
             double totalIndexWriteLoad = weightedAverageShardWriteLoad * writeLoad.numberOfShards();
             // We need to weight the contribution from each index somehow, but we only know
@@ -171,6 +175,7 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
             // that index. It should be safe to extrapolate our weighted average out to the
             // maximum uptime observed, based on the assumption that write-load is roughly
             // evenly distributed across shards of a datastream index.
+            assert Double.isNaN(weightedAverageShardWriteLoad) == false : "Invalid average shard write load";
             allIndicesWriteLoad += totalIndexWriteLoad * maxShardUptimeInMillis;
             allIndicesUptime += maxShardUptimeInMillis;
         }

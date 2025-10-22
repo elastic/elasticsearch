@@ -25,13 +25,18 @@ public class GetAnalyticsCollectionResponseBWCSerializingTests extends AbstractB
 
     @Override
     protected GetAnalyticsCollectionAction.Response createTestInstance() {
-        List<AnalyticsCollection> collections = randomList(randomIntBetween(1, 10), () -> new AnalyticsCollection(randomIdentifier()));
+        List<AnalyticsCollection> collections = randomList(randomIntBetween(0, 10), () -> new AnalyticsCollection(randomIdentifier()));
         return new GetAnalyticsCollectionAction.Response(collections);
     }
 
     @Override
     protected GetAnalyticsCollectionAction.Response mutateInstance(GetAnalyticsCollectionAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetAnalyticsCollectionAction.Response(
+            randomValueOtherThan(
+                instance.getAnalyticsCollections(),
+                () -> randomList(randomIntBetween(0, 10), () -> new AnalyticsCollection(randomIdentifier()))
+            )
+        );
     }
 
     @Override

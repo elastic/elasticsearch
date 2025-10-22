@@ -1,0 +1,194 @@
+// Tests focused on query approximation.
+//
+// The data set "many_numbers" contains 10,000 rows with a multi-valued field
+// "value" containing 550 integers each. Aggregated all over rows, there are
+// 1x1, 2x2, ..., 999x999 and 1000x1000. It's not one number per row, because
+// that's too slow to ingest.
+//
+// Note: this tests only basic behavior, because of limitations of the CSV tests.
+// Most tests assert that the count, average and sum of some values are within a
+// range. All ranges are very loose, so that the tests should practically never fail.
+// The range checks are done in ES|QL, resulting in one boolean value (is_expected),
+// because the CSV tests don't support such assertions.
+
+approximate stats on large data
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
+    | EVAL is_expected = count >= 450000 AND count <= 550000 AND
+                         avg >= 600 AND avg <= 750 AND
+                         sum >= 300000000 AND sum <= 380000000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+exact stats on small data
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | WHERE value <= 25
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
+;
+
+count:long | avg:double | sum:long
+325        | 17.0       | 5525
+;
+
+
+with where
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | WHERE value >= 500
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
+    | EVAL is_expected = count >= 300000 AND count <= 450000 AND
+                         avg >= 700 AND avg <= 850 AND
+                         sum >= 270000000 AND sum <= 310000000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+with stats where
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | STATS count=COUNT() WHERE value >= 500,
+            avg=AVG(value) WHERE value >= 500,
+            sum=SUM(value) WHERE value >= 500
+    | EVAL is_expected = count >= 300000 AND count <= 450000 AND
+                         avg >= 700 AND avg <= 850 AND
+                         sum >= 270000000 AND sum <= 310000000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+with sample
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | SAMPLE 0.5
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
+    | EVAL is_expected = count >= 200000 AND count <= 300000 AND
+                         avg >= 600 AND avg <= 750 AND
+                         sum >= 140000000 AND sum <= 200000000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+with commands inbetween
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | EVAL value2 = 2 * value
+    | DROP value
+    | SORT value2 DESC
+    | RENAME value2 AS value3
+    | MV_EXPAND value3
+    | EVAL value4 = TO_STRING(value3)
+    | SORT value4 ASC
+    | GROK value4 "%{NUMBER:value5}"
+    | EVAL value5 = TO_INTEGER(value5)
+    | KEEP value3, value5
+    | STATS count=COUNT(), avg=AVG(value5), sum=SUM(value5)
+    | EVAL is_expected = count >= 450000 AND count <= 550000 AND
+                         avg >= 1200 AND avg <= 1500 AND
+                         sum >= 600000000 AND sum <= 760000000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+with commands after
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
+    | EVAL avg2 = 2 * avg
+    | LIMIT 10
+    | MV_EXPAND avg
+    | SORT count ASC
+    | EVAL is_expected = count >= 450000 AND count <= 550000 AND
+                         avg2 >= 1200 AND avg2 <= 1500 AND
+                         sum >= 300000000 AND sum <= 380000000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+approximate stats by on large data
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | STATS count=COUNT() BY value
+    | SORT value DESC
+    | LIMIT 5
+    | EVAL is_expected = count >= 100 AND count <= 2000
+    | KEEP value, is_expected
+;
+
+value:integer | is_expected:boolean
+1000        | true
+999         | true
+998         | true
+997         | true
+996         | true
+;
+
+
+exact stats by on small data
+required_capability: approximate
+approximate: true
+
+FROM many_numbers
+    | MV_EXPAND value
+    | WHERE value <= 5
+    | STATS count=COUNT() BY value
+    | SORT value
+;
+
+count:long | value:integer
+1          | 1
+2          | 2
+3          | 3
+4          | 4
+5          | 5
+;

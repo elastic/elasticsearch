@@ -623,13 +623,14 @@ public class CsvTests extends ESTestCase {
         var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx, minimumVersion));
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(
-                new EsqlQueryRequest(),
+                new EsqlQueryRequest().approximate(testCase.approximate),
                 new EsqlExecutionInfo(randomBoolean()),
                 planRunner(bigArrays, physicalOperationProviders),
                 session.optimizedPlan(preOptimized, logicalPlanOptimizer),
                 configuration,
                 foldCtx,
                 minimumVersion,
+                logicalPlanOptimizer,
                 listener.delegateFailureAndWrap(
                     // Wrap so we can capture the warnings in the calling thread
                     (next, result) -> next.onResponse(

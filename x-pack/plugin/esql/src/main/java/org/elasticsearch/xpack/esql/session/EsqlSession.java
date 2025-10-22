@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.approximate.Approximate;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -234,6 +235,12 @@ public class EsqlSession {
                     );
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, l))
+                        .<LogicalPlan>andThen((l, p) -> {
+                            if (request.approximate()) {
+                                Approximate.verifyPlan(p);
+                            }
+                            l.onResponse(p);
+                        })
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(new Versioned<>(optimizedPlan(p, logicalPlanOptimizer), minimumVersion), l)
                         )
@@ -246,6 +253,7 @@ public class EsqlSession {
                                 configuration,
                                 foldContext,
                                 minimumVersion,
+                                logicalPlanOptimizer,
                                 l
                             )
                         )
@@ -267,6 +275,7 @@ public class EsqlSession {
         Configuration configuration,
         FoldContext foldContext,
         TransportVersion minimumVersion,
+        LogicalPlanOptimizer logicalPlanOptimizer,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -295,7 +304,17 @@ public class EsqlSession {
             // TODO: this could be snuck into the underlying listener
             EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
             // execute any potential subplans
-            executeSubPlans(optimizedPlan, configuration, foldContext, planRunner, executionInfo, request, physicalPlanOptimizer, listener);
+            executeSubPlans(
+                optimizedPlan,
+                configuration,
+                foldContext,
+                planRunner,
+                executionInfo,
+                request,
+                logicalPlanOptimizer,
+                physicalPlanOptimizer,
+                listener
+            );
         }
     }
 
@@ -306,6 +325,7 @@ public class EsqlSession {
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
+        LogicalPlanOptimizer logicalPlanOptimizer,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         ActionListener<Result> listener
     ) {
@@ -329,6 +349,14 @@ public class EsqlSession {
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
+        } else if (request.approximate()) {
+            Approximate.LogicalPlanRunner logicalPlanRunner = (p, l) -> runner.run(
+                logicalPlanToPhysicalPlan(optimizedPlan(p, logicalPlanOptimizer), request, physicalPlanOptimizer),
+                configuration,
+                foldContext,
+                l
+            );
+            new Approximate(optimizedPlan, logicalPlanRunner).approximate(listener);
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer);
             // execute main plan

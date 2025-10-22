@@ -537,7 +537,6 @@ public class EsqlFunctionRegistry {
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
-
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {

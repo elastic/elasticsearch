@@ -10,8 +10,8 @@
 package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.Mapper;
@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.diversification.mmr.MMRResultDiversification;
 import org.elasticsearch.search.diversification.mmr.MMRResultDiversificationContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -33,7 +32,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -48,7 +46,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public final class ResultDiversificationRetrieverBuilder extends CompoundRetrieverBuilder<ResultDiversificationRetrieverBuilder> {
 
-    public static final String DIVERSIFICATION_TYPE_MMR = "mmr";
     public static final Float DEFAULT_LAMBDA_VALUE = 0.7f;
 
     public static final String NAME = "diversify";
@@ -73,12 +70,13 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
     static final ConstructingObjectParser<ResultDiversificationRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(NAME, false, args -> {
-            String diversificationType = (String) args[1];
+
+            ResultDiversificationType diversificationType = ResultDiversificationType.fromString((String) args[1]);
             String diversificationField = (String) args[2];
             int rankWindowSize = args[3] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
 
             @SuppressWarnings("unchecked")
-            ArrayList<Float> queryVectorList = args[4] == null ? null : (ArrayList<Float>) args[4];
+            List<Float> queryVectorList = args[4] == null ? null : (List<Float>) args[4];
             float[] queryVector = null;
             if (queryVectorList != null) {
                 queryVector = new float[queryVectorList.size()];
@@ -87,7 +85,8 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
                 }
             }
 
-            Float lambda = (Float) args[5];
+            Float lambda = args[5] == null ? null : (Float) args[5];
+
             return new ResultDiversificationRetrieverBuilder(
                 RetrieverSource.from((RetrieverBuilder) args[0]),
                 diversificationType,
@@ -112,7 +111,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
-    private final String diversificationType;
+    private final ResultDiversificationType diversificationType;
     private final String diversificationField;
     private final float[] queryVector;
     private final Float lambda;
@@ -120,7 +119,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
     ResultDiversificationRetrieverBuilder(
         RetrieverSource innerRetriever,
-        String diversificationType,
+        ResultDiversificationType diversificationType,
         String diversificationField,
         int rankWindowSize,
         @Nullable float[] queryVector,
@@ -131,6 +130,35 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         this.diversificationField = diversificationField;
         this.queryVector = queryVector;
         this.lambda = lambda;
+
+        if (this.diversificationType == null) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "[%s] diversification type must be set to [%s]", NAME, ResultDiversificationType.MMR.value)
+            );
+        }
+    }
+
+    ResultDiversificationRetrieverBuilder(
+        List<RetrieverSource> innerRetrievers,
+        ResultDiversificationType diversificationType,
+        String diversificationField,
+        int rankWindowSize,
+        @Nullable float[] queryVector,
+        @Nullable Float lambda
+    ) {
+        super(innerRetrievers, rankWindowSize);
+        assert innerRetrievers.size() == 1 : "ResultDiversificationRetrieverBuilder must have a single child retriever";
+
+        this.diversificationType = diversificationType;
+        this.diversificationField = diversificationField;
+        this.queryVector = queryVector;
+        this.lambda = lambda;
+
+        if (this.diversificationType == null) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "[%s] diversification type must be set to [%s]", NAME, ResultDiversificationType.MMR.value)
+            );
+        }
     }
 
     @Override
@@ -138,9 +166,8 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         List<RetrieverSource> newChildRetrievers,
         List<QueryBuilder> newPreFilterQueryBuilders
     ) {
-        assert newChildRetrievers.size() == 1 : "ResultDiversificationRetrieverBuilder must have a single child retriever";
         return new ResultDiversificationRetrieverBuilder(
-            newChildRetrievers.getFirst(),
+            newChildRetrievers,
             diversificationType,
             diversificationField,
             rankWindowSize,
@@ -156,16 +183,16 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         boolean isScroll,
         boolean allowPartialSearchResults
     ) {
-        // ensure the type is one we know of - at the moment, only "mmr" is valid
-        if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR) == false) {
-            validationException = addValidationError(
-                String.format(Locale.ROOT, "[%s] diversification type must be set to [%s]", getName(), DIVERSIFICATION_TYPE_MMR),
-                validationException
-            );
+        if (diversificationType.equals(ResultDiversificationType.MMR)) {
+            validationException = validateMMRDiversification(validationException);
         }
 
+        return validationException;
+    }
+
+    private ActionRequestValidationException validateMMRDiversification(ActionRequestValidationException validationException) {
         // if MMR, ensure we have a lambda between 0.0 and 1.0
-        if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR) && (lambda == null || lambda < 0.0 || lambda > 1.0)) {
+        if (lambda == null || lambda < 0.0 || lambda > 1.0) {
             validationException = addValidationError(
                 String.format(
                     Locale.ROOT,
@@ -176,7 +203,6 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
                 validationException
             );
         }
-
         return validationException;
     }
 
@@ -185,10 +211,12 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         IndexVersion indexVersion = ctx.getIndexSettings().getIndexVersionCreated();
         Mapper mapper = ctx.getMappingLookup().getMapper(diversificationField);
         if (mapper instanceof DenseVectorFieldMapper == false) {
-            throw new IllegalArgumentException("[" + diversificationField + "] is not a dense vector field");
+            throw new IllegalArgumentException(
+                "[" + diversificationField + "] is not a supported field type. Valid field types are [dense_vector]"
+            );
         }
 
-        if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR)) {
+        if (diversificationType.equals(ResultDiversificationType.MMR)) {
             diversificationContext = new MMRResultDiversificationContext(
                 diversificationField,
                 lambda == null ? DEFAULT_LAMBDA_VALUE : lambda,
@@ -213,17 +241,19 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
-        // must have the combined result set
-        assert rankResults.size() == 1 : "ResultDiversificationRetrieverBuilder must have a single result set";
-        assert diversificationContext != null : "diversificationContext should be set before combining results";
-
-        ScoreDoc[] scoreDocs = rankResults.getFirst();
-        if (scoreDocs == null || scoreDocs.length == 0) {
-            // might happen in the case where we have no results
+        if (rankResults.isEmpty()) {
             return new RankDoc[0];
         }
 
-        assert scoreDocs[0] instanceof RankDocWithSearchHit : "expected results to be of type RankDocWithSearchHit";
+        if (rankResults.size() > 1) {
+            throw new IllegalArgumentException("rank results must have only one result set");
+        }
+
+        ScoreDoc[] scoreDocs = rankResults.getFirst();
+        if (scoreDocs == null || scoreDocs.length == 0 || diversificationContext == null) {
+            // might happen in the case where we have no results or the context is not set
+            return new RankDoc[0];
+        }
 
         // gather and set the query vectors
         // and create our intermediate results set
@@ -246,12 +276,13 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         diversificationContext.setFieldVectors(fieldVectors);
 
         try {
-            if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR)) {
-                MMRResultDiversification diversification = new MMRResultDiversification();
-                results = diversification.diversify(results, diversificationContext);
-            }
+            ResultDiversification<?> diversification = ResultDiversificationFactory.getDiversifier(
+                diversificationType,
+                diversificationContext
+            );
+            results = diversification.diversify(results);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new ElasticsearchException("Result diversification failed", e);
         }
 
         return results;
@@ -264,17 +295,13 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
     public static ResultDiversificationRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
         throws IOException {
-        try {
-            return PARSER.apply(parser, context);
-        } catch (Exception e) {
-            throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
-        }
+        return PARSER.apply(parser, context);
     }
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
-        builder.field(TYPE_FIELD.getPreferredName(), diversificationType);
+        builder.field(TYPE_FIELD.getPreferredName(), diversificationType.value);
         builder.field(FIELD_FIELD.getPreferredName(), diversificationField);
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
 
@@ -282,10 +309,8 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
             builder.array(QUERY_FIELD.getPreferredName(), queryVector);
         }
 
-        if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR)) {
-            if (lambda != null) {
-                builder.field(LAMBDA_FIELD.getPreferredName(), lambda);
-            }
+        if (lambda != null) {
+            builder.field(LAMBDA_FIELD.getPreferredName(), lambda);
         }
     }
 
@@ -296,16 +321,9 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
     @Override
     public boolean doEquals(Object o) {
-        if (super.doEquals(o) == false) {
-            return false;
-        }
-
-        if ((o instanceof ResultDiversificationRetrieverBuilder) == false) {
-            return false;
-        }
-
-        ResultDiversificationRetrieverBuilder other = (ResultDiversificationRetrieverBuilder) o;
-        return this.diversificationType.equals(other.diversificationType)
+        return super.doEquals(o)
+            && (o instanceof ResultDiversificationRetrieverBuilder other)
+            && this.diversificationType.equals(other.diversificationType)
             && this.diversificationField.equals(other.diversificationField)
             && Objects.equals(this.lambda, other.lambda)
             && Arrays.equals(this.queryVector, other.queryVector);

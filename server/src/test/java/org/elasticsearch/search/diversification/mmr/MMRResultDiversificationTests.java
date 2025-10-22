@@ -68,8 +68,8 @@ public class MMRResultDiversificationTests extends ESTestCase {
             new RankDoc(5, 0.8f, 1),
             new RankDoc(6, 0.8f, 1) };
 
-        MMRResultDiversification resultDiversification = new MMRResultDiversification();
-        RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs, diversificationContext);
+        MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
+        RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs);
         assertNotSame(docs, diversifiedTopDocs);
 
         assertEquals(3, diversifiedTopDocs.length);
@@ -103,9 +103,9 @@ public class MMRResultDiversificationTests extends ESTestCase {
         );
         RankDoc[] emptyDocs = new RankDoc[0];
 
-        MMRResultDiversification resultDiversification = new MMRResultDiversification();
+        MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
 
-        assertSame(emptyDocs, resultDiversification.diversify(emptyDocs, diversificationContext));
-        assertNull(resultDiversification.diversify(null, diversificationContext));
+        assertSame(emptyDocs, resultDiversification.diversify(emptyDocs));
+        assertNull(resultDiversification.diversify(null));
     }
 }

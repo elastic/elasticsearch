@@ -55,22 +55,16 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
 
         // ensure type is MMR
-        var notMmrRetriever = new ResultDiversificationRetrieverBuilder(
-            getInnerRetriever(),
-            "not_mmr",
-            "test_field",
-            10,
-            getRandomQueryVector(),
-            0.5f
+        IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> new ResultDiversificationRetrieverBuilder(getInnerRetriever(), null, "test_field", 10, getRandomQueryVector(), 0.5f)
         );
-        var validationNotMmr = notMmrRetriever.validate(source, null, false, false);
-        assertEquals(1, validationNotMmr.validationErrors().size());
-        assertEquals("[diversify] diversification type must be set to [mmr]", validationNotMmr.validationErrors().getFirst());
+        assertEquals("[diversify] diversification type must be set to [mmr]", ex.getMessage());
 
         // ensure lambda is within range and set
         var retrieverHighLambda = new ResultDiversificationRetrieverBuilder(
             getInnerRetriever(),
-            "mmr",
+            ResultDiversificationType.MMR,
             "test_field",
             10,
             getRandomQueryVector(),
@@ -85,7 +79,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
 
         var retrieverLowLambda = new ResultDiversificationRetrieverBuilder(
             getInnerRetriever(),
-            "mmr",
+            ResultDiversificationType.MMR,
             "test_field",
             10,
             getRandomQueryVector(),
@@ -100,7 +94,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
 
         var retrieverNullLambda = new ResultDiversificationRetrieverBuilder(
             getInnerRetriever(),
-            "mmr",
+            ResultDiversificationType.MMR,
             "test_field",
             10,
             getRandomQueryVector(),
@@ -154,7 +148,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
         var queryRewriteContext = getQueryRewriteContext();
         var retriever = new ResultDiversificationRetrieverBuilder(
             getInnerRetriever(),
-            ResultDiversificationRetrieverBuilder.DIVERSIFICATION_TYPE_MMR,
+            ResultDiversificationType.MMR,
             "dense_vector_field",
             3,
             new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
@@ -177,41 +171,24 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
 
         var retrieverWithoutRewrite = new ResultDiversificationRetrieverBuilder(
             getInnerRetriever(),
-            ResultDiversificationRetrieverBuilder.DIVERSIFICATION_TYPE_MMR,
+            ResultDiversificationType.MMR,
             "dense_vector_field",
             3,
             new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
             0.3f
         );
 
-        AssertionError exNoRewrite = assertThrows(
-            AssertionError.class,
-            () -> retrieverWithoutRewrite.combineInnerRetrieverResults(docs, false)
-        );
-        assertEquals("diversificationContext should be set before combining results", exNoRewrite.getMessage());
-
         retrieverWithoutRewrite.doRewrite(queryRewriteContext);
 
-        List<ScoreDoc[]> nonProperDocs = new ArrayList<>();
-        nonProperDocs.add(new ScoreDoc[] { new ScoreDoc(0, 0) });
-        AssertionError exRankDocWithSearchHit = assertThrows(
-            AssertionError.class,
-            () -> retrieverWithoutRewrite.combineInnerRetrieverResults(nonProperDocs, false)
-        );
-        assertEquals("expected results to be of type RankDocWithSearchHit", exRankDocWithSearchHit.getMessage());
-
-        AssertionError exNoDocs = assertThrows(
-            AssertionError.class,
-            () -> retrieverWithoutRewrite.combineInnerRetrieverResults(List.of(), false)
-        );
-        assertEquals("ResultDiversificationRetrieverBuilder must have a single result set", exNoDocs.getMessage());
+        var emptyDocs = retrieverWithoutRewrite.combineInnerRetrieverResults(List.of(), false);
+        assertEquals(0, emptyDocs.length);
 
         docs.add(hits);
-        AssertionError exMultipleDocs = assertThrows(
-            AssertionError.class,
+        IllegalArgumentException exMultipleDocs = assertThrows(
+            IllegalArgumentException.class,
             () -> retrieverWithoutRewrite.combineInnerRetrieverResults(docs, false)
         );
-        assertEquals("ResultDiversificationRetrieverBuilder must have a single result set", exNoDocs.getMessage());
+        assertEquals("rank results must have only one result set", exMultipleDocs.getMessage());
     }
 
     private ScoreDoc[] getTestSearchHits() {
@@ -253,7 +230,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = getInnerRetriever();
         return new ResultDiversificationRetrieverBuilder(
             innerRetriever,
-            ResultDiversificationRetrieverBuilder.DIVERSIFICATION_TYPE_MMR,
+            ResultDiversificationType.MMR,
             field,
             rankWindowSize,
             queryVector,

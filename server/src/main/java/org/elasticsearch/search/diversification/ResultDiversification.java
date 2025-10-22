@@ -18,18 +18,29 @@ import java.io.IOException;
 /**
  * Base interface for result diversification.
  */
-public abstract class ResultDiversification {
+public abstract class ResultDiversification<C extends ResultDiversificationContext> {
 
-    public abstract RankDoc[] diversify(RankDoc[] docs, ResultDiversificationContext diversificationContext) throws IOException;
+    protected final C context;
 
-    protected float getVectorComparisonScore(
+    protected ResultDiversification(C context) {
+        this.context = context;
+    }
+
+    public abstract RankDoc[] diversify(RankDoc[] docs) throws IOException;
+
+    protected float getFloatVectorComparisonScore(
         VectorSimilarityFunction similarityFunction,
-        boolean useFloat,
         VectorData thisDocVector,
         VectorData comparisonVector
     ) {
-        return useFloat
-            ? similarityFunction.compare(thisDocVector.floatVector(), comparisonVector.floatVector())
-            : similarityFunction.compare(thisDocVector.byteVector(), comparisonVector.byteVector());
+        return similarityFunction.compare(thisDocVector.floatVector(), comparisonVector.floatVector());
+    }
+
+    protected float getByteVectorComparisonScore(
+        VectorSimilarityFunction similarityFunction,
+        VectorData thisDocVector,
+        VectorData comparisonVector
+    ) {
+        return similarityFunction.compare(thisDocVector.byteVector(), comparisonVector.byteVector());
     }
 }

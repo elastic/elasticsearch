@@ -50,7 +50,14 @@ public class ResultDiversificationRetrieverBuilderParsingTests extends AbstractX
             TestRetrieverBuilder.createRandomTestRetrieverBuilder(),
             null
         );
-        return new ResultDiversificationRetrieverBuilder(innerRetriever, "mmr", "test_field", rankWindowSize, queryVector, lambda);
+        return new ResultDiversificationRetrieverBuilder(
+            innerRetriever,
+            ResultDiversificationType.MMR,
+            "test_field",
+            rankWindowSize,
+            queryVector,
+            lambda
+        );
     }
 
     @Override

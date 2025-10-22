@@ -23,15 +23,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MMRResultDiversification extends ResultDiversification {
+public class MMRResultDiversification extends ResultDiversification<MMRResultDiversificationContext> {
+
+    public MMRResultDiversification(MMRResultDiversificationContext context) {
+        super(context);
+    }
 
     @Override
-    public RankDoc[] diversify(RankDoc[] docs, ResultDiversificationContext diversificationContext) throws IOException {
-        if (docs == null || docs.length == 0 || ((diversificationContext instanceof MMRResultDiversificationContext) == false)) {
+    public RankDoc[] diversify(RankDoc[] docs) throws IOException {
+        if (docs == null || docs.length == 0) {
             return docs;
         }
-
-        MMRResultDiversificationContext context = (MMRResultDiversificationContext) diversificationContext;
 
         Map<Integer, Integer> docIdIndexMapping = new HashMap<>();
         for (int i = 0; i < docs.length; i++) {
@@ -40,7 +42,7 @@ public class MMRResultDiversification extends ResultDiversification {
 
         VectorSimilarityFunction similarityFunction = DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT.vectorSimilarityFunction(
             context.getIndexVersion(),
-            diversificationContext.getElementType()
+            context.getElementType()
         );
 
         // our chosen DocIDs to keep
@@ -148,7 +150,9 @@ public class MMRResultDiversification extends ResultDiversification {
                 }
             } else {
                 VectorData comparisonVector = vec.getValue();
-                float score = getVectorComparisonScore(similarityFunction, useFloat, thisDocVector, comparisonVector);
+                float score = useFloat
+                    ? getFloatVectorComparisonScore(similarityFunction, thisDocVector, comparisonVector)
+                    : getByteVectorComparisonScore(similarityFunction, thisDocVector, comparisonVector);
                 cachedScoresForDoc.put(vec.getKey(), score);
                 if (score > highestScore) {
                     highestScore = score;
@@ -174,7 +178,9 @@ public class MMRResultDiversification extends ResultDiversification {
         for (ScoreDoc doc : docs) {
             VectorData vectorData = context.getFieldVector(doc.doc);
             if (vectorData != null) {
-                float querySimilarityScore = getVectorComparisonScore(similarityFunction, useFloat, vectorData, queryVector);
+                float querySimilarityScore = useFloat
+                    ? getFloatVectorComparisonScore(similarityFunction, vectorData, queryVector)
+                    : getByteVectorComparisonScore(similarityFunction, vectorData, queryVector);
                 querySimilarity.put(doc.doc, querySimilarityScore);
             }
         }

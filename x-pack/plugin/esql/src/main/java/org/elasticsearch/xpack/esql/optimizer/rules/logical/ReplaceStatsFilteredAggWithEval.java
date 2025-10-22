@@ -42,8 +42,9 @@ import java.util.List;
  * This rule is applied to both STATS' {@link Aggregate} and {@link InlineJoin} right-hand side {@link Aggregate} plans.
  * The logic is common for both, but the handling of the {@link InlineJoin} is slightly different when it comes to pruning
  * its right-hand side {@link Aggregate}.
+ * Skipped in local optimizer: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
  */
-public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRule<LogicalPlan> {
+public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRule<LogicalPlan> implements OptimizerRules.CoordinatorOnly {
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
         Aggregate aggregate;

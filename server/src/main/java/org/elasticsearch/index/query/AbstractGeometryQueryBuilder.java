@@ -325,13 +325,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /**
-     * @return whether the query builder should ignore unmapped fields
-     */
-    public boolean ignoreUnmapped() {
-        return ignoreUnmapped;
-    }
-
-    /**
      * Gets whether the query builder will ignore unmapped fields (and run a
      * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
      * the field is unmapped.

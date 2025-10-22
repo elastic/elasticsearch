@@ -20,6 +20,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.DateTimeException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -311,12 +313,37 @@ final class DynamicFieldsBuilder {
         boolean createDynamicField(Mapper.Builder builder, DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
             throws IOException {
             Mapper mapper = builder.build(mapperBuilderContext);
+            List<Mapper> existing;
+            if ((existing = context.getDynamicMappers(mapper.fullPath())) != null && existing.isEmpty() == false) {
+                maybeMergeWithExistingField(context, mapperBuilderContext, mapper, existing);
+                return true;
+            }
             if (context.addDynamicMapper(mapper)) {
                 parseField.accept(context, mapper);
                 return true;
             } else {
                 return false;
             }
+        }
+
+        // Attempts to deduplicate arrays of mapper instances my merging with the most recently added mapper for the same path
+        // if there is one already and then replacing all entries for the field with the merge result
+        // TODO: this is only as complicated as it is to enable DocumentParser.postProcessDynamicArrayMapping, technically there is no need
+        // to duplicate the mapper other than to enabled this method's translation of multiple numeric field mappers into a vector mapper
+        // it seems?
+        private void maybeMergeWithExistingField(
+            DocumentParserContext context,
+            MapperBuilderContext mapperBuilderContext,
+            Mapper fieldMapper,
+            List<Mapper> existing
+        ) throws IOException {
+            var last = existing.getLast();
+            var merged = last.merge(fieldMapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
+            if (merged != last) {
+                Collections.fill(existing, merged);
+            }
+            existing.add(merged);
+            parseField.accept(context, merged);
         }
 
         boolean createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {

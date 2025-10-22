@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.application.connector.ConnectorSearchResult;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
@@ -28,7 +29,8 @@ public class GetConnectorActionResponseBWCSerializingTests extends AbstractBWCWi
 
     @Override
     protected GetConnectorAction.Response mutateInstance(GetConnectorAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        ConnectorSearchResult connector = instance.getConnector();
+        return new GetConnectorAction.Response(randomValueOtherThan(connector, ConnectorTestUtils::getRandomConnectorSearchResult));
     }
 
     @Override

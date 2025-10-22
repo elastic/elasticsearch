@@ -39,7 +39,18 @@ public class ListConnectorSyncJobsActionRequestBWCSerializingTests extends Abstr
 
     @Override
     protected ListConnectorSyncJobsAction.Request mutateInstance(ListConnectorSyncJobsAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        PageParams pageParams = instance.getPageParams();
+        String connectorId = instance.getConnectorId();
+        ConnectorSyncStatus syncStatus = instance.getConnectorSyncStatus();
+        ConnectorSyncJobType syncJobType = instance.getConnectorSyncJobTypeList().get(0);
+        switch (randomIntBetween(0, 3)) {
+            case 0 -> pageParams = randomValueOtherThan(pageParams, EnterpriseSearchModuleTestUtils::randomPageParams);
+            case 1 -> connectorId = randomValueOtherThan(connectorId, () -> randomAlphaOfLength(10));
+            case 2 -> syncStatus = randomValueOtherThan(syncStatus, ConnectorTestUtils::getRandomSyncStatus);
+            case 3 -> syncJobType = randomValueOtherThan(syncJobType, ConnectorTestUtils::getRandomSyncJobType);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new ListConnectorSyncJobsAction.Request(pageParams, connectorId, syncStatus, Collections.singletonList(syncJobType));
     }
 
     @Override

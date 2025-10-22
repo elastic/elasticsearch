@@ -29,7 +29,22 @@ public class PostConnectorActionRequestBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected PostConnectorAction.Request mutateInstance(PostConnectorAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String description = instance.getDescription();
+        String indexName = instance.getIndexName();
+        Boolean isNative = instance.getIsNative();
+        String language = instance.getLanguage();
+        String name = instance.getName();
+        String serviceType = instance.getServiceType();
+        switch (between(0, 5)) {
+            case 0 -> description = randomValueOtherThan(description, () -> randomAlphaOfLengthBetween(5, 15));
+            case 1 -> indexName = randomValueOtherThan(indexName, () -> randomAlphaOfLengthBetween(5, 15));
+            case 2 -> isNative = isNative == false;
+            case 3 -> language = randomValueOtherThan(language, () -> randomAlphaOfLengthBetween(5, 15));
+            case 4 -> name = randomValueOtherThan(name, () -> randomAlphaOfLengthBetween(5, 15));
+            case 5 -> serviceType = randomValueOtherThan(serviceType, () -> randomAlphaOfLengthBetween(5, 15));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PostConnectorAction.Request(description, indexName, isNative, language, name, serviceType);
     }
 
     @Override

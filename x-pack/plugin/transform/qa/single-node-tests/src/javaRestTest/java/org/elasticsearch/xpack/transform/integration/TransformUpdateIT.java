@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -109,21 +110,54 @@ public class TransformUpdateIT extends TransformRestTestCase {
     }
 
     public void testUpdateThatChangesSettingsButNotHeaders() throws Exception {
-        String transformId = "test_update_that_changes_settings";
-        String destIndex = transformId + "-dest";
+        var transformId = "test_update_that_changes_settings";
+        var destIndex = transformId + "-dest";
 
         // Create the transform
         createPivotReviewsTransform(transformId, destIndex, null, null, null);
 
-        Request updateTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_update", null);
-        updateTransformRequest.setJsonEntity("""
-            { "settings": { "max_page_search_size": 123 } }""");
-
         // Update the transform's settings
-        Map<String, Object> updatedConfig = entityAsMap(client().performRequest(updateTransformRequest));
+        var updatedConfig = updateTransform(transformId, """
+            { "settings": { "max_page_search_size": 123 } }""");
 
         // Verify that the settings got updated
         assertThat(updatedConfig.get("settings"), is(equalTo(Map.of("max_page_search_size", 123))));
+    }
+
+    private Map<String, Object> updateTransform(String transformId, String jsonPayload) throws Exception {
+        var updateTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_update", null);
+        updateTransformRequest.setJsonEntity(jsonPayload);
+        return entityAsMap(client().performRequest(updateTransformRequest));
+    }
+
+    public void testUpdateFrequency() throws Exception {
+        var transformId = "test_update_frequency";
+        var destIndex = transformId + "-dest";
+
+        // Create the transform
+        createContinuousPivotReviewsTransform(transformId, destIndex, null, "1h");
+        startTransform(transformId);
+
+        // wait until it finishes the first checkpoint and check that it hasn't triggered again
+        assertBusy(() -> {
+            var statsAndState = getTransformStateAndStats(transformId);
+            assertThat(XContentMapValues.extractValue("checkpointing.last.checkpoint", statsAndState), equalTo(1));
+            assertThat(XContentMapValues.extractValue("stats.trigger_count", statsAndState), equalTo(1));
+        }, 10, TimeUnit.SECONDS);
+
+        // Update the transform's settings
+        var updatedConfig = updateTransform(transformId, """
+            { "frequency": "1s" }""");
+
+        // Verify that the settings got updated
+        assertThat(updatedConfig.get("frequency"), is(equalTo("1s")));
+        assertBusy(() -> {
+            var triggerCount = (Integer) XContentMapValues.extractValue("stats.trigger_count", getTransformStateAndStats(transformId));
+            assertThat(triggerCount, is(greaterThan(1)));
+        }, 10, TimeUnit.SECONDS);
+
+        stopTransform(transformId, true);
+        deleteTransform(transformId);
     }
 
     public void testConcurrentUpdates() throws Exception {

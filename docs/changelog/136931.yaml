@@ -1,0 +1,6 @@
+pr: 136931
+summary: Don't allow MV_EXPAND prior to STATS with TS
+area: ES|QL
+type: bug
+issues:
+ - 136928

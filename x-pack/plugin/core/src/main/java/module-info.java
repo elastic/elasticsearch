@@ -26,6 +26,7 @@ module org.elasticsearch.xcore {
     requires org.apache.httpcomponents.client5.httpclient5;
     requires org.apache.httpcomponents.core5.httpcore5;
     requires org.slf4j;
+    requires com.ibm.icu;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;

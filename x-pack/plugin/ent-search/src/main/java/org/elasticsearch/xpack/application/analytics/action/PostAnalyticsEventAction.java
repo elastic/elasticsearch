@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -143,6 +144,10 @@ public class PostAnalyticsEventAction {
 
         public boolean isDebug() {
             return debug;
+        }
+
+        Map<String, List<String>> headers() {
+            return Collections.unmodifiableMap(headers);
         }
 
         private String header(String header) {

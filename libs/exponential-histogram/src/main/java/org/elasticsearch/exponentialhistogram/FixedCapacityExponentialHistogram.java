@@ -41,7 +41,8 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     // When we use term "index", we mean the exponential histogram bucket index.
     // They store all buckets for the negative range first, with the bucket indices in ascending order,
     // followed by all buckets for the positive range, also with their indices in ascending order.
-    // This means we store the buckets ordered by their boundaries in ascending order (from -INF to +INF).
+    // This means we store all the negative buckets first, ordered by their boundaries in descending order (from 0 to -INF),
+    // followed by all the positive buckets, ordered by their boundaries in ascending order (from 0 to +INF).
     private final long[] bucketIndices;
     private final long[] bucketCounts;
 

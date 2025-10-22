@@ -29,7 +29,7 @@ public class PostConnectorSyncJobActionResponseBWCSerializingTests extends Abstr
 
     @Override
     protected PostConnectorSyncJobAction.Response mutateInstance(PostConnectorSyncJobAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new PostConnectorSyncJobAction.Response(randomValueOtherThan(instance.getId(), () -> randomAlphaOfLengthBetween(1, 10)));
     }
 
     @Override

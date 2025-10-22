@@ -746,7 +746,7 @@ setup:
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
               chunk_rescorer:
-                chunk_size: 20
+                size: 20
                 chunking_settings:
                   strategy: sentence
                   max_chunk_size: 10
@@ -779,7 +779,7 @@ setup:
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
               chunk_rescorer:
-                chunk_size: 20
+                size: 20
           size: 10
 
   - match: { hits.total.value: 2 }
@@ -814,7 +814,7 @@ setup:
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
               chunk_rescorer:
-                chunk_rescorer: 20
+                size: 20
                 chunking_settings:
                   max_chunk_size: 20
           size: 10

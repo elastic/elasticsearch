@@ -52,6 +52,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.core.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
@@ -86,7 +87,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfig
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
-import org.elasticsearch.xpack.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.hamcrest.CoreMatchers;

@@ -10,7 +10,7 @@ serverless: preview
 stack: preview 9.2
 ```
 :::{note}
-This feature requires a [subscription](https://www.elastic.co/subscriptions).
+This feature requires an Enterprise subscription.
 :::
 
 The `pattern_text` field type is a variant of [`text`](/reference/elasticsearch/mapping-reference/text.md) with improved space efficiency for log data.

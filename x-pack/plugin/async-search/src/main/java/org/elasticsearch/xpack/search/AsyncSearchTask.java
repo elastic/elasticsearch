@@ -373,7 +373,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      *
      * Visible for testing
      */
-     void getResponse(ActionListener<AsyncSearchResponse> listener) {
+    void getResponse(ActionListener<AsyncSearchResponse> listener) {
         getResponse(false, listener);
     }
 

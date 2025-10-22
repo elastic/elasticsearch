@@ -1,5 +1,5 @@
 pr: 136951
 summary: Support different downsampling methods through ILM
-area: "Downsampling, ILM+SLM"
+area: "ILM+SLM"
 type: enhancement
 issues: []

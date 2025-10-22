@@ -58,6 +58,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Unbounded SORT not supported yet",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
+        "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -70,7 +71,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "cannot be cast to class", // https://github.com/elastic/elasticsearch/issues/133992
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "unexpected byte", // https://github.com/elastic/elasticsearch/issues/136598
-        "Rule execution limit", // https://github.com/elastic/elasticsearch/issues/136599
         "Output has changed from", // https://github.com/elastic/elasticsearch/issues/136797
         "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
 

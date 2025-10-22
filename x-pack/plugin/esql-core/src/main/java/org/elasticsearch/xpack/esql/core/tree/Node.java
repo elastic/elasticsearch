@@ -37,7 +37,7 @@ import static java.util.Collections.emptyList;
  */
 public abstract class Node<T extends Node<T>> implements NamedWriteable {
     private static final int TO_STRING_MAX_PROP = 10;
-    private static final int TO_STRING_MAX_WIDTH = 110;
+    public static final int TO_STRING_MAX_WIDTH = 110;
 
     private final Source source;
     private final List<T> children;

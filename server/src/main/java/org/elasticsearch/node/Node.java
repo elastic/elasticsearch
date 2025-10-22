@@ -286,6 +286,10 @@ public class Node implements Closeable {
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(FsHealthService.class).start();
+        injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(IndicesMetrics.class).start();
+        injector.getInstance(HealthPeriodicLogger.class).start();
+        injector.getInstance(SamplingService.class).start();
         nodeService.getMonitorService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
@@ -405,6 +409,8 @@ public class Node implements Closeable {
             }
         }
 
+        // ------- DO NOT ADD NEW START CALLS BELOW HERE -------
+
         injector.getInstance(HttpServerTransport.class).start();
         if (ReadinessService.enabled(environment)) {
             injector.getInstance(ReadinessService.class).start();
@@ -425,12 +431,6 @@ public class Node implements Closeable {
                 writePortsFile("remote_cluster", transport.boundRemoteAccessAddress());
             }
         }
-
-        injector.getInstance(NodeMetrics.class).start();
-        injector.getInstance(IndicesMetrics.class).start();
-        injector.getInstance(HealthPeriodicLogger.class).start();
-        injector.getInstance(SamplingService.class).start();
-
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);

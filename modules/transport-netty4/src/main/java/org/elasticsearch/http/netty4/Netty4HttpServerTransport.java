@@ -38,6 +38,8 @@ import io.netty.util.ResourceLeakDetector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -107,6 +109,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private volatile ServerBootstrap serverBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
+    private final TlsHandshakeThrottleManager tlsHandshakeThrottleManager;
+
     public Netty4HttpServerTransport(
         Settings settings,
         NetworkService networkService,
@@ -144,6 +148,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
 
+        this.tlsHandshakeThrottleManager = new TlsHandshakeThrottleManager(clusterSettings, telemetryProvider.getMeterRegistry());
+
         ByteSizeValue receivePredictor = Netty4Plugin.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
         recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
 
@@ -168,6 +174,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected void startInternal() {
         boolean success = false;
         try {
+            tlsHandshakeThrottleManager.start();
+
             sharedGroup = sharedGroupFactory.getHttpGroup();
             serverBootstrap = new ServerBootstrap();
 
@@ -231,6 +239,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (acceptChannelPredicate != null) {
                 acceptChannelPredicate.setBoundAddress(boundAddress());
             }
+
             success = true;
         } finally {
             if (success == false) {
@@ -250,6 +259,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     protected void stopInternal() {
+        if (tlsHandshakeThrottleManager.lifecycleState() != Lifecycle.State.INITIALIZED) {
+            tlsHandshakeThrottleManager.stop();
+        }
         if (sharedGroup != null) {
             sharedGroup.shutdown();
             sharedGroup = null;
@@ -329,7 +341,29 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     );
             }
             if (tlsConfig.isTLSEnabled()) {
-                ch.pipeline().addLast("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
+                final var sslHandler = new SslHandler(tlsConfig.createServerSSLEngine());
+                final var tlsHandshakeThrottle = transport.tlsHandshakeThrottleManager.getThrottleForCurrentThread();
+
+                if (tlsHandshakeThrottle == null) {
+                    // throttling currently disabled
+                    ch.pipeline().addLast("ssl", sslHandler);
+                } else {
+                    final var handshakeCompletePromise = new SubscribableListener<Void>();
+                    ch.pipeline()
+                        // accumulate data until the initial handshake
+                        .addLast(
+                            "initial-tls-handshake-throttle",
+                            tlsHandshakeThrottle.newHandshakeThrottleHandler(handshakeCompletePromise)
+                        )
+                        // actually do the TLS processing
+                        .addLast("ssl", sslHandler)
+                        // watch for the completion of this channel's initial handshake at which point we can release one for another
+                        // channel
+                        .addLast(
+                            "initial-tls-handshake-completion-watcher",
+                            tlsHandshakeThrottle.newHandshakeCompletionWatcher(handshakeCompletePromise)
+                        );
+                }
             }
             final var threadWatchdogActivityTracker = transport.threadWatchdog.getActivityTrackerForCurrentThread();
             ch.pipeline()

@@ -516,9 +516,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testRollupAfterRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136437
-- class: org.elasticsearch.cluster.coordination.NodeJoiningIT
-  method: testNodeTriesToJoinClusterAndThenSameMasterIsElected
-  issue: https://github.com/elastic/elasticsearch/issues/136332
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/200_dense_vector_docvalue_fields/Enable docvalue_fields parameter for dense_vector fields}
   issue: https://github.com/elastic/elasticsearch/issues/136443
@@ -573,6 +570,9 @@ tests:
 - class: org.elasticsearch.compute.operator.HashAggregationOperatorTests
   method: testSimpleSmallInput
   issue: https://github.com/elastic/elasticsearch/issues/136945
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopNTests
+  method: testTopNSortExpressionWithinRemoteEnrichAliasing
+  issue: https://github.com/elastic/elasticsearch/issues/136957
 
 # Examples:
 #

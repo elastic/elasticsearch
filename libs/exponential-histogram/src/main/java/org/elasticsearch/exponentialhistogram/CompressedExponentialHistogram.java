@@ -1,33 +1,42 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * Copyright Elasticsearch B.V., and/or licensed to Elasticsearch B.V.
+ * under one or more license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+ * This file is based on a modification of https://github.com/open-telemetry/opentelemetry-java which is licensed under the Apache 2.0 License.
  */
 
-package org.elasticsearch.xpack.exponentialhistogram;
+package org.elasticsearch.exponentialhistogram;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.exponentialhistogram.AbstractExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.BucketIterator;
-import org.elasticsearch.exponentialhistogram.CopyableBucketIterator;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ZeroBucket;
-import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 
 import java.io.IOException;
-import java.util.List;
+import java.io.OutputStream;
 import java.util.OptionalLong;
 
 /**
  * Implementation of a {@link ExponentialHistogram} optimized for a minimal memory footprint.
- * The compression used here also corresponds to how exponential_histogram fields are stored in
- * doc values by {@link ExponentialHistogramFieldMapper}.
  * <p>
  * While this implementation is optimized for a minimal memory footprint, it is still a fully compliant {@link ExponentialHistogram}
  * and can therefore be directly consumed for merging / quantile estimation without requiring any prior copying or decoding.
+ *
+ * Note that this histogram implementation stores the zero threshold as double value.
+ * For that reason it is lossy if used for storing intermediate merge results, which can have the zero threshold represented
+ * as a (scale, index) pair.
  */
 public class CompressedExponentialHistogram extends AbstractExponentialHistogram {
 
@@ -40,7 +49,7 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
     private double max;
     private ZeroBucket lazyZeroBucket;
 
-    private final EncodedHistogramData encodedData = new EncodedHistogramData();
+    private final CompressedHistogramData encodedData = new CompressedHistogramData();
     private final Buckets positiveBuckets = new Buckets(true);
     private final Buckets negativeBuckets = new Buckets(false);
 
@@ -99,7 +108,7 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
      * @param max the maximum of the values the histogram contains, needs to be stored externally.
      *            Must be {@link Double#NaN} if the histogram is empty, non-Nan otherwise.
      * @param encodedHistogramData the encoded histogram bytes which previously where generated via
-     * {@link #writeHistogramBytes(StreamOutput, int, List, List)}.
+     * {@link #writeHistogramBytes(OutputStream, int, BucketIterator, BucketIterator)}.
      */
     public void reset(double zeroThreshold, long valueCount, double sum, double min, double max, BytesRef encodedHistogramData)
         throws IOException {
@@ -123,18 +132,14 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
      * @param negativeBuckets the negative buckets of the histogram, sorted by the bucket indices
      * @param positiveBuckets the positive buckets of the histogram, sorted by the bucket indices
      */
-    public static void writeHistogramBytes(
-        StreamOutput output,
-        int scale,
-        List<IndexWithCount> negativeBuckets,
-        List<IndexWithCount> positiveBuckets
-    ) throws IOException {
-        EncodedHistogramData.write(output, scale, negativeBuckets, positiveBuckets);
+    public static void writeHistogramBytes(OutputStream output, int scale, BucketIterator negativeBuckets, BucketIterator positiveBuckets)
+        throws IOException {
+        CompressedHistogramData.write(output, scale, negativeBuckets, positiveBuckets);
     }
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + ZeroBucket.SHALLOW_SIZE + 2 * Buckets.SHALLOW_SIZE + EncodedHistogramData.SHALLOW_SIZE;
+        return SHALLOW_SIZE + ZeroBucket.SHALLOW_SIZE + 2 * Buckets.SHALLOW_SIZE + CompressedHistogramData.SHALLOW_SIZE;
     }
 
     private final class Buckets implements ExponentialHistogram.Buckets {
@@ -190,9 +195,9 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
 
         private class CompressedBucketsIterator implements CopyableBucketIterator {
 
-            private final EncodedHistogramData.BucketsDecoder decoder;
+            private final CompressedHistogramData.BucketsDecoder decoder;
 
-            CompressedBucketsIterator(EncodedHistogramData.BucketsDecoder delegate) {
+            CompressedBucketsIterator(CompressedHistogramData.BucketsDecoder delegate) {
                 this.decoder = delegate;
             }
 

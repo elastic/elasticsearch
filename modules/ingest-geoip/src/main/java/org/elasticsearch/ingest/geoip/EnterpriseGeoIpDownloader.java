@@ -449,7 +449,9 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             }
         }
 
-        scheduledPeriodicRun = threadPool.schedule(this::runPeriodic, pollIntervalSupplier.get(), threadPool.generic());
+        synchronized (this) {
+            scheduledPeriodicRun = threadPool.schedule(this::runPeriodic, pollIntervalSupplier.get(), threadPool.generic());
+        }
     }
 
     /**
@@ -499,7 +501,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     /**
      * Downloads the geoip databases now based on the supplied cluster state.
      */
-    synchronized void runDownloader() {
+    void runDownloader() {
         if (isCancelled() || isCompleted()) {
             logger.debug("Not running downloader because task is cancelled or completed");
             return;
@@ -537,8 +539,10 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     protected void onCancelled() {
-        if (scheduledPeriodicRun != null) {
-            scheduledPeriodicRun.cancel();
+        synchronized (this) {
+            if (scheduledPeriodicRun != null) {
+                scheduledPeriodicRun.cancel();
+            }
         }
         markAsCompleted();
     }

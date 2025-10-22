@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -22,7 +23,10 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
+import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 
+import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -41,15 +45,18 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
     private final ClusterService clusterService;
     private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
+    private final CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier;
 
     public CrossClusterAccessAuthenticationService(
         ClusterService clusterService,
         ApiKeyService apiKeyService,
-        AuthenticationService authenticationService
+        AuthenticationService authenticationService,
+        CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier
     ) {
         this.clusterService = clusterService;
         this.apiKeyService = apiKeyService;
         this.authenticationService = authenticationService;
+        this.crossClusterApiKeySignatureVerifier = crossClusterApiKeySignatureVerifier;
     }
 
     @Override
@@ -68,6 +75,14 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             withRequestProcessingFailure(authenticationService.newContext(action, request, null), ex, listener);
             return;
         }
+
+        // TODO ALWAYS check if used api key has a certificate identity and do this verification conditionally based on that
+        var signature = crossClusterAccessHeaders.signature();
+        // Always validate a signature if provided
+        if (signature != null && verifySignature(authcContext, signature, crossClusterAccessHeaders, listener) == false) {
+            return;
+        }
+
         try {
             apiKeyService.ensureEnabled();
         } catch (Exception ex) {
@@ -105,6 +120,7 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
                     assert authentication.isApiKey() : "initial authentication for cross cluster access must be by API key";
                     assert false == authentication.isRunAs() : "initial authentication for cross cluster access cannot be run-as";
+
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
@@ -116,6 +132,37 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
                 }, listener::onFailure))
             );
         }
+    }
+
+    private boolean verifySignature(
+        Authenticator.Context context,
+        X509CertificateSignature signature,
+        CrossClusterAccessHeaders crossClusterAccessHeaders,
+        ActionListener<Authentication> listener
+    ) {
+        assert signature.certificates().length > 0 : "Signatures without certificates should not be considered for verification";
+        ElasticsearchSecurityException authException = null;
+        try {
+            if (crossClusterApiKeySignatureVerifier.verify(signature, crossClusterAccessHeaders.signablePayload()) == false) {
+                logger.debug(Strings.format("Invalid cross cluster api key signature received [%s]", signature));
+                authException = Exceptions.authenticationError(
+                    "Invalid cross cluster api key signature from [{}]",
+                    X509CertificateSignature.certificateToString(signature.certificates()[0])
+                );
+            }
+        } catch (GeneralSecurityException securityException) {
+            logger.debug(Strings.format("Failed to verify cross cluster api key signature certificate [%s]", signature), securityException);
+            authException = Exceptions.authenticationError(
+                "Failed to verify cross cluster api key signature certificate from [{}]",
+                X509CertificateSignature.certificateToString(signature.certificates()[0])
+            );
+        }
+        if (authException != null) {
+            // TODO Verify this covers all audit logging scenarios
+            listener.onFailure(context.getRequest().exceptionProcessingRequest(authException, context.getMostRecentAuthenticationToken()));
+            return false;
+        }
+        return true;
     }
 
     @Override

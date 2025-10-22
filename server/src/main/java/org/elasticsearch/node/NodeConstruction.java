@@ -210,6 +210,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.shutdown.PluginShutdownService;
+import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -727,12 +728,7 @@ class NodeConstruction {
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
-        SamplingService samplingService = new SamplingService(
-            scriptService,
-            clusterService,
-            projectResolver,
-            threadPool.relativeTimeInMillisSupplier()
-        );
+        SamplingService samplingService = SamplingService.create(scriptService, clusterService, projectResolver, settings);
         modules.bindToInstance(SamplingService.class, samplingService);
         clusterService.addListener(samplingService);
 
@@ -1009,9 +1005,11 @@ class NodeConstruction {
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
-            LinkedProjectConfigService.class,
-            () -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver)
-        );
+            LinkedProjectConfigService.Provider.class,
+            () -> Optional::empty
+        )
+            .create()
+            .orElseGet(() -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver));
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -1187,6 +1185,10 @@ class NodeConstruction {
             transportService,
             indicesService
         );
+        final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =
+            new CachingSnapshotAndShardByStateMetricsService(clusterService);
+        snapshotMetrics.createSnapshotsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getSnapshotsByState);
+        snapshotMetrics.createSnapshotShardsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getShardsByState);
 
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());

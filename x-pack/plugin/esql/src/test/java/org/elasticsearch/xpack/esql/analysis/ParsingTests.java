@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -55,7 +56,7 @@ public class ParsingTests extends ESTestCase {
 
     private final IndexResolution defaultIndex = loadIndexResolution("mapping-basic.json");
     private final Analyzer defaultAnalyzer = new Analyzer(
-        new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex, emptyPolicyResolution(), emptyInferenceResolution()),
+        testAnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex, emptyPolicyResolution(), emptyInferenceResolution()),
         TEST_VERIFIER
     );
 
@@ -110,7 +111,7 @@ public class ParsingTests extends ESTestCase {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias, TEST_CFG);
+                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 Function functionCall = (Function) row.fields().get(0).child();
@@ -360,7 +361,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     private EsqlStatement parse(String query, QueryParams params) {
-        return parser.createQuery(query, params, TEST_CFG);
+        return parser.createQuery(query, params);
     }
 
     private String error(String query) {

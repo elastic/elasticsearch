@@ -1465,6 +1465,11 @@ public class EsqlCapabilities {
         FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
 
         /**
+         * Percentile over time and other ts-aggregations
+         */
+        PERCENTILE_OVER_TIME,
+
+        /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
          */
@@ -1499,7 +1504,54 @@ public class EsqlCapabilities {
         /**
          * Support for dots in FUSE attributes
          */
-        DOTS_IN_FUSE;
+        DOTS_IN_FUSE,
+
+        /**
+         * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
+        */
+        TEMPORAL_AMOUNT_M,
+
+        /**
+         * Pack dimension values in TS command
+         */
+        PACK_DIMENSIONS_IN_TS,
+
+        /**
+         * Create new block when filtering OrdinalBytesRefBlock
+         */
+        FIX_FILTER_ORDINALS,
+
+        /**
+         * Allow multiple patterns for GROK command
+         */
+        GROK_MULTI_PATTERN,
+
+        /**
+         * Fix double release in inline stats when LocalRelation is reused
+         */
+        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled),
+
+        /**
+         * Support for pushing down EVAL with SCORE
+         * https://github.com/elastic/elasticsearch/issues/133462
+         */
+        PUSHING_DOWN_EVAL_WITH_SCORE,
+
+        /**
+         * Fix attribute equality to respect the name id of the attribute.
+         */
+        ATTRIBUTE_EQUALS_RESPECTS_NAME_ID,
+
+        /**
+         * Fix for lookup join filter pushdown not using semantic equality.
+         * This prevents duplicate filters from being pushed down when they are semantically equivalent, causing an infinite loop where
+         * BooleanSimplification will simplify the original and duplicate filters, so they'll be pushed down again...
+         */
+        LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
+
+        // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
+        // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
+        ;
 
         private final boolean enabled;
 

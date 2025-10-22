@@ -114,6 +114,7 @@ POST my-index-2/_search
   "fields": ["my_vector"]
 }
 ```
+% TEST[skip:no index setup]
 
 - The `_source.exclude_vectors` flag to re-enable vector inclusion in `_source` responses:
 
@@ -125,6 +126,11 @@ POST my-index-2/_search
   }
 }
 ```
+% TEST[skip:no index setup]
+
+:::{tip}
+For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
+:::
 
 ### Storage behavior and `_source`
 
@@ -261,10 +267,11 @@ POST /my-index/_update/1
   }
 }
 ```
+% TEST[continued]
 
 Observe that tokens are merged, not replaced:
 
-```json
+```js
 {
   "my_vector": {
     "token_a": 0.5,
@@ -273,6 +280,7 @@ Observe that tokens are merged, not replaced:
   }
 }
 ```
+% NOTCONSOLE
 
 ### Replacing the entire `sparse_vector` field
 
@@ -292,6 +300,7 @@ POST /my-index/_update/1
   }
 }
 ```
+% TEST[continued]
 
 :::{note}
 This same merging behavior also applies to [`rank_features` fields](/reference/elasticsearch/mapping-reference/rank-features.md), because they are also object-like structures.

@@ -14,7 +14,7 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleUserEventChannelHandler;
 import io.netty.handler.ssl.SslClientHelloHandler;
-import io.netty.handler.ssl.SslCompletionEvent;
+import io.netty.handler.ssl.SslHandshakeCompletionEvent;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 
@@ -393,7 +393,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
          * {@link #handleHandshakeCompletion} to trigger either the processing of another handshake or a decrement of
          * {@link #inProgressHandshakesCount}.
          */
-        private static class HandshakeCompletionWatcher extends SimpleUserEventChannelHandler<SslCompletionEvent> {
+        private static class HandshakeCompletionWatcher extends SimpleUserEventChannelHandler<SslHandshakeCompletionEvent> {
             private final SubscribableListener<Void> handshakeCompletePromise;
 
             HandshakeCompletionWatcher(SubscribableListener<Void> handshakeCompletePromise) {
@@ -401,7 +401,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
             }
 
             @Override
-            protected void eventReceived(ChannelHandlerContext ctx, SslCompletionEvent evt) {
+            protected void eventReceived(ChannelHandlerContext ctx, SslHandshakeCompletionEvent evt) {
                 ctx.pipeline().remove(HandshakeCompletionWatcher.this);
                 if (evt.isSuccess()) {
                     handshakeCompletePromise.onResponse(null);

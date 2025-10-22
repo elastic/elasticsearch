@@ -72,7 +72,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
     public static final String NAME = "TRange";
 
     public static final String START_TIME_OR_OFFSET_PARAMETER = "start_time_or_offset";
-    public static final String END_TIME_OR_OFFSET_PARAMETER = "end_time";
+    public static final String END_TIME_PARAMETER = "end_time";
 
     private final Expression first;
     private final Expression second;
@@ -98,7 +98,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
                  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds.
                 """
         ) Expression first,
-        @Param(name = END_TIME_OR_OFFSET_PARAMETER, type = { "keyword", "long", "date", "date_nanos" }, description = """
+        @Param(name = END_TIME_PARAMETER, type = { "keyword", "long", "date", "date_nanos" }, description = """
             Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""", optional = true) Expression second,
         Configuration configuration
     ) {
@@ -186,10 +186,13 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() == 3) {
-            return new TRange(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), configuration());
-        }
-        return new TRange(source(), newChildren.get(0), newChildren.get(1), null, configuration());
+        return new TRange(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.size() == 3 ? newChildren.get(2) : null,
+            configuration()
+        );
     }
 
     @Override
@@ -224,7 +227,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
             } else {
                 Object foldSecond = second.fold(foldContext);
                 rangeStart = parseToInstant(foldFirst, START_TIME_OR_OFFSET_PARAMETER);
-                rangeEnd = parseToInstant(foldSecond, END_TIME_OR_OFFSET_PARAMETER);
+                rangeEnd = parseToInstant(foldSecond, END_TIME_PARAMETER);
             }
         } catch (InvalidArgumentException e) {
             throw new InvalidArgumentException(e, "invalid time range for [{}]: {}", sourceText(), e.getMessage());
@@ -240,8 +243,8 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
 
         boolean convertToNanos = timestamp.dataType() == DataType.DATE_NANOS;
         return new long[] {
-            convertToNanos == false ? rangeStart.toEpochMilli() : DateUtils.toNanoSeconds(rangeStart.toEpochMilli()),
-            convertToNanos == false ? rangeEnd.toEpochMilli() : DateUtils.toNanoSeconds(rangeEnd.toEpochMilli()) };
+            convertToNanos ? DateUtils.toNanoSeconds(rangeStart.toEpochMilli()) : rangeStart.toEpochMilli(),
+            convertToNanos ? DateUtils.toNanoSeconds(rangeEnd.toEpochMilli()) : rangeEnd.toEpochMilli() };
     }
 
     private Instant timeWithOffset(Object offset, Instant base) {
@@ -282,7 +285,6 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-
         return (logicalPlan, failures) -> {
             // single parameter mode
             if (second == null) {
@@ -297,7 +299,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
             if (second != null) {
                 Object rangeEndValue = second.fold(FoldContext.small());
                 if (rangeEndValue == null) {
-                    failures.add(fail(second, "{} cannot be null", END_TIME_OR_OFFSET_PARAMETER));
+                    failures.add(fail(second, "{} cannot be null", END_TIME_PARAMETER));
                 }
             }
         };

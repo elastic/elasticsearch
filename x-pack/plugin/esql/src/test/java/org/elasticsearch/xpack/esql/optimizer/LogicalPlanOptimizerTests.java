@@ -19,7 +19,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -208,7 +207,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
@@ -9264,14 +9263,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(join.right(), EsRelation.class);
     }
 
-    public void testTranslateTRangeFoldsToLiteral() {
+    /**
+     * EsqlProject[[@timestamp{r}#3]]
+     * \_Eval[[1715300259000[DATETIME] AS @timestamp#3]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[k8s][@timestamp{f}#5, client.ip{f}#9, cluster{f}#6, ...]
+     */
+    public void testTranslateTRangeFoldsToLiteralWhenTimestampInsideRange() {
         String timestampValue = "2024-05-10T00:17:39.000Z";
-        LogicalPlan statement = parser.createStatement(String.format(Locale.ROOT, """
+
+        String query = String.format(Locale.ROOT, """
             TS k8s
-            | EVAL @timestamp = to_datetime(\"%s\")
+            | EVAL @timestamp = to_datetime("%s")
             | WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
             | KEEP @timestamp
-            """, timestampValue));
+            """, timestampValue);
+
+        LogicalPlan statement = parser.createStatement(query);
         LogicalPlan analyze = metricsAnalyzer.analyze(statement);
         LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
 
@@ -9282,8 +9290,39 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Literal timestampLiteral = as(Alias.unwrap(eval.fields().getFirst()), Literal.class);
         long expectedTimestamp = DateUtils.asDateTimeWithNanos(timestampValue, DateUtils.UTC).toInstant().toEpochMilli();
         assertThat(timestampLiteral.fold(FoldContext.small()), equalTo(expectedTimestamp));
+
+        Limit limit = asLimit(eval.child(), 1000, false);
+        assertThat(limit.children(), hasSize(1));
+
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertThat(relation.children(), hasSize(0));
     }
 
+    /**
+     * LocalRelation[[@timestamp{r}#3],EMPTY]
+     */
+    public void testTranslateTRangeFoldsToLiteralWhenTimestampOutsideRange() {
+        String timestampValue = "2024-05-10T00:15:39.000Z";
+
+        String query = String.format(Locale.ROOT, """
+            TS k8s
+            | EVAL @timestamp = to_datetime("%s")
+            | WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
+            | KEEP @timestamp
+            """, timestampValue);
+
+        LogicalPlan statement = parser.createStatement(query);
+        LogicalPlan analyze = metricsAnalyzer.analyze(statement);
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+
+        LocalRelation relation = as(plan, LocalRelation.class);
+        assertThat(relation.output(), hasSize(1));
+        assertThat(relation.children(), hasSize(0));
+    }
+
+    /**
+     * LocalRelation[[@timestamp{r}#3],EMPTY]
+     */
     public void testTranslateTRangeFoldsToLocalRelation() {
         LogicalPlan statement = parser.createStatement("""
             TS k8s
@@ -9296,6 +9335,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         LocalRelation relation = as(plan, LocalRelation.class);
         assertThat(relation.output(), hasSize(1));
+        assertThat(relation.children(), hasSize(0));
 
         Attribute attribute = relation.output().get(0);
         assertThat(attribute.name(), equalTo("@timestamp"));

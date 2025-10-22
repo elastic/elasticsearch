@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 
@@ -509,5 +510,43 @@ public class LiveVersionMapTests extends ESTestCase {
         map.afterRefresh(randomBoolean());
         assertEquals(map.reclaimableRefreshRamBytes(), 0L);
         assertEquals(map.ramBytesUsedForRefresh(), 0L);
+    }
+
+    /**
+     * When we only do operations that enforce safe access, we expect to stay as a safe map.
+     */
+    public void testNotUnsafeConcurrently() throws InterruptedException {
+        LiveVersionMap map = new LiveVersionMap();
+        AtomicBoolean running = new AtomicBoolean(true);
+        Thread refresher = new Thread(() -> {
+            while (running.get()) {
+                try {
+                    map.beforeRefresh();
+                    map.afterRefresh(true);
+                } catch (IOException e) {
+                    fail(e);
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+
+        refresher.start();
+        try {
+            // 1000 is enough to provoke original version
+            for (int i = 0; i < 100000; ++i) {
+                BytesRef uid = Uid.encodeId(randomIdentifier());
+                try (Releasable releasable = map.acquireLock(uid)) {
+                    map.enforceSafeAccess();
+                    map.maybePutIndexUnderLock(uid, new IndexVersionValue(null, 0, 0, 0));
+                    assertFalse(map.isUnsafe());
+                }
+            }
+
+        } finally {
+            running.set(false);
+            refresher.join(10000);
+
+        }
+        assertFalse(refresher.isAlive());
     }
 }

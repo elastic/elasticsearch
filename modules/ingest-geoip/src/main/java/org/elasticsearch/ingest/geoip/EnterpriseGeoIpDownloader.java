@@ -403,7 +403,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
      * gets reassigned to a different node, we want to run the downloader immediately on that new node, not wait for the next periodic run.
      */
     public void restartPeriodicRun() {
-        if (threadPool.scheduler().isShutdown()) {
+        if (isCancelled() || isCompleted() || threadPool.scheduler().isShutdown()) {
+            logger.debug("Not restarting periodic run because task is cancelled, completed, or shutting down");
             return;
         }
         logger.trace("Restarting periodic run");
@@ -426,8 +427,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
      * Tries to run the downloader now, if it isn't already currently running, and schedules the next periodic run using the poll interval.
      */
     private void runPeriodic() {
-        if (isCancelled() || isCompleted()) {
-            logger.debug("Not running periodic downloader because task is cancelled or completed");
+        if (isCancelled() || isCompleted() || threadPool.scheduler().isShutdown()) {
+            logger.debug("Not running periodic downloader because task is cancelled, completed, or shutting down");
             return;
         }
 
@@ -447,11 +448,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
                 }
             }
         }
-        if (threadPool.scheduler().isShutdown() == false) {
-            logger.trace("Scheduling next periodic run, current scheduled run is [{}]", scheduledPeriodicRun);
-            scheduledPeriodicRun = threadPool.schedule(this::runPeriodic, pollIntervalSupplier.get(), threadPool.generic());
-            logger.trace("Next periodic run scheduled: [{}]", scheduledPeriodicRun);
-        }
+
+        scheduledPeriodicRun = threadPool.schedule(this::runPeriodic, pollIntervalSupplier.get(), threadPool.generic());
     }
 
     /**
@@ -459,8 +457,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
      * This method does nothing if this task is cancelled or completed.
      */
     public void requestRunOnDemand() {
-        if (isCancelled() || isCompleted() || threadPool.scheduler().isShutdown()) {
-            logger.debug("Not requesting downloader run on demand because task is cancelled, completed or shutting down");
+        if (isCancelled() || isCompleted()) {
+            logger.debug("Not requesting downloader to run on demand because task is cancelled or completed");
             return;
         }
         logger.trace("Requesting downloader run on demand");
@@ -502,12 +500,13 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
      * Downloads the geoip databases now based on the supplied cluster state.
      */
     synchronized void runDownloader() {
+        if (isCancelled() || isCompleted()) {
+            logger.debug("Not running downloader because task is cancelled or completed");
+            return;
+        }
         // by the time we reach here, the state will never be null
         assert this.state != null : "this.setState() is null. You need to call setState() before calling runDownloader()";
 
-        if (isCancelled() || isCompleted()) {
-            return;
-        }
         try {
             updateDatabases(); // n.b. this downloads bytes from the internet, it can take a while
         } catch (Exception e) {

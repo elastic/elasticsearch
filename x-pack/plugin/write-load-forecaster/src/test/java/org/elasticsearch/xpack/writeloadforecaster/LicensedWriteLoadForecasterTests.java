@@ -482,7 +482,9 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             final IndexMetadata indexMetadata = createIndexMetadata(
                 DataStream.getDefaultBackingIndexName(dataStreamName, i),
                 numberOfShards,
-                randomIndexWriteLoad(numberOfShards, indicesWithZeroUptime.contains(i) ? () -> 0 : () -> randomLongBetween(1, 10)),
+                indicesWithZeroUptime.contains(i)
+                    ? indexWriteLoadWithMissingOrZeroUptime(numberOfShards)
+                    : randomIndexWriteLoad(numberOfShards),
                 System.currentTimeMillis() - (maxIndexAge.millis() / 2)
             );
             backingIndices.add(indexMetadata.getIndex());
@@ -513,6 +515,10 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         if (someIndicesHadUptime) {
             assertThat(forecastedWriteLoad.getAsDouble(), not(notANumber()));
         }
+    }
+
+    private IndexWriteLoad indexWriteLoadWithMissingOrZeroUptime(int numShards) {
+        return randomBoolean() ? IndexWriteLoad.builder(numShards).build() : randomIndexWriteLoad(numShards, () -> 0);
     }
 
     public enum ShardCountChange implements IntToIntFunction {

@@ -26,7 +26,6 @@ public abstract class ResultDiversificationContext {
     private final VectorData queryVector;
     private Map<Integer, VectorData> fieldVectors;
 
-    // for now, the field must be a dense_vector type
     protected ResultDiversificationContext(
         String field,
         int numCandidates,

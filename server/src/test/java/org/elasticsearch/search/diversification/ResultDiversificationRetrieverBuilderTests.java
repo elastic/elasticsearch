@@ -42,6 +42,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.Assert;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -189,6 +190,10 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
             () -> retrieverWithoutRewrite.combineInnerRetrieverResults(docs, false)
         );
         assertEquals("rank results must have only one result set", exMultipleDocs.getMessage());
+
+        // clean up
+        docs.clear();
+        Arrays.fill(hits, null);
     }
 
     private ScoreDoc[] getTestSearchHits() {

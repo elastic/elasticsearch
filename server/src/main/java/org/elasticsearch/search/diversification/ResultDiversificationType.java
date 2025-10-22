@@ -24,6 +24,7 @@ public enum ResultDiversificationType {
                 return diversificationType;
             }
         }
-        return null;
+
+        throw new IllegalArgumentException("unknown result diversification type [" + value + "]");
     }
 }

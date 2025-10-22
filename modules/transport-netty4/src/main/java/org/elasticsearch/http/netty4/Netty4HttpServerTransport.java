@@ -174,6 +174,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected void startInternal() {
         boolean success = false;
         try {
+            tlsHandshakeThrottleManager.start();
+
             sharedGroup = sharedGroupFactory.getHttpGroup();
             serverBootstrap = new ServerBootstrap();
 
@@ -237,8 +239,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (acceptChannelPredicate != null) {
                 acceptChannelPredicate.setBoundAddress(boundAddress());
             }
-
-            tlsHandshakeThrottleManager.start();
 
             success = true;
         } finally {

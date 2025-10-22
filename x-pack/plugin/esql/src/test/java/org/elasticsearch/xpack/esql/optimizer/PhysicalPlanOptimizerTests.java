@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -178,6 +179,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -670,9 +672,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
     */
     public void testEvalWithScoreImplicitLimit() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = physicalPlan("""
-            from test
-            | eval s = score(match(first_name, "foo"))
+            FROM test
+            | EVAL s = SCORE(MATCH(first_name, "foo"))
             """);
 
         var optimized = optimizedPlan(plan);
@@ -702,10 +706,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
      */
     public void testEvalWithScoreExplicitLimit() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = physicalPlan("""
-            from test
-            | eval s = score(match(first_name, "foo"))
-            | limit 42
+            FROM test
+            | EVAL s = SCORE(MATCH(first_name, "foo"))
+            | LIMIT 42
             """);
 
         var optimized = optimizedPlan(plan);
@@ -743,6 +749,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      **/
     public void testEvalWithScoreAndFilterOnEval() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -796,6 +804,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      **/
     public void testEvalWithScoreAndGenericFilter() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -847,6 +857,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      */
     public void testEvalWithScoreForTopN() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -3188,12 +3200,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
-        var plan = physicalPlan("""
+        var plan = physicalPlanNoSerializationCheck("""
               FROM test
             | RENAME languages AS language_code
             | SORT language_code
             | LOOKUP JOIN languages_lookup ON language_code
-            """, testData, false);
+            """);
 
         var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
 
@@ -7287,7 +7299,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(partialLimit.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
@@ -7295,11 +7309,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var finalLimit = as(plan, LimitExec.class);
             var exchange = as(finalLimit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
-            var enrich = as(fragment.fragment(), Enrich.class);
+            var enrichLimit = asLimit(fragment.fragment(), 10, true, false);
+            var enrich = as(enrichLimit.child(), Enrich.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
             var evalFragment = as(enrich.child(), Eval.class);
-            var partialLimit = as(evalFragment.child(), Limit.class);
+            var partialLimit = asLimit(evalFragment.child(), 10, false, true);
             as(partialLimit.child(), EsRelation.class);
         }
     }
@@ -7342,7 +7357,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLimitThenEnrichRemote() {
-        var plan = physicalPlan("""
+        // Do not assert serialization:
+        // This has local LIMIT which does not serialize to a local LIMIT.
+        var plan = physicalPlanNoSerializationCheck("""
             FROM test
             | LIMIT 10
             | EVAL employee_id = to_str(emp_no)
@@ -7351,11 +7368,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var finalLimit = as(plan, LimitExec.class);
         var exchange = as(finalLimit.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
-        var enrich = as(fragment.fragment(), Enrich.class);
+        var enrichLimit = asLimit(fragment.fragment(), 10, true, false);
+        var enrich = as(enrichLimit.child(), Enrich.class);
         assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
         assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
         var evalFragment = as(enrich.child(), Eval.class);
-        var partialLimit = as(evalFragment.child(), Limit.class);
+        var partialLimit = asLimit(evalFragment.child(), 10, false, true);
+        assertTrue(partialLimit.local());
         as(partialLimit.child(), EsRelation.class);
     }
 
@@ -7394,7 +7413,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(eval.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
@@ -7411,7 +7432,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(eval.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
@@ -7431,7 +7454,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testEnrichAfterTopN() {
         {
-            var plan = physicalPlan("""
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | SORT emp_no
                 | LIMIT 10
@@ -7467,7 +7492,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(partialTopN.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | SORT emp_no
                 | LIMIT 10
@@ -7477,11 +7504,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var topN = as(plan, TopNExec.class);
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
-            var enrich = as(fragment.fragment(), Enrich.class);
+            var dupTopN = as(fragment.fragment(), TopN.class);
+            assertThat(Foldables.limitValue(dupTopN.limit(), dupTopN.sourceText()), equalTo(10));
+            var enrich = as(dupTopN.child(), Enrich.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
             var evalFragment = as(enrich.child(), Eval.class);
             var partialTopN = as(evalFragment.child(), TopN.class);
+            assertThat(Foldables.limitValue(partialTopN.limit(), partialTopN.sourceText()), equalTo(10));
+            assertTrue(partialTopN.local());
             as(partialTopN.child(), EsRelation.class);
         }
     }
@@ -8093,7 +8124,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     ) {
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
-        var plan = physicalPlan(query, data, false);
+        var plan = physicalOptimizer().optimize(physicalPlan(query, data, false));
 
         var physicalOperations = physicalOperationsFromPhysicalPlan(plan, useDataNodePlan);
 
@@ -8557,6 +8588,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return physicalPlan(query, dataSource, true);
     }
 
+    private PhysicalPlan physicalPlanNoSerializationCheck(String query) {
+        return physicalPlan(query, testData, false);
+    }
+
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logicalOptimizer = dataSource.logicalOptimizer();
         var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
@@ -8571,6 +8606,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private LogicalPlanOptimizer logicalOptimizer() {
         return testData.logicalOptimizer();
+    }
+
+    private PhysicalPlanOptimizer physicalOptimizer() {
+        return testData.physicalOptimizer();
     }
 
     private List<FieldSort> fieldSorts(List<Order> orders) {

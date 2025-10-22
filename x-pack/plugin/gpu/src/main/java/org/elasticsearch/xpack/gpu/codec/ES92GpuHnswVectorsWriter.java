@@ -315,7 +315,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
             case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> {
-                if (dataType == CuVSMatrix.DataType.BYTE && similarityFunction == VectorSimilarityFunction.DOT_PRODUCT) {
+                if (dataType == CuVSMatrix.DataType.BYTE) {
                     yield CagraIndexParams.CuvsDistanceType.CosineExpanded;
                 }
                 yield CagraIndexParams.CuvsDistanceType.InnerProduct;

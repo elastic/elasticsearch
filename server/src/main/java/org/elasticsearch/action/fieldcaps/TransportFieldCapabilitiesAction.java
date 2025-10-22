@@ -13,6 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
@@ -74,6 +75,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -149,9 +151,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Executor singleThreadedExecutor = buildSingleThreadedExecutor(searchCoordinationExecutor, LOGGER);
         assert task instanceof CancellableTask;
         final CancellableTask fieldCapTask = (CancellableTask) task;
-        // retrieve the initial timestamp in case the action is a cross cluster search
+        // retrieve the initial timestamp in case the action is a cross-cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
+        final var minTransportVersion = new AtomicReference<>(clusterService.state().getMinTransportVersion());
         final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
             .groupIndices(request.indicesOptions(), request.indices(), request.returnLocalAll());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
@@ -195,6 +198,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (request.includeResolvedTo()) { // TODO MP is this ok for CCS/CPS or should we also add remote resolution?
                 responseBuilder.withResolvedLocally(new ResolvedIndexExpressions(resolvedLocallyList));
             }
+            responseBuilder.withMinTransportVersion(minTransportVersion.get());
             listener.onResponse(responseBuilder.build());
             return;
         }
@@ -281,7 +285,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (fieldCapTask.notifyIfCancelled(listener)) {
                 releaseResourcesOnCancel.run();
             } else {
-                mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, resolvedLocallyList, resolvedRemotely, listener);
+                mergeIndexResponses(
+                    request,
+                    fieldCapTask,
+                    indexResponses,
+                    indexFailures,
+                    resolvedLocallyList,
+                    resolvedRemotely,
+                    minTransportVersion,
+                    listener
+                );
             }
         })) {
             // local cluster
@@ -351,6 +364,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             });
                         }
                     }
+                    minTransportVersion.accumulateAndGet(response.minTransportVersion(), (lhs, rhs) -> {
+                        if (lhs == null || rhs == null) {
+                            return null;
+                        }
+                        return TransportVersion.min(lhs, rhs);
+                    });
                 }, ex -> {
                     for (String index : originalIndices.indices()) {
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
@@ -459,15 +478,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         FailureCollector indexFailures,
         List<ResolvedIndexExpression> resolvedLocallyList,
         Map<String, ResolvedIndexExpressions.Builder> resolvedRemotely,
+        AtomicReference<TransportVersion> minTransportVersion,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         ResolvedIndexExpressions resolvedLocally = new ResolvedIndexExpressions(resolvedLocallyList);
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.size() > 0) {
+        if (indexResponses.isEmpty() == false) {
             if (request.isMergeResults()) {
                 ActionListener.completeWith(
                     listener,
-                    () -> merge(indexResponses, resolvedLocally, resolvedRemotely, task, request, failures)
+                    () -> merge(request, task, indexResponses, resolvedLocally, resolvedRemotely, failures, minTransportVersion)
                 );
             } else {
                 listener.onResponse(
@@ -476,37 +496,36 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         .withResolvedLocally(resolvedLocally)
                         .withResolvedRemotelyBuilder(resolvedRemotely)
                         .withFailures(failures)
+                        .withMinTransportVersion(minTransportVersion.get())
                         .build()
                 );
             }
-        } else {
-            // we have no responses at all, maybe because of errors
-            if (indexFailures.isEmpty() == false) {
-                /*
-                 * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
-                 * Instead, they should always be passed through the response object, as part of "failures".
-                 */
-                if (failures.stream()
-                    .anyMatch(
-                        failure -> failure.getException() instanceof IllegalStateException ise
-                            && ise.getCause() instanceof ElasticsearchTimeoutException
-                    )) {
-                    listener.onResponse(
-                        FieldCapabilitiesResponse.builder()
-                            .withResolvedLocally(resolvedLocally)
-                            .withResolvedRemotelyBuilder(resolvedRemotely)
-                            .withFailures(failures)
-                            .build()
+        } else if (indexFailures.isEmpty() == false) {
+            /*
+             * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
+             * Instead, they should always be passed through the response object, as part of "failures".
+             */
+            if (failures.stream()
+                .anyMatch(
+                    failure -> failure.getException() instanceof IllegalStateException ise
+                        && ise.getCause() instanceof ElasticsearchTimeoutException
+                )) {
+                listener.onResponse(
+                    FieldCapabilitiesResponse.builder()
+                        .withResolvedLocally(resolvedLocally)
+                        .withResolvedRemotelyBuilder(resolvedRemotely)
+                        .withFailures(failures)
+                        .withMinTransportVersion(minTransportVersion.get())
+                        .build()
 
-                    );
-                } else {
-                    // throw back the first exception
-                    listener.onFailure(failures.get(0).getException());
-                }
+                );
             } else {
-                // TODO MP is this correct or should we add locally resolved if setResolved is true?
-                listener.onResponse(FieldCapabilitiesResponse.empty());
+                // throw back the first exception
+                listener.onFailure(failures.get(0).getException());
             }
+        } else {
+            // TODO MP is this correct or should we add locally resolved if setResolved is true?
+            listener.onResponse(FieldCapabilitiesResponse.empty());
         }
     }
 
@@ -539,12 +558,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private static FieldCapabilitiesResponse merge(
+        FieldCapabilitiesRequest request,
+        CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
         ResolvedIndexExpressions resolvedLocally,
         Map<String, ResolvedIndexExpressions.Builder> resolvedRemotely,
-        CancellableTask task,
-        FieldCapabilitiesRequest request,
-        List<FieldCapabilitiesFailure> failures
+        List<FieldCapabilitiesFailure> failures,
+        AtomicReference<TransportVersion> minTransportVersion
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         task.ensureNotCancelled();
@@ -608,6 +628,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             .withResolvedRemotelyBuilder(resolvedRemotely)
             .withFields(fields)
             .withFailures(failures)
+            .withMinTransportVersion(minTransportVersion.get())
             .build();
     }
 

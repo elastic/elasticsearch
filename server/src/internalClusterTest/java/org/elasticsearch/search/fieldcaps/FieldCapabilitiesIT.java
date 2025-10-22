@@ -926,7 +926,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(1, resolvedLocally.expressions().size());
         ResolvedIndexExpression expression = expressions.get(0);
         assertEquals("current", expression.original());
-        Set<String> concreteIndices = expression.localExpressions().expressions();
+        Set<String> concreteIndices = expression.localExpressions().indices();
         assertEquals(1, concreteIndices.size());
         assertTrue(concreteIndices.contains("new_index"));
     }
@@ -941,7 +941,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(1, resolvedLocally.expressions().size());
         ResolvedIndexExpression expression = expressions.get(0);
         assertEquals("*index", expression.original());
-        Set<String> concreteIndices = expression.localExpressions().expressions();
+        Set<String> concreteIndices = expression.localExpressions().indices();
         assertEquals(2, concreteIndices.size());
         assertTrue(concreteIndices.containsAll(Set.of("new_index", "old_index")));
     }
@@ -967,12 +967,12 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         for (ResolvedIndexExpression expression : expressions) {
             ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
             if (openIndices.contains(expression.original())) {
-                Set<String> concreteIndices = localExpressions.expressions();
+                Set<String> concreteIndices = localExpressions.indices();
                 assertEquals(1, concreteIndices.size());
                 assertTrue(concreteIndices.contains(expression.original())); // no aliases here, so the concrete index == original index
                 assertEquals(ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, localExpressions.localIndexResolutionResult());
             } else if (closedIndices.contains(expression.original())) {
-                Set<String> concreteIndices = localExpressions.expressions();
+                Set<String> concreteIndices = localExpressions.indices();
                 assertEquals(0, concreteIndices.size());
                 assertEquals(
                     ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
@@ -992,7 +992,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         ResolvedIndexExpression expression = expressions.get(0);
         assertEquals("_all", expression.original()); // not setting indices means _all
         ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
-        Set<String> concreteIndices = localExpressions.expressions();
+        Set<String> concreteIndices = localExpressions.indices();
         assertTrue(concreteIndices.containsAll(Set.of("new_index", "old_index")));
         assertEquals(ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, localExpressions.localIndexResolutionResult());
     }
@@ -1016,7 +1016,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals("old_index", expression.original());
         assertEquals(1, resolvedLocally.expressions().size());
         ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
-        Set<String> concreteIndices = localExpressions.expressions();
+        Set<String> concreteIndices = localExpressions.indices();
         assertEquals(0, concreteIndices.size());
         assertEquals(
             ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
@@ -1051,7 +1051,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         ResolvedIndexExpression expression = expressions.get(0);
         assertEquals("index-*", expression.original());
         ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
-        Set<String> concreteIndices = localExpressions.expressions();
+        Set<String> concreteIndices = localExpressions.indices();
         assertEquals(2, concreteIndices.size());
         assertTrue(concreteIndices.containsAll(Set.of("index-1", "index-2")));
         assertEquals(ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, localExpressions.localIndexResolutionResult());

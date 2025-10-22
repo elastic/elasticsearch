@@ -13,12 +13,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -130,8 +128,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 return false;
             }
             Bucket<?> that = (Bucket<?>) obj;
-            return Objects.equals(docCountError, that.docCountError)
-                && Objects.equals(docCount, that.docCount)
+            return docCountError == that.docCountError
+                && docCount == that.docCount
                 && Objects.equals(format, that.format)
                 && Objects.equals(aggregations, that.aggregations);
         }
@@ -141,11 +139,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             return Objects.hash(getClass(), docCount, format, docCountError, aggregations);
         }
     }
-
-    protected final BucketOrder reduceOrder;
-    protected final BucketOrder order;
-    protected final int requiredSize;
-    protected final long minDocCount;
 
     /**
      * Creates a new {@link InternalTerms}
@@ -164,11 +157,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         long minDocCount,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
-        this.reduceOrder = reduceOrder;
-        this.order = order;
-        this.requiredSize = requiredSize;
-        this.minDocCount = minDocCount;
+        super(name, metadata, reduceOrder, order, requiredSize, minDocCount);
     }
 
     /**
@@ -176,54 +165,15 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
      */
     protected InternalTerms(StreamInput in) throws IOException {
         super(in);
-        reduceOrder = InternalOrder.Streams.readOrder(in);
-        order = InternalOrder.Streams.readOrder(in);
-        requiredSize = readSize(in);
-        minDocCount = in.readVLong();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        reduceOrder.writeTo(out);
-        order.writeTo(out);
-        writeSize(requiredSize, out);
-        out.writeVLong(minDocCount);
+        super.doWriteTo(out);
         writeTermTypeInfoTo(out);
     }
 
     protected abstract void writeTermTypeInfoTo(StreamOutput out) throws IOException;
-
-    @Override
-    public abstract List<B> getBuckets();
-
-    @Override
-    public abstract B getBucketByKey(String term);
-
-    @Override
-    protected BucketOrder getReduceOrder() {
-        return reduceOrder;
-    }
-
-    @Override
-    protected BucketOrder getOrder() {
-        return order;
-    }
-
-    @Override
-    protected long getMinDocCount() {
-        return minDocCount;
-    }
-
-    @Override
-    protected int getRequiredSize() {
-        return requiredSize;
-    }
-
-    protected abstract void setDocCountError(long docCountError);
-
-    protected abstract int getShardSize();
-
-    protected abstract A create(String name, List<B> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount);
 
     @Override
     public boolean equals(Object obj) {

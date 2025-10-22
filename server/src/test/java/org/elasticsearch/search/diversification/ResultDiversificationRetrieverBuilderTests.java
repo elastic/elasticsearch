@@ -193,6 +193,9 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
 
         // clean up
         docs.clear();
+        for (ScoreDoc hit : hits) {
+            ((ResultDiversificationRetrieverBuilder.RankDocWithSearchHit) hit).hit().decRef();
+        }
         Arrays.fill(hits, null);
     }
 

@@ -163,11 +163,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         return true;
     }
 
-    @Override
-    public boolean allowsCrossProject() {
-        return true;
-    }
-
     /**
      * Creates a new sub-search request starting from the original search request that is provided.
      * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.
@@ -273,7 +268,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
         waitForCheckpointsTimeout = in.readTimeValue();
-        forceSyntheticSource = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            forceSyntheticSource = in.readBoolean();
+        } else {
+            forceSyntheticSource = false;
+        }
     }
 
     @Override
@@ -313,7 +312,13 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        out.writeBoolean(forceSyntheticSource);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
+        }
     }
 
     @Override

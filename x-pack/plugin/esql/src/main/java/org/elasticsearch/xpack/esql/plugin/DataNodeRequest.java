@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -84,6 +85,14 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    /**
+     * @param idMapper should always be null in production! Custom mappers are only used in tests to force ID values to be the same after
+     *                 serialization and deserialization, which is not the case when they are generated as usual.
+     */
+    DataNodeRequest(StreamInput in, PlanStreamInput.NameIdMapper idMapper) throws IOException {
         super(in);
         this.sessionId = in.readString();
         this.configuration = new Configuration(
@@ -93,10 +102,15 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.clusterAlias = in.readString();
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
-        this.plan = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration).readNamedWriteable(PhysicalPlan.class);
+        PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper);
+        this.plan = pin.readNamedWriteable(PhysicalPlan.class);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-        this.runNodeLevelReduction = in.readBoolean();
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            this.runNodeLevelReduction = in.readBoolean();
+        } else {
+            this.runNodeLevelReduction = false;
+        }
         if (in.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
             this.reductionLateMaterialization = in.readBoolean();
         } else {
@@ -115,7 +129,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeBoolean(runNodeLevelReduction);
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            out.writeBoolean(runNodeLevelReduction);
+        }
         if (out.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
             out.writeBoolean(reductionLateMaterialization);
         }

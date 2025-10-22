@@ -1,0 +1,5 @@
+pr: 135961
+summary: Late materialization of dimension fields in time-series
+area: TSDB
+type: enhancement
+issues: []

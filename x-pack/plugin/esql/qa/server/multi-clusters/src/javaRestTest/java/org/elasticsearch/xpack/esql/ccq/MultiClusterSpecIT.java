@@ -48,7 +48,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
@@ -119,6 +118,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Lookup join after LIMIT is not supported in CCS yet
         "LookupJoinAfterLimitAndRemoteEnrich",
         "LookupJoinExpressionAfterLimitAndRemoteEnrich",
+        "LookupJoinWithSemanticFilterDeduplicationComplex",
         // Lookup join after FORK is not support in CCS yet
         "ForkBeforeLookupJoin"
     );
@@ -166,12 +166,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Tests that do SORT before LOOKUP JOIN - not supported in CCS
         assumeFalse("LOOKUP JOIN after SORT not yet supported in CCS", testName.contains("OnTheCoordinator"));
 
-        if (testCase.requiredCapabilities.contains(FORK_V9.capabilityName())) {
-            assumeTrue(
-                "FORK not yet supported with CCS",
-                hasCapabilities(adminClient(), List.of(ENABLE_FORK_FOR_REMOTE_INDICES.capabilityName()))
-            );
-        }
+        assumeFalse("FORK not yet supported with CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

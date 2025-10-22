@@ -100,7 +100,13 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         EvaluatorMapper.ToEvaluator toEvaluator
     ) {
         if (expression instanceof Literal) {
-            return new ConstantVectorProvider.Factory((ArrayList<Float>) ((Literal) expression).value());
+            ArrayList<Float> constantVector;
+            if (((Literal) expression).value() instanceof Float) {
+                constantVector = new ArrayList<>(List.of((Float) ((Literal) expression).value()));
+            } else {
+                constantVector = (ArrayList<Float>) ((Literal) expression).value();
+            }
+            return new ConstantVectorProvider.Factory(constantVector);
         } else {
             return new ExpressionVectorProvider.Factory(toEvaluator.apply(expression));
         }

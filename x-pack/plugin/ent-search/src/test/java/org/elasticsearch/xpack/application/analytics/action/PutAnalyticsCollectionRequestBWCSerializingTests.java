@@ -33,7 +33,10 @@ public class PutAnalyticsCollectionRequestBWCSerializingTests extends AbstractBW
 
     @Override
     protected PutAnalyticsCollectionAction.Request mutateInstance(PutAnalyticsCollectionAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new PutAnalyticsCollectionAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            randomValueOtherThan(instance.getName(), () -> randomIdentifier())
+        );
     }
 
     @Override

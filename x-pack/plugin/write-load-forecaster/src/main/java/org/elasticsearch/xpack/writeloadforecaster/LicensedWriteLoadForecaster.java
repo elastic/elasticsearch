@@ -175,7 +175,7 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
             // that index. It should be safe to extrapolate our weighted average out to the
             // maximum uptime observed, based on the assumption that write-load is roughly
             // evenly distributed across shards of a datastream index.
-            assert Double.isFinite(totalIndexWriteLoad) : "Invalid total index write load: " + weightedAverageShardWriteLoad;
+            assert Double.isFinite(totalIndexWriteLoad) : "Invalid total index write load: " + totalIndexWriteLoad;
             assert maxShardUptimeInMillis > 0 : "Invalid max shard uptime in millis: " + maxShardUptimeInMillis;
             allIndicesWriteLoad += totalIndexWriteLoad * maxShardUptimeInMillis;
             allIndicesUptime += maxShardUptimeInMillis;

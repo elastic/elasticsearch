@@ -424,7 +424,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     }
 
     /**
-     * Tries to run the downloader now, if it isn't already currently running, and schedules the next periodic run using the poll interval.
+     * Runs the downloader now and schedules the next periodic run using the poll interval.
      */
     private void runPeriodic() {
         if (isCancelled() || isCompleted() || threadPool.scheduler().isShutdown()) {
@@ -432,22 +432,11 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             return;
         }
 
-        // If queuedRuns was greater than 0, then either a run is in progress, or a run is scheduled to run as soon as possible.
-        // In that case, we don't need to do anything, as the poll interval is quite large by default (3d).
-        // Otherwise, we set queuedRuns to 1 to indicate that a run is in progress and run the downloader now.
-        if (queuedRuns.compareAndSet(0, 1)) {
-            logger.trace("Running periodic downloader");
-            try {
-                runDownloader();
-            } finally {
-                // If any exception was thrown during runDownloader, we still want to check queuedRuns.
-                // If queuedRuns is still > 0, then a run was requested while we were running, so we need to run again.
-                if (queuedRuns.decrementAndGet() > 0) {
-                    logger.debug("Downloader requested again while running, scheduling another run");
-                    threadPool.generic().submit(this::runOnDemand);
-                }
-            }
-        }
+        logger.trace("Running periodic downloader");
+        // There's a chance that an on-demand run is already in progress, in which case this periodic run is redundant.
+        // However, we don't try to avoid that case here, as it's harmless to run the downloader more than strictly necessary (due to
+        // the high default poll interval of 3d), and it simplifies the logic considerably.
+        requestRunOnDemand();
 
         synchronized (this) {
             scheduledPeriodicRun = threadPool.schedule(this::runPeriodic, pollIntervalSupplier.get(), threadPool.generic());

@@ -322,7 +322,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         bulkIndex(dataStreamName, sourceSupplier, 100);
         // And index documents with values
         sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 14).toEpochMilli(), now.plusSeconds(60 * 30).toEpochMilli());
+            String ts = randomDateForRange(now.minusSeconds(60 * 14).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
             try {
                 return XContentFactory.jsonBuilder()
                     .startObject()

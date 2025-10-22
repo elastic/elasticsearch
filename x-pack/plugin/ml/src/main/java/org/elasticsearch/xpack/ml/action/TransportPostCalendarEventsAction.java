@@ -113,13 +113,10 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
                 new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse response) {
-                        jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(
-                            r -> {
-                                logger.info("Calendar [{}] update initiated successfully", request.getCalendarId());
-                                listener.onResponse(new PostCalendarEventsAction.Response(events));
-                            }, 
-                            listener::onFailure
-                        ));
+                        jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(r -> {
+                            logger.info("Calendar [{}] update initiated successfully", request.getCalendarId());
+                            listener.onResponse(new PostCalendarEventsAction.Response(events));
+                        }, listener::onFailure));
                     }
 
                     @Override

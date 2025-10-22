@@ -622,17 +622,17 @@ public class JobManager {
     public void updateProcessOnCalendarChanged(List<String> calendarJobIds, ActionListener<Boolean> updateListener) {
         ClusterState clusterState = clusterService.state();
         Set<String> openJobIds = openJobIds(clusterState);
-        
+
         logger.info("Updating process for calendar change: {} calendar job IDs, {} open jobs", calendarJobIds.size(), openJobIds.size());
-        
+
         if (openJobIds.isEmpty()) {
             updateListener.onResponse(Boolean.TRUE);
             return;
         }
-        
+
         // Respond immediately to prevent API timeouts
         updateListener.onResponse(Boolean.TRUE);
-        
+
         // Continue with background processing
         processCalendarUpdatesAsync(calendarJobIds, openJobIds);
     }
@@ -646,62 +646,62 @@ public class JobManager {
         }
         // calendarJobIds may be a group or job
         // Process group expansion asynchronously
-        jobConfigProvider.expandGroupIds(
-            calendarJobIds,
-            ActionListener.wrap(
-                expandedIds -> {
-                    expandedIds.addAll(calendarJobIds);
-                    openJobIds.retainAll(expandedIds);
-                    logger.info("Calendar change expanded to {} jobs - starting background update", openJobIds.size());
-                    submitJobEventUpdateAsync(openJobIds);
-                },
-                e -> logger.error("Failed to expand calendar job groups for background update", e)
-            )
-        );
+        jobConfigProvider.expandGroupIds(calendarJobIds, ActionListener.wrap(expandedIds -> {
+            expandedIds.addAll(calendarJobIds);
+            openJobIds.retainAll(expandedIds);
+            logger.info("Calendar change expanded to {} jobs - starting background update", openJobIds.size());
+            submitJobEventUpdateAsync(openJobIds);
+        }, e -> logger.error("Failed to expand calendar job groups for background update", e)));
     }
 
     private void submitJobEventUpdateAsync(Collection<String> jobIds) {
         if (jobIds.isEmpty()) {
             return;
         }
-        
+
         logger.info("Starting background calendar event updates for [{}] jobs", jobIds.size());
-        
+
         AtomicInteger succeeded = new AtomicInteger();
         AtomicInteger failed = new AtomicInteger();
         long startTime = System.currentTimeMillis();
-        
-        ActionListener<Boolean> backgroundListener = ActionListener.wrap(
-            success -> {
-                long duration = System.currentTimeMillis() - startTime;
-                logger.info("Background calendar updates completed in [{}ms]: {} succeeded, {} failed", 
-                    duration, succeeded.get(), failed.get());
-            },
-            failure -> {
-                long duration = System.currentTimeMillis() - startTime;
-                logger.error("Background calendar updates failed after [{}ms]: {} succeeded, {} failed", 
-                    duration, succeeded.get(), failed.get(), failure);
-            }
-        );
-        
+
+        ActionListener<Boolean> backgroundListener = ActionListener.wrap(success -> {
+            long duration = System.currentTimeMillis() - startTime;
+            logger.info(
+                "Background calendar updates completed in [{}ms]: {} succeeded, {} failed",
+                duration,
+                succeeded.get(),
+                failed.get()
+            );
+        }, failure -> {
+            long duration = System.currentTimeMillis() - startTime;
+            logger.error(
+                "Background calendar updates failed after [{}ms]: {} succeeded, {} failed",
+                duration,
+                succeeded.get(),
+                failed.get(),
+                failure
+            );
+        });
+
         // Execute on utility thread pool to avoid blocking transport threads
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             submitJobEventUpdateSync(jobIds, backgroundListener, succeeded, failed);
         });
     }
 
-    private void submitJobEventUpdateSync(Collection<String> jobIds, ActionListener<Boolean> updateListener, 
-                                         AtomicInteger succeeded, AtomicInteger failed) {
-        try (var refs = new RefCountingListener(updateListener.delegateFailureAndWrap((l, v) -> {
-            l.onResponse(true);
-        }))) {
+    private void submitJobEventUpdateSync(
+        Collection<String> jobIds,
+        ActionListener<Boolean> updateListener,
+        AtomicInteger succeeded,
+        AtomicInteger failed
+    ) {
+        try (var refs = new RefCountingListener(updateListener.delegateFailureAndWrap((l, v) -> { l.onResponse(true); }))) {
             // Instead of calling `updateJobProcessNotifier.submitJobUpdate()`, directly call `UpdateProcessAction`
-            // to bypass the queue and avoid the scalability issues. Since calendar and filter updates fetch the latest state from the 
+            // to bypass the queue and avoid the scalability issues. Since calendar and filter updates fetch the latest state from the
             // index and can run on any node, they don't need ordering guarantees.
             for (String jobId : jobIds) {
-                UpdateProcessAction.Request request = new UpdateProcessAction.Request(
-                    jobId, null, null, null, null, true
-                );
+                UpdateProcessAction.Request request = new UpdateProcessAction.Request(jobId, null, null, null, null, true);
 
                 executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request, refs.acquire().delegateResponse((l, e) -> {
                     if (isExpectedFailure(e)) {

@@ -670,10 +670,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
     */
     public void testEvalWithScoreImplicitLimit() {
-        assumeTrue(
-            "[SCORE] function is only available in snapshot builds",
-            Build.current().isSnapshot() || false == EsqlFunctionRegistry.isSnapshotOnly(Score.NAME)
-        );
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -706,10 +704,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
      */
     public void testEvalWithScoreExplicitLimit() {
-        assumeTrue(
-            "[SCORE] function is only available in snapshot builds",
-            Build.current().isSnapshot() || false == EsqlFunctionRegistry.isSnapshotOnly(Score.NAME)
-        );
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -751,10 +747,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      **/
     public void testEvalWithScoreAndFilterOnEval() {
-        assumeTrue(
-            "[SCORE] function is only available in snapshot builds",
-            Build.current().isSnapshot() || false == EsqlFunctionRegistry.isSnapshotOnly(Score.NAME)
-        );
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -808,10 +802,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      **/
     public void testEvalWithScoreAndGenericFilter() {
-        assumeTrue(
-            "[SCORE] function is only available in snapshot builds",
-            Build.current().isSnapshot() || false == EsqlFunctionRegistry.isSnapshotOnly(Score.NAME)
-        );
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -863,10 +855,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      */
     public void testEvalWithScoreForTopN() {
-        assumeTrue(
-            "[SCORE] function is only available in snapshot builds",
-            Build.current().isSnapshot() || false == EsqlFunctionRegistry.isSnapshotOnly(Score.NAME)
-        );
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))

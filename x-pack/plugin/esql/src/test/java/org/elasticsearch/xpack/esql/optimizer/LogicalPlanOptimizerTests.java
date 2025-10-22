@@ -211,10 +211,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
     public void testEvalWithScoreImplicitLimit() {
-        assumeTrue(
-            "[SCORE] function is only available in snapshot builds",
-            Build.current().isSnapshot() || false == EsqlFunctionRegistry.isSnapshotOnly(Score.NAME)
-        );
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = plan("""
             FROM test
             | EVAL s = SCORE(MATCH(last_name, "high"))
@@ -228,10 +226,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEvalWithScoreExplicitLimit() {
-        assumeTrue(
-            "[SCORE] function is only available in snapshot builds",
-            Build.current().isSnapshot() || false == EsqlFunctionRegistry.isSnapshotOnly(Score.NAME)
-        );
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = plan("""
             FROM test
             | EVAL s = SCORE(MATCH(last_name, "high"))

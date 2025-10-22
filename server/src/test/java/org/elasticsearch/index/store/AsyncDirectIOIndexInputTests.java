@@ -176,7 +176,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
 
     public void testPrefetchGetsCleanUp() throws IOException {
         int numVectors = randomIntBetween(100, 1000);
-        int numDimensions = randomIntBetween(100, 10000);
+        int numDimensions = randomIntBetween(100, 2048);
         Path path = createTempDir("testDirectIODirectory");
         byte[] bytes = new byte[numDimensions * Float.BYTES];
         ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);

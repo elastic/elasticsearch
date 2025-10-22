@@ -10,6 +10,8 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
@@ -866,6 +868,14 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                 "time_compiling_condition",
                 TimeValue.timeValueNanos(timeCompilingConditionInNanos.longValue())
             );
+            if (lastException != null) {
+                Throwable unwrapped = ExceptionsHelper.unwrapCause(lastException);
+                builder.startObject("last_exception");
+                builder.field("type", ElasticsearchException.getExceptionName(unwrapped));
+                builder.field("message", unwrapped.getMessage());
+                builder.field("stack_trace", ExceptionsHelper.limitedStackTrace(unwrapped, 5));
+                builder.endObject();
+            }
             builder.endObject();
             return builder;
         }

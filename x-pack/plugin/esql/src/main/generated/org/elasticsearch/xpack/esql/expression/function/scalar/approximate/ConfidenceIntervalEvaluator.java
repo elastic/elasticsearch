@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ConfidenceInterval}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ConfidenceIntervalIntEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConfidenceIntervalIntEvaluator.class);
+public final class ConfidenceIntervalEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConfidenceIntervalEvaluator.class);
 
   private final Source source;
 
@@ -40,7 +40,7 @@ public final class ConfidenceIntervalIntEvaluator implements EvalOperator.Expres
 
   private Warnings warnings;
 
-  public ConfidenceIntervalIntEvaluator(Source source,
+  public ConfidenceIntervalEvaluator(Source source,
       EvalOperator.ExpressionEvaluator bestEstimateBlock,
       EvalOperator.ExpressionEvaluator estimatesBlock,
       EvalOperator.ExpressionEvaluator trialCountBlock,
@@ -57,8 +57,8 @@ public final class ConfidenceIntervalIntEvaluator implements EvalOperator.Expres
 
   @Override
   public Block eval(Page page) {
-    try (IntBlock bestEstimateBlockBlock = (IntBlock) bestEstimateBlock.eval(page)) {
-      try (IntBlock estimatesBlockBlock = (IntBlock) estimatesBlock.eval(page)) {
+    try (DoubleBlock bestEstimateBlockBlock = (DoubleBlock) bestEstimateBlock.eval(page)) {
+      try (DoubleBlock estimatesBlockBlock = (DoubleBlock) estimatesBlock.eval(page)) {
         try (IntBlock trialCountBlockBlock = (IntBlock) trialCountBlock.eval(page)) {
           try (IntBlock bucketCountBlockBlock = (IntBlock) bucketCountBlock.eval(page)) {
             try (DoubleBlock confidenceLevelBlockBlock = (DoubleBlock) confidenceLevelBlock.eval(page)) {
@@ -81,10 +81,10 @@ public final class ConfidenceIntervalIntEvaluator implements EvalOperator.Expres
     return baseRamBytesUsed;
   }
 
-  public IntBlock eval(int positionCount, IntBlock bestEstimateBlockBlock,
-      IntBlock estimatesBlockBlock, IntBlock trialCountBlockBlock, IntBlock bucketCountBlockBlock,
-      DoubleBlock confidenceLevelBlockBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+  public DoubleBlock eval(int positionCount, DoubleBlock bestEstimateBlockBlock,
+      DoubleBlock estimatesBlockBlock, IntBlock trialCountBlockBlock,
+      IntBlock bucketCountBlockBlock, DoubleBlock confidenceLevelBlockBlock) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!bestEstimateBlockBlock.isNull(p)) {
@@ -114,7 +114,7 @@ public final class ConfidenceIntervalIntEvaluator implements EvalOperator.Expres
 
   @Override
   public String toString() {
-    return "ConfidenceIntervalIntEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + ", confidenceLevelBlock=" + confidenceLevelBlock + "]";
+    return "ConfidenceIntervalEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + ", confidenceLevelBlock=" + confidenceLevelBlock + "]";
   }
 
   @Override
@@ -161,13 +161,13 @@ public final class ConfidenceIntervalIntEvaluator implements EvalOperator.Expres
     }
 
     @Override
-    public ConfidenceIntervalIntEvaluator get(DriverContext context) {
-      return new ConfidenceIntervalIntEvaluator(source, bestEstimateBlock.get(context), estimatesBlock.get(context), trialCountBlock.get(context), bucketCountBlock.get(context), confidenceLevelBlock.get(context), context);
+    public ConfidenceIntervalEvaluator get(DriverContext context) {
+      return new ConfidenceIntervalEvaluator(source, bestEstimateBlock.get(context), estimatesBlock.get(context), trialCountBlock.get(context), bucketCountBlock.get(context), confidenceLevelBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ConfidenceIntervalIntEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + ", confidenceLevelBlock=" + confidenceLevelBlock + "]";
+      return "ConfidenceIntervalEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + ", confidenceLevelBlock=" + confidenceLevelBlock + "]";
     }
   }
 }

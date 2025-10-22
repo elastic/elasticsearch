@@ -370,6 +370,7 @@ public class ClusterStateCreationUtils {
     }
 
     public record IndexState(IndexMetadata indexMetadata, IndexRoutingTable.Builder indexRoutingTableBuilder) {}
+
     private static IndexState buildIndex(String indexName, int numberOfPrimaries, Set<String> nodeIds) {
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))

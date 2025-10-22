@@ -9323,7 +9323,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var rightRelation = as(rightFilter.child(), EsRelation.class);
     }
 
-
     /**
      * EsqlProject[[@timestamp{r}#3]]
      * \_Eval[[1715300259000[DATETIME] AS @timestamp#3]]

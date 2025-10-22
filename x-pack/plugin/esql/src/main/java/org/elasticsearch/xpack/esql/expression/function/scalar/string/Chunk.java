@@ -42,7 +42,7 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chunk", Chunk::new);
 
-    public static final int DEFAULT_NUM_CHUNKS = 1;
+    public static final int DEFAULT_NUM_CHUNKS = Integer.MAX_VALUE;
     public static final int DEFAULT_CHUNK_SIZE = 300;
 
     private final Expression field, numChunks, chunkSize;

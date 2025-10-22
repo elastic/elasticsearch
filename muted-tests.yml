@@ -429,9 +429,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.CountDistinctWithConditions}
   issue: https://github.com/elastic/elasticsearch/issues/134993
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/135055
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/135122
@@ -519,9 +516,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testRollupAfterRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136437
-- class: org.elasticsearch.cluster.coordination.NodeJoiningIT
-  method: testNodeTriesToJoinClusterAndThenSameMasterIsElected
-  issue: https://github.com/elastic/elasticsearch/issues/136332
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/200_dense_vector_docvalue_fields/Enable docvalue_fields parameter for dense_vector fields}
   issue: https://github.com/elastic/elasticsearch/issues/136443
@@ -543,6 +537,42 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
   method: testRerank
   issue: https://github.com/elastic/elasticsearch/issues/136872
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/136850
+- class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
+  method: testCohereEmbeddings
+  issue: https://github.com/elastic/elasticsearch/issues/136779
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testRemoteClusterOnlyCCSWithFailuresOnAllShards
+  issue: https://github.com/elastic/elasticsearch/issues/136894
+- class: org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationFloatAggregatorFunctionTests
+  method: testSimpleSmallInput
+  issue: https://github.com/elastic/elasticsearch/issues/136902
+- class: org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationLongAggregatorFunctionTests
+  method: testSimpleSmallInput
+  issue: https://github.com/elastic/elasticsearch/issues/136903
+- class: org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationDoubleAggregatorFunctionTests
+  method: testSimpleSmallInput
+  issue: https://github.com/elastic/elasticsearch/issues/136904
+- class: org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationIntAggregatorFunctionTests
+  method: testSimpleSmallInput
+  issue: https://github.com/elastic/elasticsearch/issues/136905
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testTextFieldWithIpSubfieldMalformed {STORED}
+  issue: https://github.com/elastic/elasticsearch/issues/136917
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testTextFieldWithKeywordSubfield {STORED}
+  issue: https://github.com/elastic/elasticsearch/issues/136918
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
+  issue: https://github.com/elastic/elasticsearch/issues/136061
+- class: org.elasticsearch.compute.operator.HashAggregationOperatorTests
+  method: testSimpleSmallInput
+  issue: https://github.com/elastic/elasticsearch/issues/136945
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopNTests
+  method: testTopNSortExpressionWithinRemoteEnrichAliasing
+  issue: https://github.com/elastic/elasticsearch/issues/136957
 
 # Examples:
 #

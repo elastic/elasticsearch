@@ -78,7 +78,9 @@ The wrapped form supports these parameters:
 `weight` {applies_to}`stack: ga 9.2`
 :   (Optional, float)
 
-    The weight that each score of this retriever's top docs will be multiplied with in the RRF formula. Higher values increase this retriever's influence on the final ranking. Must be non-negative. Defaults to `1.0`.
+    The weight that each score of this retriever's top docs will be multiplied with in the RRF formula. Higher values increase this retriever's influence on the final ranking. Must be non-negative.
+    
+    When weight is not specified, all retrievers are equally weighted against each other (each with a weight of 1.0).
 
 ## Example: Hybrid search [rrf-retriever-example-hybrid]
 

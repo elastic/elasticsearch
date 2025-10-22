@@ -12,9 +12,9 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
@@ -24,13 +24,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
 
 /**
@@ -46,12 +47,14 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
     public static final String NAME = "index_balance";
 
     private final IndexBalanceConstraintSettings indexBalanceConstraintSettings;
+    private final boolean isStateless;
     private volatile DiscoveryNodeFilters clusterExcludeFilters;
 
     public IndexBalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.indexBalanceConstraintSettings = new IndexBalanceConstraintSettings(clusterSettings);
         setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));
         clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a, b) -> {});
+        isStateless = DiscoveryNode.isStateless(settings);
     }
 
     @Override
@@ -60,40 +63,47 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
             return Decision.single(Decision.Type.YES, NAME, "Decider is disabled.");
         }
 
-        // Never reject allocation of an unassigned shard
-        if (shardRouting.assignedToNode() == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Shard is unassigned. Decider takes no action.");
+        if (isStateless == false) {
+            return Decision.single(Decision.Type.YES, NAME, "Decider does not currently support stateful.");
         }
 
         Index index = shardRouting.index();
-
         if (node.hasIndex(index) == false) {
             return Decision.single(Decision.Type.YES, NAME, "Node does not currently host this index.");
         }
 
-        final Set<String> dataNodes = allocation.nodes()
-            .stream()
-            .filter(DiscoveryNode::canContainData)
-            .filter(it -> clusterExcludeFilters == null || clusterExcludeFilters.match(it) == false)
-            .map(DiscoveryNode::getId)
-            .collect(Collectors.toSet());
-        final Set<String> nodesShuttingDown = allocation.metadata()
-            .nodeShutdowns()
-            .getAll()
-            .values()
-            .stream()
-            .map(SingleNodeShutdownMetadata::getNodeId)
-            .collect(Collectors.toSet());
-        final Set<String> availableDataNodes = dataNodes.stream()
-            .filter(Predicate.not(nodesShuttingDown::contains))
-            .collect(Collectors.toSet());
+        assert node.node() != null;
+        assert node.node().getRoles() != null && node.node().getRoles().isEmpty() == false;
+        if (node.node().getRoles().contains(INDEX_ROLE) == false && node.node().getRoles().contains(SEARCH_ROLE) == false) {
+            return Decision.single(Decision.Type.YES, NAME, "Node has neither index nor search roles, outside purview.");
+        }
+
+        if (node.node().getRoles().contains(INDEX_ROLE) && shardRouting.primary() == false) {
+            return Decision.single(Decision.Type.YES, NAME, "Decider allows replicas move to index nodes.");
+        }
+
+        if (node.node().getRoles().contains(SEARCH_ROLE) && shardRouting.primary()) {
+            return Decision.single(Decision.Type.YES, NAME, "Decider allows primaries move to search nodes.");
+        }
+
         final ProjectId projectId = allocation.getClusterState().metadata().projectFor(index).id();
+        final Set<DiscoveryNode> eligibleNodes = new HashSet<>();
+        int totalShards = 0;
 
-        assert availableDataNodes.isEmpty() == false;
-        assert allocation.getClusterState().routingTable(projectId).hasIndex(index);
+        if (node.node().getRoles().contains(INDEX_ROLE)) {
+            collectEligibleNodes(allocation, eligibleNodes, INDEX_ROLE);
+            // Primary shards only.
+            totalShards = allocation.getClusterState().routingTable(projectId).index(index).size();
+        } else if (node.node().getRoles().contains(SEARCH_ROLE)) {
+            collectEligibleNodes(allocation, eligibleNodes, SEARCH_ROLE);
+            // Replicas only.
+            totalShards = allocation.getClusterState().metadata().getProject(projectId).index(index).getNumberOfReplicas();
+        }
 
-        final int totalShards = allocation.getClusterState().metadata().getProject(projectId).index(index).getTotalNumberOfShards();
-        final double idealAllocation = Math.ceil((double) totalShards / availableDataNodes.size());
+        assert eligibleNodes.isEmpty() == false;
+        assert totalShards > 0;
+
+        final double idealAllocation = Math.ceil((double) totalShards / eligibleNodes.size());
         final int threshold = (int) Math.ceil(idealAllocation * indexBalanceConstraintSettings.getLoadSkewTolerance());
         final int currentAllocation = node.numberOfOwningShardsForIndex(index);
 
@@ -110,7 +120,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
                 node.nodeId(),
                 idealAllocation,
                 index,
-                availableDataNodes.size(),
+                eligibleNodes.size(),
                 indexBalanceConstraintSettings.getLoadSkewTolerance(),
                 idealAllocation,
                 indexBalanceConstraintSettings.getLoadSkewTolerance(),
@@ -120,13 +130,27 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
                 index
             );
 
+            logger.debug(explanation);
+
             return allocation.decision(Decision.NOT_PREFERRED, NAME, explanation);
         }
 
         return allocation.decision(Decision.YES, NAME, "Node index shard allocation is under the threshold.");
     }
 
+    private void collectEligibleNodes(RoutingAllocation allocation, Set<DiscoveryNode> eligibleNodes, DiscoveryNodeRole searchRole) {
+        for (DiscoveryNode discoveryNode : allocation.nodes()) {
+            if (discoveryNode.canContainData()
+                && discoveryNode.getRoles().contains(searchRole)
+                && (clusterExcludeFilters == null || clusterExcludeFilters.match(discoveryNode) == false)
+                && allocation.metadata().nodeShutdowns().contains(discoveryNode.getId()) == false) {
+                eligibleNodes.add(discoveryNode);
+            }
+        }
+    }
+
     private void setClusterExcludeFilters(Map<String, List<String>> filters) {
         clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
     }
+
 }

@@ -8,11 +8,13 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.AbstractExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
@@ -20,16 +22,49 @@ import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.List;
 
 public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCounted implements ExponentialHistogramBlock {
 
-    // TODO(b/133393): Add blocks for min/max/sum/count
-    private final BytesRefBlock encodedHistograms;
-    private boolean isClosed = false;
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOf(ExponentialHistogramArrayBlock.class);
 
-    public ExponentialHistogramArrayBlock(BytesRefBlock encodedHistograms) {
+    private final DoubleBlock minima;
+    private final DoubleBlock maxima;
+    private final DoubleBlock sums;
+    private final LongBlock valueCounts;
+    private final DoubleBlock zeroThresholds;
+    private final BytesRefBlock encodedHistograms;
+
+    ExponentialHistogramArrayBlock(
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        LongBlock valueCounts,
+        DoubleBlock zeroThresholds,
+        BytesRefBlock encodedHistograms
+    ) {
+        this.minima = minima;
+        this.maxima = maxima;
+        this.sums = sums;
+        this.valueCounts = valueCounts;
+        this.zeroThresholds = zeroThresholds;
         this.encodedHistograms = encodedHistograms;
+        for (Block b : getSubBlocks()) {
+            if (b.getPositionCount() != encodedHistograms.getPositionCount()) {
+                throw new IllegalArgumentException("expected positionCount=" + encodedHistograms.getPositionCount() + " but was " + b);
+            }
+            if (b.isReleased()) {
+                throw new IllegalArgumentException(
+                    "can't build aggregate_metric_double block out of released blocks but [" + b + "] was released"
+                );
+            }
+        }
     }
+
+    private List<Block> getSubBlocks() {
+        return List.of(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+    }
+
 
     @Override
     public ExponentialHistogram getExponentialHistogram(int valueIndex) {
@@ -39,24 +74,29 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     @Override
     public Accessor accessor() {
         BytesRef bytesRef = new BytesRef();
-        BlockBackedHistogram reusedHistogram = new BlockBackedHistogram();
+        CompressedExponentialHistogram reusedHistogram = new CompressedExponentialHistogram();
         return new Accessor() {
             @Override
             public ExponentialHistogram getExponentialHistogram(int valueIndex) {
-                reusedHistogram.reset(encodedHistograms.getBytesRef(valueIndex, bytesRef));
+                BytesRef bytes = encodedHistograms.getBytesRef(valueIndex, bytesRef);
+                double zeroThreshold = zeroThresholds.getDouble(valueIndex);
+                double min = minima.getDouble(valueIndex);
+                double max = maxima.getDouble(valueIndex);
+                double sum = sums.getDouble(valueIndex);
+                long valueCount = valueCounts.getLong(valueIndex);
+                try {
+                    reusedHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
+                } catch (IOException e) {
+                    throw new IllegalStateException("error loading histogram", e);
+                }
                 return reusedHistogram;
             }
         };
     }
 
-    static BytesRef encode(ExponentialHistogram histogram, BytesRef growableScratch) {
-        return BlockBackedHistogram.encode(histogram, growableScratch);
-    }
-
     @Override
     protected void closeInternal() {
-        isClosed = true;
-        Releasables.close(encodedHistograms);
+        Releasables.close(getSubBlocks());
     }
 
     @Override
@@ -126,12 +166,26 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     @Override
     public Block filter(int... positions) {
-        return new ExponentialHistogramArrayBlock(encodedHistograms.filter(positions));
+        return new ExponentialHistogramArrayBlock(
+            minima.filter(positions),
+            maxima.filter(positions),
+            sums.filter(positions),
+            valueCounts.filter(positions),
+            zeroThresholds.filter(positions),
+            encodedHistograms.filter(positions)
+        );
     }
 
     @Override
     public Block keepMask(BooleanVector mask) {
-        return new ExponentialHistogramArrayBlock(encodedHistograms.keepMask(mask));
+        return new ExponentialHistogramArrayBlock(
+            minima.keepMask(mask),
+            maxima.keepMask(mask),
+            sums.keepMask(mask),
+            valueCounts.keepMask(mask),
+            zeroThresholds.keepMask(mask),
+            encodedHistograms.keepMask(mask)
+        );
     }
 
     @Override
@@ -153,32 +207,86 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
             this.incRef();
             return this;
         } else {
-            return new ExponentialHistogramArrayBlock(expandedHistograms);
+            DoubleBlock expandedMinima = minima.expand();
+            DoubleBlock expandedMaxima = maxima.expand();
+            DoubleBlock expandedSums = sums.expand();
+            LongBlock expandedValueCounts = valueCounts.expand();
+            DoubleBlock expandedZeroThresholds = zeroThresholds.expand();
+            return new ExponentialHistogramArrayBlock(
+                expandedMinima,
+                expandedMaxima,
+                expandedSums,
+                expandedValueCounts,
+                expandedZeroThresholds,
+                expandedHistograms
+            );
         }
     }
 
     @Override
     public ExponentialHistogramArrayBlock deepCopy(BlockFactory blockFactory) {
-        return new ExponentialHistogramArrayBlock(encodedHistograms.deepCopy(blockFactory));
+        return new ExponentialHistogramArrayBlock(
+            minima.deepCopy(blockFactory),
+            maxima.deepCopy(blockFactory),
+            sums.deepCopy(blockFactory),
+            valueCounts.deepCopy(blockFactory),
+            zeroThresholds.deepCopy(blockFactory),
+            encodedHistograms.deepCopy(blockFactory)
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        minima.writeTo(out);
+        maxima.writeTo(out);
+        sums.writeTo(out);
+        valueCounts.writeTo(out);
+        zeroThresholds.writeTo(out);
         encodedHistograms.writeTo(out);
     }
 
     public static ExponentialHistogramArrayBlock readFrom(BlockStreamInput in) throws IOException {
+        DoubleBlock minima = DoubleBlock.readFrom(in);
+        DoubleBlock maxima = DoubleBlock.readFrom(in);
+        DoubleBlock sums = DoubleBlock.readFrom(in);
+        LongBlock valueCounts = LongBlock.readFrom(in);
+        DoubleBlock zeroThresholds = DoubleBlock.readFrom(in);
         BytesRefBlock encodedHistograms = BytesRefBlock.readFrom(in);
-        return new ExponentialHistogramArrayBlock(encodedHistograms);
+        return new ExponentialHistogramArrayBlock(
+            minima,
+            maxima,
+            sums,
+            valueCounts,
+            zeroThresholds,
+            encodedHistograms
+        );
     }
 
     @Override
     public long ramBytesUsed() {
-        return encodedHistograms.ramBytesUsed();
+        long bytes = SHALLOW_SIZE;
+        for (Block b : getSubBlocks()) {
+            bytes += b.ramBytesUsed();
+        }
+        return bytes;
     }
 
-    void copyInto(BytesRefBlock.Builder encodedHistogramsBuilder, int beginInclusive, int endExclusive) {
-        encodedHistogramsBuilder.copyFrom(this.encodedHistograms, beginInclusive, endExclusive);
+    void copyInto(
+        DoubleBlock.Builder minimaBuilder,
+        DoubleBlock.Builder maximaBuilder,
+        DoubleBlock.Builder sumsBuilder,
+        LongBlock.Builder valueCountsBuilder,
+        DoubleBlock.Builder zeroThresholdsBuilder,
+        BytesRefBlock.Builder encodedHistogramsBuilder,
+        int beginInclusive,
+        int endExclusive
+    ) {
+        minimaBuilder.copyFrom(minima, beginInclusive, endExclusive);
+        maximaBuilder.copyFrom(maxima, beginInclusive, endExclusive);
+        sumsBuilder.copyFrom(sums, beginInclusive, endExclusive);
+        valueCountsBuilder.copyFrom(valueCounts, beginInclusive, endExclusive);
+        zeroThresholdsBuilder.copyFrom(zeroThresholds, beginInclusive, endExclusive);
+        encodedHistogramsBuilder.copyFrom(encodedHistograms, beginInclusive, endExclusive);
     }
 
     @Override
@@ -190,116 +298,22 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     }
 
     boolean equalsAfterTypeCheck(ExponentialHistogramArrayBlock that) {
-        return this.encodedHistograms.equals(that.encodedHistograms);
+        return minima.equals(that.minima)
+                && maxima.equals(that.maxima)
+                && sums.equals(that.sums)
+                && valueCounts.equals(that.valueCounts)
+                && zeroThresholds.equals(that.zeroThresholds)
+                && encodedHistograms.equals(that.encodedHistograms);
     }
 
     @Override
     public int hashCode() {
-        return encodedHistograms.hashCode();
-    }
-
-    private class BlockBackedHistogram extends AbstractExponentialHistogram implements ExponentialHistogram {
-
-        // TODO(b/133393): encode all of the ExponentialHistogram data except for min/max/sum/count
-        private static final int SCALE_OFFSET = 0;
-
-        private ByteBuffer data;
-        private int scale;
-
-        private BlockBackedHistogram() {
-            data = null;
-        }
-
-        void reset(BytesRef bytes) {
-            data = ByteBuffer.wrap(bytes.bytes, bytes.offset, bytes.length).order(ByteOrder.LITTLE_ENDIAN);
-            scale = data.get(data.position() + SCALE_OFFSET);
-        }
-
-        static BytesRef encode(ExponentialHistogram histogram, BytesRef growableBuffer) {
-            assert growableBuffer.offset == 0;
-
-            int totalSize = 1;
-
-            resizeIfRequired(growableBuffer, totalSize);
-            BytesRef result = new BytesRef(growableBuffer.bytes, 0, totalSize);
-
-            ByteBuffer buffer = ByteBuffer.wrap(result.bytes, 0, result.length).order(ByteOrder.LITTLE_ENDIAN);
-            buffer.put(SCALE_OFFSET, (byte) histogram.scale());
-
-            return result;
-        }
-
-        private static void resizeIfRequired(BytesRef growableBuffer, int totalSize) {
-            if (growableBuffer.length >= totalSize) {
-                return;
-            }
-            assert growableBuffer.length > 0;
-            while (growableBuffer.length < totalSize) {
-                growableBuffer.length *= 2;
-            }
-            growableBuffer.offset = 0;
-            growableBuffer.bytes = new byte[growableBuffer.length];
-        }
-
-        @Override
-        public int scale() {
-            assert data != null;
-            checkForUseAfterClose();
-            return scale;
-        }
-
-        private void checkForUseAfterClose() {
-            if (ExponentialHistogramArrayBlock.this.isClosed) {
-                throw new IllegalStateException("Backing block has already been closed!");
-            }
-        }
-
-        @Override
-        public ZeroBucket zeroBucket() {
-            // TODO(b/133393): implement
-            return ZeroBucket.minimalEmpty();
-        }
-
-        @Override
-        public ExponentialHistogram.Buckets positiveBuckets() {
-            // TODO(b/133393): implement
-            return ExponentialHistogram.builder(scale(), ExponentialHistogramCircuitBreaker.noop()).build().positiveBuckets();
-        }
-
-        @Override
-        public ExponentialHistogram.Buckets negativeBuckets() {
-            // TODO(b/133393): implement
-            return ExponentialHistogram.builder(scale(), ExponentialHistogramCircuitBreaker.noop()).build().negativeBuckets();
-        }
-
-        @Override
-        public double sum() {
-            // TODO(b/133393): implement
-            return 0;
-        }
-
-        @Override
-        public long valueCount() {
-            // TODO(b/133393): implement
-            return 0;
-        }
-
-        @Override
-        public double min() {
-            // TODO(b/133393): implement
-            return Double.NaN;
-        }
-
-        @Override
-        public double max() {
-            // TODO(b/133393): implement
-            return Double.NaN;
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return 0;
-        }
-
+        int result = minima.hashCode();
+        result = 31 * result + maxima.hashCode();
+        result = 31 * result + sums.hashCode();
+        result = 31 * result + valueCounts.hashCode();
+        result = 31 * result + zeroThresholds.hashCode();
+        result = 31 * result + encodedHistograms.hashCode();
+        return result;
     }
 }

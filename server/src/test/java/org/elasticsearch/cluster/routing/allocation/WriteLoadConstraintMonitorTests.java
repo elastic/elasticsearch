@@ -174,7 +174,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final int numberOfIndexNodes = randomIntBetween(1, 5);
         final TestState testState = createTestStateWithNumberOfNodesAndHotSpots(
             numberOfIndexNodes,
-            randomIntBetween(1, 5),
+            randomIntBetween(1, 5), // Search nodes should not be considered to address write load hot-spots.
             numberOfIndexNodes
         );
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
@@ -189,7 +189,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     "don't reroute when all nodes are hot-spotting",
                     WriteLoadConstraintMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "Nodes * are above the queue latency threshold, but there are no write nodes below the threshold. Cannot rebalance shards."
+                    "Nodes * are above the queue latency threshold, but there are no write nodes below the threshold. "
+                        + "Cannot rebalance shards."
                 )
             );
 

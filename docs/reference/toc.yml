@@ -2,7 +2,7 @@ toc:
   - file: index.md
     children:
       - title: "Elasticsearch solution & use case"
-        crosslink: docs-content://solutions/search/index.md
+        crosslink: docs-content://solutions/search.md
   - toc: elasticsearch
   - toc: community-contributed
   - toc: enrich-processor

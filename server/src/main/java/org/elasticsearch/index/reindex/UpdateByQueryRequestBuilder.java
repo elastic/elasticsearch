@@ -13,12 +13,16 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
+import java.util.Map;
+
 public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<
     UpdateByQueryRequest,
     UpdateByQueryRequestBuilder> {
 
     private Boolean abortOnVersionConflict;
     private String pipeline;
+
+    private Map<String, Object> doc; //  Added
 
     public UpdateByQueryRequestBuilder(ElasticsearchClient client) {
         this(client, new SearchRequestBuilder(client));
@@ -41,6 +45,12 @@ public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollReques
 
     public UpdateByQueryRequestBuilder setPipeline(String pipeline) {
         this.pipeline = pipeline;
+        return this;
+    }
+
+    //  NEW: Add setter for doc
+    public UpdateByQueryRequestBuilder setDoc(Map<String, Object> doc) {
+        this.doc = doc;
         return this;
     }
 
@@ -70,6 +80,9 @@ public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollReques
         }
         if (pipeline != null) {
             request.setPipeline(pipeline);
+        }
+        if (doc != null) { //  Apply doc field
+            request.setDoc(doc);
         }
     }
 }

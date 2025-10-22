@@ -403,8 +403,6 @@ public class ClusterStateCreationUtils {
      * and assigns primaries to those nodes.
      */
     public static ClusterState state(ProjectId projectId, int numberOfNodes, String[] indices, int numberOfPrimaries) {
-        assert numberOfPrimaries <= numberOfNodes
-            : "Requested " + numberOfPrimaries + " primary shards, but only " + numberOfNodes + " nodes";
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> nodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes; i++) {

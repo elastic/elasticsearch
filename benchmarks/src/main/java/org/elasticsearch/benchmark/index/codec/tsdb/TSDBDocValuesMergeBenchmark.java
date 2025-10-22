@@ -63,7 +63,6 @@ import java.util.function.Supplier;
 public class TSDBDocValuesMergeBenchmark {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
         LogConfigurator.setNodeName("test");
     }

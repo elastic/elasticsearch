@@ -43,7 +43,6 @@ public class JDKVectorFloat32Benchmark {
 
     static {
         NodeNamePatternConverter.setGlobalNodeName("foo");
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

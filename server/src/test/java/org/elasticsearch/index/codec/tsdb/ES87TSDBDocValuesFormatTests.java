@@ -52,7 +52,6 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
     private static final int NUM_DOCS = 10;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

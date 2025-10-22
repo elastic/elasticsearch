@@ -20,7 +20,6 @@ import org.junit.BeforeClass;
 public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

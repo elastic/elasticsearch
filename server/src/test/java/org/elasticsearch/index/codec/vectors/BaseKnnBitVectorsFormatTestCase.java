@@ -37,7 +37,6 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 abstract class BaseKnnBitVectorsFormatTestCase extends BaseIndexFileFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

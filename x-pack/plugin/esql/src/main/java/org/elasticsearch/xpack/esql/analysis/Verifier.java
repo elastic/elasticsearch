@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -280,8 +279,6 @@ public class Verifier {
 
             var firstLimit = inlineStatsDescendantLimit.get();
             if (firstLimit != null) {
-                Location l = firstLimit.source().source();
-                var limitLocation = "line " + l.getLineNumber() + ":" + l.getColumnNumber();
                 var isString = is.sourceText().length() > Node.TO_STRING_MAX_WIDTH
                     ? is.sourceText().substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
                     : is.sourceText();
@@ -291,10 +288,10 @@ public class Verifier {
                 failures.add(
                     fail(
                         is,
-                        "INLINE STATS cannot be used after LIMIT command, but was [{}] after [{}] at [{}]",
+                        "INLINE STATS cannot be used after an explicit or implicit LIMIT command, but was [{}] after [{}] [{}]",
                         isString,
                         limitString,
-                        limitLocation
+                        firstLimit.source().source().toString()
                     )
                 );
             }

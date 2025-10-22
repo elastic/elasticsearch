@@ -372,6 +372,33 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 10023          |330870342              |3.181719481E8                |null             |5                    |3                     |5                     |F
 ;
 
+threeTopNAtEnd
+required_capability: inline_stats
+// same as above but with the final INLINE STATS after before the LIMIT
+
+FROM employees
+| KEEP emp_no, languages, avg_worked_seconds, gender
+| INLINE STATS avg_avg_worked_seconds = AVG(avg_worked_seconds) BY languages
+| WHERE avg_worked_seconds > avg_avg_worked_seconds
+| INLINE STATS max_languages = MAX(languages) BY gender
+| INLINE STATS min(languages), max(languages) by gender
+| SORT emp_no ASC
+| LIMIT 10
+;
+
+emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:integer|max_languages:integer|min(languages):integer|max(languages):integer|gender:keyword
+10002          |328922887              |3.133013149047619E8          |5                |5                    |1                     |5                     |F              
+10006          |372957040              |2.978159518235294E8          |3                |5                    |1                     |5                     |F              
+10007          |393084805              |2.863684210555556E8          |4                |5                    |1                     |5                     |F              
+10010          |315236372              |2.863684210555556E8          |4                |5                    |1                     |5                     |null           
+10012          |365510850              |3.133013149047619E8          |5                |5                    |1                     |5                     |null           
+10015          |390266432              |3.133013149047619E8          |5                |5                    |1                     |5                     |null           
+10018          |309604079              |3.0318626831578946E8         |2                |5                    |1                     |5                     |null           
+10019          |342855721              |2.94833632E8                 |1                |5                    |1                     |5                     |null           
+10020          |373309605              |3.181719481E8                |null             |5                    |1                     |5                     |M              
+10023          |330870342              |3.181719481E8                |null             |5                    |1                     |5                     |F
+;
+
 // TODO: INLINE STATS unit test needed for this one
 // https://github.com/elastic/elasticsearch/issues/113727
 pushDownSort_To_LeftSideOnly-Ignore
@@ -2585,6 +2612,25 @@ from employees
 10003          |0              |0              
 ;
 
+twoConsecutiveInlinestatsWithFalseFilters_LimitAfterInlineStats
+// same as above but with LIMIT after INLINE STATS
+required_capability: inline_stats
+from employees
+| keep emp_no
+| inline stats count = count(*) where false
+| inline stats cc = count_distinct(emp_no) where false
+| sort emp_no
+| limit 3
+;
+
+    emp_no:i   |     count:l   |      cc:l       
+10001          |0              |0              
+10002          |0              |0              
+10003          |0              |0              
+;
+
+
+
 ////////////////////////////////
 // Union types tests
 ////////////////////////////////
@@ -2968,6 +3014,26 @@ mc:l           | count:l       | event_duration:l
 5              |2              |2764889        
 5              |2              |3450233        
 5              |2              |3450233        
+;
+
+multiIndexIpStringInlinestats_Inline4_LimitAfterInlineStats
+// same as above but with LIMIT after INLINE STATS 
+required_capability: inline_stats
+
+FROM sample_data, sample_data_str
+| INLINE STATS count=count(*) BY client_ip::ip
+| INLINE STATS mc=count(count) BY count
+| SORT mc DESC, count ASC, event_duration
+| LIMIT 5
+| KEEP mc, count, event_duration
+;
+
+mc:l           | count:l       | event_duration:l 
+8              |8              |725448         
+8              |8              |725448         
+8              |8              |1756467        
+8              |8              |1756467        
+8              |8              |5033755        
 ;
 
 multiIndexWhereIpStringInlinestats 
@@ -4145,6 +4211,26 @@ from dense_vector,airport_city_boundaries
 | eval  kMvNZVQSH = -4048759096317256968, GzAYNHaHuIS = 4262770411405329967, EwPpQFmOPoB = "lkdgnbTrBT", `abbrev` = "LiXI" 
 | keep `city`, `kMvNZVQSH`, GzAYNHaHuIS, city_boundary, EwPpQFmOPoB, `city_boundary`, `id`, kMvNZVQSH, id, airport 
 | limit 6888 
+| keep `kMvNZVQSH`, EwPpQFmOPoB, city, `id`, kMvNZVQSH 
+| stats  `EwPpQFmOPoB2` = min(id), `EwPpQFmOPoB3` = count(*), kZiJPhNZ = count(id), ErGhdKhdv = count_distinct(city), EwPpQFmOPoB = min(id) 
+| eval  ErGhdKhdv = null, fHSyxniFCS = -710891486, ErGhdKhdv = -1104488048, zdxdQdVIyFh = -1579062572, `kZiJPhNZ` = null, SzmOySyUh = null, eWVVRiwP = 1092261898855405071, nUxVhGhcpkiV = true, RvqGioBAAzYs = 169356242 
+| eval  `kZiJPhNZ` = "gWJHDTcDMjRVSnlzSX", lxLgaagX = 4700531997851493340, `kZiJPhNZ` = false 
+| keep `zdxdQdVIyFh` 
+| inline stats  `zdxdQdVIyFh` = count(*), WbWVJnYJ = count(*), zdxdQdVIyFh2 = max(zdxdQdVIyFh), uKjfeKTfaH = max(zdxdQdVIyFh), QpovVxjMWSjh = min(zdxdQdVIyFh)
+;
+
+zdxdQdVIyFh:long | WbWVJnYJ:long | zdxdQdVIyFh2:integer | uKjfeKTfaH:integer | QpovVxjMWSjh:integer
+1                | 1             | -1579062572          | -1579062572        | -1579062572
+;
+
+inlineStatsAfterPruningAggregate8_NoLimit
+// https://github.com/elastic/elasticsearch/issues/135679
+// same as above but without LIMIT before INLINE STATS
+required_capability: inline_stats_double_release_fix
+
+from dense_vector,airport_city_boundaries
+| eval  kMvNZVQSH = -4048759096317256968, GzAYNHaHuIS = 4262770411405329967, EwPpQFmOPoB = "lkdgnbTrBT", `abbrev` = "LiXI" 
+| keep `city`, `kMvNZVQSH`, GzAYNHaHuIS, city_boundary, EwPpQFmOPoB, `city_boundary`, `id`, kMvNZVQSH, id, airport 
 | keep `kMvNZVQSH`, EwPpQFmOPoB, city, `id`, kMvNZVQSH 
 | stats  `EwPpQFmOPoB2` = min(id), `EwPpQFmOPoB3` = count(*), kZiJPhNZ = count(id), ErGhdKhdv = count_distinct(city), EwPpQFmOPoB = min(id) 
 | eval  ErGhdKhdv = null, fHSyxniFCS = -710891486, ErGhdKhdv = -1104488048, zdxdQdVIyFh = -1579062572, `kZiJPhNZ` = null, SzmOySyUh = null, eWVVRiwP = 1092261898855405071, nUxVhGhcpkiV = true, RvqGioBAAzYs = 169356242 

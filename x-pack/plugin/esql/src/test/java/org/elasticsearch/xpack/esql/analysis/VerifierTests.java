@@ -2819,7 +2819,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("TS test | STATS m=max(languages) BY s=salary/10000 | LIMIT 5 | INLINE STATS max(s) BY m"),
             containsString(
-                "1:64: INLINE STATS cannot be used after LIMIT command, but was [INLINE STATS max(s) BY m] after [LIMIT 5] at [line 1:54]"
+                "1:64: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@1:54]"
             )
         );
     }
@@ -2838,9 +2839,10 @@ public class VerifierTests extends ESTestCase {
                     + "| INLINE STATS max_lang = MAX(languages) BY gender"
             ),
             containsString(
-                "7:23: INLINE STATS cannot be used after LIMIT command, but was [INLINE STATS max_lang = MAX(languages) BY gender] "
+                "7:23: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
                     + "after [(EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
-                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WOR...] at [line 3:8]"
+                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WOR...] [@3:8]"
             )
         );
 
@@ -2855,8 +2857,8 @@ public class VerifierTests extends ESTestCase {
                     + "| SORT emp_no, gender, _fork\n"
             ),
             containsString(
-                "5:12: INLINE STATS cannot be used after LIMIT command, "
-                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 5] at [line 5:3]"
+                "5:12: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 5] [@5:3]"
             )
         );
 
@@ -2871,9 +2873,10 @@ public class VerifierTests extends ESTestCase {
                     + "| LIMIT 5"
             ),
             containsString(
-                "5:3: INLINE STATS cannot be used after LIMIT command, but was [INLINE STATS max_lang = MAX(languages) BY gender] "
+                "5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
                     + "after [(WHERE emp_no == 10048 OR emp_no == 10081)\n"
-                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)] at [line 3:8]"
+                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)] [@3:8]"
             )
         );
     }
@@ -2885,21 +2888,24 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error(randomFrom(sourceCommands) + "LIMIT 5 | INLINE STATS max(salary) BY gender"),
             containsString(
-                "INLINE STATS cannot be used after LIMIT command, but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] at [line "
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
             )
         );
 
         assertThat(
             error(randomFrom(sourceCommands) + "SORT languages | LIMIT 5 | INLINE STATS max(salary) BY gender"),
             containsString(
-                "INLINE STATS cannot be used after LIMIT command, but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] at [line "
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
             )
         );
 
         assertThat(
             error(randomFrom(sourceCommands) + "INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"),
             containsString(
-                "INLINE STATS cannot be used after LIMIT command, but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] at [line "
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
             )
         );
 
@@ -2909,11 +2915,12 @@ public class VerifierTests extends ESTestCase {
             ),
             allOf(
                 containsString(
-                    "INLINE STATS cannot be used after LIMIT command, "
-                        + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] at [line "
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
                 ),
                 containsString(
-                    "INLINE STATS cannot be used after LIMIT command, but was [INLINE STATS avg(salary)] after [LIMIT 2] at [line "
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS avg(salary)] after [LIMIT 2] [@"
                 )
             )
         );
@@ -2929,10 +2936,12 @@ public class VerifierTests extends ESTestCase {
                 """),
             allOf(
                 containsString(
-                    "INLINE STATS cannot be used after LIMIT command, but was [INLINE STATS max(s) BY m] after [LIMIT 5] at [line "
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@"
                 ),
                 containsString(
-                    "INLINE STATS cannot be used after LIMIT command, but was [INLINE STATS avg(salary)] after [LIMIT 1] at [line "
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS avg(salary)] after [LIMIT 1] [@"
                 )
             )
         );

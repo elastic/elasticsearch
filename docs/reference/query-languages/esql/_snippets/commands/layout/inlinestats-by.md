@@ -103,5 +103,7 @@ The following example shows how to filter which rows are used for each aggregati
 **Limitations**
 
 - The [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not currently supported.
-- `INLINE STATS` cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it.
-You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
+- `INLINE STATS` cannot yet have an explicit or implicit [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before it, as it can lead to unexpected results.
+- `INLINE STATS` cannot yet have a [`FORK`](/reference/query-languages/esql/commands/fork.md) before it,
+as the latter could add an implicit [`LIMIT`](/reference/query-languages/esql/commands/limit.md) to each of its branches which can lead to unexpected results for `INLINE STATS`.
+```

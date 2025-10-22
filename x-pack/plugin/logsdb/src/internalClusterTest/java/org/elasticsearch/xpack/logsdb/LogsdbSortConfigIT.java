@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -74,6 +75,89 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
     private DocWithId doc(String source) {
         return new DocWithId(Integer.toString(id++), source);
+    }
+
+    public void testHostnameMessageTimestampSortConfig() throws IOException {
+        final String dataStreamName = "test-logsdb-sort-hostname-message-timestamp";
+
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestmap": {
+                    "type": "date"
+                  },
+                  "host.name": {
+                    "type": "keyword"
+                  },
+                  "message": {
+                    "type": "pattern_text"
+                  },
+                  "test_id": {
+                    "type": "text",
+                    "store": true
+                  }
+                }
+              }
+            }
+            """;
+
+        final DocWithId[] orderedDocs = {
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"host.name\":\"aaa\",\"message\":\"bar 5\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T12:00:00\",\"host.name\":[\"aaa\",\"bbb\"],\"message\":\"bar 7\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T11:00:00\",\"host.name\":\"aaa\",\"message\":\"bar 9\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"host.name\":\"aaa\",\"message\":\"foo 6\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T12:00:00\",\"host.name\":\"aaa\",\"message\":\"foo 1\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T11:00:00\",\"host.name\":[\"aaa\",\"bbb\"],\"message\":\"foo 9\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"host.name\":[\"aaa\",\"bbb\"],\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T12:00:00\",\"host.name\":[\"aaa\",\"bbb\"],\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T11:00:00\",\"host.name\":[\"aaa\",\"bbb\"],\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"host.name\":\"bbb\",\"message\":\"bar 4\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T12:00:00\",\"host.name\":\"bbb\",\"message\":\"bar 5\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T11:00:00\",\"host.name\":\"bbb\",\"message\":\"bar 2\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"host.name\":\"bbb\",\"message\":\"foo 7\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T12:00:00\",\"host.name\":\"bbb\",\"message\":\"foo 3\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T11:00:00\",\"host.name\":\"bbb\",\"message\":\"foo 6\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"host.name\":\"bbb\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T12:00:00\",\"host.name\":\"bbb\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T11:00:00\",\"host.name\":\"bbb\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"message\":\"bar 4\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T12:00:00\",\"message\":\"bar 1\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T11:00:00\",\"message\":\"bar 4\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"message\":\"foo 1\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T12:00:00\",\"message\":\"foo 9\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T11:00:00\",\"message\":\"foo 3\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T12:00:00\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T11:00:00\",\"test_id\": \"%id%\"}") };
+
+        createDataStream(dataStreamName, mapping, b -> b.put("index.logsdb.default_sort_on_message_template", true));
+
+        List<DocWithId> shuffledDocs = shuffledList(Arrays.asList(orderedDocs));
+        indexDocuments(dataStreamName, shuffledDocs);
+
+        Index backingIndex = getBackingIndex(dataStreamName);
+
+        var featureService = getInstanceFromNode(FeatureService.class);
+        if (featureService.getNodeFeatures().containsKey("mapper.provide_index_sort_setting_defaults")) {
+            assertSettings(backingIndex, settings -> {
+                assertThat(
+                    IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings),
+                    equalTo(List.of("host.name", "message.template_id", "@timestamp"))
+                );
+                assertThat(
+                    IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings),
+                    equalTo(List.of(SortOrder.ASC, SortOrder.ASC, SortOrder.DESC))
+                );
+                assertThat(
+                    IndexSortConfig.INDEX_SORT_MODE_SETTING.get(settings),
+                    equalTo(List.of(MultiValueMode.MIN, MultiValueMode.MIN, MultiValueMode.MAX))
+                );
+                assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(settings), equalTo(List.of("_last", "_last", "_last")));
+            });
+        }
+
+        assertOrder(backingIndex, orderedDocs);
     }
 
     public void testHostnameTimestampSortConfig() throws IOException {
@@ -181,11 +265,21 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     private void createDataStream(String dataStreamName, String mapping) throws IOException {
+        createDataStream(dataStreamName, mapping, UnaryOperator.identity());
+    }
+
+    private void createDataStream(String dataStreamName, String mapping, UnaryOperator<Settings.Builder> settings) throws IOException {
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))
-                .template(new Template(indexSettings(1, 0).put("index.mode", "logsdb").build(), new CompressedXContent(mapping), null))
+                .template(
+                    new Template(
+                        settings.apply(indexSettings(1, 0)).put("index.mode", "logsdb").build(),
+                        new CompressedXContent(mapping),
+                        null
+                    )
+                )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );

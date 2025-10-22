@@ -429,9 +429,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.CountDistinctWithConditions}
   issue: https://github.com/elastic/elasticsearch/issues/134993
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/135055
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/135122

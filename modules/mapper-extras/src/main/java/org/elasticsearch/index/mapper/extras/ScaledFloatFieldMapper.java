@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -396,8 +397,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     }
                 };
             }
-
-            ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            var valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings());
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isStored()
                 // We only write the field names field if there aren't doc values
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
@@ -489,7 +489,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name(),
                     valuesSourceType,
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings()),
                     searchLookup,
                     ScaledFloatDocValuesField::new
                 );
@@ -503,11 +503,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.getIndexSettings()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;

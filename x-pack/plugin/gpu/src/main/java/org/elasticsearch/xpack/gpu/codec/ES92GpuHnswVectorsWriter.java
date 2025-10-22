@@ -313,14 +313,18 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         CuVSMatrix dataset
     ) throws Throwable {
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
+            case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
-            case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> {
+            case DOT_PRODUCT -> {
                 if (dataType == CuVSMatrix.DataType.BYTE) {
                     yield CagraIndexParams.CuvsDistanceType.CosineExpanded;
                 }
                 yield CagraIndexParams.CuvsDistanceType.InnerProduct;
             }
-            case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
+            case MAXIMUM_INNER_PRODUCT -> {
+                assert dataType != CuVSMatrix.DataType.BYTE;
+                yield CagraIndexParams.CuvsDistanceType.InnerProduct;
+            }
         };
 
         // TODO: expose cagra index params for algorithm, NNDescentNumIterations

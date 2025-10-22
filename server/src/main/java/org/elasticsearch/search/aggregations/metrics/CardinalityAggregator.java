@@ -117,7 +117,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             final long maxOrd = ordinalValues.getValueCount();
             if (maxOrd == 0) {
                 emptyCollectorsUsed++;
-                return new EmptyCollector();
+                return EMPTY_COLLECTOR;
             }
 
             if (executionMode.useSegmentOrdinals(maxOrd, precision)) {
@@ -206,7 +206,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     }
 
-    private static class EmptyCollector extends Collector {
+    private static final Collector EMPTY_COLLECTOR = new Collector() {
 
         @Override
         public void collect(int doc, long bucketOrd) {
@@ -222,7 +222,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         public void close() {
             // no-op
         }
-    }
+
+        @Override
+        public boolean isNoop() {
+            return true;
+        }
+    };
 
     private abstract static class DirectCollector extends Collector {
         protected final HyperLogLogPlusPlus counts;

@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
@@ -94,7 +95,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            Mockito.mock(SearchResponseMetrics.class)
+            Mockito.mock(SearchResponseMetrics.class),
+            Map.of()
         ) {
             @Override
             protected SearchPhase getNextPhase() {

@@ -133,28 +133,26 @@ public class EsqlQueryGenerator {
             if (executor.currentSchema().isEmpty()) {
                 break;
             }
-            boolean commandAllowed = false;
-            while (commandAllowed == false) {
-                commandGenerator = isTimeSeries && canGenerateTimeSeries
-                    ? randomMetricsPipeCommandGenerator()
-                    : randomPipeCommandGenerator();
-                if (isTimeSeries == false) {
-                    commandAllowed = true;
-                } else {
-                    if (commandGenerator.equals(TimeSeriesStatsGenerator.INSTANCE) || commandGenerator.equals(StatsGenerator.INSTANCE)) {
-                        if (canGenerateTimeSeries) {
-                            canGenerateTimeSeries = false;
-                            commandAllowed = true;
-                        }
-                    } else if (commandGenerator.equals(RenameGenerator.INSTANCE)) {
-                        // https://github.com/elastic/elasticsearch/issues/134994
-                        canGenerateTimeSeries = false;
-                        commandAllowed = true;
-                    } else {
-                        commandAllowed = true;
+            commandGenerator = isTimeSeries && canGenerateTimeSeries
+                ? randomMetricsPipeCommandGenerator()
+                : randomPipeCommandGenerator();
+            if (isTimeSeries) {
+                if (commandGenerator.equals(ForkGenerator.INSTANCE)) {
+                    // don't fork with TS command until this is resolved: https://github.com/elastic/elasticsearch/issues/136927
+                    continue;
+                }
+                if (commandGenerator.equals(TimeSeriesStatsGenerator.INSTANCE) || commandGenerator.equals(StatsGenerator.INSTANCE)) {
+                    if (canGenerateTimeSeries == false) {
+                        // Don't generate multiple stats commands in a single query for TS
+                        continue;
                     }
+                    canGenerateTimeSeries = false;
+                } else if (commandGenerator.equals(RenameGenerator.INSTANCE)) {
+                    // don't allow stats after a rename until this is resolved: https://github.com/elastic/elasticsearch/issues/134994
+                    canGenerateTimeSeries = false;
                 }
             }
+
             desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;

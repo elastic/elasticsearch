@@ -67,7 +67,7 @@ public class GetSampleConfigurationAction extends ActionType<GetSampleConfigurat
     /**
      * The name identifier for this action type used in the transport layer.
      */
-    public static final String NAME = "indices:admin/sample/config/get";
+    public static final String NAME = "indices:monitor/sample/config/get";
 
     private GetSampleConfigurationAction() {
         super(NAME);

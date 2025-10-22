@@ -29,6 +29,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,9 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.NodeUsageStatsForThreadPools.ZERO_USAGE_THREAD_POOL_USAGE_MAP;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -49,7 +48,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 public class WriteLoadConstraintMonitorTests extends ESTestCase {
-
     public void testRerouteIsCalledWhenAHotSpotIsDetected() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
@@ -279,35 +277,36 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
         reset(testState.mockRerouteService);
 
-        assertThat(
-            "Test setup should leave at least two nodes not hot-spotted",
-            testState.clusterInfo.getNodeUsageStatsForThreadPools().size() - testState.clusterInfo.getNodeUsageStatsForThreadPools()
-                .values()
-                .stream()
-                .filter(stats -> nodeExceedsQueueLatencyThreshold(stats, testState.latencyThresholdMillis))
-                .count(),
-            greaterThanOrEqualTo(2L)
-        );
-
         // Now update cluster info to add another hot-spotted node
         final AtomicBoolean thresholdIncreased = new AtomicBoolean(false);
-        var nodeUsageStatsWithExtraHotSpot = Maps.transformValues(testState.clusterInfo.getNodeUsageStatsForThreadPools(), stats -> {
-            if (thresholdIncreased.get() == false && nodeExceedsQueueLatencyThreshold(stats, testState.latencyThresholdMillis) == false) {
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsWithExtraHotSpot = new HashMap<>();
+        for (var entry : testState.clusterInfo.getNodeUsageStatsForThreadPools().entrySet()) {
+            if (thresholdIncreased.get() == false
+                && nonSearchNodeBelowQueueLatencyThreshold(
+                    testState.clusterState,
+                    entry.getKey(),
+                    entry.getValue(),
+                    testState.latencyThresholdMillis
+                )) {
                 thresholdIncreased.set(true);
-                return new NodeUsageStatsForThreadPools(
-                    stats.nodeId(),
-                    Maps.transformValues(
-                        stats.threadPoolUsageStatsMap(),
-                        tpStats -> new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-                            tpStats.totalThreadPoolThreads(),
-                            tpStats.averageThreadPoolUtilization(),
-                            testState.latencyThresholdMillis + randomLongBetween(1, 100_000)
+                nodeUsageStatsWithExtraHotSpot.put(
+                    entry.getKey(),
+                    new NodeUsageStatsForThreadPools(
+                        entry.getKey(),
+                        Maps.transformValues(
+                            entry.getValue().threadPoolUsageStatsMap(),
+                            tpStats -> new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
+                                tpStats.totalThreadPoolThreads(),
+                                tpStats.averageThreadPoolUtilization(),
+                                testState.latencyThresholdMillis + randomLongBetween(1, 100_000)
+                            )
                         )
                     )
                 );
+            } else {
+                nodeUsageStatsWithExtraHotSpot.put(entry.getKey(), entry.getValue());
             }
-            return stats;
-        });
+        }
 
         // Advance the clock by less than the re-route interval
         currentTimeMillis.addAndGet(randomLongBetween(0, minimumInterval.millis() - 1));
@@ -317,15 +316,21 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
     }
 
-    private boolean nodeExceedsQueueLatencyThreshold(NodeUsageStatsForThreadPools nodeUsageStats, long latencyThresholdMillis) {
-        return nodeUsageStats.threadPoolUsageStatsMap()
-            .get(ThreadPool.Names.WRITE)
-            .maxThreadPoolQueueLatencyMillis() > latencyThresholdMillis;
+    private boolean nonSearchNodeBelowQueueLatencyThreshold(
+        ClusterState clusterState,
+        String nodeId,
+        NodeUsageStatsForThreadPools nodeUsageStats,
+        long latencyThresholdMillis
+    ) {
+        return clusterState.getNodes().get(nodeId).getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE) == false
+            && nodeUsageStats.threadPoolUsageStatsMap()
+                .get(ThreadPool.Names.WRITE)
+                .maxThreadPoolQueueLatencyMillis() < latencyThresholdMillis;
     }
 
     private TestState createRandomTestStateThatWillTriggerReroute() {
         int numberOfNodes = randomIntBetween(3, 10);
-        int numberOfHotSpottingNodes = numberOfNodes - 2; // Leave at least 1 non-hot-spotting node.
+        int numberOfHotSpottingNodes = numberOfNodes - 2; // Leave at least 2 non-hot-spotting nodes.
         return createTestStateWithNumberOfNodesAndHotSpots(numberOfNodes, randomIntBetween(0, 5), numberOfHotSpottingNodes);
     }
 
@@ -334,6 +339,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         int numberOfSearchNodes,
         int numberOfHotSpottingNodes
     ) {
+        assert numberOfHotSpottingNodes <= numberOfIndexNodes;
         final long queueLatencyThresholdMillis = randomLongBetween(1000, 5000);
         final int highUtilizationThresholdPercent = randomIntBetween(70, 100);
         final ClusterSettings clusterSettings = createClusterSettings(
@@ -468,4 +474,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         RerouteService mockRerouteService,
         ClusterInfo clusterInfo
     ) {}
+
+    public static final Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> ZERO_USAGE_THREAD_POOL_USAGE_MAP = Map.of(
+        ThreadPool.Names.WRITE,
+        new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(5, 0, 0)
+    );
 }

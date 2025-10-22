@@ -12,7 +12,6 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,11 +25,6 @@ import java.util.Objects;
  *                                usage stats ({@link ThreadPoolUsageStats}).
  */
 public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPoolUsageStats> threadPoolUsageStatsMap) implements Writeable {
-
-    public static final Map<String, ThreadPoolUsageStats> ZERO_USAGE_THREAD_POOL_USAGE_MAP = Map.of(
-        ThreadPool.Names.WRITE,
-        new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(5, 0, 0)
-    );
 
     public NodeUsageStatsForThreadPools(StreamInput in) throws IOException {
         this(in.readString(), in.readImmutableMap(ThreadPoolUsageStats::new));

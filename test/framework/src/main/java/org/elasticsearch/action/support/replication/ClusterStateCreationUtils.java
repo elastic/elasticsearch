@@ -369,7 +369,7 @@ public class ClusterStateCreationUtils {
         return state.build();
     }
 
-    public record IndexState(IndexMetadata indexMetadata, IndexRoutingTable.Builder indexRoutingTableBuilder) {}
+    private record IndexState(IndexMetadata indexMetadata, IndexRoutingTable.Builder indexRoutingTableBuilder) {}
 
     private static IndexState buildIndex(String indexName, int numberOfPrimaries, Set<String> nodeIds) {
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)

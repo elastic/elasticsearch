@@ -28,54 +28,13 @@
   - requires:
       cluster_features: [ "health.shard_capacity.unhealthy_threshold_settings" ]
       reason: "these relevant settings are added in 9.3"
-  - do:
-        health_report:
-            feature: shards_capacity
-  - is_true: cluster_name
-  - match:   { indicators.shards_capacity.status: "green" }
 
-  # set very large threshold to force the indicator to go yellow
+  # this only tests the settings is set, the health logic is tested in the internal cluster tests since it requires waiting
   - do:
       cluster.put_settings:
         body:
           persistent:
-            health.shard_capacity.unhealthy_threshold.yellow: 100000000
+            health.shard_capacity.unhealthy_threshold.yellow: 20
+            health.shard_capacity.unhealthy_threshold.red: 10
         flat_settings: true
-  - match:  { persistent: { health.shard_capacity.unhealthy_threshold.yellow: "100000000" } }
-
-  - do:
-      health_report:
-        feature: shards_capacity
-  - is_true: cluster_name
-  - match:  { indicators.shards_capacity.status: "yellow" }
-
-  # set very large threshold to force the indicator to go red
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            health.shard_capacity.unhealthy_threshold.red: 90000000
-        flat_settings: true
-  - match:  { persistent: { health.shard_capacity.unhealthy_threshold.red: "90000000" } }
-
-  - do:
-      health_report:
-        feature: shards_capacity
-  - is_true: cluster_name
-  - match:  { indicators.shards_capacity.status: "red" }
-
-  # set back to default
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            health.shard_capacity.unhealthy_threshold.yellow: 10
-            health.shard_capacity.unhealthy_threshold.red: 5
-        flat_settings: true
-  - match:  { acknowledged: true }
-
-  - do:
-      health_report:
-        feature: shards_capacity
-  - is_true: cluster_name
-  - match:   { indicators.shards_capacity.status: "green" }
+  - match:  { persistent: { health.shard_capacity.unhealthy_threshold.yellow: "20", health.shard_capacity.unhealthy_threshold.red: "10", } }

@@ -180,6 +180,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         static ShardLimits readFrom(StreamInput in) throws IOException {
             return in.getTransportVersion().onOrAfter(VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS)
                 ? new ShardLimits(in.readInt(), in.readInt(), in.readInt(), in.readInt())
+                // defaults from older versions
                 : new ShardLimits(in.readInt(), in.readInt(), 10, 5);
         }
 

@@ -60,6 +60,7 @@ PUT my-index-000001
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ### Using a custom endpoint
 
@@ -81,6 +82,7 @@ PUT my-index-000002
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. The `inference_id` of the {{infer}} endpoint to use to generate embeddings.
 
@@ -105,6 +107,7 @@ PUT my-index-000003
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ### Using ELSER on EIS
 ```{applies_to}
@@ -128,6 +131,7 @@ PUT my-index-000001
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ::::{note}
 While we do encourage experimentation, we do not recommend implementing production use cases on top of this feature while it is in Technical Preview.
@@ -138,11 +142,30 @@ While we do encourage experimentation, we do not recommend implementing producti
 
 `inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate
-embeddings for the field. By default, `.elser-2-elasticsearch` is used. This
-parameter cannot be updated. Use
-the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
+embeddings for the field. By default, `.elser-2-elasticsearch` is used.
+Use the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
 to create the endpoint. If `search_inference_id` is specified, the {{infer}}
 endpoint will only be used at index time.
+
+::::{applies-switch}
+
+:::{applies-item} { "stack": "ga 9.0" }
+This parameter cannot be updated.
+:::
+
+:::{applies-item} { "stack": "ga 9.3" }
+
+You can update this parameter by using
+the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
+You can update the inference endpoint if no values have been indexed or if the new endpoint is compatible with the current one.
+
+::::{warning}
+When updating an `inference_id` it is important to ensure the new {{infer}} endpoint produces embeddings compatible with those already indexed. This typically means using the same underlying model.
+::::
+
+:::
+
+::::
 
 `search_inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate
@@ -311,6 +334,7 @@ POST test-index/_search
   ]
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Use `"format": "chunks"` to return the field’s text as the original text chunks that were indexed.
 
@@ -338,6 +362,7 @@ POST test-index/_search
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Specifies the maximum number of fragments to return.
 2. Sorts the most relevant highlighted fragments by score when set to `score`. By default,
@@ -367,6 +392,7 @@ POST test-index/_search
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Ensures that highlighting is applied exclusively to semantic_text fields.
 
@@ -392,6 +418,7 @@ POST test-index/_search
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Returns the first 5 fragments. Increase this value to retrieve additional fragments.
 
@@ -441,6 +468,7 @@ POST my-index/_search
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 The embeddings will appear under `_inference_fields` in `_source`.
 
@@ -467,6 +495,7 @@ POST _reindex
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Sends the source documents with their stored embeddings to the destination index.
 
@@ -497,6 +526,7 @@ POST test-index/_search
   ]
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 This returns the chunked embeddings used for semantic search under `_inference_fields` in `_source`.
 Note that the `fields` option is **not** available for the Reindex API.
@@ -546,6 +576,7 @@ PUT my-index-000004
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ## Updates to `semantic_text` fields [update-script]
 
@@ -589,6 +620,7 @@ PUT test-index
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 can also be declared as multi-fields:
 
@@ -610,30 +642,19 @@ PUT test-index
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ## Querying `semantic_text` fields [querying-semantic-text-fields]
 
 You can query `semantic_text` fields using the following query types:
 
-- Match query: The recommended method for querying `semantic_text` fields. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ES|QL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax.
-<!--
-Refer to examples of match queries on `semantic_text` fields. 
--->
+- Match query: The recommended method for querying `semantic_text` fields. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ES|QL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax. To learn how to run match queries on `semantic_text` fields, refer to this [example](https://www.elastic.co/docs/solutions/search/semantic-search/semantic-search-semantic-text#semantic-text-semantic-search).
 
-- [kNN query](/reference/query-languages/query-dsl/query-dsl-knn-query.md): Finds the nearest vectors to a query vector using a similarity metric, mainly for advanced or combined search use cases. 
-<!-- 
-Refer to examples of kNN queries on `semantic_text` fields. 
--->
+- kNN query: Finds the nearest vectors to a query vector using a similarity metric, mainly for advanced or combined search use cases. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text) or {applies_to}`stack: ga 9.2` [ES|QL](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) syntax. To learn how to run knn queries on `semantic_text` fields, refer to this [example](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text).
 
-- [Sparse vector query](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md): Executes searches using sparse vectors generated by a sparse retrieval model such as [ELSER](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-elser.md).
-<!-- 
-Refer to examples of sparse vector queries on `semantic_text` fields.
--->
+- Sparse vector query: Executes searches using sparse vectors generated by a sparse retrieval model such as [ELSER](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-elser.md). You can use it with [Query DSL](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md) syntax. To learn how to run sparse vector queries on `semantic_text` fields, refer to this [example](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md#example-query-on-a-semantic_text-field).
 
 - [Semantic query](/reference/query-languages/query-dsl/query-dsl-semantic-query.md): We don't recommend this legacy query type for _new_ projects, because the alternatives in this list enable more flexibility and customization. The `semantic` query remains available to support existing implementations.
-<!-- 
-Refer to examples of semantic queries on `semantic_text` fields.
--->
 
 
 ## Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
@@ -654,9 +675,22 @@ POST test-index/_search
   ]
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 This will return verbose chunked embeddings content that is used to perform
 semantic search for `semantic_text` fields.
+
+### Document count discrepancy in `_cat/indices`
+
+When an index contains a `semantic_text` field, the `docs.count` value returned by the [`_cat/indices`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) API may be higher than the number of documents you indexed. 
+This occurs because `semantic_text` stores embeddings in [nested documents](/reference/elasticsearch/mapping-reference/nested.md), one per chunk. The `_cat/indices` API counts all documents in the Lucene index, including these hidden nested documents.
+
+To count only top-level documents, excluding the nested documents that store embeddings, use one of the following APIs:
+
+* `GET /<index>/_count`
+* `GET _cat/count/<index>`
+
+
 
 ## Cross-cluster search (CCS) [ccs]
 ```{applies_to}

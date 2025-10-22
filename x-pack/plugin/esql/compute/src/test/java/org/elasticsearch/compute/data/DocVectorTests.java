@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
@@ -38,7 +38,7 @@ public class DocVectorTests extends ComputeTestCase {
     public void testSingleSegmentNonDecreasingSetTrue() {
         int length = between(1, 100);
         DocVector docs = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intRange(0, length),
             intRange(0, length),
             intRange(0, length),
@@ -50,7 +50,7 @@ public class DocVectorTests extends ComputeTestCase {
     public void testSingleSegmentNonDecreasingSetFalse() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intRange(0, 2),
             intRange(0, 2),
             blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2),
@@ -63,7 +63,7 @@ public class DocVectorTests extends ComputeTestCase {
     public void testSingleSegmentNonDecreasingNonConstantShard() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intRange(0, 2),
             blockFactory.newConstantIntVector(0, 2),
             intRange(0, 2),
@@ -76,7 +76,7 @@ public class DocVectorTests extends ComputeTestCase {
     public void testSingleSegmentNonDecreasingNonConstantSegment() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             blockFactory.newConstantIntVector(0, 2),
             intRange(0, 2),
             intRange(0, 2),
@@ -89,7 +89,7 @@ public class DocVectorTests extends ComputeTestCase {
     public void testSingleSegmentNonDecreasingAscending() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2),
@@ -102,7 +102,7 @@ public class DocVectorTests extends ComputeTestCase {
     public void testSingleSegmentNonDecreasingSame() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newIntArrayVector(new int[] { 2, 2 }, 2),
@@ -115,7 +115,7 @@ public class DocVectorTests extends ComputeTestCase {
     public void testSingleSegmentNonDecreasingDescendingDocs() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2),
@@ -270,7 +270,7 @@ public class DocVectorTests extends ComputeTestCase {
     public void testCannotDoubleRelease() {
         BlockFactory blockFactory = blockFactory();
         var block = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intRange(0, 2),
             blockFactory.newConstantIntBlockWith(0, 2).asVector(),
             intRange(0, 2),
@@ -295,7 +295,7 @@ public class DocVectorTests extends ComputeTestCase {
     public void testRamBytesUsedWithout() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             blockFactory.newConstantIntBlockWith(0, 1).asVector(),
             blockFactory.newConstantIntBlockWith(0, 1).asVector(),
             blockFactory.newConstantIntBlockWith(0, 1).asVector(),
@@ -310,7 +310,7 @@ public class DocVectorTests extends ComputeTestCase {
         BlockFactory factory = blockFactory();
         try (
             DocVector docs = new DocVector(
-                ShardRefCounted.ALWAYS_REFERENCED,
+                AlwaysReferencedIndexedByShardId.INSTANCE,
                 factory.newConstantIntVector(0, 10),
                 factory.newConstantIntVector(0, 10),
                 factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
@@ -318,7 +318,7 @@ public class DocVectorTests extends ComputeTestCase {
             );
             DocVector filtered = docs.filter(1, 2, 3);
             DocVector expected = new DocVector(
-                ShardRefCounted.ALWAYS_REFERENCED,
+                AlwaysReferencedIndexedByShardId.INSTANCE,
                 factory.newConstantIntVector(0, 3),
                 factory.newConstantIntVector(0, 3),
                 factory.newIntArrayVector(new int[] { 1, 2, 3 }, 3),
@@ -339,7 +339,7 @@ public class DocVectorTests extends ComputeTestCase {
                 shards = factory.newConstantIntVector(0, 10);
                 segments = factory.newConstantIntVector(0, 10);
                 docs = factory.newConstantIntVector(0, 10);
-                result = new DocVector(ShardRefCounted.ALWAYS_REFERENCED, shards, segments, docs, false);
+                result = new DocVector(AlwaysReferencedIndexedByShardId.INSTANCE, shards, segments, docs, false);
                 return result;
             } finally {
                 if (result == null) {

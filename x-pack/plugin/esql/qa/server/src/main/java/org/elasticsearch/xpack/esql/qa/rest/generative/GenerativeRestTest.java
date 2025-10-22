@@ -72,6 +72,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "unexpected byte", // https://github.com/elastic/elasticsearch/issues/136598
         "Rule execution limit", // https://github.com/elastic/elasticsearch/issues/136599
         "Output has changed from", // https://github.com/elastic/elasticsearch/issues/136797
+        "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561

@@ -680,6 +680,18 @@ POST test-index/_search
 This will return verbose chunked embeddings content that is used to perform
 semantic search for `semantic_text` fields.
 
+### Document count discrepancy in `_cat/indices`
+
+When an index contains a `semantic_text` field, the `docs.count` value returned by the [`_cat/indices`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) API may be higher than the number of documents you indexed. 
+This occurs because `semantic_text` stores embeddings in [nested documents](/reference/elasticsearch/mapping-reference/nested.md), one per chunk. The `_cat/indices` API counts all documents in the Lucene index, including these hidden nested documents.
+
+To count only top-level documents, excluding the nested documents that store embeddings, use one of the following APIs:
+
+* `GET /<index>/_count`
+* `GET _cat/count/<index>`
+
+
+
 ## Cross-cluster search (CCS) [ccs]
 ```{applies_to}
 stack: ga 9.2

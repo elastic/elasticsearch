@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -35,6 +36,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Reliable;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
@@ -42,7 +46,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -447,10 +450,10 @@ public class Approximate {
      *              <li> {@link Approximate#TRIAL_COUNT} * {@link Approximate#BUCKET_COUNT} additional columns
      *                   with a sampled values for each aggregate function, sample-corrected (if needed)
      *          </ul>
-     *     <li> A filter to remove rows with empty buckets
      *     <li> All commands after the {@code STATS} command, modified to also process
      *          the additional bucket columns where possible
      *     <li> {@code EVAL} to compute confidence intervals for all fields with buckets
+     *     <li> {@code FILTER} to remove rows with null confidence intervals (due to very little data)
      *     <li> {@code PROJECT} to drop all bucket columns
      * </ul>
      *
@@ -514,9 +517,6 @@ public class Approximate {
                 Alias bucketIdField = new Alias(Source.EMPTY, "$bucket_id", bucketIds);
 
                 List<NamedExpression> aggregates = new ArrayList<>();
-                // Ensure that all buckets are non-empty, because empty buckets
-                // would mess up the confidence interval computation.
-                Expression allBucketsNonEmpty = Literal.TRUE;
                 for (NamedExpression aggOrKey : aggregate.aggregates()) {
                     if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
                         // This is a grouping key, not an aggregate function.
@@ -544,34 +544,36 @@ public class Approximate {
                         List<Alias> buckets = new ArrayList<>();
                         for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
                             for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
-                                Alias bucket = new Alias(
+                                Expression bucket = correctForSampling(
+                                    aggFn.withFilter(
+                                        new Equals(
+                                            Source.EMPTY,
+                                            new MvSlice(
+                                                Source.EMPTY,
+                                                bucketIdField.toAttribute(),
+                                                Literal.integer(Source.EMPTY, trialId),
+                                                Literal.integer(Source.EMPTY, trialId)
+                                            ),
+                                            Literal.integer(Source.EMPTY, bucketId)
+                                        )
+                                    ),
+                                    sampleProbability / BUCKET_COUNT
+                                );
+                                if (aggFn instanceof Count) {
+                                    // For COUNT, no data should result in NULL, like in other aggregations.
+                                    bucket = new Case(
+                                        Source.EMPTY,
+                                        new Equals(Source.EMPTY, bucket, Literal.fromLong(Source.EMPTY, 0L)),
+                                        List.of(Literal.NULL, bucket)
+                                    );
+                                }
+                                Alias namedBucket = new Alias(
                                     Source.EMPTY,
                                     aggOrKey.name() + "$" + (trialId * BUCKET_COUNT + bucketId),
-                                    correctForSampling(
-                                        aggFn.withFilter(
-                                            new Equals(
-                                                Source.EMPTY,
-                                                new MvSlice(
-                                                    Source.EMPTY,
-                                                    bucketIdField.toAttribute(),
-                                                    Literal.integer(Source.EMPTY, trialId),
-                                                    Literal.integer(Source.EMPTY, trialId)
-                                                ),
-                                                Literal.integer(Source.EMPTY, bucketId)
-                                            )
-                                        ),
-                                        sampleProbability / BUCKET_COUNT
-                                    )
+                                    bucket
                                 );
-                                buckets.add(bucket);
-                                aggregates.add(bucket);
-                                allBucketsNonEmpty = new And(
-                                    Source.EMPTY,
-                                    allBucketsNonEmpty,
-                                    aggFn instanceof Count
-                                        ? new NotEquals(Source.EMPTY, bucket.toAttribute(), Literal.integer(Source.EMPTY, 0))
-                                        : new IsNotNull(Source.EMPTY, bucket.toAttribute())
-                                );
+                                buckets.add(namedBucket);
+                                aggregates.add(namedBucket);
                             }
                         }
                         fieldBuckets.put(aggOrKey.id(), buckets);
@@ -582,7 +584,6 @@ public class Approximate {
                 // and filter out rows with empty buckets.
                 plan = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketIdField));
                 plan = aggregate.with(plan, aggregate.groupings(), aggregates);
-                plan = new Filter(Source.EMPTY, plan, allBucketsNonEmpty);
 
             } else if (encounteredStats.get()) {
                 // After the STATS function, any processing of fields that have buckets, should
@@ -638,27 +639,50 @@ public class Approximate {
             return plan;
         });
 
+        Expression constNaN = new Literal(Source.EMPTY, Double.NaN, DataType.DOUBLE);
         Expression trialCount = Literal.integer(Source.EMPTY, TRIAL_COUNT);
         Expression bucketCount = Literal.integer(Source.EMPTY, BUCKET_COUNT);
         Expression confidenceLevel = Literal.fromDouble(Source.EMPTY, CONFIDENCE_LEVEL);
 
         // Compute the confidence interval for all output fields that have buckets.
         List<Alias> confidenceIntervalsAndReliable = new ArrayList<>();
+        Expression confidenceIntervalsExist = Literal.TRUE;
         for (Attribute output : logicalPlan.output()) {
             if (fieldBuckets.containsKey(output.id())) {
                 List<Alias> buckets = fieldBuckets.get(output.id());
                 // Collect a multivalued expression with all bucket values, and pass that to the
-                // confidence interval computation.
-                Expression bucketsMv = buckets.getFirst().toAttribute();
-                for (int i = 1; i < TRIAL_COUNT * BUCKET_COUNT; i++) {
-                    bucketsMv = new MvAppend(Source.EMPTY, bucketsMv, buckets.get(i).toAttribute());
+                // confidence interval computation. Whenever the bucket value is null, replace it
+                // by NaN, because multivalued fields cannot have nulls.
+                Expression bucketsMv = null;
+                for (int i = 0; i < TRIAL_COUNT * BUCKET_COUNT; i++) {
+                    Expression bucket = buckets.get(i).toAttribute();
+                    if (output.dataType() != DataType.DOUBLE) {
+                        bucket = new ToDouble(Source.EMPTY, bucket);
+                    }
+                    bucket = new Case(Source.EMPTY, new IsNotNull(Source.EMPTY, bucket), List.of(bucket, constNaN));
+                    if (bucketsMv == null) {
+                        bucketsMv = bucket;
+                    } else {
+                        bucketsMv = new MvAppend(Source.EMPTY, bucketsMv, bucket);
+                    }
                 }
+                Expression outputDouble = output.dataType() == DataType.DOUBLE ? output : new ToDouble(Source.EMPTY, output);
+                Expression confidenceInterval = new ConfidenceInterval(
+                    Source.EMPTY,
+                    outputDouble,
+                    bucketsMv,
+                    trialCount,
+                    bucketCount,
+                    confidenceLevel
+                );
+                confidenceInterval = switch (output.dataType()) {
+                    case DOUBLE -> confidenceInterval;
+                    case INTEGER -> new ToInteger(Source.EMPTY, confidenceInterval);
+                    case LONG -> new ToLong(Source.EMPTY, confidenceInterval);
+                    default -> throw new IllegalStateException("unexpected data type [" + output.dataType() + "]");
+                };
                 confidenceIntervalsAndReliable.add(
-                    new Alias(
-                        Source.EMPTY,
-                        "CONFIDENCE_INTERVAL(" + output.name() + ")",
-                        new ConfidenceInterval(Source.EMPTY, output, bucketsMv, trialCount, bucketCount, confidenceLevel)
-                    )
+                    new Alias(Source.EMPTY, "CONFIDENCE_INTERVAL(" + output.name() + ")", confidenceInterval)
                 );
                 confidenceIntervalsAndReliable.add(
                     new Alias(
@@ -667,9 +691,11 @@ public class Approximate {
                         new Reliable(Source.EMPTY, bucketsMv, trialCount, bucketCount)
                     )
                 );
+                confidenceIntervalsExist = new And(Source.EMPTY, confidenceIntervalsExist, new IsNotNull(Source.EMPTY, confidenceInterval));
             }
         }
         approximatePlan = new Eval(Source.EMPTY, approximatePlan, confidenceIntervalsAndReliable);
+        approximatePlan = new Filter(Source.EMPTY, approximatePlan, confidenceIntervalsExist);
 
         // Finally, drop all bucket fields from the output.
         Set<Attribute> dropAttributes = fieldBuckets.values()

@@ -17,9 +17,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.approximate.Approximate;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -31,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +38,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
 /**
  * This function is used internally by {@link Approximate}, and is not exposed
@@ -57,7 +53,7 @@ public class Reliable extends EsqlScalarFunction {
     @FunctionInfo(returnType = { "boolean", }, description = "...")
     public Reliable(
         Source source,
-        @Param(name = "estimates", type = { "double", "integer", "long" }) Expression estimates,
+        @Param(name = "estimates", type = { "double" }) Expression estimates,
         @Param(name = "trialCount", type = { "integer" }) Expression trialCount,
         @Param(name = "bucketCount", type = { "integer" }) Expression bucketCount
     ) {
@@ -91,7 +87,7 @@ public class Reliable extends EsqlScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(estimates, t -> t.isNumeric() && isRepresentable(t), sourceText(), SECOND, "numeric").and(
+        return isType(estimates, t -> t == DataType.DOUBLE, sourceText(), SECOND, "double").and(
             isType(trialCount, t -> t == DataType.INTEGER, sourceText(), THIRD, "integer")
         ).and(isType(bucketCount, t -> t == DataType.INTEGER, sourceText(), FOURTH, "integer"));
     }
@@ -103,27 +99,12 @@ public class Reliable extends EsqlScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return switch (PlannerUtils.toElementType(estimates.dataType())) {
-            case DOUBLE -> new ReliableDoubleEvaluator.Factory(
-                source(),
-                toEvaluator.apply(estimates),
-                toEvaluator.apply(trialCount),
-                toEvaluator.apply(bucketCount)
-            );
-            case INT -> new ReliableIntEvaluator.Factory(
-                source(),
-                toEvaluator.apply(estimates),
-                toEvaluator.apply(trialCount),
-                toEvaluator.apply(bucketCount)
-            );
-            case LONG -> new ReliableLongEvaluator.Factory(
-                source(),
-                toEvaluator.apply(estimates),
-                toEvaluator.apply(trialCount),
-                toEvaluator.apply(bucketCount)
-            );
-            default -> throw EsqlIllegalArgumentException.illegalDataType(estimates.dataType());
-        };
+        return new ReliableEvaluator.Factory(
+            source(),
+            toEvaluator.apply(estimates),
+            toEvaluator.apply(trialCount),
+            toEvaluator.apply(bucketCount)
+        );
     }
 
     @Override
@@ -157,7 +138,7 @@ public class Reliable extends EsqlScalarFunction {
             && Objects.equals(other.bucketCount, bucketCount);
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator
     static void process(
         BooleanBlock.Builder builder,
         @Position int position,
@@ -178,48 +159,6 @@ public class Reliable extends EsqlScalarFunction {
         builder.appendBoolean(computeReliable(estimates, trialCount, bucketCount));
     }
 
-    @Evaluator(extraName = "Int")
-    static void process(
-        BooleanBlock.Builder builder,
-        @Position int position,
-        IntBlock estimatesBlock,
-        IntBlock trialCountBlock,
-        IntBlock bucketCountBlock
-    ) {
-        if (trialCountBlock.getValueCount(position) != 1 || bucketCountBlock.getValueCount(position) != 1) {
-            builder.appendNull();
-            return;
-        }
-        double[] estimates = new double[estimatesBlock.getValueCount(position)];
-        for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
-            estimates[i] = estimatesBlock.getInt(estimatesBlock.getFirstValueIndex(position) + i);
-        }
-        int trialCount = trialCountBlock.getInt(trialCountBlock.getFirstValueIndex(position));
-        int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
-        builder.appendBoolean(computeReliable(estimates, trialCount, bucketCount));
-    }
-
-    @Evaluator(extraName = "Long")
-    static void process(
-        BooleanBlock.Builder builder,
-        @Position int position,
-        LongBlock estimatesBlock,
-        IntBlock trialCountBlock,
-        IntBlock bucketCountBlock
-    ) {
-        if (trialCountBlock.getValueCount(position) != 1 || bucketCountBlock.getValueCount(position) != 1) {
-            builder.appendNull();
-            return;
-        }
-        double[] estimates = new double[estimatesBlock.getValueCount(position)];
-        for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
-            estimates[i] = estimatesBlock.getLong(estimatesBlock.getFirstValueIndex(position) + i);
-        }
-        int trialCount = trialCountBlock.getInt(trialCountBlock.getFirstValueIndex(position));
-        int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
-        builder.appendBoolean(computeReliable(estimates, trialCount, bucketCount));
-    }
-
     public static boolean computeReliable(double[] estimates, int trialCount, int B) {
         if (B < 5) {
             return false;
@@ -232,6 +171,9 @@ public class Reliable extends EsqlScalarFunction {
             Kurtosis kurtosis = new Kurtosis();
             for (int bucket = 0; bucket < B; bucket++) {
                 double estimate = estimates[trial * B + bucket];
+                if (Double.isNaN(estimate)) {
+                    return false;
+                }
                 skew.increment(estimate);
                 kurtosis.increment(estimate);
             }

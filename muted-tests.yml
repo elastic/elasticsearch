@@ -576,6 +576,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/136061
+- class: org.elasticsearch.compute.operator.HashAggregationOperatorTests
+  method: testSimpleSmallInput
+  issue: https://github.com/elastic/elasticsearch/issues/136945
 
 # Examples:
 #

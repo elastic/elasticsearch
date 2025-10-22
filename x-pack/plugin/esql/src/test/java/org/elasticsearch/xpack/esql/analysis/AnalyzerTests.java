@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.AutoUpdateUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -51,7 +52,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -3050,19 +3050,22 @@ public class AnalyzerTests extends ESTestCase {
     public void testFromEnrichAndMatchColonUsage() {
         LogicalPlan plan = analyze("""
             from *:test
-            | EVAL x = to_string(languages)
-            | ENRICH _any:languages ON x
+            | EVAL y = to_string(languages)
+            | ENRICH _any:languages ON y
             | WHERE first_name: "Anna"
             """, "mapping-default.json");
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var match = as(filter.condition(), MatchOperator.class);
-        var enrich = as(filter.child(), Enrich.class);
-        assertEquals(enrich.mode(), Enrich.Mode.ANY);
-        assertEquals(enrich.policy().getMatchField(), "language_code");
-        var eval = as(enrich.child(), Eval.class);
-        var esRelation = as(eval.child(), EsRelation.class);
-        assertEquals(esRelation.indexPattern(), "test");
+
+        AutoUpdateUtils.isAutoUpdating = true;
+        AutoUpdateUtils.assertStr(
+            """
+                Limit[1000[INTEGER],false]
+                \\_Filter[:(first_name{f}#8,Anna[KEYWORD])]
+                  \\_Enrich[ANY,languages[KEYWORD],y{r}#4,{\"match\":{\"indices\":[],\"match_field\":\"language_code\",\"enrich_fields\":[\"language_nam
+                e\"]}},{=languages_idx},[language_name{r}#32]]
+                    \\_Eval[[TOSTRING(languages{f}#14) AS y#4]]
+                      \\_EsRelation[test][avg_worked_seconds{f}#23, birth_date{f}#11, emp_no{..]""",
+            plan.toString()
+        );
     }
 
     public void testFunctionNamedParamsAsFunctionArgument() {

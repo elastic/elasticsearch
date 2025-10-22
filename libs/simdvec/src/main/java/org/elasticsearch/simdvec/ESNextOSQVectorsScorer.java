@@ -132,6 +132,15 @@ public class ESNextOSQVectorsScorer {
             }
             throw new IllegalArgumentException("Only asymmetric 4-bit query supported");
         }
+        if (indexBits == 2) {
+            if (queryBits == 4) {
+                for (int i = 0; i < count; i++) {
+                    scores[i] = quantizeScore(q);
+                }
+                return;
+            }
+            throw new IllegalArgumentException("Only asymmetric 4-bit query supported");
+        }
     }
 
     /**
@@ -152,9 +161,9 @@ public class ESNextOSQVectorsScorer {
     ) {
         float ax = lowerInterval;
         // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-        float lx = (upperInterval - ax) * BIT_SCALES[indexBits];
+        float lx = (upperInterval - ax) * BIT_SCALES[indexBits - 1];
         float ay = queryLowerInterval;
-        float ly = (queryUpperInterval - ay) * BIT_SCALES[queryBits];
+        float ly = (queryUpperInterval - ay) * BIT_SCALES[queryBits - 1];
         float y1 = queryComponentSum;
         float score = ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
         // For euclidean, we need to invert the score and apply the additional correction, which is

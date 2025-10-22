@@ -93,11 +93,20 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             public int discretizedDimensions(int dimensions) {
                 int queryDiscretized = (dimensions * 4 + 7) / 8 * 8 / 4;
                 // we want to force dibit packing to byte boundaries assuming single bit striping
-                int docDiscretized = ((dimensions + 7) / 8 * 8) * 2;
+                // so we discretize to the same as single bit encoding
+                int docDiscretized = (dimensions + 7) / 8 * 8;
                 int maxDiscretized = Math.max(queryDiscretized, docDiscretized);
                 assert maxDiscretized % (8.0 / 4) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
                 assert maxDiscretized % (8.0 / 2) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
                 return maxDiscretized;
+            }
+
+            @Override
+            public int getDocPackedLength(int dimensions) {
+                // discretized to single bit encoding, but we assume dibit packing (2 bits per value)
+                // so we need twice as many bytes as single bit encoding
+                int discretized = discretizedDimensions(dimensions);
+                return 2 * ((discretized + 7) / 8);
             }
         };
 

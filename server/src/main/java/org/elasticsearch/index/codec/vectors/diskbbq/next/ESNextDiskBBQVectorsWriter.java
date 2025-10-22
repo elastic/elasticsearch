@@ -715,7 +715,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         private final float[] corrections = new float[3];
 
         private final int vectorByteSize;
-        private short bitSum;
+        private int bitSum;
         private int currOrd = -1;
         private int count;
         private IntToBooleanFunction isOverspill = null;
@@ -768,7 +768,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             quantizedVectorsInput.seek(offset);
             quantizedVectorsInput.readBytes(binaryScratch, 0, binaryScratch.length);
             quantizedVectorsInput.readFloats(corrections, 0, 3);
-            bitSum = quantizedVectorsInput.readShort();
+            bitSum = Short.toUnsignedInt(quantizedVectorsInput.readShort());
         }
     }
 }

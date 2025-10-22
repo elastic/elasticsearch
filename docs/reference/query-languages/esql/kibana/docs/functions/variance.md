@@ -4,5 +4,6 @@
 The population variance of a numeric field.
 
 ```esql
-null
+FROM employees
+| STATS std_var_height = STD_VAR(height)
 ```

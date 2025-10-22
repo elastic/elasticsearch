@@ -3,7 +3,12 @@
 **Example**
 
 ```esql
-null
+FROM employees
+| STATS std_var_height = STD_VAR(height)
 ```
+
+| std_var_height:double |
+| --- |
+| 0.0425888 |
 
 

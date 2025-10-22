@@ -241,6 +241,10 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
+        if (diversificationContext == null) {
+            throw new IllegalStateException("diversificationContext is not set. \"doRewrite\" should have been called beforehand.");
+        }
+
         if (rankResults.isEmpty()) {
             return new RankDoc[0];
         }
@@ -250,8 +254,8 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         }
 
         ScoreDoc[] scoreDocs = rankResults.getFirst();
-        if (scoreDocs == null || scoreDocs.length == 0 || diversificationContext == null) {
-            // might happen in the case where we have no results or the context is not set
+        if (scoreDocs == null || scoreDocs.length == 0) {
+            // might happen in the case where we have no results
             return new RankDoc[0];
         }
 

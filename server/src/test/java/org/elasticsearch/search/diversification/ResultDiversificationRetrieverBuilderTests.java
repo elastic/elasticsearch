@@ -179,6 +179,12 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
             0.3f
         );
 
+        IllegalStateException missingRewriteEx = assertThrows(
+            IllegalStateException.class,
+            () -> retrieverWithoutRewrite.combineInnerRetrieverResults(List.of(), false)
+        );
+        assertEquals("diversificationContext is not set. \"doRewrite\" should have been called beforehand.", missingRewriteEx.getMessage());
+
         retrieverWithoutRewrite.doRewrite(queryRewriteContext);
 
         var emptyDocs = retrieverWithoutRewrite.combineInnerRetrieverResults(List.of(), false);

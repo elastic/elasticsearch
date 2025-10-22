@@ -96,7 +96,12 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
 
     @Override
     protected void doExecute(Task task, UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> listener) {
-        beforeDispatchingRequestToUnpromotableShards(request, listener.delegateFailure((l, unused) -> super.doExecute(task, request, l)));
+        beforeDispatchingRequestToUnpromotableShards(request, listener.delegateFailure((l, unused) -> {
+            if (logger.isTraceEnabled()) {
+                logger.trace("dispatching refresh request for unpromotable shard {}", request.shardId());
+            }
+            super.doExecute(task, request, l);
+        }));
     }
 
     private void beforeDispatchingRequestToUnpromotableShards(UnpromotableShardRefreshRequest request, ActionListener<Void> listener) {
@@ -152,7 +157,7 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         final var shard = indexService == null ? null : indexService.getShardOrNull(request.shardId().id());
         if (shard == null) {
             if (logger.isTraceEnabled()) {
-                logger.trace("unpromotable shard {} is null, responding OK to refresh request", request.shardId());
+                logger.trace("unpromotable shard {} not yet created, responding OK to refresh request", request.shardId());
             }
             responseListener.onResponse(ActionResponse.Empty.INSTANCE);
             return;

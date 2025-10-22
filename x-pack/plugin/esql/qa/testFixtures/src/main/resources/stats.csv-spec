@@ -3414,11 +3414,11 @@ required_capability: fix_stats_classcast_exception
 
 from airports 
 | rename scalerank AS x 
-| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x), d = count(*)
+| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x)
 ;
 
-a:long | b:long | c:long | d:long
-891    | 1782   | 8      | 891
+a:long | b:long | c:long
+891    | 1782   | 8
 ;
 
 fixClassCastBug2

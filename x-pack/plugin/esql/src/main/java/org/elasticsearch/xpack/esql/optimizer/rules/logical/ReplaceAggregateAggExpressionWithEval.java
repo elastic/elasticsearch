@@ -109,12 +109,11 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                 else {
                     changed.set(true);
                     Expression aggExpression = child.transformUp(AggregateFunction.class, af -> {
-                        // canonical representation, with resolved aliases
-                        AggregateFunction canonical = (AggregateFunction) af.canonical().transformUp(e -> aliases.resolve(e, e));
+                        AggregateFunction canonical = (AggregateFunction) af.canonical();
                         Alias alias = rootAggs.get(canonical);
                         if (alias == null) {
                             // create synthetic alias ove the found agg function
-                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), af, null, true);
+                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), canonical, null, true);
                             // and remember it to remove duplicates
                             rootAggs.put(canonical, alias);
                             // add it to the list of aggregates and continue

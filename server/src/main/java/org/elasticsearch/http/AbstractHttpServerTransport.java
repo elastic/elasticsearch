@@ -654,6 +654,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return threadPool;
     }
 
+    public Tracer getTracer() {
+        return tracer;
+    }
+
     /**
      * A {@link HttpChannel} that tracks the number of in-flight requests via a {@link RefCounted}, allowing the channel to be put into a
      * state where it will close when idle.

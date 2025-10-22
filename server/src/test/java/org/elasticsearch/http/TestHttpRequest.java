@@ -9,6 +9,8 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
@@ -123,5 +125,10 @@ public class TestHttpRequest implements HttpRequest {
     @Override
     public Exception getInboundException() {
         return null;
+    }
+
+    @Override
+    public String getSpanId() {
+        return UUIDs.randomBase64UUID(Randomness.get());
     }
 }

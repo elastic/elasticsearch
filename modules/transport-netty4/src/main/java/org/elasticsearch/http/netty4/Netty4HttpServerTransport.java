@@ -378,7 +378,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         "header_validator",
                         HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
                             httpValidator,
-                            transport.getThreadPool().getThreadContext()
+                            transport.getThreadPool().getThreadContext(),
+                            transport.getTracer()
                         )
                     );
             }

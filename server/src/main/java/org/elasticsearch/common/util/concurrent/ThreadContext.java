@@ -286,6 +286,27 @@ public final class ThreadContext implements Writeable, TraceContext {
         return storedOriginalContext(context);
     }
 
+    public StoredContext clearTraceContextKeepParent() {
+        final ThreadContextStruct context = threadLocal.get();
+        final Map<String, String> newRequestHeaders = new HashMap<>(context.requestHeaders);
+        final Map<String, Object> newTransientHeaders = new HashMap<>(context.transientHeaders);
+
+        newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
+        newRequestHeaders.remove(Task.TRACE_STATE);
+        newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
+
+        threadLocal.set(
+            new ThreadContextStruct(
+                newRequestHeaders,
+                context.responseHeaders,
+                newTransientHeaders,
+                context.isSystemContext,
+                context.warningHeadersSize
+            )
+        );
+        return storedOriginalContext(context);
+    }
+
     private StoredContext storedOriginalContext(ThreadContextStruct originalContext) {
         return () -> threadLocal.set(originalContext);
     }

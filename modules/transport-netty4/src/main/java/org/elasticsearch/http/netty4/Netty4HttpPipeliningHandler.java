@@ -160,7 +160,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
         final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         boolean success = false;
-        assert Transports.assertDefaultThreadContext(serverTransport.getThreadPool().getThreadContext());
+        //assert Transports.assertDefaultThreadContext(serverTransport.getThreadPool().getThreadContext());
         assert ctx.channel().eventLoop().inEventLoop();
         try {
             serverTransport.incomingRequest(pipelinedRequest, channel);

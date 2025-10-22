@@ -34,15 +34,6 @@ import java.util.Map;
 public interface Tracer {
 
     /**
-     * A given TraceContext may contain headers relating to a span. Such a span may or may not still be active.
-     * This method provides a way to look up this span and determine whether it is still active or ended.
-     * This method can be useful to determine when TraceContext needs to be cleaned up; this becomes necessary since
-     * we are stashing some trace state within TraceContext, while the rest is managed by the OTel library.
-     *
-     */
-    boolean hasActiveTrace(TraceContext traceContext);
-
-    /**
      * Called when a span starts.
      * @param traceContext the current context. Required for tracing parent/child span activity.
      * @param traceable provides a unique identifier for the activity, and will not be sent to the tracing system. Add the ID
@@ -63,11 +54,6 @@ public interface Tracer {
      * @param traceable provides an identifier for the span
      */
     void stopTrace(Traceable traceable);
-
-    /**
-     * Ends a span and also clears the tracing state present within traceContext
-     */
-    void stopTrace(TraceContext traceContext, Traceable traceable);
 
     /**
      * Called when a span ends. This version of the method relies on context to select the span to stop.
@@ -161,11 +147,6 @@ public interface Tracer {
     Tracer NOOP = new Tracer() {
 
         @Override
-        public boolean hasActiveTrace(TraceContext traceContext) {
-            return false;
-        }
-
-        @Override
         public void startTrace(TraceContext traceContext, Traceable traceable, String name, Map<String, Object> attributes) {}
 
         @Override
@@ -173,11 +154,6 @@ public interface Tracer {
 
         @Override
         public void stopTrace(Traceable traceable) {}
-
-        @Override
-        public void stopTrace(TraceContext traceContext, Traceable traceable) {
-
-        }
 
         @Override
         public void stopTrace() {}

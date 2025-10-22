@@ -91,11 +91,12 @@ public class DefaultRestChannel extends AbstractRestChannel {
         // We're sending a response so we know we won't be needing the request content again and release it
         httpRequest.release();
 
-        final ArrayList<Releasable> toClose = new ArrayList<>(4);
+        final ArrayList<Releasable> toClose = new ArrayList<>(5);
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
         toClose.add(() -> tracer.stopTrace(request));
+        toClose.add(() -> tracer.stopTrace(httpRequest));
         toClose.add(restResponse);
 
         boolean success = false;

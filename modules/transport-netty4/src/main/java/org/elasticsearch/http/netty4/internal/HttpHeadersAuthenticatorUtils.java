@@ -9,6 +9,7 @@
 
 package org.elasticsearch.http.netty4.internal;
 
+import io.netty.channel.ChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpRequest;
@@ -20,6 +21,7 @@ import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.List;
 import java.util.Map;
@@ -37,11 +39,12 @@ public final class HttpHeadersAuthenticatorUtils {
     private HttpHeadersAuthenticatorUtils() {}
 
     /**
-     * Supplies a netty {@code ChannelInboundHandler} that runs the provided {@param validator} on the HTTP request headers.
+     * Supplies a netty {@link ChannelInboundHandler} that runs the provided {@param validator} on the HTTP request headers.
      * The HTTP headers of the to-be-authenticated {@link HttpRequest} must be wrapped by the special
      * {@link HttpHeadersWithAuthenticationContext}, see {@link #wrapAsMessageWithAuthenticationContext(HttpMessage)}.
      */
-    public static Netty4HttpHeaderValidator getValidatorInboundHandler(HttpValidator validator, ThreadContext threadContext) {
+    public static Netty4HttpHeaderValidator getValidatorInboundHandler(HttpValidator validator, ThreadContext threadContext,
+                                                                       Tracer tracer) {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
             // make sure authentication only runs on properly wrapped "authenticable" headers implementation
             if (httpRequest.headers() instanceof HttpHeadersWithAuthenticationContext httpHeadersWithAuthenticationContext) {
@@ -55,13 +58,13 @@ public final class HttpHeadersAuthenticatorUtils {
                 // cannot authenticate the request because it's not wrapped correctly, see {@link #wrapAsMessageWithAuthenticationContext}
                 listener.onFailure(new HttpHeadersValidationException(new IllegalStateException("Cannot authenticate unwrapped requests")));
             }
-        }, threadContext);
+        }, threadContext, tracer);
     }
 
     /**
      * Given a {@link DefaultHttpRequest} argument, this returns a new {@link DefaultHttpRequest} instance that's identical to the
      * passed-in one, but the headers of the latter can be authenticated, in the sense that the channel handlers returned by
-     * {@link #getValidatorInboundHandler(HttpValidator, ThreadContext)} can use this to convey the authentication result context.
+     * {@link #getValidatorInboundHandler(HttpValidator, ThreadContext, Tracer)} can use this to convey the authentication result context.
      */
     public static HttpMessage wrapAsMessageWithAuthenticationContext(HttpMessage newlyDecodedMessage) {
         assert newlyDecodedMessage instanceof HttpRequest;

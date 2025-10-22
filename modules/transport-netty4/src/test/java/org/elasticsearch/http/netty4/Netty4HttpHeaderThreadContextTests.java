@@ -24,6 +24,7 @@ import io.netty.handler.flow.FlowControlHandler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -71,7 +72,8 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
             .addLast(
                 new Netty4HttpHeaderValidator(
                     getValidator(EsExecutors.DIRECT_EXECUTOR_SERVICE, isValidationSuccessful, null),
-                    threadPool.getThreadContext()
+                    threadPool.getThreadContext(),
+                    Tracer.NOOP
                 )
             );
         channel.pipeline().addLast(defaultContextAssertingChannelHandler(threadPool.getThreadContext()));
@@ -91,7 +93,8 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
             .addLast(
                 new Netty4HttpHeaderValidator(
                     getValidator(EsExecutors.DIRECT_EXECUTOR_SERVICE, isValidationSuccessful, null),
-                    threadPool.getThreadContext()
+                    threadPool.getThreadContext(),
+                    Tracer.NOOP
                 )
             );
         channel.pipeline().addLast(defaultContextAssertingChannelHandler(threadPool.getThreadContext()));
@@ -113,7 +116,8 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
                 new Netty4HttpHeaderValidator(
                     // use a different executor/thread for the validator
                     getValidator(threadPool.executor(ThreadPool.Names.MANAGEMENT), isValidationSuccessful, validationDone),
-                    threadPool.getThreadContext()
+                    threadPool.getThreadContext(),
+                    Tracer.NOOP
                 )
             );
         channel.pipeline().addLast(defaultContextAssertingChannelHandler(threadPool.getThreadContext()));
@@ -135,7 +139,8 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
                 new Netty4HttpHeaderValidator(
                     // use a different executor/thread for the validator
                     getValidator(threadPool.executor(ThreadPool.Names.MANAGEMENT), isValidationSuccessful, validationDone),
-                    threadPool.getThreadContext()
+                    threadPool.getThreadContext(),
+                    Tracer.NOOP
                 )
             );
         channel.pipeline().addLast(defaultContextAssertingChannelHandler(threadPool.getThreadContext()));

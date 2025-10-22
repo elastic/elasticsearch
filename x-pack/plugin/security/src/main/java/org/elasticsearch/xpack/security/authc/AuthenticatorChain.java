@@ -192,9 +192,13 @@ class AuthenticatorChain {
                 listener.onResponse(result);
             }, onFailure);
 
+            ThreadContext.StoredContext storedContext = context.getThreadContext().newTraceContext();
             ActionListener<AuthenticationResult<Authentication>> afterAuthResultListener = ActionListener.runAfter(
                 authResultListener,
-                () -> tracer.stopTrace(context.getThreadContext(), context)
+                () -> {
+                    tracer.stopTrace(context);
+                    storedContext.close();
+                }
             );
             tracer.startTrace(context.getThreadContext(), context, "authenticate", addUsefulMetadata(authenticator));
             authenticator.authenticate(context, afterAuthResultListener);

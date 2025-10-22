@@ -2297,14 +2297,11 @@ public class Security extends Plugin
                 if (authenticationThreadContext != null) {
                     authenticationThreadContext.restore();
 
-                    // We can rely on the fact that by this point, the "authenticate" trace has been ended by a stopTrace(ctx, traceable)
-                    // invocation. However, let's still double-check, it would be improper to clear an ongoing trace.
-                    if (threadContext.hasTraceContext() && telemetryProvider.getTracer().hasActiveTrace(threadContext) == false) {
-                        // the "authenticate" trace is done, but restored auth context contains stale metadata relating to this trace.
-                        // this needs to be cleaned up before dispatching the request, since the followup HTTP trace needs to start with
-                        // a fresh context.
-                        threadContext.clearTraceContext();
-                    }
+                    // We can rely on the fact that by this point, the "authenticate" trace has been ended.
+                    // the restore has brought back some headers related to the "authenticate" trace that we don't want,
+                    // however we do want to still keep the parent going. so we need to remove some trace headers but not others, which
+                    // uses this new method, clearTraceContextKeepParent
+                    threadContext.clearTraceContextKeepParent();
                 } else {
                     // this is an unexpected internal error condition where {@code Netty4HttpHeaderValidator} does not work correctly
                     throw new ElasticsearchSecurityException("Request is not authenticated");

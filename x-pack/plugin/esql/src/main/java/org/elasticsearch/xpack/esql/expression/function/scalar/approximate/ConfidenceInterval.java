@@ -18,9 +18,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.approximate.Approximate;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -32,9 +30,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -44,7 +42,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
 /**
  * This function is used internally by {@link Approximate}, and is not exposed
@@ -68,8 +65,8 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     @FunctionInfo(returnType = { "double", }, description = "...")
     public ConfidenceInterval(
         Source source,
-        @Param(name = "bestEstimate", type = { "double", "integer", "long" }) Expression bestEstimate,
-        @Param(name = "estimates", type = { "double", "integer", "long" }) Expression estimates,
+        @Param(name = "bestEstimate", type = { "double" }) Expression bestEstimate,
+        @Param(name = "estimates", type = { "double" }) Expression estimates,
         @Param(name = "trialCount", type = { "integer" }) Expression trialCount,
         @Param(name = "bucketCount", type = { "integer" }) Expression bucketCount,
         @Param(name = "confidenceLevel", type = { "double" }) Expression confidenceLevel
@@ -110,8 +107,8 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(bestEstimate, t -> t.isNumeric() && isRepresentable(t), sourceText(), FIRST, "numeric").and(
-            isType(estimates, t -> t.isNumeric() && isRepresentable(t), sourceText(), SECOND, "numeric")
+        return isType(bestEstimate, t -> t == DataType.DOUBLE, sourceText(), FIRST, "double").and(
+            isType(estimates, t -> t == DataType.DOUBLE, sourceText(), SECOND, "double")
         )
             .and(isType(trialCount, t -> t == DataType.INTEGER, sourceText(), THIRD, "integer"))
             .and(isType(bucketCount, t -> t == DataType.INTEGER, sourceText(), FOURTH, "integer"))
@@ -129,33 +126,14 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return switch (PlannerUtils.toElementType(bestEstimate.dataType())) {
-            case DOUBLE -> new ConfidenceIntervalDoubleEvaluator.Factory(
-                source(),
-                toEvaluator.apply(bestEstimate),
-                toEvaluator.apply(estimates),
-                toEvaluator.apply(trialCount),
-                toEvaluator.apply(bucketCount),
-                toEvaluator.apply(confidenceLevel)
-            );
-            case INT -> new ConfidenceIntervalIntEvaluator.Factory(
-                source(),
-                toEvaluator.apply(bestEstimate),
-                toEvaluator.apply(estimates),
-                toEvaluator.apply(trialCount),
-                toEvaluator.apply(bucketCount),
-                toEvaluator.apply(confidenceLevel)
-            );
-            case LONG -> new ConfidenceIntervalLongEvaluator.Factory(
-                source(),
-                toEvaluator.apply(bestEstimate),
-                toEvaluator.apply(estimates),
-                toEvaluator.apply(trialCount),
-                toEvaluator.apply(bucketCount),
-                toEvaluator.apply(confidenceLevel)
-            );
-            default -> throw EsqlIllegalArgumentException.illegalDataType(bestEstimate.dataType());
-        };
+        return new ConfidenceIntervalEvaluator.Factory(
+            source(),
+            toEvaluator.apply(bestEstimate),
+            toEvaluator.apply(estimates),
+            toEvaluator.apply(trialCount),
+            toEvaluator.apply(bucketCount),
+            toEvaluator.apply(confidenceLevel)
+        );
     }
 
     @Override
@@ -177,7 +155,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return bestEstimate.dataType();
+        return DataType.DOUBLE;
     }
 
     @Override
@@ -198,7 +176,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
             && Objects.equals(other.confidenceLevel, confidenceLevel);
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator
     static void process(
         DoubleBlock.Builder builder,
         @Position int position,
@@ -224,77 +202,15 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
         double confidenceLevel = confidenceLevelBlock.getDouble(confidenceLevelBlock.getFirstValueIndex(position));
         double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel);
-        builder.beginPositionEntry();
-        for (double v : confidenceInterval) {
-            builder.appendDouble(v);
-        }
-        builder.endPositionEntry();
-    }
-
-    @Evaluator(extraName = "Int")
-    static void process(
-        IntBlock.Builder builder,
-        @Position int position,
-        IntBlock bestEstimateBlock,
-        IntBlock estimatesBlock,
-        IntBlock trialCountBlock,
-        IntBlock bucketCountBlock,
-        DoubleBlock confidenceLevelBlock
-    ) {
-        if (bestEstimateBlock.getValueCount(position) != 1
-            || trialCountBlock.getValueCount(position) != 1
-            || bucketCountBlock.getValueCount(position) != 1
-            || confidenceLevelBlock.getValueCount(position) != 1) {
+        if (confidenceInterval == null) {
             builder.appendNull();
-            return;
+        } else {
+            builder.beginPositionEntry();
+            for (double v : confidenceInterval) {
+                builder.appendDouble(v);
+            }
+            builder.endPositionEntry();
         }
-        double bestEstimate = bestEstimateBlock.getInt(bestEstimateBlock.getFirstValueIndex(position));
-        double[] estimates = new double[estimatesBlock.getValueCount(position)];
-        for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
-            estimates[i] = estimatesBlock.getInt(estimatesBlock.getFirstValueIndex(position) + i);
-        }
-        int trialCount = trialCountBlock.getInt(trialCountBlock.getFirstValueIndex(position));
-        int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
-        double confidenceLevel = confidenceLevelBlock.getDouble(confidenceLevelBlock.getFirstValueIndex(position));
-        double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel);
-        builder.beginPositionEntry();
-        for (double v : confidenceInterval) {
-            builder.appendInt((int) Math.round(v));
-        }
-        builder.endPositionEntry();
-    }
-
-    @Evaluator(extraName = "Long")
-    static void process(
-        LongBlock.Builder builder,
-        @Position int position,
-        LongBlock bestEstimateBlock,
-        LongBlock estimatesBlock,
-        IntBlock trialCountBlock,
-        IntBlock bucketCountBlock,
-        DoubleBlock confidenceLevelBlock
-    ) {
-        if (bestEstimateBlock.getValueCount(position) != 1
-            || trialCountBlock.getValueCount(position) != 1
-            || bucketCountBlock.getValueCount(position) != 1
-            || confidenceLevelBlock.getValueCount(position) != 1) {
-            builder.appendNull();
-            return;
-        }
-        double bestEstimate = bestEstimateBlock.getLong(bestEstimateBlock.getFirstValueIndex(position));
-        double[] estimates = new double[estimatesBlock.getValueCount(position)];
-        for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
-            estimates[i] = estimatesBlock.getLong(estimatesBlock.getFirstValueIndex(position) + i);
-        }
-        int trialCount = trialCountBlock.getInt(trialCountBlock.getFirstValueIndex(position));
-        int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
-        double confidenceLevel = confidenceLevelBlock.getDouble(confidenceLevelBlock.getFirstValueIndex(position));
-        double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel);
-        builder.beginPositionEntry();
-        for (double v : confidenceInterval) {
-            builder.appendLong(Math.round(v));
-        }
-        builder.endPositionEntry();
     }
 
     public static double[] computeConfidenceInterval(
@@ -304,6 +220,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         int bucketCount,
         double confidenceLevel
     ) {
+        System.out.println("@computeConfidenceInterval: " + Arrays.toString(estimates));
         Mean means = new Mean();
         Mean stddevs = new Mean();
         Mean skews = new Mean();
@@ -313,13 +230,21 @@ public class ConfidenceInterval extends EsqlScalarFunction {
             Skewness skew = new Skewness();
             for (int bucket = 0; bucket < bucketCount; bucket++) {
                 double estimate = estimates[trial * bucketCount + bucket];
+                if (Double.isNaN(estimate)) {
+                    continue;
+                }
                 mean.increment(estimate);
                 stdDev.increment(estimate);
                 skew.increment(estimate);
             }
-            means.increment(mean.getResult());
-            stddevs.increment(stdDev.getResult());
-            skews.increment(skew.getResult());
+            if (skew.getN() >= 3) {
+                means.increment(mean.getResult());
+                stddevs.increment(stdDev.getResult());
+                skews.increment(skew.getResult());
+            }
+        }
+        if (means.getN() == 0) {
+            return null;
         }
         double sm = stddevs.getResult();
         if (sm == 0.0) {

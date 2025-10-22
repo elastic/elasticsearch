@@ -14,8 +14,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.BulkKeywordQueryList;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -62,6 +64,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private final SearchExecutionContext context;
     private final AliasFilter aliasFilter;
     private final LucenePushdownPredicates lucenePushdownPredicates;
+    private BulkKeywordQueryList bulkKeywordQueryList = null;
 
     private ExpressionQueryList(
         List<QueryList> queryLists,
@@ -139,6 +142,11 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         return expressionQueryList;
     }
 
+    @Override
+    public BulkKeywordQueryList getBulkQueryList() {
+        return bulkKeywordQueryList;
+    };
+
     private void buildJoinOnForExpressionJoin(
         Expression joinOnConditions,
         List<MatchConfig> matchFields,
@@ -147,6 +155,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         Warnings warnings
     ) {
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
+        if (applyAsFastKeywordFilter(expressions, matchFields, inputPage, clusterService, warnings)) {
+            // we managed to apply the whole condition as a fast keyword filter
+            return;
+        }
         for (Expression expr : expressions) {
             boolean applied = applyAsLeftRightBinaryComparison(expr, matchFields, inputPage, clusterService, warnings);
             if (applied == false) {
@@ -156,6 +168,55 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 throw new IllegalArgumentException("Cannot apply join condition: " + expr);
             }
         }
+    }
+
+    private boolean applyAsFastKeywordFilter(
+        List<Expression> expressions,
+        List<MatchConfig> matchFields,
+        Page inputPage,
+        ClusterService clusterService,
+        Warnings warnings
+    ) {
+        if (expressions.size() == 1) {
+            Expression expr = expressions.get(0);
+            if (expr instanceof EsqlBinaryComparison binaryComparison
+                && binaryComparison.left() instanceof Attribute leftAttribute
+                && binaryComparison.right() instanceof Attribute rightAttribute) {
+                // the left side comes from the page that was sent to the lookup node
+                // the right side is the field from the lookup index
+                // check if the left side is in the matchFields
+                // if it is its corresponding page is the corresponding number in inputPage
+                Block block = null;
+                DataType dataType = null;
+                for (int i = 0; i < matchFields.size(); i++) {
+                    if (matchFields.get(i).fieldName().equals(leftAttribute.name())) {
+                        block = inputPage.getBlock(i);
+                        dataType = matchFields.get(i).type();
+                        break;
+                    }
+                }
+                MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
+                if (rightFieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
+                    return false;
+                }
+                if (block != null && rightFieldType != null && dataType != null) {
+                    // special handle Equals operator on keyword fields
+                    // we can apply as a BulkKeywordQueryList for better performance
+                    if (binaryComparison instanceof Equals equals) {
+                        bulkKeywordQueryList = new BulkKeywordQueryList(
+                            rightFieldType,
+                            context,
+                            block,
+                            clusterService,
+                            aliasFilter,
+                            warnings
+                        );
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private boolean applyAsRightSidePushableFilter(Expression filter) {
@@ -295,6 +356,9 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     @Override
     public int getPositionCount() {
+        if (bulkKeywordQueryList != null) {
+            return bulkKeywordQueryList.getPositionCount();
+        }
         int positionCount = queryLists.get(0).getPositionCount();
         for (QueryList queryList : queryLists) {
             if (queryList.getPositionCount() != positionCount) {

@@ -27,4 +27,11 @@ public interface LookupEnrichQueryGenerator {
      */
     int getPositionCount();
 
+    /**
+     * Returns a BulkKeywordQueryList if applicable, null otherwise.
+     */
+    default BulkKeywordQueryList getBulkQueryList() {
+        return null;
+    };
+
 }

@@ -88,6 +88,9 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             if (indexReader.leaves().size() > 1) {
                 segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             }
+            if (queryList.getBulkQueryList() != null) {
+                return processBulkQueries(positionsBuilder, segmentsBuilder, docsBuilder);
+            }
             int totalMatches = 0;
             do {
                 Query query;
@@ -133,6 +136,18 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         } finally {
             Releasables.close(docsBuilder, segmentsBuilder, positionsBuilder);
         }
+    }
+
+    private Page processBulkQueries(IntVector.Builder positionsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder docsBuilder) {
+        queryPosition++;
+        BulkKeywordQueryList bulkQueryList = queryList.getBulkQueryList();
+        int totalMatches = 0;
+        while (queryPosition < queryList.getPositionCount() && totalMatches < maxPageSize) {
+            int matches = bulkQueryList.processQuery(queryPosition, indexReader, docsBuilder, segmentsBuilder, positionsBuilder);
+            totalMatches += matches;
+            queryPosition++;
+        }
+        return buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
     }
 
     Page buildPage(int positions, IntVector.Builder positionsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder docsBuilder) {

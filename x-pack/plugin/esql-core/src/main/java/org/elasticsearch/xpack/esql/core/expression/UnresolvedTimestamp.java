@@ -60,14 +60,12 @@ public class UnresolvedTimestamp extends UnresolvedAttribute {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), errorMessage);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), errorMessage);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
-        var other = (UnresolvedTimestamp) o;
-        return super.innerEquals(other) && Objects.equals(errorMessage, other.errorMessage);
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
+        return super.innerEquals(o, ignoreIds) && Objects.equals(errorMessage, ((UnresolvedTimestamp) o).errorMessage);
     }
 }

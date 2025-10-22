@@ -71,7 +71,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests.enrichResolution;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -99,7 +98,7 @@ public class VerifierTests extends ESTestCase {
                 new EsqlFunctionRegistry(),
                 getIndexResult,
                 defaultLookupResolution(),
-                enrichResolution,
+                new EnrichResolution(),
                 emptyInferenceResolution()
             ),
             TEST_VERIFIER

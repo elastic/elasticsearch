@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -56,50 +57,48 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedDataWithDefaultChecks(
             true,
             List.of(new TestCaseSupplier("Chunk basic test", List.of(DataType.KEYWORD, DataType.INTEGER, DataType.INTEGER), () -> {
-                    String text = randomWordsBetween(25, 50);
-                    int numChunks = between(1, 5);
-                    int chunkSize = between(10, 20);
-                    ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
+                String text = randomWordsBetween(25, 50);
+                int numChunks = between(1, 5);
+                int chunkSize = between(10, 20);
+                ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
 
-                    List<String> chunks = Chunk.chunkText(text, chunkingSettings, numChunks);
-                    Object expectedResult = chunks.size() == 1
-                        ? new BytesRef(chunks.get(0).trim())
-                        : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
+                List<String> chunks = Chunk.chunkText(text, chunkingSettings, numChunks);
+                Object expectedResult = chunks.size() == 1
+                    ? new BytesRef(chunks.get(0).trim())
+                    : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
 
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
-                            new TestCaseSupplier.TypedData(numChunks, DataType.INTEGER, "num_chunks"),
-                            new TestCaseSupplier.TypedData(chunkSize, DataType.INTEGER, "chunk_size")
-                        ),
-                        "ChunkBytesRefEvaluator[str=Attribute[channel=0], numChunks=Attribute[channel=1], chunkSize=Attribute[channel=2]]",
-                        DataType.KEYWORD,
-                        equalTo(expectedResult)
-                    );
-                }),
-                new TestCaseSupplier("Chunk basic test with text input", List.of(DataType.TEXT, DataType.INTEGER, DataType.INTEGER), () -> {
-                    String text = randomWordsBetween(25, 50);
-                    int numChunks = between(1, 5);
-                    int chunkSize = between(10, 20);
-                    ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                        new TestCaseSupplier.TypedData(numChunks, DataType.INTEGER, "num_chunks"),
+                        new TestCaseSupplier.TypedData(chunkSize, DataType.INTEGER, "chunk_size")
+                    ),
+                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], numChunks=Attribute[channel=1], chunkSize=Attribute[channel=2]]",
+                    DataType.KEYWORD,
+                    equalTo(expectedResult)
+                );
+            }), new TestCaseSupplier("Chunk basic test with text input", List.of(DataType.TEXT, DataType.INTEGER, DataType.INTEGER), () -> {
+                String text = randomWordsBetween(25, 50);
+                int numChunks = between(1, 5);
+                int chunkSize = between(10, 20);
+                ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
 
-                    List<String> chunks = Chunk.chunkText(text, chunkingSettings, numChunks);
-                    Object expectedResult = chunks.size() == 1
-                        ? new BytesRef(chunks.get(0).trim())
-                        : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
+                List<String> chunks = Chunk.chunkText(text, chunkingSettings, numChunks);
+                Object expectedResult = chunks.size() == 1
+                    ? new BytesRef(chunks.get(0).trim())
+                    : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
 
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef(text), DataType.TEXT, "str"),
-                            new TestCaseSupplier.TypedData(numChunks, DataType.INTEGER, "num_chunks"),
-                            new TestCaseSupplier.TypedData(chunkSize, DataType.INTEGER, "chunk_size")
-                        ),
-                        "ChunkBytesRefEvaluator[str=Attribute[channel=0], numChunks=Attribute[channel=1], chunkSize=Attribute[channel=2]]",
-                        DataType.KEYWORD,
-                        equalTo(expectedResult)
-                    );
-                })
-            )
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(text), DataType.TEXT, "str"),
+                        new TestCaseSupplier.TypedData(numChunks, DataType.INTEGER, "num_chunks"),
+                        new TestCaseSupplier.TypedData(chunkSize, DataType.INTEGER, "chunk_size")
+                    ),
+                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], numChunks=Attribute[channel=1], chunkSize=Attribute[channel=2]]",
+                    DataType.KEYWORD,
+                    equalTo(expectedResult)
+                );
+            }))
         );
     }
 
@@ -120,10 +119,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
 
     public void testDefaults() {
         ChunkingSettings settings = new SentenceBoundaryChunkingSettings(Chunk.DEFAULT_CHUNK_SIZE, 0);
-        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, settings, Chunk.DEFAULT_NUM_CHUNKS)
-            .stream()
-            .map(String::trim)
-            .toList();
+        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, settings, Chunk.DEFAULT_NUM_CHUNKS).stream().map(String::trim).toList();
 
         List<String> result = process(PARAGRAPH_INPUT, null, null);
         assertThat(result, equalTo(expected));
@@ -132,10 +128,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
     public void testDefaultNumChunks() {
         int chunkSize = randomIntBetween(20, 30);
         ChunkingSettings settings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
-        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, settings, Chunk.DEFAULT_NUM_CHUNKS)
-            .stream()
-            .map(String::trim)
-            .toList();
+        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, settings, Chunk.DEFAULT_NUM_CHUNKS).stream().map(String::trim).toList();
 
         List<String> result = process(PARAGRAPH_INPUT, null, chunkSize);
         assertThat(result, equalTo(expected));
@@ -144,10 +137,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
     public void testDefaultChunkSize() {
         int numChunks = randomIntBetween(1, 3);
         ChunkingSettings settings = new SentenceBoundaryChunkingSettings(Chunk.DEFAULT_CHUNK_SIZE, 0);
-        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, settings, numChunks)
-            .stream()
-            .map(String::trim)
-            .toList();
+        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, settings, numChunks).stream().map(String::trim).toList();
 
         List<String> result = process(PARAGRAPH_INPUT, numChunks, null);
         assertThat(result, equalTo(expected));

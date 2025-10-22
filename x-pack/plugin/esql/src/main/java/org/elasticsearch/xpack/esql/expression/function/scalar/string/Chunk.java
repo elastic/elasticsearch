@@ -47,18 +47,12 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
 
     private final Expression field, numChunks, chunkSize;
 
-    @FunctionInfo(
-        returnType = "keyword",
-        preview = true,
-        description = """
-            Use `CHUNK` to split a text field into smaller chunks.""",
-        detailedDescription = """
+    @FunctionInfo(returnType = "keyword", preview = true, description = """
+        Use `CHUNK` to split a text field into smaller chunks.""", detailedDescription = """
             Chunk can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
             Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
             The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
-        """,
-        examples = { @Example(file = "chunk", tag = "chunk-with-field", applies_to = "stack: preview 9.3.0") }
-    )
+        """, examples = { @Example(file = "chunk", tag = "chunk-with-field", applies_to = "stack: preview 9.3.0") })
     public Chunk(
         Source source,
         @Param(name = "field", type = { "keyword", "text" }, description = "The input to chunk.") Expression field,

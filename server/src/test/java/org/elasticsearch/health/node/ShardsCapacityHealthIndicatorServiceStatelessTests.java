@@ -94,7 +94,9 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
                     "index",
                     Map.of("max_shards_in_cluster", maxShardsPerNode),
                     "search",
-                    Map.of("max_shards_in_cluster", maxShardsPerNode)
+                    Map.of("max_shards_in_cluster", maxShardsPerNode),
+                    "settings",
+                    Map.of("health.shard_capacity.unhealthy_threshold.yellow", 10, "health.shard_capacity.unhealthy_threshold.red", 5)
                 )
             )
         );
@@ -165,7 +167,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         final ClusterState clusterState = createClusterState(
             nodesWithIndexAndSearch(numIndexNodes, numSearchNodes),
             maxShardsPerNode,
-            new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, 0)),
+            new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, 0, 10, 5)),
             indexMetadata
         );
         ClusterServiceUtils.setState(clusterService, clusterState);

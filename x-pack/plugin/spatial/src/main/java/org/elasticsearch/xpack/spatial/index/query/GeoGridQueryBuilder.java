@@ -27,6 +27,9 @@ import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -401,5 +404,14 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_3_0;
+    }
+
+    @Override
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+        }
+        return this;
     }
 }

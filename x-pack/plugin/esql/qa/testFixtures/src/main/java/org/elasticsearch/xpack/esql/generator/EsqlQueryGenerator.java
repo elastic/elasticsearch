@@ -133,9 +133,7 @@ public class EsqlQueryGenerator {
             if (executor.currentSchema().isEmpty()) {
                 break;
             }
-            commandGenerator = isTimeSeries && canGenerateTimeSeries
-                ? randomMetricsPipeCommandGenerator()
-                : randomPipeCommandGenerator();
+            commandGenerator = isTimeSeries && canGenerateTimeSeries ? randomMetricsPipeCommandGenerator() : randomPipeCommandGenerator();
             if (isTimeSeries) {
                 if (commandGenerator.equals(ForkGenerator.INSTANCE)) {
                     // don't fork with TS command until this is resolved: https://github.com/elastic/elasticsearch/issues/136927

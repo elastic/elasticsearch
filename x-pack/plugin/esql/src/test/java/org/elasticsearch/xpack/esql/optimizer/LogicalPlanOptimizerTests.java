@@ -163,10 +163,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.ignoreIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
@@ -211,6 +213,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
     public void testEvalWithScoreImplicitLimit() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = plan("""
             FROM test
             | EVAL s = SCORE(MATCH(last_name, "high"))
@@ -224,6 +228,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEvalWithScoreExplicitLimit() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = plan("""
             FROM test
             | EVAL s = SCORE(MATCH(last_name, "high"))
@@ -1269,7 +1275,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var eval = as(keep.child(), Eval.class);
         assertThat(
             eval.fields(),
-            contains(
+            containsIgnoringIds(
                 new Alias(
                     EMPTY,
                     "y",
@@ -1289,7 +1295,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var keep = as(plan, Project.class);
         var dissect = as(keep.child(), Dissect.class);
-        assertThat(dissect.extractedFields(), contains(referenceAttribute("y", DataType.KEYWORD)));
+        assertThat(dissect.extractedFields(), containsIgnoringIds(referenceAttribute("y", DataType.KEYWORD)));
     }
 
     public void testPushDownGrokPastProject() {
@@ -1302,7 +1308,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var keep = as(plan, Project.class);
         var grok = as(keep.child(), Grok.class);
-        assertThat(grok.extractedFields(), contains(referenceAttribute("y", DataType.KEYWORD)));
+        assertThat(grok.extractedFields(), containsIgnoringIds(referenceAttribute("y", DataType.KEYWORD)));
     }
 
     public void testPushDownFilterPastProjectUsingEval() {
@@ -2736,7 +2742,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(keep.child(), TopN.class);
         assertThat(
             topN.order(),
-            contains(
+            containsIgnoringIds(
                 new Order(
                     EMPTY,
                     new ReferenceAttribute(EMPTY, null, "e", INTEGER, Nullability.TRUE, null, false),
@@ -2779,7 +2785,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(project.child(), TopN.class);
         assertThat(
             topN.order(),
-            contains(
+            containsIgnoringIds(
                 new Order(
                     EMPTY,
                     new ReferenceAttribute(EMPTY, null, "e", INTEGER, Nullability.TRUE, null, false),
@@ -2821,7 +2827,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(keep.child(), TopN.class);
         assertThat(
             topN.order(),
-            contains(
+            containsIgnoringIds(
                 new Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
@@ -2844,7 +2850,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(project.child(), TopN.class);
         assertThat(
             topN.order(),
-            contains(
+            containsIgnoringIds(
                 new Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
@@ -6424,7 +6430,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var localRelation = as(limit.child(), LocalRelation.class);
         assertThat(
             localRelation.output(),
-            contains(
+            containsIgnoringIds(
                 new ReferenceAttribute(EMPTY, "salary", INTEGER),
                 new ReferenceAttribute(EMPTY, "emp_no", INTEGER),
                 new ReferenceAttribute(EMPTY, "gender", KEYWORD)
@@ -6717,7 +6723,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     private void assertSemanticMatching(String expected, String provided) {
         BinaryComparison bc = extractPlannedBinaryComparison(provided);
         LogicalPlan exp = analyzerTypes.analyze(parser.createStatement("FROM types | WHERE " + expected));
-        assertSemanticMatching(bc, extractPlannedBinaryComparison(exp));
+        // Exp is created separately, so the IDs will be different - ignore them for the comparison.
+        assertSemanticMatching((BinaryComparison) ignoreIds(bc), (EsqlBinaryComparison) ignoreIds(extractPlannedBinaryComparison(exp)));
     }
 
     private static void assertSemanticMatching(Expression fieldAttributeExp, Expression unresolvedAttributeExp) {

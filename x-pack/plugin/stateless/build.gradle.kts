@@ -95,6 +95,8 @@ tasks {
         systemProperty("es.test.stateless.hollow.enabled", "true")
         systemProperty("es.test.stateless.hollow.ds_non_write_ttl_ms", hollowTtlMs)
         systemProperty("es.test.stateless.hollow.ttl_ms", hollowTtlMs)
+        // https://github.com/elastic/elasticsearch-serverless/issues/4458
+        systemProperty("io.netty.leakDetection.targetRecords", 10)
 
         filter {
             // Following test needs unhollow shards as it force merges directly the shard without a client to unhollow

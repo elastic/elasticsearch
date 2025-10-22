@@ -131,7 +131,11 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var docIndex = results[1].getIndex();
         final var docId = results[1].getId();
 
-        enum Operation { FLUSH, REFRESH, NONE }
+        enum Operation {
+            FLUSH,
+            REFRESH,
+            NONE
+        }
         switch (randomFrom(Operation.values())) {
             case FLUSH:
                 flush(indexName);

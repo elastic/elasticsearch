@@ -209,7 +209,7 @@ class ValuesFromSingleReader extends ValuesReader {
      * @param reader reads the values
      * @param idx destination in array of {@linkplain Block}s we build
      */
-    private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int idx)
+    private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int idx)#
         implements
             Releasable {
         void read(int doc, BlockLoaderStoredFieldsFromLeafLoader storedFields) throws IOException {

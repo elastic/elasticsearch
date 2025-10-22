@@ -455,7 +455,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         );
     }
 
-    public void testCanHandleIndicesWithZeroUptime() {
+    public void testCanHandleIndicesWithMissingShardWriteLoadsOrZeroUptime() {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
         final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, maxIndexAge);

@@ -64,19 +64,23 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
         Sender sender,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        ElasticInferenceServiceComponents components,
+        ElasticInferenceServiceComponents eisComponents,
         ModelRegistry modelRegistry,
         Client client
     ) {}
 
-    public AuthorizationPoller(TaskFields taskFields, Parameters parameters) {
+    public static AuthorizationPoller create(TaskFields taskFields, Parameters parameters) {
+        return new AuthorizationPoller(Objects.requireNonNull(taskFields), Objects.requireNonNull(parameters));
+    }
+
+    private AuthorizationPoller(TaskFields taskFields, Parameters parameters) {
         this(
             taskFields,
             parameters.serviceComponents,
             parameters.authorizationRequestHandler,
             parameters.sender,
             parameters.elasticInferenceServiceSettings,
-            parameters.components,
+            parameters.eisComponents,
             parameters.modelRegistry,
             parameters.client,
             null
@@ -109,7 +113,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
 
     public void start() {
         if (initialized.compareAndSet(false, true)) {
-            logger.debug("Initializing authorization logic");
+            logger.debug("Initializing EIS authorization logic");
             serviceComponents.threadPool().executor(UTILITY_THREAD_POOL_NAME).execute(this::scheduleAndSendAuthorizationRequest);
         }
     }

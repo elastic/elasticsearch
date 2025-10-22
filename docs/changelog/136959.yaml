@@ -1,0 +1,6 @@
+pr: 136959
+summary: "ESQL: Support `StubRelation` with empty output in `PropagateEmptyRelation`"
+area: ES|QL
+type: bug
+issues:
+  - 136851

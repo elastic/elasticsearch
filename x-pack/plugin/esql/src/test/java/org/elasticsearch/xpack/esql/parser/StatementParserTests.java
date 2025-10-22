@@ -14,7 +14,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -1294,7 +1293,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo\" | GROK a \"(?P<justification>.+)\"",
-            "line 1:17: Invalid grok pattern [(?P<justification>.+)]: [undefined group option]"
+            "line 1:17: Invalid GROK pattern [(?P<justification>.+)]: [undefined group option]"
+        );
+
+        expectError(
+            "row a = \"foo bar\" | GROK a \"%{NUMBER:foo}\", \"%{WORD:foo}\"",
+            "line 1:21: Invalid GROK patterns [%{NUMBER:foo}, %{WORD:foo}]:"
+                + " the attribute [foo] is defined multiple times with different types"
+        );
+
+        expectError(
+            "row a = \"foo\" | GROK a \"%{WORD:foo}\", \"(?P<justification>.+)\"",
+            "line 1:17: Invalid GROK patterns [%{WORD:foo}, (?P<justification>.+)]: [undefined group option]"
         );
     }
 
@@ -3851,11 +3861,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFork() {
-        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least 2 branches");
+        expectError("""
+            FROM foo* | FORK
+            """, "line 2:1: mismatched input '<EOF>' expecting '('");
+        expectError("""
+            FROM foo* | FORK ()
+            """, "line 1:19: mismatched input ')'");
 
         expectError("""
             FROM foo*
@@ -4038,11 +4049,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker")));
         var rerank = as(
-            parser.createStatement(
-                "row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }",
-                queryParams,
-                EsqlTestUtils.TEST_CFG
-            ),
+            parser.createStatement("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
             Rerank.class
         );
 
@@ -4057,8 +4064,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var rerank = as(
             parser.createStatement(
                 "row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }",
-                queryParams,
-                EsqlTestUtils.TEST_CFG
+                queryParams
             ),
             Rerank.class
         );
@@ -4137,11 +4143,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
         var plan = as(
-            parser.createStatement(
-                "row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }",
-                queryParams,
-                EsqlTestUtils.TEST_CFG
-            ),
+            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
             Completion.class
         );
 
@@ -4153,11 +4155,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
         var plan = as(
-            parser.createStatement(
-                "row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }",
-                queryParams,
-                EsqlTestUtils.TEST_CFG
-            ),
+            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
             Completion.class
         );
 

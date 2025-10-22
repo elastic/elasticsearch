@@ -79,7 +79,7 @@ public class ToGeoShapeTests extends AbstractScalarFunctionTestCase {
                 List.of()
             );
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

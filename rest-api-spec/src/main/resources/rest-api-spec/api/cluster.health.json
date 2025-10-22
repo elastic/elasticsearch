@@ -58,6 +58,7 @@
       },
       "local": {
         "type": "boolean",
+        "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
       "master_timeout": {
@@ -67,10 +68,12 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       },
       "wait_for_active_shards": {
         "type": "string",
+        "default": "0",
         "description": "Wait until the specified number of shards is active"
       },
       "wait_for_nodes": {
@@ -91,10 +94,12 @@
       },
       "wait_for_no_relocating_shards": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to wait until there are no relocating shards in the cluster"
       },
       "wait_for_no_initializing_shards": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to wait until there are no initializing shards in the cluster"
       },
       "wait_for_status": {

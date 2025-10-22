@@ -25,7 +25,7 @@ public abstract class LeafGeoPointFieldData extends LeafPointFieldData<MultiGeoP
 
     @Override
     public final MultiGeoPointValues getPointValues() {
-        return new MultiGeoPointValues(getSortedNumericDocValues());
+        return new MultiGeoPointValues(getSortedNumericLongValues());
     }
 
     @Override

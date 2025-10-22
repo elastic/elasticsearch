@@ -47,7 +47,7 @@ public class VersionStringDocValuesField extends AbstractScriptFieldFactory<Vers
     public void setNextDocId(int docId) throws IOException {
         count = 0;
         if (input.advanceExact(docId)) {
-            for (int i = 0; i < input.docValueCount(); i++) {
+            for (int i = 0, dvc = input.docValueCount(); i < dvc; i++) {
                 long ord = input.nextOrd();
                 ords = ArrayUtil.grow(ords, count + 1);
                 ords[count++] = ord;

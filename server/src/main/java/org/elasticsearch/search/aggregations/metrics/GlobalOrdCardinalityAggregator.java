@@ -253,13 +253,13 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                             }
                         };
                     } else {
+                        final SortedSetDocValues docValues = values;
                         return new LeafBucketCollector() {
-                            final SortedSetDocValues docValues = values;
 
                             @Override
                             public void collect(int doc, long bucketOrd) throws IOException {
                                 if (docValues.advanceExact(doc)) {
-                                    for (int i = 0; i < docValues.docValueCount(); i++) {
+                                    for (int i = 0, dvc = docValues.docValueCount(); i < dvc; i++) {
                                         long ord = docValues.nextOrd();
                                         if (bits.getAndSet(ord) == false) {
                                             competitiveIterator.onVisitedOrdinal(ord);
@@ -302,14 +302,14 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 }
             };
         } else {
+            final SortedSetDocValues docValues = values;
             return new LeafBucketCollector() {
-                final SortedSetDocValues docValues = values;
 
                 @Override
                 public void collect(int doc, long bucketOrd) throws IOException {
                     if (docValues.advanceExact(doc)) {
                         final BitArray bits = getNewOrExistingBitArray(bucketOrd);
-                        for (int i = 0; i < docValues.docValueCount(); i++) {
+                        for (int i = 0, dvc = docValues.docValueCount(); i < dvc; i++) {
                             long ord = docValues.nextOrd();
                             bits.set((int) ord);
                         }

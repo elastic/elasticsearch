@@ -527,8 +527,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             || ignoredDocValues.docValueCount() <= 0) {
             return null;
         }
-        final List<Object> ignoredValues = new ArrayList<>(ignoredDocValues.docValueCount());
-        for (int i = 0; i < ignoredDocValues.docValueCount(); i++) {
+        final int docValueCount = ignoredDocValues.docValueCount();
+        final List<Object> ignoredValues = new ArrayList<>(docValueCount);
+        for (int i = 0; i < docValueCount; i++) {
             ignoredValues.add(ignoredDocValues.lookupOrd(ignoredDocValues.nextOrd()).utf8ToString());
         }
         return new DocumentField(IgnoredFieldMapper.NAME, ignoredValues);

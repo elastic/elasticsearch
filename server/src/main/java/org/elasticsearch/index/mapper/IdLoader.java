@@ -83,7 +83,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                         int docId = docIdsInLeaf[i];
                         var builder = builders[i];
                         if (dv.advanceExact(docId)) {
-                            for (int j = 0; j < dv.docValueCount(); j++) {
+                            for (int j = 0, dvc = dv.docValueCount(); j < dvc; j++) {
                                 BytesRef routingValue = dv.lookupOrd(dv.nextOrd());
                                 builder.addMatching(routingField, routingValue);
                             }

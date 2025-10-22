@@ -314,7 +314,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     bits = new BitArray(maxOrd, bigArrays);
                     visitedOrds.set(bucketOrd, bits);
                 }
-                for (int i = 0; i < values.docValueCount(); i++) {
+                for (int i = 0, dvc = values.docValueCount(); i < dvc; i++) {
                     long ord = values.nextOrd();
                     bits.set((int) ord);
                 }

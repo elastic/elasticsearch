@@ -376,7 +376,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 b.startArray(leafName);
             }
 
-            for (int i = 0; i < keywordsReader.docValueCount(); i++) {
+            for (int i = 0, dvc = keywordsReader.docValueCount(); i < dvc; i++) {
                 BytesRef currKeyword = keywordsReader.lookupOrd(keywordsReader.nextOrd());
                 for (int j = 0; j < counts[i]; j++) {
                     b.utf8Value(currKeyword.bytes, currKeyword.offset, currKeyword.length);

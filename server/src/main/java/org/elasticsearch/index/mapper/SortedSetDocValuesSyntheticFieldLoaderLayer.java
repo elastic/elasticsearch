@@ -126,7 +126,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
             if (hasValue == false) {
                 return;
             }
-            for (int i = 0; i < dv.docValueCount(); i++) {
+            for (int i = 0, dvc = dv.docValueCount(); i < dvc; i++) {
                 BytesRef c = convert(dv.lookupOrd(dv.nextOrd()));
                 b.utf8Value(c.bytes, c.offset, c.length);
             }

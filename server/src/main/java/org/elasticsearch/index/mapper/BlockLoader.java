@@ -499,6 +499,13 @@ public interface BlockLoader {
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
 
         ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count);
+
+        Block buildExponentialHistogramBlockDirect(Block minima,
+                                                  Block maxima,
+                                                  Block sums,
+                                                  Block valueCounts,
+                                                  Block zeroThresholds,
+                                                  Block encodedHistograms);
     }
 
     /**
@@ -628,8 +635,11 @@ public interface BlockLoader {
     }
 
     interface ExponentialHistogramBuilder extends Builder {
-
-        ExponentialHistogramBuilder append(@Nullable ExponentialHistogram value);
-
+        DoubleBuilder minima();
+        DoubleBuilder maxima();
+        DoubleBuilder sums();
+        LongBuilder valueCounts();
+        DoubleBuilder zeroThresholds();
+        BytesRefBuilder encodedHistograms();
     }
 }

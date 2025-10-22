@@ -460,8 +460,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 UNSUPPORTED, PARTIAL_AGG,
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
-                // TODO(b/133393): BlockLoader for EXPONENTIAL_HISTOGRAM is not implemented yet
-                EXPONENTIAL_HISTOGRAM,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
             default -> true;

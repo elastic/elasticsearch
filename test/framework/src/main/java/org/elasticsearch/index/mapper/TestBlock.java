@@ -13,8 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -24,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -422,22 +422,26 @@ public class TestBlock implements BlockLoader.Block {
 
             @Override
             public BlockLoader.ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count) {
-                class ExponentialHistogramBuilder extends TestBlock.Builder implements BlockLoader.ExponentialHistogramBuilder {
-                    private ExponentialHistogramBuilder() {
-                        super(count);
-                    }
+                return new ExponentialHistogramBlockBuilder(this, count);
+            }
 
-                    @Override
-                    public ExponentialHistogramBuilder append(ExponentialHistogram value) {
-                        ExponentialHistogram copy = null;
-                        if (value != null) {
-                            copy = ExponentialHistogram.builder(value, ExponentialHistogramCircuitBreaker.noop()).build();
-                        }
-                        add(copy);
-                        return this;
-                    }
-                }
-                return new ExponentialHistogramBuilder();
+            @Override
+            public BlockLoader.Block buildExponentialHistogramBlockDirect(
+                BlockLoader.Block minima,
+                BlockLoader.Block maxima,
+                BlockLoader.Block sums,
+                BlockLoader.Block valueCounts,
+                BlockLoader.Block zeroThresholds,
+                BlockLoader.Block encodedHistograms
+            ) {
+                return ExponentialHistogramBlockBuilder.parseHistogramsToBlock(
+                    minima,
+                    maxima,
+                    sums,
+                    valueCounts,
+                    zeroThresholds,
+                    encodedHistograms
+                );
             }
         };
     }
@@ -644,6 +648,132 @@ public class TestBlock implements BlockLoader.Block {
         @Override
         public void close() {
 
+        }
+    }
+
+    private static class ExponentialHistogramBlockBuilder implements BlockLoader.ExponentialHistogramBuilder {
+
+        private final BlockLoader.DoubleBuilder minima;
+        private final BlockLoader.DoubleBuilder maxima;
+        private final BlockLoader.DoubleBuilder sums;
+        private final BlockLoader.LongBuilder valueCounts;
+        private final BlockLoader.DoubleBuilder zeroThresholds;
+        private final BlockLoader.BytesRefBuilder encodedHistograms;
+
+        private ExponentialHistogramBlockBuilder(BlockLoader.BlockFactory testFactory, int expectedSize) {
+            minima = testFactory.doubles(expectedSize);
+            maxima = testFactory.doubles(expectedSize);
+            sums = testFactory.doubles(expectedSize);
+            valueCounts = testFactory.longs(expectedSize);
+            zeroThresholds = testFactory.doubles(expectedSize);
+            encodedHistograms = testFactory.bytesRefs(expectedSize);
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            BlockLoader.Block minimaBlock = minima.build();
+            BlockLoader.Block maximaBlock = maxima.build();
+            BlockLoader.Block sumsBlock = sums.build();
+            BlockLoader.Block valueCountsBlock = valueCounts.build();
+            BlockLoader.Block zeroThresholdsBlock = zeroThresholds.build();
+            BlockLoader.Block encodedHistogramsBlock = encodedHistograms.build();
+            return parseHistogramsToBlock(
+                minimaBlock,
+                maximaBlock,
+                sumsBlock,
+                valueCountsBlock,
+                zeroThresholdsBlock,
+                encodedHistogramsBlock
+            );
+        }
+
+        public static TestBlock parseHistogramsToBlock(
+            BlockLoader.Block minimaBlock,
+            BlockLoader.Block maximaBlock,
+            BlockLoader.Block sumsBlock,
+            BlockLoader.Block valueCountsBlock,
+            BlockLoader.Block zeroThresholdsBlock,
+            BlockLoader.Block encodedHistogramsBlock
+        ) {
+            TestBlock minima = (TestBlock) minimaBlock;
+            TestBlock maxima = (TestBlock) maximaBlock;
+            TestBlock sums = (TestBlock) sumsBlock;
+            TestBlock valueCounts = (TestBlock) valueCountsBlock;
+            TestBlock zeroThresholds = (TestBlock) zeroThresholdsBlock;
+            TestBlock encodedHistograms = (TestBlock) encodedHistogramsBlock;
+            int count = minima.values.size();
+            assert count == maxima.values.size();
+            assert count == sums.values.size();
+            assert count == valueCounts.values.size();
+            assert count == zeroThresholds.values.size();
+            assert count == encodedHistograms.values.size();
+
+            return new TestBlock(IntStream.range(0, count).mapToObj(i -> {
+                CompressedExponentialHistogram result = new CompressedExponentialHistogram();
+                try {
+                    result.reset(
+                        (Double) zeroThresholds.get(i),
+                        (Long) valueCounts.get(i),
+                        (Double) sums.get(i),
+                        (Double) minima.get(i),
+                        (Double) maxima.get(i),
+                        (BytesRef) encodedHistograms.get(i)
+                    );
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                return (Object) result;
+            }).toList());
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder minima() {
+            return minima;
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder maxima() {
+            return maxima;
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder sums() {
+            return sums;
+        }
+
+        @Override
+        public BlockLoader.LongBuilder valueCounts() {
+            return valueCounts;
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder zeroThresholds() {
+            return zeroThresholds;
+        }
+
+        @Override
+        public BlockLoader.BytesRefBuilder encodedHistograms() {
+            return encodedHistograms;
         }
     }
 }

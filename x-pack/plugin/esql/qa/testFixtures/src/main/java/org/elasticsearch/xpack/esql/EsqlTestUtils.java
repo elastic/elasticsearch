@@ -46,6 +46,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -148,6 +149,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.jar.JarInputStream;
+import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyList;
@@ -977,9 +979,22 @@ public final class EsqlTestUtils {
     }
 
     private static ExponentialHistogram randomExponentialHistogram() {
-        // TODO(b/133393): populate the random histogram fully when supported by the block
-        int scale = randomIntBetween(ExponentialHistogram.MIN_SCALE, ExponentialHistogram.MAX_SCALE);
-        return ExponentialHistogram.builder(scale, ExponentialHistogramCircuitBreaker.noop()).build();
+        // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
+        // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
+        boolean hasNegativeValues = randomBoolean();
+        boolean hasPositiveValues = randomBoolean();
+        boolean hasZeroValues = randomBoolean();
+        double[] rawValues = IntStream.concat(
+            IntStream.concat(
+                hasNegativeValues ? IntStream.range(0, randomIntBetween(1, 1000)).map(i1 -> -1) : IntStream.empty(),
+                hasPositiveValues ? IntStream.range(0, randomIntBetween(1, 1000)).map(i1 -> 1) : IntStream.empty()
+            ),
+            hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
+        ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
+
+        int numBuckets = randomIntBetween(4, 300);
+        ReleasableExponentialHistogram histo = ExponentialHistogram.create(numBuckets, ExponentialHistogramCircuitBreaker.noop(), rawValues);
+        return histo;
     }
 
     static Version randomVersion() {

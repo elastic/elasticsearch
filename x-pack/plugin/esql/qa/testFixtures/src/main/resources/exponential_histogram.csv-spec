@@ -6,12 +6,12 @@ ignoreOrder:true
 
 histo:exponential_histogram
 "{""scale"":-7}"
-"{""scale"":12}"
-"{""scale"":-10}"
-"{""scale"":0}"
-"{""scale"":0}"
-"{""scale"":0}"
-"{""scale"":0}"
+"{""scale"":12,""min"":-456,""max"":789,""sum"":43,""zero"":{""threshold"":0.123456,""count"":42},""positive"":{""indices"":[-1000000,-10,25,26,99999999],""counts"":[2,1,3,4,5]},""negative"":{""indices"":[-1000,123456,-999],""counts"":[10,11,20]}}"
+"{""scale"":-10,""min"":-123,""max"":456,""sum"":42,""positive"":{""indices"":[1,2,3,4,5],""counts"":[6,7,8,9,10]},""negative"":{""indices"":[-1,0,1,2,3,4,5,6,7,8],""counts"":[1,2,3,4,5,6,7,8,9,10]}}"
+"{""scale"":0,""min"":0.1,""max"":100,""sum"":424,""positive"":{""indices"":[-100,10,20],""counts"":[3,2,1]}}"
+"{""scale"":0,""min"":-100,""max"":-0.1,""sum"":-424,""negative"":{""indices"":[-100,10,20],""counts"":[3,2,1]}}"
+"{""scale"":0,""zero"":{""threshold"":42.7}}"
+"{""scale"":2,""min"":0,""max"":0,""zero"":{""count"":101}}"
 ;
 
 loadFiltered
@@ -21,6 +21,6 @@ from exp_histo_sample | WHERE STARTS_WITH(name, "zero_") | KEEP name, histo
 ignoreOrder:true
 
 name:keyword | histo:exponential_histogram
-zero_threshold_only | "{""scale"":0}"
-zero_count_only | "{""scale"":0}"
+zero_threshold_only | "{""scale"":0,""zero"":{""threshold"":42.7}}"
+zero_count_only | "{""scale"":2,""min"":0,""max"":0,""zero"":{""count"":101}}"
 ;

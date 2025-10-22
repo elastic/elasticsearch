@@ -23,10 +23,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.Objects;
 
 public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCounted implements ExponentialHistogramBlock {
-
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOf(ExponentialHistogramArrayBlock.class);
 
     private final DoubleBlock minima;
     private final DoubleBlock maxima;
@@ -35,7 +34,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     private final DoubleBlock zeroThresholds;
     private final BytesRefBlock encodedHistograms;
 
-    ExponentialHistogramArrayBlock(
+    public ExponentialHistogramArrayBlock(
         DoubleBlock minima,
         DoubleBlock maxima,
         DoubleBlock sums,
@@ -55,7 +54,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
             }
             if (b.isReleased()) {
                 throw new IllegalArgumentException(
-                    "can't build aggregate_metric_double block out of released blocks but [" + b + "] was released"
+                    "can't build exponential_histogram block out of released blocks but [" + b + "] was released"
                 );
             }
         }
@@ -64,7 +63,6 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     private List<Block> getSubBlocks() {
         return List.of(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
     }
-
 
     @Override
     public ExponentialHistogram getExponentialHistogram(int valueIndex) {
@@ -80,10 +78,10 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
             public ExponentialHistogram getExponentialHistogram(int valueIndex) {
                 BytesRef bytes = encodedHistograms.getBytesRef(valueIndex, bytesRef);
                 double zeroThreshold = zeroThresholds.getDouble(valueIndex);
-                double min = minima.getDouble(valueIndex);
-                double max = maxima.getDouble(valueIndex);
-                double sum = sums.getDouble(valueIndex);
                 long valueCount = valueCounts.getLong(valueIndex);
+                double sum = sums.getDouble(valueIndex);
+                double min = valueCount == 0 ? Double.NaN : minima.getDouble(valueIndex);
+                double max = valueCount == 0 ? Double.NaN : maxima.getDouble(valueIndex);
                 try {
                     reusedHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
                 } catch (IOException e) {
@@ -246,12 +244,27 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     }
 
     public static ExponentialHistogramArrayBlock readFrom(BlockStreamInput in) throws IOException {
-        DoubleBlock minima = DoubleBlock.readFrom(in);
-        DoubleBlock maxima = DoubleBlock.readFrom(in);
-        DoubleBlock sums = DoubleBlock.readFrom(in);
-        LongBlock valueCounts = LongBlock.readFrom(in);
-        DoubleBlock zeroThresholds = DoubleBlock.readFrom(in);
-        BytesRefBlock encodedHistograms = BytesRefBlock.readFrom(in);
+        DoubleBlock minima = null;
+        DoubleBlock maxima = null;
+        DoubleBlock sums = null;
+        LongBlock valueCounts = null;
+        DoubleBlock zeroThresholds = null;
+        BytesRefBlock encodedHistograms = null;
+
+        boolean success = false;
+        try {
+            minima = DoubleBlock.readFrom(in);
+            maxima = DoubleBlock.readFrom(in);
+            sums = DoubleBlock.readFrom(in);
+            valueCounts = LongBlock.readFrom(in);
+            zeroThresholds = DoubleBlock.readFrom(in);
+            encodedHistograms = BytesRefBlock.readFrom(in);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+            }
+        }
         return new ExponentialHistogramArrayBlock(
             minima,
             maxima,
@@ -264,7 +277,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     @Override
     public long ramBytesUsed() {
-        long bytes = SHALLOW_SIZE;
+        long bytes = 0;
         for (Block b : getSubBlocks()) {
             bytes += b.ramBytesUsed();
         }
@@ -308,12 +321,8 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     @Override
     public int hashCode() {
-        int result = minima.hashCode();
-        result = 31 * result + maxima.hashCode();
-        result = 31 * result + sums.hashCode();
-        result = 31 * result + valueCounts.hashCode();
-        result = 31 * result + zeroThresholds.hashCode();
-        result = 31 * result + encodedHistograms.hashCode();
-        return result;
+       // for now we use just the hash of encodedHistograms
+       // this ensures proper equality with null blocks and should be unique enough for practical purposes
+       return encodedHistograms.hashCode();
     }
 }

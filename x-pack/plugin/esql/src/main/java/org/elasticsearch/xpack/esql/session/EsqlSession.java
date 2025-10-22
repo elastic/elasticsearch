@@ -553,9 +553,16 @@ public class EsqlSession {
         // The main index pattern dictates on which nodes the query can be executed, so we use the minimum transport version from this field
         // caps request.
         SubscribableListener.<PreAnalysisResult>newForked(
-            l -> preAnalyzeMainIndices(preAnalysis.indexes().keySet().iterator(), preAnalysis, executionInfo, result, requestFilter, l)
-        )
-            .<PreAnalysisResult>andThen((l, r) -> validateClusters(preAnalysis.indexes().keySet().iterator(), executionInfo, r, l))
+            l -> preAnalyzeMainIndices(preAnalysis.indexes().entrySet().iterator(), preAnalysis, executionInfo, result, requestFilter, l)
+        ).andThenApply(r -> {
+            if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
+                && executionInfo.isCrossClusterSearch()
+                && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
+                LOGGER.debug("No more clusters to search, ending analysis stage");
+                throw new NoClustersToSearchException();
+            }
+            return r;
+        })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l.map(r::withEnrichResolution));
@@ -788,38 +795,8 @@ public class EsqlSession {
         });
     }
 
-    private void validateClusters(
-        Iterator<IndexPattern> indexPatterns,
-        EsqlExecutionInfo executionInfo,
-        PreAnalysisResult result,
-        ActionListener<PreAnalysisResult> listener
-    ) {
-        if (indexPatterns.hasNext()) {
-            validateClusters(indexPatterns.next(), executionInfo, result, listener.delegateFailureAndWrap((l, r) -> {
-                validateClusters(indexPatterns, executionInfo, r, l);
-            }));
-        } else {
-            listener.onResponse(result);
-        }
-    }
-
-    private void validateClusters(
-        IndexPattern indexPattern,
-        EsqlExecutionInfo executionInfo,
-        PreAnalysisResult result,
-        ActionListener<PreAnalysisResult> listener
-    ) {
-        if (result.indexResolution.get(indexPattern).isValid()
-            && executionInfo.isCrossClusterSearch()
-            && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
-            LOGGER.debug("No more clusters to search, ending analysis stage");
-            throw new NoClustersToSearchException();
-        }
-        listener.onResponse(result);
-    }
-
     private void preAnalyzeMainIndices(
-        Iterator<IndexPattern> indexPatterns,
+        Iterator<Map.Entry<IndexPattern, IndexMode>> indexPatterns,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
@@ -827,8 +804,10 @@ public class EsqlSession {
         ActionListener<PreAnalysisResult> listener
     ) {
         if (indexPatterns.hasNext()) {
+            var index = indexPatterns.next();
             preAnalyzeMainIndices(
-                indexPatterns.next(),
+                index.getKey(),
+                index.getValue(),
                 preAnalysis,
                 executionInfo,
                 result,
@@ -844,6 +823,7 @@ public class EsqlSession {
 
     private void preAnalyzeMainIndices(
         IndexPattern indexPattern,
+        IndexMode indexMode,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
@@ -855,14 +835,13 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        // TODO: Make this specific to the index pattern
+        // TODO: This is not yet index specific, but that will not matter as soon as #136804 is dealt with
         if (executionInfo.clusterAliases().isEmpty()) {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(
                 result.withIndices(indexPattern, IndexResolution.valid(new EsIndex(indexPattern.indexPattern(), Map.of(), Map.of())))
             );
         } else {
-            IndexMode indexMode = preAnalysis.indexes().get(indexPattern);
             indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(
                 indexPattern.indexPattern(),
                 result.fieldNames,

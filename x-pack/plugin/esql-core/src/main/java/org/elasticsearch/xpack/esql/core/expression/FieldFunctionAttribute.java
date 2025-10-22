@@ -6,8 +6,15 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+
+import java.io.IOException;
 
 /**
  * A field attribute that has a function applied to it for value extraction.
@@ -17,41 +24,67 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  */
 public class FieldFunctionAttribute extends FieldAttribute {
 
-    private final MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction;
-    private final DataType dataType;
-    private final FieldName fieldName;
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Attribute.class,
+        "FieldFunctionAttribute",
+        FieldFunctionAttribute::readFrom
+    );
 
-    public FieldFunctionAttribute(
+    private final Function function;
+
+    private FieldFunctionAttribute(Source source, String parentName, String qualifier, String name, EsField field,
+                                  Nullability nullability, NameId id, boolean synthetic, Function function) {
+        super(source, parentName, qualifier, name, field, nullability, id, synthetic);
+        this.function = function;
+    }
+
+    public static FieldFunctionAttribute fromFieldAttribute(
         FieldAttribute fieldAttribute,
-        MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction,
-        DataType dataType
+        Function function
     ) {
-        super(fieldAttribute.source(), fieldAttribute.parentName(), fieldAttribute.qualifier(),
-            Attribute.rawTemporaryName(fieldAttribute.name(), "replaced", new NameId().toString()),
-            fieldAttribute.field(), fieldAttribute.synthetic());
-        this.fieldName = fieldAttribute.fieldName();
-        this.blockLoaderValueFunction = blockLoaderValueFunction;
-        this.dataType = dataType;
+        NameId nameId = new NameId();
+        return new FieldFunctionAttribute(fieldAttribute.source(), fieldAttribute.parentName(), fieldAttribute.qualifier(),
+            Attribute.rawTemporaryName(fieldAttribute.name(), "replaced", nameId.toString()),
+            fieldAttribute.field(), fieldAttribute.nullable(), nameId, fieldAttribute.synthetic(), function);
     }
 
-    /**
-     * Returns the function that will be used to load the value of the field and transform it
-     */
-    public MappedFieldType.BlockLoaderValueFunction<?, ?> getBlockLoaderValueFunction() {
-        return blockLoaderValueFunction;
+    public static FieldFunctionAttribute readFrom(StreamInput in) throws IOException {
+        FieldAttribute fieldAttribute = FieldAttribute.readFrom(in);
+        Function function = (Function) in.readNamedWriteable(Expression.class);
+        return new FieldFunctionAttribute(
+            fieldAttribute.source(),
+            fieldAttribute.parentName(),
+            fieldAttribute.qualifier(),
+            fieldAttribute.name(),
+            fieldAttribute.field(),
+            fieldAttribute.nullable(),
+            fieldAttribute.id(),
+            fieldAttribute.synthetic(),
+            function
+        );
     }
 
-//    @Override
-//    public FieldName fieldName() {
-//        return fieldName;
-//    }
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeNamedWriteable(function);
+    }
 
     @Override
     public DataType dataType() {
-        return dataType;
+        return function.dataType();
+    }
+
+    public Function getFunction() {
+        return function;
     }
 
     protected String label() {
         return "t";
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -41,6 +40,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.containsString;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
@@ -55,18 +55,18 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
                 params.add(new Object[] { "v_cosine", CosineSimilarity.SIMILARITY_FUNCTION, elementType });
             }
-//            if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-//                params.add(new Object[] { "v_dot_product", DotProduct.SIMILARITY_FUNCTION, elementType });
-//            }
-//            if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-//                params.add(new Object[] { "v_l1_norm", L1Norm.SIMILARITY_FUNCTION, elementType });
-//            }
-//            if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-//                params.add(new Object[] { "v_l2_norm", L2Norm.SIMILARITY_FUNCTION, elementType });
-//            }
-//            if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled() && elementType != ElementType.FLOAT) {
-//                params.add(new Object[] { "v_hamming", Hamming.EVALUATOR_SIMILARITY_FUNCTION, elementType });
-//            }
+            if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+                params.add(new Object[] { "v_dot_product", DotProduct.SIMILARITY_FUNCTION, elementType });
+            }
+            if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+                params.add(new Object[] { "v_l1_norm", L1Norm.SIMILARITY_FUNCTION, elementType });
+            }
+            if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+                params.add(new Object[] { "v_l2_norm", L2Norm.SIMILARITY_FUNCTION, elementType });
+            }
+            if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled() && elementType != ElementType.FLOAT) {
+                params.add(new Object[] { "v_hamming", Hamming.EVALUATOR_SIMILARITY_FUNCTION, elementType });
+            }
         }
 
         return params;
@@ -237,8 +237,8 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
                 | KEEP left_vector, similarity
             """, functionName, randomVector);
 
-        EsqlClientException iae = expectThrows(EsqlClientException.class, () -> { run(query); });
-        assertTrue(iae.getMessage().contains("Vectors must have the same dimensions"));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> { run(query); });
+        assertThat(iae.getMessage(), containsString("vector dimensions differ"));
     }
 
     @SuppressWarnings("unchecked")

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -122,12 +121,8 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
             vectorArray[i] = vectorList.get(i).floatValue();
         }
 
-        // Create a transformation that computes similarity between each value and the literal value
-        DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction blockValueLoader =
-            new DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction(similarityFunction.getSimilarityFunction(), vectorArray);
-
         // Change the similarity function to a reference of a transformation on the field
-        var fieldFunctionAttribute = new FieldFunctionAttribute(fieldAttribute, blockValueLoader, DataType.DOUBLE);
+        var fieldFunctionAttribute = FieldFunctionAttribute.fromFieldAttribute(fieldAttribute, similarityFunction);
         replacements.put(fieldAttribute, fieldFunctionAttribute);
         return fieldFunctionAttribute;
     }

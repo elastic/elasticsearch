@@ -28,6 +28,9 @@ public class L1Norm extends VectorSimilarityFunction {
     public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
         public float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+            if (leftScratch.length != rightScratch.length) {
+                throw new IllegalArgumentException("vector dimensions differ:" + leftScratch.length + "!=" + rightScratch.length);
+            }
             float result = 0f;
             for (int i = 0; i < leftScratch.length; i++) {
                 result += Math.absExact(leftScratch[i] - rightScratch[i]);
@@ -37,6 +40,9 @@ public class L1Norm extends VectorSimilarityFunction {
 
         @Override
         public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+            if (leftScratch.length != rightScratch.length) {
+                throw new IllegalArgumentException("vector dimensions differ:" + leftScratch.length + "!=" + rightScratch.length);
+            }
             float result = 0f;
             for (int i = 0; i < leftScratch.length; i++) {
                 result += Math.abs(leftScratch[i] - rightScratch[i]);

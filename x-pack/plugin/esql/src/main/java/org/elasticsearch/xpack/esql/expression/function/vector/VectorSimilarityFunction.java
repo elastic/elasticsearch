@@ -18,8 +18,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalar
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderFunction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +43,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 /**
  * Base class for vector similarity functions, which compute a similarity score between two dense vectors
  */
-public abstract class VectorSimilarityFunction extends BinaryScalarFunction implements EvaluatorMapper, VectorFunction {
+public abstract class VectorSimilarityFunction extends BinaryScalarFunction
+    implements
+        EvaluatorMapper,
+        VectorFunction,
+        BlockLoaderFunction {
 
     protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
         super(source, left, right);
@@ -167,12 +172,6 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                             // A null value on the left or right vector. Similarity is null
                             builder.appendNull();
                             continue;
-                        } else if (dimsLeft != dimsRight) {
-                            throw new EsqlClientException(
-                                "Vectors must have the same dimensions; first vector has {}, and second has {}",
-                                dimsLeft,
-                                dimsRight
-                            );
                         }
                         double result = similarityFunction.calculateSimilarity(leftVector, rightVector);
                         builder.appendDouble(result);
@@ -199,6 +198,19 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         public void close() {
             Releasables.close(left, right);
         }
+    }
+
+    @Override
+    public MappedFieldType.BlockLoaderValueFunction<?, ?> getBlockLoaderValueFunction() {
+        Literal literal = (Literal) (left() instanceof Literal ? left() : right());
+        @SuppressWarnings("unchecked")
+        List<Number> numberList = (List<Number>) literal.value();
+        float[] vector = new float[numberList.size()];
+        for (int i = 0; i < numberList.size(); i++) {
+            vector[i] = numberList.get(i).floatValue();
+        }
+
+        return new DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction(getSimilarityFunction(), vector);
     }
 
     interface VectorValueProvider extends Releasable {

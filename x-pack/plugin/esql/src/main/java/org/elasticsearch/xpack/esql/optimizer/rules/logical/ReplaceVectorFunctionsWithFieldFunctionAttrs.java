@@ -7,18 +7,14 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldFunctionAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
-import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -53,7 +49,10 @@ public class ReplaceVectorFunctionsWithFieldFunctionAttrs extends OptimizerRules
         return new EsqlProject(Source.EMPTY, transformedEval, previousAttrs);
     }
 
-    private static Expression replaceFieldsForFieldTransformations(VectorSimilarityFunction similarityFunction, AttributeSet.Builder addedAttrs) {
+    private static Expression replaceFieldsForFieldTransformations(
+        VectorSimilarityFunction similarityFunction,
+        AttributeSet.Builder addedAttrs
+    ) {
         // Only replace if exactly one side is a literal and the other a field attribute
         if ((similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) == false) {
             return similarityFunction;
@@ -76,12 +75,8 @@ public class ReplaceVectorFunctionsWithFieldFunctionAttrs extends OptimizerRules
             vectorArray[i] = vectorList.get(i).floatValue();
         }
 
-        // Create a transformation that computes similarity between each value and the literal value
-        DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction blockValueLoader =
-            new DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction(similarityFunction.getSimilarityFunction(), vectorArray);
-
         // Change the similarity function to a reference of a transformation on the field
-        FieldFunctionAttribute fieldFunctionAttribute = new FieldFunctionAttribute(fieldAttribute, blockValueLoader, DataType.DOUBLE);
+        FieldFunctionAttribute fieldFunctionAttribute = FieldFunctionAttribute.fromFieldAttribute(fieldAttribute, similarityFunction);
         addedAttrs.add(fieldFunctionAttribute);
         return fieldFunctionAttribute;
     }

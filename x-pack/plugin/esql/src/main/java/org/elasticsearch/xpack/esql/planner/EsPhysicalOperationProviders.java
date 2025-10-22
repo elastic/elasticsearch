@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
@@ -193,9 +194,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
 
-        MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction = attr instanceof FieldFunctionAttribute
-            ? ((FieldFunctionAttribute) attr).getBlockLoaderValueFunction()
-            : null;
+        MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction = null;
+        if (attr instanceof FieldFunctionAttribute fieldFunctionAttr
+            && fieldFunctionAttr.getFunction() instanceof BlockLoaderFunction blockLoaderFunction) {
+            blockLoaderValueFunction = blockLoaderFunction.getBlockLoaderValueFunction();
+        }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         String fieldName = getFieldName(attr);
         BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, blockLoaderValueFunction);

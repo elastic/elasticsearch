@@ -13,7 +13,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -134,7 +133,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOptimizerTests {
@@ -1451,11 +1449,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(fieldFunctionAttr.fieldName().string(), is("dense_vector"));
         assertThat(fieldFunctionAttr.name(), startsWith("$$dense_vector$replaced"));
         assertThat(fieldFunctionAttr.field().getName(), is("dense_vector"));
-        var blockLoaderFunction = as(
-            fieldFunctionAttr.getBlockLoaderValueFunction(),
-            DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction.class
-        );
-        assertThat(blockLoaderFunction.getSimilarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+        as(fieldFunctionAttr.getFunction(), DotProduct.class);
 
         // Field extract contains the replaced attribute and NOT the original dense vector field
         var fieldExtract = as(eval.child(), FieldExtractExec.class);
@@ -1487,11 +1481,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(fieldFunctionAttr.fieldName().string(), is("dense_vector"));
         assertThat(fieldFunctionAttr.name(), startsWith("$$dense_vector$replaced"));
         assertThat(fieldFunctionAttr.field().getName(), is("dense_vector"));
-        var blockLoaderFunction = as(
-            fieldFunctionAttr.getBlockLoaderValueFunction(),
-            DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction.class
-        );
-        assertThat(blockLoaderFunction.getSimilarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+        as(fieldFunctionAttr.getFunction(), DotProduct.class);
 
         // Field extract contains both the replaced attribute and the original dense vector field
         var fieldExtract = as(eval.child(), FieldExtractExec.class);
@@ -1538,11 +1528,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(fieldFunctionAttr.fieldName().string(), is("dense_vector"));
         assertThat(fieldFunctionAttr.name(), startsWith("$$dense_vector$replaced"));
         assertThat(fieldFunctionAttr.field().getName(), is("dense_vector"));
-        var blockLoaderFunction = as(
-            fieldFunctionAttr.getBlockLoaderValueFunction(),
-            DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction.class
-        );
-        assertThat(blockLoaderFunction.getSimilarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+        as(fieldFunctionAttr.getFunction(), DotProduct.class);
 
         // Field extract contains both the replaced attribute and the original dense vector field
         var fieldExtract = as(eval.child(), FieldExtractExec.class);

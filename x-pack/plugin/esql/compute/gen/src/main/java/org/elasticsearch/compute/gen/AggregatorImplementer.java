@@ -356,8 +356,10 @@ public class AggregatorImplementer {
 
     private String invokeAddRaw(boolean blockStyle, boolean hasMask) {
         return addRawName(blockStyle)
-            + "(" + aggParams.stream().map(a -> blockStyle ? a.blockName() : a.vectorName()).collect(joining(", "))
-            + (hasMask ? ", mask" : "") + ")";
+            + "("
+            + aggParams.stream().map(a -> blockStyle ? a.blockName() : a.vectorName()).collect(joining(", "))
+            + (hasMask ? ", mask" : "")
+            + ")";
     }
 
     private String addRawName(boolean blockStyle) {

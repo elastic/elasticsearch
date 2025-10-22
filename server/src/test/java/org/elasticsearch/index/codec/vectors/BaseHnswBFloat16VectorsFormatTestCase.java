@@ -112,7 +112,7 @@ public abstract class BaseHnswBFloat16VectorsFormatTestCase extends BaseBFloat16
                     assertEquals(1, td.totalHits.value());
                     assertThat(td.scoreDocs[0].score, greaterThanOrEqualTo(0f));
                     // When it's the only vector in a segment, the score should be very close to the true score
-                    assertEquals(trueScore, td.scoreDocs[0].score, 0.01f);
+                    assertEquals(trueScore, td.scoreDocs[0].score, trueScore / 100);
                 }
             }
         }

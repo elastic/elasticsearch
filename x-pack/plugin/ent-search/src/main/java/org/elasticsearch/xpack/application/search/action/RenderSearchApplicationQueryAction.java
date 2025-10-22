@@ -34,8 +34,12 @@ public class RenderSearchApplicationQueryAction {
             this.searchSourceBuilder = new SearchSourceBuilder(in);
         }
 
-        public Response(String name, SearchSourceBuilder searchSourceBuilder) {
+        public Response(SearchSourceBuilder searchSourceBuilder) {
             this.searchSourceBuilder = searchSourceBuilder;
+        }
+
+        SearchSourceBuilder searchSourceBuilder() {
+            return searchSourceBuilder;
         }
 
         @Override

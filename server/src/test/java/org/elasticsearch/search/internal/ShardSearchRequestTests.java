@@ -15,6 +15,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -82,10 +83,10 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     private ShardSearchRequest createShardSearchRequest() throws IOException {
-        return createShardSearchReqest(createSearchRequest());
+        return createShardSearchRequest(createSearchRequest());
     }
 
-    private ShardSearchRequest createShardSearchReqest(SearchRequest searchRequest) {
+    private ShardSearchRequest createShardSearchRequest(SearchRequest searchRequest) {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
@@ -114,7 +115,8 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             Math.abs(randomLong()),
             randomAlphaOfLengthBetween(3, 10),
             shardSearchContextId,
-            keepAlive
+            keepAlive,
+            SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards))
         );
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
@@ -270,7 +272,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             }
         }
         request.setForceSyntheticSource(true);
-        ShardSearchRequest shardRequest = createShardSearchReqest(request);
+        ShardSearchRequest shardRequest = createShardSearchRequest(request);
         StreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersions.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> shardRequest.writeTo(out));

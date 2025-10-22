@@ -24,7 +24,12 @@ public interface VectorsFormatProvider {
      *
      * @param indexSettings The index settings.
      * @param indexOptions The dense vector index options.
+     * @param similarity The vector similarity function.
      * @return A KnnVectorsFormat instance.
      */
-    KnnVectorsFormat getKnnVectorsFormat(IndexSettings indexSettings, DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions);
+    KnnVectorsFormat getKnnVectorsFormat(
+        IndexSettings indexSettings,
+        DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions,
+        DenseVectorFieldMapper.VectorSimilarity similarity
+    );
 }

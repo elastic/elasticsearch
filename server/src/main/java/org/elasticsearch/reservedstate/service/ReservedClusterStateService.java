@@ -37,10 +37,10 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SequencedCollection;
 import java.util.SequencedSet;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -48,6 +48,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.core.Strings.format;
@@ -55,6 +56,7 @@ import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.che
 import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.isNewError;
 import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.checkMetadataVersion;
 import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.keysForHandler;
+import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.orderedStateHandlers;
 
 /**
  * Controller class for storing and reserving a portion of the {@link ClusterState}
@@ -302,9 +304,9 @@ public class ReservedClusterStateService {
         Map<String, Object> reservedState = reservedStateChunk.state();
         ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
 
-        SequencedSet<String> orderedHandlers;
+        SequencedSet<String> updateSequence;
         try {
-            orderedHandlers = orderedClusterStateHandlers(reservedState.keySet());
+            updateSequence = orderedStateHandlers(reservedState.keySet(), clusterHandlers);
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(
                 namespace,
@@ -334,7 +336,7 @@ public class ReservedClusterStateService {
         }
 
         // We trial run all handler validations to ensure that we can process all of the cluster state error free.
-        var trialRunErrors = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
+        var trialRunErrors = trialRun(namespace, state, reservedStateChunk, updateSequence);
         // this is not using the modified trial state above, but that doesn't matter, we're just setting errors here
         var error = checkAndReportError(Optional.empty(), namespace, trialRunErrors, reservedStateVersion, versionCheck);
 
@@ -349,7 +351,7 @@ public class ReservedClusterStateService {
                 reservedStateChunk,
                 versionCheck,
                 clusterHandlers,
-                orderedHandlers,
+                updateSequence,
                 this::updateErrorState,
                 new ActionListener<>() {
                     @Override
@@ -413,13 +415,13 @@ public class ReservedClusterStateService {
     ) {
         ReservedStateChunk reservedStateChunk;
         ReservedStateVersion reservedStateVersion;
-        LinkedHashSet<String> orderedHandlers;
+        SequencedSet<String> updateSequence;
 
         try {
             reservedStateChunk = mergeReservedStateChunks(reservedStateChunks);
             Map<String, Object> reservedState = reservedStateChunk.state();
             reservedStateVersion = reservedStateChunk.metadata();
-            orderedHandlers = orderedProjectStateHandlers(reservedState.keySet());
+            updateSequence = orderedStateHandlers(reservedState.keySet(), projectHandlers);
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(
                 projectId,
@@ -462,7 +464,7 @@ public class ReservedClusterStateService {
         }
 
         // We trial run all handler validations to ensure that we can process all of the cluster state error free.
-        var trialRunErrors = trialRun(projectId, namespace, state, reservedStateChunk, orderedHandlers);
+        var trialRunErrors = trialRun(projectId, namespace, state, reservedStateChunk, updateSequence);
         // this is not using the modified trial state above, but that doesn't matter, we're just setting errors here
         var error = checkAndReportError(Optional.of(projectId), namespace, trialRunErrors, reservedStateVersion, versionCheck);
 
@@ -478,7 +480,7 @@ public class ReservedClusterStateService {
                 reservedStateChunk,
                 versionCheck,
                 projectHandlers,
-                orderedHandlers,
+                updateSequence,
                 this::updateErrorState,
                 new ActionListener<>() {
                     @Override
@@ -618,14 +620,14 @@ public class ReservedClusterStateService {
         String namespace,
         ClusterState currentState,
         ReservedStateChunk stateChunk,
-        SequencedSet<String> orderedHandlers
+        SequencedCollection<String> updateSequence
     ) {
         return trialRun(
             currentState.metadata().reservedStateMetadata().get(namespace),
             currentState,
             stateChunk,
             clusterHandlers,
-            orderedHandlers
+            updateSequence
         );
     }
 
@@ -643,7 +645,7 @@ public class ReservedClusterStateService {
         String namespace,
         ClusterState currentState,
         ReservedStateChunk stateChunk,
-        SequencedSet<String> orderedHandlers
+        SequencedCollection<String> updateSequence
     ) {
         return trialRun(
             projectId,
@@ -651,7 +653,7 @@ public class ReservedClusterStateService {
             currentState,
             stateChunk,
             projectHandlers,
-            orderedHandlers
+            updateSequence
         );
     }
 
@@ -661,13 +663,13 @@ public class ReservedClusterStateService {
         ClusterState currentState,
         ReservedStateChunk stateChunk,
         Map<String, ReservedProjectStateHandler<?>> handlers,
-        SequencedSet<String> orderedHandlers
+        SequencedCollection<String> updateSequence
     ) {
         Map<String, Object> reservedState = stateChunk.state();
 
         List<String> errors = new ArrayList<>();
 
-        for (var handlerName : orderedHandlers) {
+        for (var handlerName : updateSequence) {
             ReservedProjectStateHandler<?> handler = handlers.get(handlerName);
             try {
                 Set<String> existingKeys = keysForHandler(existingMetadata, handlerName);
@@ -691,13 +693,13 @@ public class ReservedClusterStateService {
         ClusterState currentState,
         ReservedStateChunk stateChunk,
         Map<String, ReservedClusterStateHandler<?>> handlers,
-        SequencedSet<String> orderedHandlers
+        SequencedCollection<String> updateSequence
     ) {
         Map<String, Object> reservedState = stateChunk.state();
 
         List<String> errors = new ArrayList<>();
 
-        for (var handlerName : orderedHandlers) {
+        for (var handlerName : updateSequence) {
             ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
             try {
                 Set<String> existingKeys = keysForHandler(existingMetadata, handlerName);
@@ -731,82 +733,13 @@ public class ReservedClusterStateService {
         return handler.transform(projectId, (T) state, transformState);
     }
 
-    /**
-     * Returns an ordered set ({@link LinkedHashSet}) of the cluster state handlers that need to
-     * execute for a given list of handler names supplied through the {@link ReservedStateChunk}.
-     * @param handlerNames Names of handlers found in the {@link ReservedStateChunk}
-     */
-    SequencedSet<String> orderedClusterStateHandlers(Set<String> handlerNames) {
-        LinkedHashSet<String> orderedHandlers = new LinkedHashSet<>();
-        LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
-
-        for (String key : handlerNames) {
-            addStateHandler(clusterHandlers, key, handlerNames, orderedHandlers, dependencyStack);
-        }
-
-        return orderedHandlers;
+    static ClusterState remove(ReservedClusterStateHandler<?> handler, TransformState prevState) throws Exception {
+        return handler.remove(prevState);
     }
 
-    /**
-     * Returns an ordered set ({@link LinkedHashSet}) of the cluster state handlers that need to
-     * execute for a given list of handler names supplied through the {@link ReservedStateChunk}.
-     * @param handlerNames Names of handlers found in the {@link ReservedStateChunk}
-     */
-    LinkedHashSet<String> orderedProjectStateHandlers(Set<String> handlerNames) {
-        LinkedHashSet<String> orderedHandlers = new LinkedHashSet<>();
-        LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
-
-        for (String key : handlerNames) {
-            addStateHandler(projectHandlers, key, handlerNames, orderedHandlers, dependencyStack);
-        }
-
-        return orderedHandlers;
-    }
-
-    private void addStateHandler(
-        Map<String, ? extends ReservedStateHandler<?>> handlers,
-        String key,
-        Set<String> keys,
-        SequencedSet<String> ordered,
-        SequencedSet<String> visited
-    ) {
-        if (visited.contains(key)) {
-            StringBuilder msg = new StringBuilder("Cycle found in settings dependencies: ");
-            visited.forEach(s -> {
-                msg.append(s);
-                msg.append(" -> ");
-            });
-            msg.append(key);
-            throw new IllegalStateException(msg.toString());
-        }
-
-        if (ordered.contains(key)) {
-            // already added by another dependent handler
-            return;
-        }
-
-        visited.add(key);
-        ReservedStateHandler<?> handler = handlers.get(key);
-
-        if (handler == null) {
-            throw new IllegalStateException("Unknown handler type: " + key);
-        }
-
-        for (String dependency : handler.dependencies()) {
-            if (keys.contains(dependency) == false) {
-                throw new IllegalStateException("Missing handler dependency definition: " + key + " -> " + dependency);
-            }
-            addStateHandler(handlers, dependency, keys, ordered, visited);
-        }
-
-        for (String dependency : handler.optionalDependencies()) {
-            if (keys.contains(dependency)) {
-                addStateHandler(handlers, dependency, keys, ordered, visited);
-            }
-        }
-
-        visited.remove(key);
-        ordered.add(key);
+    static ClusterState remove(ReservedProjectStateHandler<?> handler, ProjectId projectId, TransformState transformState)
+        throws Exception {
+        return handler.remove(projectId, transformState);
     }
 
     /**
@@ -826,5 +759,13 @@ public class ReservedClusterStateService {
         allHandlers.put(handler.name(), handler);
         projectHandlers.put(handler.name(), handler);
         clusterHandlers.put(handler.name(), adaptForDefaultProject(handler));
+    }
+
+    Map<String, ReservedClusterStateHandler<?>> clusterHandlers() {
+        return unmodifiableMap(clusterHandlers);
+    }
+
+    Map<String, ReservedProjectStateHandler<?>> projectHandlers() {
+        return unmodifiableMap(projectHandlers);
     }
 }

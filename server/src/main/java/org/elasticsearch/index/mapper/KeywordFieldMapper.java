@@ -526,7 +526,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     assert hasDocValues.getValue();
                     return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
                 }
-                if (indexCreatedVersion.onOrAfter(IndexVersions.HOSTNAME_DOC_VALUES_SPARSE_INDEX)
+                if (indexCreatedVersion.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
                     && shouldUseDocValuesSkipper(hasDocValues.getValue(), indexSortConfig, indexMode, fullFieldName)) {
                     return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
                 }

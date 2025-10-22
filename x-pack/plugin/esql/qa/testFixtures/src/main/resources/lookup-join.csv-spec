@@ -5683,7 +5683,6 @@ language_name:keyword | language_code:integer
 lookupJoinWithSemanticFilterDeduplicationComplex
 required_capability: join_lookup_v12
 required_capability: lookup_join_semantic_filter_dedup
-required_capability: lookup_join_on_multiple_fields
 
 from languages_lookup_non_unique_ke* 
 | enrich languages_policy on language_name 

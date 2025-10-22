@@ -69,6 +69,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.HEAP_SIZE_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_NAME_FORMAT;
@@ -462,6 +463,7 @@ public final class BlobStoreTestUtil {
         when(clusterApplierService.threadPool()).thenReturn(threadPool);
         Set<Setting<?>> settingSet = new HashSet<>();
         settingSet.add(MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING);
+        settingSet.add(HEAP_SIZE_SETTING);
         ClusterSettings mockClusterSettings = new ClusterSettings(Settings.EMPTY, settingSet);
         when(clusterService.getClusterSettings()).thenReturn(mockClusterSettings);
         return clusterService;

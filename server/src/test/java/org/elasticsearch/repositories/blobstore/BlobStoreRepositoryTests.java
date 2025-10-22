@@ -90,6 +90,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.bytes.ByteSizeConstants.ONE_GIGABYTE_IN_BYTES;
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_FILE_PREFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING;
@@ -113,6 +114,15 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     static final String REPO_TYPE = "fs";
     private static final String TEST_REPO_NAME = "test-repo";
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            .put(super.nodeSettings())
+            // Mimic production
+            .put("thread_pool.snapshot.max", 10)
+            .build();
+    }
 
     public void testRetrieveSnapshots() {
         final Client client = client();
@@ -857,6 +867,43 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().putNull(MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING.getKey()).build())
+            .get();
+    }
+
+    /**
+     * Tests whether we adjust the maximum concurrency when deleting snapshots
+     * according to the size of the heap memory
+     */
+    public void testMaxIndexDeletionConcurrency() {
+        long heapSizeInBytes = randomLongBetween(0, 5L * ONE_GIGABYTE_IN_BYTES);
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().put("repositories.blobstore.heap_size", heapSizeInBytes + "b").build())
+            .get();
+
+        final var repo = setupRepo();
+
+        int expectedMaxSnapshotThreadsUsed;
+        if (heapSizeInBytes < ONE_GIGABYTE_IN_BYTES) {
+            expectedMaxSnapshotThreadsUsed = 1;
+        } else if (heapSizeInBytes < 2L * ONE_GIGABYTE_IN_BYTES) {
+            expectedMaxSnapshotThreadsUsed = 2;
+        } else if (heapSizeInBytes < 3L * ONE_GIGABYTE_IN_BYTES) {
+            expectedMaxSnapshotThreadsUsed = 4;
+        } else if (heapSizeInBytes < 4L * ONE_GIGABYTE_IN_BYTES) {
+            expectedMaxSnapshotThreadsUsed = 8;
+        } else {
+            expectedMaxSnapshotThreadsUsed = 10;
+        }
+
+        assertEquals(expectedMaxSnapshotThreadsUsed, repo.getMaxIndexDeletionConcurrency());
+
+        // reset original default setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().putNull("repositories.blobstore.heap_size").build())
             .get();
     }
 }

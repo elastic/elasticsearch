@@ -2880,7 +2880,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testLimitBeforeInlineStats_WithFrom_And_Row() {
         assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
-        var sourceCommands = new String[] { "FROM test | ", "ROW salary=1,gender=\"M\",languages=1 | " };
+        var sourceCommands = new String[]{"FROM test | ", "ROW salary=1,gender=\"M\",languages=1 | "};
 
         assertThat(
             error(randomFrom(sourceCommands) + "LIMIT 5 | INLINE STATS max(salary) BY gender"),
@@ -2936,6 +2936,8 @@ public class VerifierTests extends ESTestCase {
                 )
             )
         );
+    }
+
     public void testMvExpandBeforeTSStatsNotAllowed() {
         assertThat(error("TS test | MV_EXPAND name | STATS max(network.connections)", tsdb), equalTo("""
             1:11: mv_expand [MV_EXPAND name] in the time-series before the first aggregation \

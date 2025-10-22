@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
@@ -27,7 +26,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     }
 
     @Override
-    public InternalAggregation doReduce(InternalAggregations aggregations, AggregationReduceContext context) {
+    public InternalAggregation doReduce(InternalAggregations aggregations) {
         Optional<MlAggsHelper.DoubleBucketValues> maybeBucketValues = extractDoubleBucketedValues(
             bucketsPaths()[0],
             aggregations,

@@ -426,5 +426,4 @@ Learn how to use the Search Application client to query your Search Application.
 * [Document level security (DLS)](/reference/search-connectors/document-level-security.md)
 * [Search Applications](docs-content://solutions/search/search-applications.md)
 * [{{es}} DLS](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}}
-:::
 

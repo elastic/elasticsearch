@@ -42,14 +42,14 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction {
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         preview = true,
-        examples = { @Example(file = "k8s-timeseries", tag = "stdvar_over_time") }
+        examples = { @Example(file = "k8s-timeseries", tag = "variance_over_time") }
     )
     public VarianceOverTime(
         Source source,
         @Param(
             name = "number",
             type = { "double", "integer", "long" },
-            description = "Expression that outputs values to calculate the variance of."
+            description = "Expression for which to calculate the variance over time."
         ) Expression field
     ) {
         this(source, field, Literal.TRUE);

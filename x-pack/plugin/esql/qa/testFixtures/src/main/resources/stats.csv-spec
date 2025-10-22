@@ -2969,20 +2969,20 @@ std_dev_height:double
 // end::stdev-result[]
 ;
 
-stdVariance
+varianceSimple
 required_capability: variance_stddev_over_time
 
-// tag::stdvar[]
+// tag::variance[]
 FROM employees
-| STATS std_var_height = VARIANCE(height)
-// end::stdvar[]
-| EVAL std_var_height = ROUND(std_var_height, 7)
+| STATS var_height = VARIANCE(height)
+// end::variance[]
+| EVAL var_height = ROUND(var_height, 7)
 ;
 
-// tag::stdvar-result[]
-std_var_height:double
+// tag::variance-result[]
+var_height:double
 0.0425888
-// end::stdvar-result[]
+// end::variance-result[]
 ;
 
 stdDeviationNested
@@ -3001,20 +3001,20 @@ stddev_salary_change:double
 ;
 
 
-stdVarianceNested
+varianceNested
 required_capability: variance_stddev_over_time
 
-# tag::stdvar[]
+# tag::variance[]
 FROM employees
-| STATS stdvar_salary_change = VARIANCE(MV_MAX(salary_change))
-# end::stdvar[]
-| EVAL stdvar_salary_change = ROUND(stdvar_salary_change, 5)
+| STATS var_salary_change = VARIANCE(MV_MAX(salary_change))
+# end::variance[]
+| EVAL var_salary_change = ROUND(var_salary_change, 5)
 ;
 
-# tag::stdvar-result[]
-stdvar_salary_change:double
+# tag::variance-result[]
+var_salary_change:double
 47.27703
-# end::stdvar-result[]
+# end::variance-result[]
 ;
 
 stdDeviationWithLongs
@@ -3028,7 +3028,7 @@ std_dev:double
 5.7601043E7
 ;
 
-stdVarianceWithLongs
+varianceWithLongs
 required_capability: variance_stddev_over_time
 FROM employees
 | STATS var = variance(avg_worked_seconds)
@@ -3050,14 +3050,14 @@ std_dev:double
 13765.1255
 ;
 
-stdVarianceWithInts
+varianceWithInts
 required_capability: variance_stddev_over_time
 FROM employees
-| STATS std_var = STD_VAR(salary)
-| EVAL std_var = ROUND(std_var, 5)
+| STATS var = STD_VAR(salary)
+| EVAL var = ROUND(var, 5)
 ;
 
-std_var:double
+var:double
 1.894786801075E8
 ;
 

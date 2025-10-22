@@ -620,23 +620,23 @@ staging         | 2024-05-10T00:12:00.000Z | 3.8125
 
 ;
 
-avg_stdvar_over_time
+avg_variance_over_time
 required_capability: ts_command_v0
 required_capability: variance_stddev_over_time
-// tag::stdvar_over_time[]
+// tag::variance_over_time[]
 TS k8s
 | STATS avg_var_cost=AVG(VARIANCE_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
-// end::stdvar_over_time[]
+// end::variance_over_time[]
 | EVAL avg_var_cost = ROUND(avg_var_cost, 6)
 | SORT avg_var_cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
-// tag::stdvar_over_time-result[]
+// tag::variance_over_time-result[]
 cluster:keyword | time_bucket:datetime     | avg_var_cost:double
 staging         | 2024-05-10T00:03:00.000Z | 20.478516
 qa              | 2024-05-10T00:21:00.000Z | 16.0
 qa              | 2024-05-10T00:18:00.000Z | 11.192274
 staging         | 2024-05-10T00:09:00.000Z | 10.446904
-// end::stdvar_over_time-result[]
+// end::variance_over_time-result[]
 qa              | 2024-05-10T00:17:00.000Z | 10.398003
 qa              | 2024-05-10T00:08:00.000Z | 10.114583
 staging         | 2024-05-10T00:20:00.000Z | 7.910156
@@ -651,7 +651,7 @@ required_capability: ts_command_v0
 required_capability: variance_stddev_over_time
 
 TS k8s
-| STATS sd=max(stddev_over_time(network.cost)), var=max(stdvar_over_time(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+| STATS sd=max(stddev_over_time(network.cost)), var=max(variance_over_time(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
 | EVAL sd_squared = sd * sd
 | EVAL sd_squared = ROUND(sd_squared, 6), var = ROUND(var, 6), sd = ROUND(sd, 6)
 | KEEP sd, var, sd_squared, cluster, time_bucket

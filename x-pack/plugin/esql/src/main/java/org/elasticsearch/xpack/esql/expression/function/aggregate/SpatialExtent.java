@@ -113,24 +113,22 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
             case DataType.GEO_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialExtentGeoPointDocValuesAggregatorFunctionSupplier();
                 case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier();
-                case FUNCTION -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
             };
             case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier();
                 case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier();
-                case FUNCTION -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
             };
             case DataType.GEO_SHAPE -> switch (fieldExtractPreference) {
                 case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoShapeDocValuesAggregatorFunctionSupplier();
                 case NONE, STORED -> new SpatialExtentGeoShapeSourceValuesAggregatorFunctionSupplier();
-                case DOC_VALUES, FUNCTION -> throw new EsqlIllegalArgumentException(
+                case DOC_VALUES -> throw new EsqlIllegalArgumentException(
                     "Illegal field extract preference: " + fieldExtractPreference
                 );
             };
             case DataType.CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
                 case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier();
                 case NONE, STORED -> new SpatialExtentCartesianShapeSourceValuesAggregatorFunctionSupplier();
-                case DOC_VALUES, FUNCTION -> throw new EsqlIllegalArgumentException(
+                case DOC_VALUES -> throw new EsqlIllegalArgumentException(
                     "Illegal field extract preference: " + fieldExtractPreference
                 );
             };

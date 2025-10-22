@@ -9286,7 +9286,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types
             | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
             | sort s desc
-            | limit 10
+            | limit 1
             | keep s
             """;
 

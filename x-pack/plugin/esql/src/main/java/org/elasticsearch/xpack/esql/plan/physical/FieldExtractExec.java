@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.FieldFunctionAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -274,9 +273,6 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         }
         if (docValuesAttributes.contains(attr)) {
             return MappedFieldType.FieldExtractPreference.DOC_VALUES;
-        }
-        if (attr instanceof FieldFunctionAttribute) {
-            return MappedFieldType.FieldExtractPreference.FUNCTION;
         }
         return defaultPreference;
     }

@@ -660,12 +660,7 @@ public abstract class MappedFieldType {
          * loading many fields. The {@link MappedFieldType} can chose a different
          * method to load the field if it needs to.
          */
-        STORED,
-        /**
-         * A {@link BlockLoaderValueFunction} needs to be applied for extracting the field value.
-         * The function will be used to transform the field value after loading it, and returning a potentially different type
-         */
-        FUNCTION;
+        STORED
     }
 
     /**
@@ -711,13 +706,12 @@ public abstract class MappedFieldType {
 
         @Nullable
         default BlockLoaderValueFunction<?, ?> blockLoaderValueFunction() {
-            throw new UnsupportedOperationException("blockLoaderValueFunction is not supported");
+            return null;
         }
     }
 
     /**
-     * Function that can be used to transform values loaded by a {@link BlockLoader}. Will be part of the {@link BlockLoaderContext} when
-     * the fieldExtractPreference is {@link FieldExtractPreference#FUNCTION}.
+     * Function that can be used to transform values loaded by a {@link BlockLoader}. Will be part of the {@link BlockLoaderContext}
      * @param <T> the type of the value loaded by the BlockLoader before being transformed
      * @param <B> the type of BlockLoader.Builder used to store the transformed values
      */
@@ -728,7 +722,8 @@ public abstract class MappedFieldType {
         B builder(BlockLoader.BlockFactory factory, int expectedCount);
 
         /**
-         * Applies the function to the value passed as parameter, and adds it to the builder that was returned by {@link #builder(BlockLoader.BlockFactory, int)}.
+         * Applies the function to the value passed as parameter, and adds it to the builder that
+         * was returned by {@link #builder(BlockLoader.BlockFactory, int)}.
          */
         void applyFunctionAndAdd(T value, B builder) throws IOException;
     }

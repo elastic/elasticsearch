@@ -2686,7 +2686,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (indexed) {
-                if (blContext.fieldExtractPreference() == FieldExtractPreference.FUNCTION) {
+                if (blContext.blockLoaderValueFunction() != null) {
                     return new BlockDocValuesReader.DenseVectorValueBlockLoader(
                         name(),
                         dims,

@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitie
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
@@ -82,7 +83,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 throw new RuntimeException(e);
             }
         };
-        downsampleAndAssert(dataStreamName, mapping, sourceSupplier);
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier, randomSamplingMethod());
     }
 
     public void testDownsamplingPassthroughMetrics() throws Exception {
@@ -124,14 +125,62 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 throw new RuntimeException(e);
             }
         };
-        downsampleAndAssert(dataStreamName, mapping, sourceSupplier);
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier, randomSamplingMethod());
+    }
+
+    public void testLastValueMode() throws Exception {
+        String dataStreamName = "metrics-foo";
+        String mapping = """
+            {
+              "properties": {
+                "attributes": {
+                  "type": "passthrough",
+                  "priority": 10,
+                  "time_series_dimension": true,
+                  "properties": {
+                    "os.name": {
+                      "type": "keyword",
+                      "time_series_dimension": true
+                    }
+                  }
+                },
+                "metrics.cpu_usage": {
+                  "type": "double",
+                  "time_series_metric": "gauge"
+                }
+              }
+            }
+            """;
+
+        // Create data stream by indexing documents
+        final Instant now = Instant.now();
+        Supplier<XContentBuilder> sourceSupplier = () -> {
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            try {
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", ts)
+                    .field("attributes.host.name", randomFrom("host1", "host2", "host3"))
+                    .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
+                    .field("metrics.cpu_usage", randomDouble())
+                    .endObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier, DownsampleConfig.SamplingMethod.LAST_VALUE);
     }
 
     /**
      * Create a data stream with the provided mapping and downsampled the first backing index of this data stream. After downsampling has
      *  completed, it asserts if the downsampled index is as expected.
      */
-    private void downsampleAndAssert(String dataStreamName, String mapping, Supplier<XContentBuilder> sourceSupplier) throws Exception {
+    private void downsampleAndAssert(
+        String dataStreamName,
+        String mapping,
+        Supplier<XContentBuilder> sourceSupplier,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) throws Exception {
         // Set up template
         putTSDBIndexTemplate("my-template", List.of(dataStreamName), null, mapping, null, null);
 
@@ -149,7 +198,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
         );
 
-        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval));
+        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval), samplingMethod);
         assertAcked(
             client().execute(
                 DownsampleAction.INSTANCE,
@@ -216,7 +265,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         };
         bulkIndex(dataStreamName, sourceSupplier, 100);
 
-        String secondBackingIndex = rolloverAndDownsample(dataStreamName, 0, "5m");
+        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod());
+        String secondBackingIndex = rolloverAndDownsample(dataStreamName, downsampleConfig);
 
         // index to the next backing index; random time between 31 and 59m in the future to because default look_ahead_time is 30m and we
         // don't want to conflict with the previous backing index
@@ -257,7 +307,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                         new ColumnInfoImpl("@timestamp", "date", null),
                         new ColumnInfoImpl("host", "keyword", null),
                         new ColumnInfoImpl("cluster", "keyword", null),
-                        new ColumnInfoImpl("cpu", "unsupported", List.of("aggregate_metric_double", "double")),
+                        downsampleConfig.getSamplingMethodOrDefault() == DownsampleConfig.SamplingMethod.LAST_VALUE
+                            ? new ColumnInfoImpl("cpu", "double", null)
+                            : new ColumnInfoImpl("cpu", "unsupported", List.of("aggregate_metric_double", "double")),
                         new ColumnInfoImpl("request", "counter_double", null)
                     )
                 )
@@ -310,7 +362,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         bulkIndex(dataStreamName, sourceSupplier, 100);
         // And index documents with values
         sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 14).toEpochMilli(), now.plusSeconds(60 * 30).toEpochMilli());
+            String ts = randomDateForRange(now.minusSeconds(60 * 14).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
             try {
                 return XContentFactory.jsonBuilder()
                     .startObject()
@@ -325,7 +377,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             }
         };
         bulkIndex(dataStreamName, sourceSupplier, 100);
-        String secondBackingIndex = rolloverAndDownsample(dataStreamName, 0, "5m");
+        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod());
+        String secondBackingIndex = rolloverAndDownsample(dataStreamName, downsampleConfig);
 
         Supplier<XContentBuilder> nextSourceSupplier = () -> {
             String ts = randomDateForRange(now.plusSeconds(60 * 31).toEpochMilli(), now.plusSeconds(60 * 59).toEpochMilli());
@@ -427,21 +480,20 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         }
     }
 
-    private String rolloverAndDownsample(String dataStreamName, int timesDownsampledAlready, String interval) throws Exception {
+    private String rolloverAndDownsample(String dataStreamName, DownsampleConfig downsampleConfig) throws Exception {
         // returns the name of the new backing index
         // Rollover to ensure the index we will downsample is not the write index
-        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, timesDownsampledAlready + 2);
-        String sourceIndex = backingIndices.get(timesDownsampledAlready);
-        String secondIndex = backingIndices.get(timesDownsampledAlready + 1);
-        String targetIndex = "downsample-" + interval + "-" + sourceIndex;
+        RolloverResponse rolloverResponse = safeGet(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
+        assertThat(rolloverResponse.isRolledOver(), equalTo(true));
+        String sourceIndex = rolloverResponse.getOldIndex();
+        String newIndex = rolloverResponse.getNewIndex();
+        String targetIndex = "downsample-" + downsampleConfig.getFixedInterval().toString() + "-" + sourceIndex;
         // Set the source index to read-only state
         assertAcked(
             indicesAdmin().prepareUpdateSettings(sourceIndex)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
         );
 
-        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval));
         assertAcked(
             client().execute(
                 DownsampleAction.INSTANCE,
@@ -478,7 +530,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         );
         assertAcked(client().execute(TransportDeleteIndexAction.TYPE, new DeleteIndexRequest(sourceIndex)).actionGet());
 
-        return secondIndex;
+        return newIndex;
     }
 
     private EsqlQueryResponse esqlCommand(String command) throws IOException {

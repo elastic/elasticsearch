@@ -72,7 +72,33 @@ public class PostAnalyticsEventRequestBWCSerializingTests extends AbstractBWCWir
 
     @Override
     protected PostAnalyticsEventAction.Request mutateInstance(PostAnalyticsEventAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String eventCollectionName = instance.eventCollectionName();
+        AnalyticsEvent.Type eventType = instance.eventType();
+        XContentType xContentType = instance.xContentType();
+        BytesReference payload = instance.payload();
+        long eventTime = instance.eventTime();
+        boolean isDebug = instance.isDebug();
+        Map<String, List<String>> headers = instance.headers();
+        String clientAddress = instance.clientAddress();
+        switch (between(0, 7)) {
+            case 0 -> eventCollectionName = randomValueOtherThan(eventCollectionName, () -> randomIdentifier());
+            case 1 -> eventType = randomValueOtherThan(eventType, () -> randomFrom(AnalyticsEvent.Type.values()));
+            case 2 -> xContentType = randomValueOtherThanMany(
+                type -> type.canonical().equals(instance.xContentType().canonical()),
+                () -> randomFrom(XContentType.values())
+            );
+            case 3 -> payload = randomValueOtherThan(payload, () -> new BytesArray(randomByteArrayOfLength(20)));
+            case 4 -> eventTime = randomValueOtherThan(eventTime, () -> randomLong());
+            case 5 -> isDebug = isDebug == false;
+            case 6 -> headers = randomValueOtherThan(headers, () -> randomHeaders());
+            case 7 -> clientAddress = randomValueOtherThan(clientAddress, () -> randomInetAddress());
+        }
+        return PostAnalyticsEventAction.Request.builder(
+            eventCollectionName,
+            eventType.toString().toLowerCase(Locale.ROOT),
+            xContentType,
+            payload
+        ).eventTime(eventTime).debug(isDebug).headers(headers).clientAddress(clientAddress).request();
     }
 
     @Override

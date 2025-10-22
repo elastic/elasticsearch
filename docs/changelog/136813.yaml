@@ -1,0 +1,5 @@
+pr: 136813
+summary: Add new sampling method to the Downsample API
+area: Downsampling
+type: enhancement
+issues: []

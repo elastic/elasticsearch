@@ -1541,7 +1541,7 @@ public class EsqlCapabilities {
          * Fix for ClassCastException in STATS
          */
         FIX_STATS_CLASSCAST_EXCEPTION,
-        
+
         /**
          * Fix attribute equality to respect the name id of the attribute.
          */

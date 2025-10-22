@@ -464,6 +464,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     /**
      * Waits for any current run to finish, then runs the downloader on the last seen cluster state.
+     * {@link #queuedRuns} protects against multiple concurrent runs and ensures that if a run is requested while this method is running,
+     * then another run will be scheduled to run as soon as this method finishes.
      */
     private void runOnDemand() {
         if (isCancelled() || isCompleted()) {

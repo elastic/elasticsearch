@@ -86,6 +86,7 @@ public class AggregatorImplementer {
 
     private final AggregationState aggState;
     private final List<Argument> aggParams;
+    private final boolean hasOnlyBlockArguments;
 
     public AggregatorImplementer(
         Elements elements,
@@ -118,6 +119,8 @@ public class AggregatorImplementer {
             }
             return a;
         }).filter(a -> a instanceof PositionArgument == false).toList();
+
+        this.hasOnlyBlockArguments = this.aggParams.stream().allMatch(a -> a instanceof BlockArgument);
 
         this.createParameters = init.getParameters()
             .stream()
@@ -197,7 +200,7 @@ public class AggregatorImplementer {
         builder.addMethod(addRawInput());
         builder.addMethod(addRawInputExploded(true));
         builder.addMethod(addRawInputExploded(false));
-        if (aggParams.getFirst() instanceof BlockArgument == false) {
+        if (hasOnlyBlockArguments == false) {
             builder.addMethod(addRawVector(false));
             builder.addMethod(addRawVector(true));
         }

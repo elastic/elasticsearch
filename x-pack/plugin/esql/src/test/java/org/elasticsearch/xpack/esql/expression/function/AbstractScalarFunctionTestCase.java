@@ -105,9 +105,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             throw new AssertionError("expected resolved " + resolution.message());
         }
         expression = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
-        if (expression.dataType() != testCase.expectedType()) {
-            logger.info("Expression after null folding: " + expression);
-        }
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         logger.info("Result type: " + expression.dataType());
 

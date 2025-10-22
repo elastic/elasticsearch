@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -93,6 +94,7 @@ public class DownsampleAction implements LifecycleAction {
     }
 
     private final DateHistogramInterval fixedInterval;
+    @Nullable
     private final DownsampleConfig.SamplingMethod samplingMethod;
     private final TimeValue waitTimeout;
     private final Boolean forceMergeIndex;
@@ -177,10 +179,17 @@ public class DownsampleAction implements LifecycleAction {
         return forceMergeIndex;
     }
 
+    /**
+     * @return the sampling method configured in the ILM policy or null
+     */
+    @Nullable
     public DownsampleConfig.SamplingMethod samplingMethod() {
         return samplingMethod;
     }
 
+    /**
+     * @return the sampling method that will be applied when the downsample occurs.
+     */
     public DownsampleConfig.SamplingMethod samplingMethodOrDefault() {
         return DownsampleConfig.SamplingMethod.getOrDefault(samplingMethod);
     }

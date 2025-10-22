@@ -189,16 +189,59 @@ public class CrossClusterApiKeySignatureManager {
                     leaf.getPublicKey().getAlgorithm()
                 );
             }
+
+            authTrustManager.checkClientTrusted(signature.certificates(), leaf.getPublicKey().getAlgorithm());
+
             for (var certificate : signature.certificates()) {
                 certificate.checkValidity();
             }
 
-            authTrustManager.checkClientTrusted(signature.certificates(), leaf.getPublicKey().getAlgorithm());
+            var trustAnchor = findTrustAnchor(signature.topCertificate(), trustManager.get().getAcceptedIssuers());
+            assert trustAnchor != null : Strings.format("Failed to find trust anchor for [%s]", signature.topCertificate());
+
+            trustAnchor.checkValidity();
 
             final Signature signer = Signature.getInstance(signature.algorithm());
             signer.initVerify(leaf);
             signer.update(getSignableBytes(headers));
             return signer.verify(signature.signature().array());
+        }
+
+        /**
+         * Find the certificate that issued the certificate at the top of the current chain. A certificate chain is a list of
+         * certificates followed by one or more CA certificates (usually the last one being a self-signed certificate), with the
+         * following properties:
+         * <br>
+         * 1. The Issuer of each certificate (except the last one) matches the Subject of the next certificate in the list.
+         * 2. Each certificate (except the last one) is signed by the secret key corresponding to the next certificate in the chain (i.e.
+         * the signature of one certificate can be verified using the public key contained in the following certificate).
+         * 3. The last certificate in the list is a trust anchor.
+         */
+        private X509Certificate findTrustAnchor(X509Certificate topCert, X509Certificate[] trustAnchors) {
+            X500Principal issuer = topCert.getIssuerX500Principal();
+
+            for (X509Certificate anchor : trustAnchors) {
+                // Check if the top cert itself is the trust anchor (handles directly trusted certs and full chains)
+                // Per X.509 spec, a certificate is uniquely identified by issuer DN + serial number
+                if (anchor.getIssuerX500Principal().equals(topCert.getIssuerX500Principal())
+                    && anchor.getSerialNumber().equals(topCert.getSerialNumber())) {
+                    return anchor;
+                }
+
+                if (anchor.getSubjectX500Principal().equals(issuer)) {
+                    try {
+                        // Verify this anchor actually signed the top cert
+                        topCert.verify(anchor.getPublicKey());
+                        return anchor;
+                    } catch (GeneralSecurityException e) {
+                        logger.trace(
+                            "Trust anchor [{}] matches issuer name but did not sign the certificate",
+                            anchor.getSubjectX500Principal()
+                        );
+                    }
+                }
+            }
+            return null;
         }
     }
 

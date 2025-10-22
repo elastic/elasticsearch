@@ -229,6 +229,31 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(inFipsJvm() ? "certificate expired on" : "NotAfter"));
     }
 
+    public void testSignAndVerifyExpiredTrustAnchorCertFails() {
+        var builder = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
+
+        builder.put(
+            "cluster.remote.signing.certificate_authorities",
+            getDataPath("/org/elasticsearch/xpack/security/signature/expired_ca_cert.crt")
+        )
+            .put(
+                "cluster.remote.my_remote.signing.certificate",
+                getDataPath("/org/elasticsearch/xpack/security/signature/valid_cert_with_expired_ca.crt")
+            )
+            .put(
+                "cluster.remote.my_remote.signing.key",
+                getDataPath("/org/elasticsearch/xpack/security/signature/valid_key_with_expired_ca.key")
+            );
+
+        var manager = new CrossClusterApiKeySignatureManager(TestEnvironment.newEnvironment(builder.build()));
+        var signature = manager.signerForClusterAlias("my_remote").sign("a_header");
+        var verifier = manager.verifier();
+        var exception = assertThrows(CertificateException.class, () -> verifier.verify(signature, "test"));
+        assertThat(exception.getMessage(), containsString(inFipsJvm() ? "certificate expired on" : "NotAfter"));
+    }
+
     private void addStorePathToBuilder(String storeName, String password, String passwordFips, Settings.Builder builder) {
         String storeType = inFipsJvm() ? "BCFKS" : "PKCS12";
         String extension = inFipsJvm() ? ".bcfks" : ".jks";

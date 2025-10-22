@@ -137,11 +137,12 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
      * through this backlog before any of them time out (even in the -- likely -- situation that the CPU has something other than TLS
      * handshakes to do).
      *
-     * By default, the permitted 2000 handshakes are further divided into 1000 in-flight handshake tasks (2.5s of CPU time) enqueued on the
-     * Netty event loop as normal, and 1000 more delayed handshake tasks which are held in a separate queue and processed in LIFO order. The
+     * By default, the permitted 2000 handshakes are further divided into 200 in-flight handshake tasks (500ms of CPU time) enqueued on the
+     * Netty event loop as normal, and 1800 more delayed handshake tasks which are held in a separate queue and processed in LIFO order. The
      * LIFO order yields better behaviour than FIFO in the situation that we cannot even spend 50% of CPU time on TLS handshakes, because in
      * that case some of the enqueued handshakes will still hit the client timeout, so there's more value in focussing our limited attention
-     * on younger handshakes which we're more likely to complete before timing out.
+     * on younger handshakes which we're more likely to complete before timing out. As long as we can devote at least 5% (200/4000) of a CPU
+     * to this work, we'll be dealing only with handshakes that we can actually complete within the 10s timeout.
      *
      * In future we may decide to adjust this division of work dynamically based on available CPU time, rather than relying on constant
      * limits as described above.
@@ -152,7 +153,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
      */
     public static final Setting<Integer> SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS = intSetting(
         "http.netty.tls_handshakes.max_in_progress",
-        1000, // See [NOTE: TLS Handshake Throttling] above
+        200, // See [NOTE: TLS Handshake Throttling] above
         0,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -163,7 +164,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
      */
     public static final Setting<Integer> SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED = intSetting(
         "http.netty.tls_handshakes.max_delayed",
-        1000, // See [NOTE: TLS Handshake Throttling] above
+        1800, // See [NOTE: TLS Handshake Throttling] above
         0,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

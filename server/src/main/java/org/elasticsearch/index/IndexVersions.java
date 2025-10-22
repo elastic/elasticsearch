@@ -192,7 +192,6 @@ public class IndexVersions {
 
     public static final IndexVersion REENABLED_TIMESTAMP_DOC_VALUES_SPARSE_INDEX = def(9_042_0_00, Version.LUCENE_10_3_1);
     public static final IndexVersion SKIPPERS_ENABLED_BY_DEFAULT = def(9_043_0_00, Version.LUCENE_10_3_1);
-    public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID = def(9_044_0_00, Version.LUCENE_10_3_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

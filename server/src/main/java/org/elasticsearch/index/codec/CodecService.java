@@ -25,8 +25,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID;
-
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
  * codec layer that allows to use use-case specific file formats &amp;
@@ -70,9 +68,7 @@ public class CodecService implements CodecProvider {
             codecs.put(codec, Codec.forName(codec));
         }
         final boolean useTsdbSyntheticId = mapperService != null && mapperService.getIndexSettings().useTsdbSyntheticId();
-        assert useTsdbSyntheticId == false
-            || mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES
-                && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(TIME_SERIES_USE_SYNTHETIC_ID);
+        assert useTsdbSyntheticId == false || mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
 
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
             Codec codec;

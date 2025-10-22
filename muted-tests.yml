@@ -564,9 +564,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationIntAggregatorFunctionTests
   method: testSimpleSmallInput
   issue: https://github.com/elastic/elasticsearch/issues/136905
-- class: org.elasticsearch.xpack.downsample.DownsampleIT
-  method: testPartialNullMetricsAfterDownsampling
-  issue: https://github.com/elastic/elasticsearch/issues/136914
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testTextFieldWithIpSubfieldMalformed {STORED}
   issue: https://github.com/elastic/elasticsearch/issues/136917

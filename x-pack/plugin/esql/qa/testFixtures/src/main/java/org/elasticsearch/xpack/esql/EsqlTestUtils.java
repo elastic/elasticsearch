@@ -105,6 +105,9 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -1160,6 +1163,27 @@ public final class EsqlTestUtils {
         if (plan instanceof Explain explain) {
             return new Explain(explain.source(), ignoreIdsInLogicalPlan(explain.query()));
         }
+
+        // For LookupJoin with the UsingJoinType, the join keys are not part of the plan expressions/node info,
+        // so transformExpressionsDown won't reach them. We need to handle them specifically.
+        plan = plan.transformDown(LookupJoin.class, lookupJoin -> {
+            JoinConfig config = lookupJoin.config();
+            if (config.type() instanceof JoinTypes.UsingJoinType usingJoinType) {
+                List<Attribute> newJoinKeys = usingJoinType.columns()
+                    .stream()
+                    .map(attr -> (Attribute) ignoreIdsInExpression(attr))
+                    .toList();
+                JoinTypes.UsingJoinType newJoinType = new JoinTypes.UsingJoinType(usingJoinType.coreJoin(), newJoinKeys);
+                JoinConfig newJoinConfig = new JoinConfig(
+                    newJoinType,
+                    config.leftFields(),
+                    config.rightFields(),
+                    config.joinOnConditions()
+                );
+                return new LookupJoin(lookupJoin.source(), lookupJoin.left(), lookupJoin.right(), newJoinConfig, lookupJoin.isRemote());
+            }
+            return lookupJoin;
+        });
 
         return plan.transformExpressionsDown(
             NamedExpression.class,

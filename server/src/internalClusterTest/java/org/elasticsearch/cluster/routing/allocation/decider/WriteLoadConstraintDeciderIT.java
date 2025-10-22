@@ -171,7 +171,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             updateClusterSettings(
                 Settings.builder()
                     .put("cluster.routing.allocation.exclude._name", harness.firstDataNodeName)
-                    .put("cluster.routing.allocation.index_balance_decider.enabled", false)
+                    .put("cluster.routing.allocation.index_balance_decider.load_skew_tolerance", 1000)
             );
 
             safeAwait(temporaryClusterStateListener);

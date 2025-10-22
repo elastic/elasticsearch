@@ -27,7 +27,7 @@ public class PreconfiguredEndpointModelAdapter {
             .toList();
     }
 
-    private static Model createModel(
+    public static Model createModel(
         InternalPreconfiguredEndpoints.MinimalModel minimalModel,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {

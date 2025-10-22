@@ -254,11 +254,6 @@ public class ElasticInferenceService extends SenderService {
     }
 
     @Override
-    public void onNodeStarted() {
-        // authorizationHandler.init();
-    }
-
-    @Override
     protected void validateRerankParameters(Boolean returnDocuments, Integer topN, ValidationException validationException) {
         if (returnDocuments != null) {
             validationException.addValidationError(

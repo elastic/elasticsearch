@@ -32,8 +32,6 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -50,7 +48,6 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     private final ServiceComponents serviceComponents;
     private final ModelRegistry modelRegistry;
     private final ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler;
-    private final CountDownLatch firstAuthorizationCompletedLatch = new CountDownLatch(1);
     private final Sender sender;
     private final Runnable callback;
     private final AtomicReference<Scheduler.ScheduledCancellable> lastAuthTask = new AtomicReference<>(null);
@@ -117,23 +114,13 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
     }
 
-    /**
-     * Waits the specified amount of time for the first authorization call to complete. This is mainly to make testing easier.
-     * @param waitTime the max time to wait
-     * @throws IllegalStateException if the wait time is exceeded or the call receives an {@link InterruptedException}
-     */
-    public void waitForAuthorizationToComplete(TimeValue waitTime) {
-        try {
-            if (firstAuthorizationCompletedLatch.await(waitTime.getSeconds(), TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("The wait time has expired for authorization to complete.");
-            }
-        } catch (InterruptedException e) {
-            throw new IllegalStateException("Waiting for authorization to complete was interrupted");
-        }
-    }
-
     @Override
     protected void onCancelled() {
+        shutdown();
+    }
+
+    // default for testing
+    void shutdown() {
         shutdown.set(true);
         if (lastAuthTask.get() != null) {
             lastAuthTask.get().cancel();
@@ -182,7 +169,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         sendAuthorizationRequest();
     }
 
-    private void sendAuthorizationRequest() {
+    // default for testing
+    void sendAuthorizationRequest() {
         if (modelRegistry.isReady() == false) {
             return;
         }
@@ -191,7 +179,6 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             if (callback != null) {
                 callback.run();
             }
-            firstAuthorizationCompletedLatch.countDown();
         }).delegateResponse((delegate, e) -> {
             logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints");
             delegate.onResponse(null);
@@ -227,11 +214,11 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             return;
         }
 
-        logger.debug("Storing new EIS preconfigured inference endpoints with inference IDs {}", newInferenceIds);
+        logger.info("Storing new EIS preconfigured inference endpoints with inference IDs {}", newInferenceIds);
         var modelsToAdd = PreconfiguredEndpointModelAdapter.getModels(newInferenceIds, elasticInferenceServiceComponents);
         var storeRequest = new StoreInferenceEndpointsAction.Request(modelsToAdd, TimeValue.THIRTY_SECONDS);
 
-        ActionListener<StoreInferenceEndpointsAction.Response> storeListener = ActionListener.wrap(responses -> {
+        ActionListener<StoreInferenceEndpointsAction.Response> logResultsListener = ActionListener.wrap(responses -> {
             for (var response : responses.getResults()) {
                 if (response.failed()) {
                     logger.atWarn()
@@ -247,7 +234,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         client.execute(
             StoreInferenceEndpointsAction.INSTANCE,
             storeRequest,
-            ActionListener.runAfter(storeListener, () -> listener.onResponse(null))
+            ActionListener.runAfter(logResultsListener, () -> listener.onResponse(null))
         );
     }
 }

@@ -113,12 +113,12 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
             new TestModel.TestSecretSettings(secrets)
         );
 
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         registry.storeModels(List.of(model), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(response.size(), is(1));
-        assertThat(response.get(0), is(new ModelRegistry.ModelStoreResponse("1", RestStatus.CREATED, null)));
+        assertThat(response.get(0), is(new ModelStoreResponse("1", RestStatus.CREATED, null)));
 
         assertMinimalServiceSettings(registry, model);
 
@@ -158,13 +158,13 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
             new TestModel.TestSecretSettings(secrets)
         );
 
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         registry.storeModels(List.of(model1, model2), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(response.size(), is(2));
-        assertThat(response.get(0), is(new ModelRegistry.ModelStoreResponse("1", RestStatus.CREATED, null)));
-        assertThat(response.get(1), is(new ModelRegistry.ModelStoreResponse("2", RestStatus.CREATED, null)));
+        assertThat(response.get(0), is(new ModelStoreResponse("1", RestStatus.CREATED, null)));
+        assertThat(response.get(1), is(new ModelStoreResponse("2", RestStatus.CREATED, null)));
 
         assertModelAndMinimalSettingsWithSecrets(registry, model1, secrets);
         assertModelAndMinimalSettingsWithSecrets(registry, model2, secrets);
@@ -214,12 +214,12 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
             new TestModel.TestSecretSettings(secrets)
         );
 
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         registry.storeModels(List.of(model1, model2), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
         assertThat(response.size(), is(2));
-        assertThat(response.get(0), is(new ModelRegistry.ModelStoreResponse("1", RestStatus.CREATED, null)));
+        assertThat(response.get(0), is(new ModelStoreResponse("1", RestStatus.CREATED, null)));
         assertThat(response.get(1).inferenceId(), is(model2.getInferenceEntityId()));
         assertThat(response.get(1).status(), is(RestStatus.CONFLICT));
         assertTrue(response.get(1).failed());
@@ -246,7 +246,7 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
 
         storeCorruptedModel(model1);
 
-        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         registry.storeModels(List.of(model1), storeListener, TimeValue.THIRTY_SECONDS);
 
         var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);

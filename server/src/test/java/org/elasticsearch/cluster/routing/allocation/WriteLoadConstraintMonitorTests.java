@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.NodeUsageStatsForThreadPools.ZERO_USAGE_THREAD_POOL_USAGE_MAP;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -169,8 +171,12 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         reason = "ensure we're skipping reroute for the right reason"
     )
     public void testRerouteIsNotCalledInAnAllNodesAreHotSpottingCluster() {
-        final int numberOfNodes = randomIntBetween(1, 5);
-        final TestState testState = createTestStateWithNumberOfNodesAndHotSpots(numberOfNodes, numberOfNodes);
+        final int numberOfIndexNodes = randomIntBetween(1, 5);
+        final TestState testState = createTestStateWithNumberOfNodesAndHotSpots(
+            numberOfIndexNodes,
+            randomIntBetween(1, 5),
+            numberOfIndexNodes
+        );
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             testState.clusterSettings,
             testState.currentTimeSupplier,
@@ -190,7 +196,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             writeLoadConstraintMonitor.onNewInfo(
                 createClusterInfoWithHotSpots(
                     testState.clusterState,
-                    numberOfNodes,
+                    numberOfIndexNodes,
                     testState.latencyThresholdMillis,
                     testState.highUtilizationThresholdPercent
                 )
@@ -319,10 +325,14 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     private TestState createRandomTestStateThatWillTriggerReroute() {
         int numberOfNodes = randomIntBetween(3, 10);
         int numberOfHotSpottingNodes = numberOfNodes - 2; // Leave at least 1 non-hot-spotting node.
-        return createTestStateWithNumberOfNodesAndHotSpots(numberOfNodes, numberOfHotSpottingNodes);
+        return createTestStateWithNumberOfNodesAndHotSpots(numberOfNodes, randomIntBetween(0, 5), numberOfHotSpottingNodes);
     }
 
-    private TestState createTestStateWithNumberOfNodesAndHotSpots(int numberOfNodes, int numberOfHotSpottingNodes) {
+    private TestState createTestStateWithNumberOfNodesAndHotSpots(
+        int numberOfIndexNodes,
+        int numberOfSearchNodes,
+        int numberOfHotSpottingNodes
+    ) {
         final long queueLatencyThresholdMillis = randomLongBetween(1000, 5000);
         final int highUtilizationThresholdPercent = randomIntBetween(70, 100);
         final ClusterSettings clusterSettings = createClusterSettings(
@@ -330,11 +340,13 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             queueLatencyThresholdMillis,
             highUtilizationThresholdPercent
         );
-        final ClusterState state = ClusterStateCreationUtils.state(
-            numberOfNodes,
-            new String[] { randomIdentifier() },
-            randomIntBetween(1, numberOfNodes)
+        final ClusterState state = ClusterStateCreationUtils.buildServerlessRoleNodes(
+            randomIdentifier(), // index name
+            randomIntBetween(1, numberOfIndexNodes),  // num shard primaries
+            numberOfIndexNodes, // number of index role nodes
+            0 // number of search role nodes
         );
+
         final RerouteService rerouteService = mock(RerouteService.class);
         final ClusterInfo clusterInfo = createClusterInfoWithHotSpots(
             state,
@@ -345,7 +357,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         return new TestState(
             queueLatencyThresholdMillis,
             highUtilizationThresholdPercent,
-            numberOfNodes,
+            numberOfIndexNodes,
             clusterSettings,
             System::currentTimeMillis,
             state,
@@ -379,9 +391,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     /**
-     * Create a {@link ClusterInfo} with the specified number of hot spotting nodes,
-     * all other nodes will have no queue latency and have utilization below the specified
-     * high-utilization threshold.
+     * Create a {@link ClusterInfo} with the specified number of hot spotting index nodes,
+     * all other index nodes will have no queue latency and have utilization below the specified
+     * high-utilization threshold. Any search nodes in the cluster will have zero usage write load stats.
      *
      * @param state The cluster state
      * @param numberOfNodesHotSpotting The number of nodes that should be hot-spotting
@@ -395,7 +407,11 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         long queueLatencyThresholdMillis,
         int highUtilizationThresholdPercent
     ) {
-        assert numberOfNodesHotSpotting <= state.getRoutingNodes().size()
+        assert numberOfNodesHotSpotting <= state.getNodes()
+            .stream()
+            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
+            .toList()
+            .size()
             : "Requested "
                 + numberOfNodesHotSpotting
                 + " hot spotting nodes, but there are only "
@@ -406,6 +422,10 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final AtomicInteger hotSpottingNodes = new AtomicInteger(numberOfNodesHotSpotting);
         return ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(state.nodes().stream().collect(Collectors.toMap(DiscoveryNode::getId, node -> {
+                if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
+                    // Search nodes are skipped for write load hot-spots.
+                    return new NodeUsageStatsForThreadPools(node.getId(), ZERO_USAGE_THREAD_POOL_USAGE_MAP);
+                }
                 if (hotSpottingNodes.getAndDecrement() > 0) {
                     // hot-spotting node
                     return new NodeUsageStatsForThreadPools(

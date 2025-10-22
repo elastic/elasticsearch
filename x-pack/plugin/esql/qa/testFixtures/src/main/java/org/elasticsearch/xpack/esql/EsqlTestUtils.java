@@ -598,6 +598,20 @@ public final class EsqlTestUtils {
         return limit;
     }
 
+    public static Limit asLimit(Object node, Integer limitLiteral, Boolean duplicated, Boolean local) {
+        Limit limit = as(node, Limit.class);
+        if (limitLiteral != null) {
+            assertEquals(as(limit.limit(), Literal.class).value(), limitLiteral);
+        }
+        if (duplicated != null) {
+            assertEquals(limit.duplicated(), duplicated);
+        }
+        if (local != null) {
+            assertEquals(limit.local(), local);
+        }
+        return limit;
+    }
+
     public static Map<String, EsField> loadMapping(String name) {
         return LoadMapping.loadMapping(name);
     }

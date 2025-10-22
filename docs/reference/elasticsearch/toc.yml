@@ -1,5 +1,8 @@
 toc:
   - file: index.md
+    children:
+      - title: "Elasticsearch solution & use case"
+        crosslink: docs-content://solutions/search/index.md
   - file: configuration-reference/index.md
     children:
       - file: configuration-reference/circuit-breaker-settings.md

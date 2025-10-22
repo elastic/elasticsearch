@@ -288,9 +288,17 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
      * the field is unmapped.
      */
-    public AbstractGeometryQueryBuilder<QB> ignoreUnmapped(boolean ignoreUnmapped) {
+    @SuppressWarnings("unchecked")
+    public QB ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
-        return this;
+        return (QB) this;
+    }
+
+    /**
+     * @return whether the query builder should ignore unmapped fields
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
     }
 
     /** builds the appropriate lucene shape query */
@@ -447,7 +455,9 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (supplier != null) {
-            return supplier.get() == null ? this : newShapeQueryBuilder(this.fieldName, supplier.get()).relation(relation);
+            return supplier.get() == null
+                ? this
+                : newShapeQueryBuilder(this.fieldName, supplier.get()).relation(relation).ignoreUnmapped(ignoreUnmapped);
         } else if (this.shape == null) {
             SetOnce<Geometry> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> {
@@ -458,7 +468,8 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                     listener.onResponse(null);
                 }));
             });
-            return newShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId).relation(relation);
+            return newShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId).relation(relation)
+                .ignoreUnmapped(ignoreUnmapped);
         }
         return this;
     }

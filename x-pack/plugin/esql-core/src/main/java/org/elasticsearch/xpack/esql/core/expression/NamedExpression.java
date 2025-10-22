@@ -27,6 +27,9 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         this(source, name, children, id, false);
     }
 
+    /**
+     * Assigns a new id if null is passed for {@code id}.
+     */
     public NamedExpression(Source source, String name, List<Expression> children, @Nullable NameId id, boolean synthetic) {
         super(source, children);
         this.name = name;
@@ -57,36 +60,53 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
     public abstract Attribute toAttribute();
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), name, synthetic);
+    public final int hashCode() {
+        return hashCode(false);
+    }
+
+    public final int hashCode(boolean ignoreIds) {
+        return innerHashCode(ignoreIds);
+    }
+
+    protected int innerHashCode(boolean ignoreIds) {
+        return ignoreIds ? Objects.hash(super.hashCode(), name, synthetic) : Objects.hash(super.hashCode(), id, name, synthetic);
+    }
+
+    @Override
+    public final boolean equals(Object o) {
+        return equals(o, false);
     }
 
     /**
-     * Polymorphic equality is a pain and are likely slower than a regular ones.
-     * This equals shortcuts `this == o` and type checks (important when we expect only a few non-equal objects).
-     * Here equals is final to ensure we are not duplicating those checks.
-     * For actual equality check override `innerEquals` instead.
+     * Polymorphic equality is a pain and can be slow.
+     * This shortcuts {@code this == o} and class checks (important when we expect only a few non-equal objects).
+     * <p>
+     * For the actual equality check override {@link #innerEquals(Object, boolean)} instead.
+     * <p>
+     * We also provide the option to ignore NameIds in the equality check, which helps e.g. when creating named expressions
+     * while avoiding duplicates, or when attaching failures to unresolved attributes (see Failure.equals).
+     * Some classes will always ignore ids, irrespective of the parameter passed here.
      */
-    @Override
-    public final boolean equals(Object o) {
+    public final boolean equals(Object o, boolean ignoreIds) {
         if (this == o) {
             return true;
         }
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        return innerEquals(o);
+        return innerEquals(o, ignoreIds);
     }
 
-    protected boolean innerEquals(Object o) {
+    /**
+     * The actual equality check, after shortcutting {@code this == o} and class checks.
+     */
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (NamedExpression) o;
-        return synthetic == other.synthetic
-            /*
-             * It is important that the line below be `name`
-             * and not `name()` because subclasses might override
-             * `name()` in ways that are not compatible with
-             * equality. Specifically the `Unresolved` subclasses.
-             */
+        return (ignoreIds || Objects.equals(id, other.id)) && synthetic == other.synthetic
+        // It is important that the line below be `name`
+        // and not `name()` because subclasses might override
+        // `name()` in ways that are not compatible with
+        // equality. Specifically the `Unresolved` subclasses.
             && Objects.equals(name, other.name)
             && Objects.equals(children(), other.children());
     }

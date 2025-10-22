@@ -294,9 +294,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreTests
   method: testSerializationOfSimple {TestCase=<boolean>}
   issue: https://github.com/elastic/elasticsearch/issues/131334
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testMatchInsideEval
-  issue: https://github.com/elastic/elasticsearch/issues/131336
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test071BindMountCustomPathWithDifferentUID
   issue: https://github.com/elastic/elasticsearch/issues/120917

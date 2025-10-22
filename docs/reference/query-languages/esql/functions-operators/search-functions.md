@@ -52,6 +52,9 @@ for information on the limitations of full text search.
 :::{include} ../_snippets/functions/layout/qstr.md
 :::
 
+:::{include} ../_snippets/functions/layout/score.md
+:::
+
 % TERM is currently a hidden feature
 % To make it visible again, uncomment this and the line in
 lists/search-functions.md

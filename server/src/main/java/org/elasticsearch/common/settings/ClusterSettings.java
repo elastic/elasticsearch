@@ -657,7 +657,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL,
         SamplingService.TTL_POLL_INTERVAL_SETTING,
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
-        ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
-        ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED
+        ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
+        ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED
     );
 }

@@ -14,12 +14,12 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
-import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_SETTINGS;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.FEATURE_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_SETTINGS;
 
 public class HealthFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_SETTINGS);
+        return Set.of(FEATURE_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_SETTINGS);
     }
 }

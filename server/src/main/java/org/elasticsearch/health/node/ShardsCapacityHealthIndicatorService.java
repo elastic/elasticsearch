@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -38,7 +37,6 @@ import java.util.Map;
 /**
  *  This indicator reports health data about the shard capacity across the cluster.
  *
-
  * The indicator will report:
  * <ul>
  * <li> {@code RED} when there's room for less than the configured {@code health.shard_capacity.unhealthy_threshold.red} (default 5) shards
@@ -97,11 +95,11 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         "frozen"
     );
 
-    public static final NodeFeature SHARD_CAPACITY_UNHEALTHY_THRESHOLD_SETTINGS = new NodeFeature(
+    public static final NodeFeature FEATURE_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_SETTINGS = new NodeFeature(
         "health.shard_capacity.unhealthy_threshold_settings"
     );
 
-    public static final Setting<Integer> SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW = Setting.intSetting(
+    public static final Setting<Integer> SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW = Setting.intSetting(
         "health.shard_capacity.unhealthy_threshold.yellow",
         10,
         1,
@@ -111,15 +109,15 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
             @Override
             public void validate(Integer value, Map<Setting<?>, Object> settings) {
-                Integer redThreshold = (Integer) settings.get(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED);
+                Integer redThreshold = (Integer) settings.get(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED);
                 if (value <= redThreshold) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
                             "Setting [%s] (%d) must be greater than [%s] (%d)",
-                            SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(),
+                            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(),
                             value,
-                            SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(),
+                            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(),
                             redThreshold
                         )
                     );
@@ -128,7 +126,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
             @Override
             public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = List.of(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED);
+                final List<Setting<?>> settings = List.of(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED);
                 return settings.iterator();
             }
         },
@@ -136,7 +134,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED = Setting.intSetting(
+    public static final Setting<Integer> SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED = Setting.intSetting(
         "health.shard_capacity.unhealthy_threshold.red",
         5,
         1,
@@ -146,15 +144,15 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
             @Override
             public void validate(Integer value, Map<Setting<?>, Object> settings) {
-                Integer yellowThreshold = (Integer) settings.get(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW);
+                Integer yellowThreshold = (Integer) settings.get(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW);
                 if (value >= yellowThreshold) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
                             "Setting [%s] (%d) must be less than [%s] (%d)",
-                            SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(),
+                            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(),
                             value,
-                            SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(),
+                            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(),
                             yellowThreshold
                         )
                     );
@@ -163,7 +161,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
             @Override
             public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = List.of(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW);
+                final List<Setting<?>> settings = List.of(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW);
                 return settings.iterator();
             }
         },
@@ -174,19 +172,9 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     private final ClusterService clusterService;
     private final List<ShardLimitValidator.LimitGroup> shardLimitGroups;
 
-    private int unhealthyThresholdYellow;
-    private int unhealthyThresholdRed;
-
-    public ShardsCapacityHealthIndicatorService(ClusterService clusterService, Settings settings) {
+    public ShardsCapacityHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.unhealthyThresholdYellow = SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings);
-        this.unhealthyThresholdRed = SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings);
         this.shardLimitGroups = ShardLimitValidator.applicableLimitGroups(DiscoveryNode.isStateless(clusterService.getSettings()));
-
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW, this::setUnhealthyThresholdYellow);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED, this::setUnhealthyThresholdRed);
     }
 
     @Override
@@ -210,16 +198,16 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
                     state.nodes(),
                     state.metadata(),
                     limitGroup::checkShardLimit,
-                    unhealthyThresholdYellow,
-                    unhealthyThresholdRed
+                    healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdYellow(),
+                    healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdRed()
                 )
             )
             .toList();
 
-        return mergeIndicators(verbose, statusResults);
+        return mergeIndicators(verbose, statusResults, healthMetadata);
     }
 
-    private HealthIndicatorResult mergeIndicators(boolean verbose, List<StatusResult> statusResults) {
+    private HealthIndicatorResult mergeIndicators(boolean verbose, List<StatusResult> statusResults, HealthMetadata healthMetadata) {
         var finalStatus = HealthStatus.merge(statusResults.stream().map(StatusResult::status));
         var diagnoses = new LinkedHashSet<Diagnosis>();
         var symptomBuilder = new StringBuilder();
@@ -261,7 +249,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             finalStatus,
             symptomBuilder.toString(),
             verbose
-                ? buildDetails(statusResults.stream().map(StatusResult::result).toList(), unhealthyThresholdYellow, unhealthyThresholdRed)
+                ? buildDetails(statusResults.stream().map(StatusResult::result).toList(), healthMetadata)
                 : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
             verbose ? List.copyOf(diagnoses) : List.of()
@@ -289,11 +277,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return new StatusResult(HealthStatus.GREEN, result);
     }
 
-    static HealthIndicatorDetails buildDetails(
-        List<ShardLimitValidator.Result> results,
-        int unhealthyThresholdYellow,
-        int unhealthyThresholdRed
-    ) {
+    static HealthIndicatorDetails buildDetails(List<ShardLimitValidator.Result> results, HealthMetadata healthMetadata) {
         return (builder, params) -> {
             builder.startObject();
             for (var result : results) {
@@ -304,10 +288,16 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
                 }
                 builder.endObject();
             }
-            {
+            if (healthMetadata != null && healthMetadata.getShardLimitsMetadata() != null) {
                 builder.startObject("settings");
-                builder.field(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), unhealthyThresholdYellow);
-                builder.field(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), unhealthyThresholdRed);
+                builder.field(
+                    SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(),
+                    healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdYellow()
+                );
+                builder.field(
+                    SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(),
+                    healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdRed()
+                );
                 builder.endObject();
             }
             builder.endObject();
@@ -323,14 +313,6 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             List.of(),
             List.of()
         );
-    }
-
-    private void setUnhealthyThresholdYellow(int value) {
-        this.unhealthyThresholdYellow = value;
-    }
-
-    private void setUnhealthyThresholdRed(int value) {
-        this.unhealthyThresholdRed = value;
     }
 
     private static String nodeTypeFroLimitGroup(ShardLimitValidator.LimitGroup limitGroup) {

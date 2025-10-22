@@ -48,15 +48,14 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.common.settings.Settings.EMPTY;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.RED_INDICATOR_IMPACTS;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW;
 import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SHARDS_MAX_CAPACITY_REACHED_DATA_NODES;
 import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES;
-import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED;
-import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW;
 import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.YELLOW_INDICATOR_IMPACTS;
 import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.calculateFrom;
 import static org.elasticsearch.indices.ShardLimitValidator.FROZEN_GROUP;
@@ -122,7 +121,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 createIndexInDataNode(100)
             )
         );
-        var target = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY);
+        var target = new ShardsCapacityHealthIndicatorService(clusterService);
         var indicatorResult = target.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(indicatorResult.status(), HealthStatus.UNKNOWN);
@@ -136,7 +135,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         int maxShardsPerNode = randomValidMaxShards();
         int maxShardsPerNodeFrozen = randomValidMaxShards();
         var clusterService = createClusterService(maxShardsPerNode, maxShardsPerNodeFrozen, createIndexInDataNode(maxShardsPerNode / 4));
-        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(indicatorResult.status(), HealthStatus.GREEN);
         assertTrue(indicatorResult.impacts().isEmpty());
@@ -186,10 +185,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             // Only data_nodes does not have enough space
             int maxShardsPerNodeFrozen = randomValidMaxShards();
             var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(4));
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(
-                true,
-                HealthInfo.EMPTY_HEALTH_INFO
-            );
+            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), YELLOW);
             assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
@@ -214,10 +210,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             // Only frozen_nodes does not have enough space
             int maxShardsPerNode = randomValidMaxShards();
             var clusterService = createClusterService(maxShardsPerNode, 25, createIndexInFrozenNode(4));
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(
-                true,
-                HealthInfo.EMPTY_HEALTH_INFO
-            );
+            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), YELLOW);
             assertEquals(
@@ -244,10 +237,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         {
             // Both data and frozen nodes does not have enough space
             var clusterService = createClusterService(25, 25, createIndexInDataNode(4), createIndexInFrozenNode(4));
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(
-                true,
-                HealthInfo.EMPTY_HEALTH_INFO
-            );
+            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), YELLOW);
             assertEquals(
@@ -280,10 +270,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             // Only data_nodes does not have enough space
             int maxShardsPerNodeFrozen = randomValidMaxShards();
             var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(11));
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(
-                true,
-                HealthInfo.EMPTY_HEALTH_INFO
-            );
+            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), RED);
             assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
@@ -308,10 +295,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             // Only frozen_nodes does not have enough space
             int maxShardsPerNode = randomValidMaxShards();
             var clusterService = createClusterService(maxShardsPerNode, 25, createIndexInFrozenNode(11));
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(
-                true,
-                HealthInfo.EMPTY_HEALTH_INFO
-            );
+            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), RED);
             assertEquals(
@@ -338,10 +322,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         {
             // Both data and frozen nodes does not have enough space
             var clusterService = createClusterService(25, 25, createIndexInDataNode(11), createIndexInFrozenNode(11));
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(
-                true,
-                HealthInfo.EMPTY_HEALTH_INFO
-            );
+            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), RED);
             assertEquals(
@@ -373,33 +354,33 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         {
             // default values
             Settings settings = Settings.builder().build();
-            assertEquals(10, SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings).intValue());
-            assertEquals(5, SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings).intValue());
+            assertEquals(10, SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings).intValue());
+            assertEquals(5, SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings).intValue());
         }
         {
             Integer randomYellowThreshold = randomIntBetween(2, Integer.MAX_VALUE);
             Integer randomRedThreshold = randomYellowThreshold - 1;
             Settings settings = Settings.builder()
-                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
-                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)
                 .build();
-            assertEquals(randomYellowThreshold, SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings));
-            assertEquals(randomRedThreshold, SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings));
+            assertEquals(randomYellowThreshold, SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings));
+            assertEquals(randomRedThreshold, SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings));
         }
         {
             // invalid - same values
             int threshold = randomIntBetween(1, Integer.MAX_VALUE);
             Settings settings = Settings.builder()
-                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), threshold)
-                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), threshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), threshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), threshold)
                 .build();
             expectThrows(
                 IllegalArgumentException.class,
-                () -> ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
             );
         }
         {
@@ -407,16 +388,16 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             int randomYellowThreshold = randomIntBetween(1, Integer.MAX_VALUE - 1);
             int randomRedThreshold = randomYellowThreshold + 1;
             Settings settings = Settings.builder()
-                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
-                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)
                 .build();
             expectThrows(
                 IllegalArgumentException.class,
-                () -> ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
             );
         }
         {
@@ -424,16 +405,16 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             int randomYellowThreshold = randomIntBetween(Integer.MIN_VALUE + 1, 0);
             int randomRedThreshold = randomYellowThreshold - 1;
             Settings settings = Settings.builder()
-                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
-                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)
                 .build();
             expectThrows(
                 IllegalArgumentException.class,
-                () -> ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
             );
         }
     }
@@ -520,10 +501,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     public void testSkippingFieldsWhenVerboseIsFalse() {
         int maxShardsPerNodeFrozen = randomValidMaxShards();
         var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(11));
-        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(
-            false,
-            HealthInfo.EMPTY_HEALTH_INFO
-        );
+        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(false, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(indicatorResult.status(), RED);
         assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
@@ -554,7 +532,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             createClusterState(
                 maxShardsPerNode,
                 maxShardsPerNodeFrozen,
-                new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, maxShardsPerNodeFrozen)),
+                new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, maxShardsPerNodeFrozen, 10, 5)),
                 indexMetadata
             )
         );

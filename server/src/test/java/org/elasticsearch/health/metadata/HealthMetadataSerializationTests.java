@@ -63,7 +63,16 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
     }
 
     private static HealthMetadata.ShardLimits randomShardLimitsMetadata() {
-        return randomBoolean() ? new HealthMetadata.ShardLimits(randomIntBetween(1, 10000), randomIntBetween(1, 10000)) : null;
+        return randomBoolean() ? randomShardLimitsMetadataNonNull() : null;
+    }
+
+    private static HealthMetadata.ShardLimits randomShardLimitsMetadataNonNull() {
+        return new HealthMetadata.ShardLimits(
+            randomIntBetween(1, 10000),
+            randomIntBetween(1, 10000),
+            randomIntBetween(1, 10000),
+            randomIntBetween(1, 10000)
+        );
     }
 
     private static HealthMetadata.Disk randomDiskMetadata() {
@@ -112,13 +121,25 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
 
     static HealthMetadata.ShardLimits mutate(HealthMetadata.ShardLimits base) {
         if (base == null) {
-            return null;
+            return randomShardLimitsMetadataNonNull();
         }
-        if (randomBoolean()) {
-            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNode(randomIntBetween(1, 10000)).build();
-        } else {
-            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNodeFrozen(randomIntBetween(1, 10000)).build();
+
+        int maxShardsPerNode = base.maxShardsPerNode();
+        int maxShardsPerNodeFrozen = base.maxShardsPerNodeFrozen();
+        int shardCapacityUnhealthyThresholdYellow = base.shardCapacityUnhealthyThresholdYellow();
+        int shardCapacityUnhealthyThresholdRed = base.shardCapacityUnhealthyThresholdRed();
+        switch (randomInt(3)) {
+            case 0 -> maxShardsPerNode = randomIntBetween(1, 10000);
+            case 1 -> maxShardsPerNodeFrozen = randomIntBetween(1, 10000);
+            case 2 -> shardCapacityUnhealthyThresholdYellow = randomIntBetween(1, 10000);
+            case 3 -> shardCapacityUnhealthyThresholdRed = randomIntBetween(1, 10000);
         }
+        return new HealthMetadata.ShardLimits(
+            maxShardsPerNode,
+            maxShardsPerNodeFrozen,
+            shardCapacityUnhealthyThresholdYellow,
+            shardCapacityUnhealthyThresholdRed
+        );
     }
 
     private HealthMetadata mutate(HealthMetadata base) {

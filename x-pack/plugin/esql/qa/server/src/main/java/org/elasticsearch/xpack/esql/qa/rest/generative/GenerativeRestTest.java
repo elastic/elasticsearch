@@ -58,6 +58,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Unbounded SORT not supported yet",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
+        "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -70,8 +71,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "cannot be cast to class", // https://github.com/elastic/elasticsearch/issues/133992
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "unexpected byte", // https://github.com/elastic/elasticsearch/issues/136598
-        "Rule execution limit", // https://github.com/elastic/elasticsearch/issues/136599
         "Output has changed from", // https://github.com/elastic/elasticsearch/issues/136797
+        "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -80,7 +81,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "time-series.*the first aggregation.*is not allowed",
         "count_star .* can't be used with TS command",
         "time_series aggregate.* can only be used with the TS command",
-        "implicit time-series aggregation function .* doesn't support type .*"
+        "implicit time-series aggregation function .* doesn't support type .*",
+        "INLINE STATS .* can only be used after STATS when used with TS command",
+        "cannot group by a metric field .* in a time-series aggregation"
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()

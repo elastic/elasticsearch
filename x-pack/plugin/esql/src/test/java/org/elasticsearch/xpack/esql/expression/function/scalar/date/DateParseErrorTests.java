@@ -50,7 +50,7 @@ public class DateParseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 return equalTo(ordinal + " argument of [" + sourceForSignature(signature) + "] must be a map expression, received []");
             }
         }
-        
+
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, i) -> "string"));
     }
 }

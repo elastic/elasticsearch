@@ -30,16 +30,18 @@ import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.time.TimeProvider;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -54,6 +56,7 @@ import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getEx
 public class DesiredBalanceReconciler {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceReconciler.class);
+    private static final int IMMOVABLE_SHARDS_SAMPLE_SIZE = 3;
 
     /**
      * The minimum interval that log messages will be written if the number of undesired shard allocations reaches the percentage of total
@@ -79,20 +82,44 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Warning logs will be periodically written if we haven't seen any progress towards balance in the time specified
+     */
+    public static final Setting<TimeValue> NO_PROGRESS_TOWARDS_BALANCE_LOG_THRESHOLD_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.desired_balance.no_progress_towards_balance_logging.threshold",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private final TimeProvider timeProvider;
+    private final AtomicLong lastProgressTowardsBalanceTimestampMillis = new AtomicLong(0L);
     private final FrequencyCappedAction undesiredAllocationLogInterval;
+    private final FrequencyCappedAction noProgressTowardsBalanceLogInterval;
     private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
+    private volatile TimeValue noProgressTowardsBalanceThreshold;
 
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this.undesiredAllocationLogInterval = new FrequencyCappedAction(
-            threadPool.relativeTimeInMillisSupplier(),
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider) {
+        this.timeProvider = timeProvider;
+        this.undesiredAllocationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.timeValueMinutes(5));
+        this.noProgressTowardsBalanceLogInterval = new FrequencyCappedAction(
+            timeProvider::relativeTimeInMillis,
             TimeValue.timeValueMinutes(5)
         );
-        clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
+        this.lastProgressTowardsBalanceTimestampMillis.set(timeProvider.relativeTimeInMillis());
+        clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, value -> {
+            this.undesiredAllocationLogInterval.setMinInterval(value);
+            this.noProgressTowardsBalanceLogInterval.setMinInterval(value);
+        });
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
+        );
+        clusterSettings.initializeAndWatch(
+            NO_PROGRESS_TOWARDS_BALANCE_LOG_THRESHOLD_SETTING,
+            value -> this.noProgressTowardsBalanceThreshold = value
         );
     }
 
@@ -532,6 +559,7 @@ public class DesiredBalanceReconciler {
             int undesiredAllocationsExcludingShuttingDownNodes = 0;
             final ObjectLongMap<ShardRouting.Role> totalAllocationsByRole = new ObjectLongHashMap<>();
             final ObjectLongMap<ShardRouting.Role> undesiredAllocationsExcludingShuttingDownNodesByRole = new ObjectLongHashMap<>();
+            final Set<ShardRouting> undesiredShardSample = Sets.newHashSetWithExpectedSize(IMMOVABLE_SHARDS_SAMPLE_SIZE);
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
@@ -587,6 +615,7 @@ public class DesiredBalanceReconciler {
                         shardRouting.currentNodeId(),
                         rebalanceTarget.getId()
                     );
+                    lastProgressTowardsBalanceTimestampMillis.set(timeProvider.relativeTimeInMillis());
 
                     routingNodes.relocateShard(
                         shardRouting,
@@ -597,9 +626,14 @@ public class DesiredBalanceReconciler {
                     );
                     iterator.dePrioritizeNode(shardRouting.currentNodeId());
                     moveOrdering.recordAllocation(shardRouting.currentNodeId());
+                } else {
+                    if (undesiredShardSample.size() < IMMOVABLE_SHARDS_SAMPLE_SIZE) {
+                        undesiredShardSample.add(shardRouting);
+                    }
                 }
             }
 
+            maybeLogProgressTowardsDesiredWarning(undesiredAllocationsExcludingShuttingDownNodes, undesiredShardSample);
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
             return new DesiredBalanceMetrics.AllocationStats(
                 unassignedShards,
@@ -614,6 +648,49 @@ public class DesiredBalanceReconciler {
                         )
                     )
             );
+        }
+
+        /**
+         * If there are undesired allocations, and we have made no recent progress towards the desired balance, log a warning
+         *
+         * @param undesiredAllocationsExcludingShuttingDownNodes The number of undesired allocations (excluding shutting down nodes)
+         * @param immovableShardsSample A sample of the shards we found to be immovable
+         */
+        private void maybeLogProgressTowardsDesiredWarning(
+            int undesiredAllocationsExcludingShuttingDownNodes,
+            Set<ShardRouting> immovableShardsSample
+        ) {
+            // There are no undesired allocations, reset the last-progress timestamp
+            if (undesiredAllocationsExcludingShuttingDownNodes == 0) {
+                lastProgressTowardsBalanceTimestampMillis.set(timeProvider.relativeTimeInMillis());
+                return;
+            }
+
+            final long millisecondsSinceLastProgress = timeProvider.relativeTimeInMillis() - lastProgressTowardsBalanceTimestampMillis
+                .get();
+            if (millisecondsSinceLastProgress > noProgressTowardsBalanceThreshold.millis()) {
+                noProgressTowardsBalanceLogInterval.maybeExecute(() -> {
+                    TimeValue timeSinceProgress = TimeValue.timeValueMillis(millisecondsSinceLastProgress);
+                    logger.warn(
+                        "No progress has been made towards desired balance for [{}], this exceeds the warn threshold of [{}]",
+                        timeSinceProgress,
+                        noProgressTowardsBalanceThreshold
+                    );
+                    final RoutingAllocation.DebugMode originalDebugMode = allocation.getDebugMode();
+                    allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
+                    try {
+                        for (final var shardRouting : immovableShardsSample) {
+                            final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+                            for (final var nodeId : assignment.nodeIds()) {
+                                final var decision = allocation.deciders().canAllocate(shardRouting, routingNodes.node(nodeId), allocation);
+                                logger.warn("Shard [{}] cannot be allocated on node [{}]: {}", shardRouting.shardId(), nodeId, decision);
+                            }
+                        }
+                    } finally {
+                        allocation.setDebugMode(originalDebugMode);
+                    }
+                });
+            }
         }
 
         private void maybeLogUndesiredAllocationsWarning(int totalAllocations, int undesiredAllocations, int nodeCount) {

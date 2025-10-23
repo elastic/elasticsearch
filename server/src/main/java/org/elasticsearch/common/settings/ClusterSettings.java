@@ -235,6 +235,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
+        DesiredBalanceReconciler.NO_PROGRESS_TOWARDS_BALANCE_LOG_THRESHOLD_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_TYPE,

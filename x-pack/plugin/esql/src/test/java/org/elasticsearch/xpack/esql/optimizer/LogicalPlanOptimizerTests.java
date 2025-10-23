@@ -19,6 +19,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldFunctionAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -79,6 +82,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -9263,25 +9267,54 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(join.right(), EsRelation.class);
     }
 
+    /**
+     * Expected:
+     * EsqlProject
+     * \_Eval[[$$dense_vector$replaced$26{t}#26 AS s#4]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[types][$$dense_vector$replaced$26{t}#26, !alias_integer, b..]
+     */
     public void testVectorFunctionsReplaced() {
-        assumeTrue(
-            "requires similarity functions",
-            EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled()
-        );
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             from types
             | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
             """;
 
         LogicalPlan plan = planTypes(query);
-        assertNotNull(plan);
+
+        // EsqlProject[[!alias_integer, boolean{f}#6, byte{f}#7, ... s{r}#4]]
+        var project = as(plan, EsqlProject.class);
+        // Does not contain the extracted field
+        assertFalse(Expressions.names(project.projections()).stream().anyMatch(s -> s.startsWith("$$dense_vector$replaced")));
+
+        // Eval[[$$dense_vector$replaced$26{t}#26 AS s#4]]
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("s"));
+
+        // Checks replaced field function attribute
+        FieldFunctionAttribute fieldFunctionAttribute = (FieldFunctionAttribute) alias.child();
+        assertThat(fieldFunctionAttribute.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldFunctionAttribute.name(), startsWith("$$dense_vector$replaced"));
+        var function = as(fieldFunctionAttribute.getFunction(), VectorSimilarityFunction.class);
+        MappedFieldType.BlockLoaderFunction<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> blockLoaderFunction = function
+            .getBlockLoaderFunction();
+        assertThat(blockLoaderFunction.name(), equalTo(DenseVectorFieldMapper.SIMILARITY_FUNCTION_NAME));
+        assertThat(blockLoaderFunction.config().similarityFunction(), is(function.getSimilarityFunction()));
+        assertThat(blockLoaderFunction.config().vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+
+        // Limit[1000[INTEGER],false]
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
+
+        // EsRelation[types]
+        as(limit.child(), EsRelation.class);
     }
 
     public void testVectorFunctionsReplacedWithTopN() {
-        assumeTrue(
-            "requires similarity functions",
-            EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled()
-        );
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             from types
             | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
@@ -9290,8 +9323,48 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep s
             """;
 
+        /**
+         * Expected:
+         * EsqlProject[[s{r}#4]]
+         * \_TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
+         *   \_Eval[[$$dense_vector$replaced$28{t}#28 AS s#4]]
+         *     \_EsRelation[types][$$dense_vector$replaced$28{t}#28, !alias_integer, b..]
+         */
         LogicalPlan plan = planTypes(query);
-        assertNotNull(plan);
+
+        // EsqlProject[[s{r}#4]]
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), contains("s"));
+
+        // TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1));
+        assertThat(topN.order().size(), is(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(Expressions.name(order.child()), equalTo("s"));
+
+        // Eval[[$$dense_vector$replaced$28{t}#28 AS s#4]]
+        var eval = as(topN.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("s"));
+
+        // Checks replaced field function attribute
+        FieldFunctionAttribute fieldFunctionAttribute = (FieldFunctionAttribute) alias.child();
+        assertThat(fieldFunctionAttribute.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldFunctionAttribute.name(), startsWith("$$dense_vector$replaced"));
+        var function = as(fieldFunctionAttribute.getFunction(), VectorSimilarityFunction.class);
+        MappedFieldType.BlockLoaderFunction<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> blockLoaderFunction = function
+            .getBlockLoaderFunction();
+        assertThat(blockLoaderFunction.name(), equalTo(DenseVectorFieldMapper.SIMILARITY_FUNCTION_NAME));
+        assertThat(blockLoaderFunction.config().similarityFunction(), is(function.getSimilarityFunction()));
+        assertThat(blockLoaderFunction.config().vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+        assertThat(alias.child().toString(), containsString("$$dense_vector$replaced"));
+
+        // EsRelation[types]
+        as(eval.child(), EsRelation.class);
     }
 
 }

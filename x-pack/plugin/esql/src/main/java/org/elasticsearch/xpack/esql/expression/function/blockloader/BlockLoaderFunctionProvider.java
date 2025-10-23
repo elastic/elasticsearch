@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.blockloader;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-
 public interface BlockLoaderFunctionProvider<T> {
 
     /**

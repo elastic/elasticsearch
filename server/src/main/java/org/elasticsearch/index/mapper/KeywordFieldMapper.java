@@ -91,9 +91,7 @@ import java.util.function.Supplier;
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
-import static org.elasticsearch.index.IndexSettings.USE_DOC_VALUES_SKIPPER;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
-import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -181,9 +179,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             false
         );
         private final Parameter<Integer> ignoreAbove;
-        private final int ignoreAboveDefault;
-        private final IndexSortConfig indexSortConfig;
-        private final IndexMode indexMode;
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
         private final Parameter<Boolean> hasNorms = Parameter.normsParam(m -> toType(m).fieldType.omitNorms() == false, false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(
@@ -211,67 +206,33 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion indexCreatedVersion;
-        private final boolean enableDocValuesSkipper;
         private final boolean forceDocValuesSkipper;
-        private final SourceKeepMode indexSourceKeepMode;
         private final boolean isWithinMultiField;
+        private final IndexSettings indexSettings;
 
         public Builder(final String name, final MappingParserContext mappingParserContext) {
             this(
                 name,
                 mappingParserContext.getIndexAnalyzers(),
                 mappingParserContext.scriptCompiler(),
-                IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
-                mappingParserContext.getIndexSettings().getIndexVersionCreated(),
-                mappingParserContext.getIndexSettings().getMode(),
-                mappingParserContext.getIndexSettings().getIndexSortConfig(),
-                USE_DOC_VALUES_SKIPPER.get(mappingParserContext.getSettings()),
+                mappingParserContext.getIndexSettings(),
                 false,
-                mappingParserContext.getIndexSettings().sourceKeepMode(),
                 mappingParserContext.isWithinMultiField()
             );
         }
 
-        Builder(
+        public Builder(
             String name,
             IndexAnalyzers indexAnalyzers,
             ScriptCompiler scriptCompiler,
-            IndexVersion indexCreatedVersion,
-            SourceKeepMode sourceKeepMode,
-            boolean isWithinMultiField
-        ) {
-            this(
-                name,
-                indexAnalyzers,
-                scriptCompiler,
-                getIgnoreAboveDefaultValue(IndexMode.STANDARD, indexCreatedVersion),
-                indexCreatedVersion,
-                IndexMode.STANDARD,
-                null,
-                false,
-                false,
-                sourceKeepMode,
-                isWithinMultiField
-            );
-        }
-
-        private Builder(
-            String name,
-            IndexAnalyzers indexAnalyzers,
-            ScriptCompiler scriptCompiler,
-            int ignoreAboveDefault,
-            IndexVersion indexCreatedVersion,
-            IndexMode indexMode,
-            IndexSortConfig indexSortConfig,
-            boolean enableDocValuesSkipper,
+            IndexSettings indexSettings,
             boolean forceDocValuesSkipper,
-            SourceKeepMode indexSourceKeepMode,
             boolean isWithinMultiField
         ) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
-            this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
+            this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.normalizer = Parameter.stringParam(
                 "normalizer",
                 indexCreatedVersion.isLegacyIndexVersion(),
@@ -294,45 +255,25 @@ public final class KeywordFieldMapper extends FieldMapper {
                     );
                 }
             }).precludesParameters(normalizer);
-            this.ignoreAboveDefault = ignoreAboveDefault;
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).fieldType().ignoreAbove().get(), ignoreAboveDefault);
-            this.indexSortConfig = indexSortConfig;
-            this.indexMode = indexMode;
-            this.enableDocValuesSkipper = enableDocValuesSkipper;
-            this.forceDocValuesSkipper = forceDocValuesSkipper;
-            this.indexSourceKeepMode = indexSourceKeepMode;
-            this.isWithinMultiField = isWithinMultiField;
-        }
-
-        public Builder(String name, IndexVersion indexCreatedVersion) {
-            this(name, null, ScriptCompiler.NONE, indexCreatedVersion, SourceKeepMode.NONE, false);
-        }
-
-        public Builder(String name, IndexVersion indexCreatedVersion, boolean isWithinMultiField) {
-            this(name, null, ScriptCompiler.NONE, indexCreatedVersion, SourceKeepMode.NONE, isWithinMultiField);
-        }
-
-        public static Builder buildWithDocValuesSkipper(
-            String name,
-            IndexMode indexMode,
-            IndexVersion indexCreatedVersion,
-            boolean enableDocValuesSkipper,
-            boolean isWithinMultiField
-        ) {
-            return new Builder(
-                name,
-                null,
-                ScriptCompiler.NONE,
-                getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion),
-                indexCreatedVersion,
-                indexMode,
-                // Sort config is used to decide if DocValueSkippers can be used. Since skippers are forced, a sort config is not needed.
-                null,
-                enableDocValuesSkipper,
-                true,
-                SourceKeepMode.NONE,
-                isWithinMultiField
+            this.ignoreAbove = Parameter.ignoreAboveParam(
+                m -> toType(m).fieldType().ignoreAbove().get(),
+                IGNORE_ABOVE_SETTING.get(indexSettings.getSettings())
             );
+            this.forceDocValuesSkipper = forceDocValuesSkipper;
+            this.isWithinMultiField = isWithinMultiField;
+            this.indexSettings = indexSettings;
+        }
+
+        public Builder(String name, IndexSettings indexSettings) {
+            this(name, null, ScriptCompiler.NONE, indexSettings, false, false);
+        }
+
+        public Builder(String name, IndexSettings indexSettings, boolean isWithinMultiField) {
+            this(name, null, ScriptCompiler.NONE, indexSettings, false, isWithinMultiField);
+        }
+
+        public static Builder buildWithDocValuesSkipper(String name, IndexSettings indexSettings, boolean isWithinMultiField) {
+            return new Builder(name, null, ScriptCompiler.NONE, indexSettings, true, isWithinMultiField);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -456,12 +397,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = resolveFieldType(
-                enableDocValuesSkipper,
                 forceDocValuesSkipper,
-                hasDocValues,
-                indexCreatedVersion,
-                indexSortConfig,
-                indexMode,
+                hasDocValues.get(),
+                indexSettings,
                 context.buildFullName(leafName())
             );
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
@@ -483,7 +421,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             String offsetsFieldName = getOffsetsFieldName(
                 context,
-                indexSourceKeepMode,
+                indexSettings.sourceKeepMode(),
                 hasDocValues.getValue(),
                 stored.getValue(),
                 this,
@@ -496,43 +434,33 @@ public final class KeywordFieldMapper extends FieldMapper {
                 buildFieldType(context, fieldtype),
                 builderParams(this, context),
                 this,
-                offsetsFieldName,
-                indexSourceKeepMode
+                offsetsFieldName
             );
         }
 
         private static FieldType resolveFieldType(
-            final boolean enableDocValuesSkipper,
             final boolean forceDocValuesSkipper,
-            final Parameter<Boolean> hasDocValues,
-            final IndexVersion indexCreatedVersion,
-            final IndexSortConfig indexSortConfig,
-            final IndexMode indexMode,
+            boolean hasDocValues,
+            final IndexSettings indexSettings,
             final String fullFieldName
         ) {
-            if (enableDocValuesSkipper) {
-                if (forceDocValuesSkipper) {
-                    assert hasDocValues.getValue();
-                    return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
-                }
-                if (indexCreatedVersion.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
-                    && shouldUseDocValuesSkipper(hasDocValues.getValue(), indexSortConfig, indexMode, fullFieldName)) {
-                    return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
-                }
+            if (forceDocValuesSkipper || shouldUseDocValuesSkipper(hasDocValues, indexSettings, fullFieldName)) {
+                return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
             }
             return new FieldType(Defaults.FIELD_TYPE);
         }
 
         private static boolean shouldUseDocValuesSkipper(
             final boolean hasDocValues,
-            final IndexSortConfig indexSortConfig,
-            final IndexMode indexMode,
+            final IndexSettings indexSettings,
             final String fullFieldName
         ) {
             return hasDocValues
-                && IndexMode.LOGSDB.equals(indexMode)
+                && indexSettings.useDocValuesSkipper()
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
+                && IndexMode.LOGSDB.equals(indexSettings.getMode())
                 && HOST_NAME.equals(fullFieldName)
-                && indexSortConfigByHostName(indexSortConfig);
+                && indexSortConfigByHostName(indexSettings.getIndexSortConfig());
         }
 
         private static boolean indexSortConfigByHostName(final IndexSortConfig indexSortConfig) {
@@ -552,7 +480,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean eagerGlobalOrdinals;
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
-        private final IndexSortConfig indexSortConfig;
         private final boolean hasDocValuesSkipper;
 
         public KeywordFieldType(
@@ -576,11 +503,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
             this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
             this.normalizer = normalizer;
-            this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
+            this.ignoreAbove = new IgnoreAbove(
+                builder.ignoreAbove.getValue(),
+                builder.indexSettings.getMode(),
+                builder.indexSettings.getIndexVersionCreated()
+            );
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
-            this.indexSortConfig = builder.indexSortConfig;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
         }
 
@@ -596,7 +526,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
-            this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
         }
 
@@ -617,7 +546,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
-            this.indexSortConfig = null;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
         }
 
@@ -638,7 +566,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
-            this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
         }
 
@@ -1085,10 +1012,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             return normalizer != Lucene.KEYWORD_ANALYZER;
         }
 
-        public IndexSortConfig getIndexSortConfig() {
-            return indexSortConfig;
-        }
-
         public boolean hasDocValuesSkipper() {
             return hasDocValuesSkipper;
         }
@@ -1113,16 +1036,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean splitQueriesOnWhitespace;
     private final Script script;
     private final ScriptCompiler scriptCompiler;
-    private final IndexVersion indexCreatedVersion;
 
     private final IndexAnalyzers indexAnalyzers;
-    private final int ignoreAboveDefault;
-    private final IndexMode indexMode;
-    private final IndexSortConfig indexSortConfig;
-    private final boolean enableDocValuesSkipper;
+    private final IndexSettings indexSettings;
     private final boolean forceDocValuesSkipper;
     private final String offsetsFieldName;
-    private final SourceKeepMode indexSourceKeepMode;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -1130,8 +1048,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         KeywordFieldType mappedFieldType,
         BuilderParams builderParams,
         Builder builder,
-        String offsetsFieldName,
-        SourceKeepMode indexSourceKeepMode
+        String offsetsFieldName
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
@@ -1144,14 +1061,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
-        this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.ignoreAboveDefault = builder.ignoreAboveDefault;
-        this.indexMode = builder.indexMode;
-        this.indexSortConfig = builder.indexSortConfig;
-        this.enableDocValuesSkipper = builder.enableDocValuesSkipper;
+        this.indexSettings = builder.indexSettings;
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
         this.offsetsFieldName = offsetsFieldName;
-        this.indexSourceKeepMode = indexSourceKeepMode;
     }
 
     @Override
@@ -1313,13 +1225,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             leafName(),
             indexAnalyzers,
             scriptCompiler,
-            ignoreAboveDefault,
-            indexCreatedVersion,
-            indexMode,
-            indexSortConfig,
-            enableDocValuesSkipper,
+            indexSettings,
             forceDocValuesSkipper,
-            indexSourceKeepMode,
             fieldType().isWithinMultiField()
         ).dimension(fieldType().isDimension()).init(this);
     }

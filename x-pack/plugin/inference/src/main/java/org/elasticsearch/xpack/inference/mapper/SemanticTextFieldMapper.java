@@ -287,15 +287,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             this.inferenceFieldBuilder = c -> {
                 // Resolve the model setting from the registry if it has not been set yet.
                 var resolvedModelSettings = modelSettings.get() != null ? modelSettings.get() : getResolvedModelSettings(c, false);
-                return createInferenceField(
-                    c,
-                    indexSettings.getIndexVersionCreated(),
-                    useLegacyFormat,
-                    resolvedModelSettings,
-                    indexOptions.get(),
-                    bitSetProducer,
-                    indexSettings
-                );
+                return createInferenceField(c, useLegacyFormat, resolvedModelSettings, indexOptions.get(), bitSetProducer, indexSettings);
             };
         }
 
@@ -1274,7 +1266,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     private static ObjectMapper createInferenceField(
         MapperBuilderContext context,
-        IndexVersion indexVersionCreated,
         boolean useLegacyFormat,
         @Nullable MinimalServiceSettings modelSettings,
         @Nullable SemanticTextIndexOptions indexOptions,
@@ -1282,12 +1273,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexSettings indexSettings
     ) {
         return new ObjectMapper.Builder(INFERENCE_FIELD, Explicit.of(ObjectMapper.Subobjects.ENABLED)).dynamic(ObjectMapper.Dynamic.FALSE)
-            .add(createChunksField(indexVersionCreated, useLegacyFormat, modelSettings, indexOptions, bitSetProducer, indexSettings))
+            .add(createChunksField(useLegacyFormat, modelSettings, indexOptions, bitSetProducer, indexSettings))
             .build(context);
     }
 
     private static NestedObjectMapper.Builder createChunksField(
-        IndexVersion indexVersionCreated,
         boolean useLegacyFormat,
         @Nullable MinimalServiceSettings modelSettings,
         @Nullable SemanticTextIndexOptions indexOptions,
@@ -1305,7 +1295,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings, indexOptions, useLegacyFormat));
         }
         if (useLegacyFormat) {
-            var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexVersionCreated).indexed(false).docValues(false);
+            var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexSettings).indexed(false).docValues(false);
             chunksField.add(chunkTextField);
         } else {
             chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD));

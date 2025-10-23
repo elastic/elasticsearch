@@ -510,8 +510,14 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                 IndexMetadata current = currentProject.index(index.getIndex());
                 if (current == null) {
                     String indexName = index.getIndex().getName();
-                    logger.debug("Deleting sample configuration for {} because the index has been deleted", indexName);
-                    deleteSampleConfiguration(projectId, indexName);
+                    SamplingConfiguration samplingConfiguration = getSamplingConfiguration(
+                        event.state().projectState(projectId).metadata(),
+                        indexName
+                    );
+                    if (samplingConfiguration != null) {
+                        logger.debug("Deleting sample configuration for {} because the index has been deleted", indexName);
+                        deleteSampleConfiguration(projectId, indexName);
+                    }
                 }
             }
         }

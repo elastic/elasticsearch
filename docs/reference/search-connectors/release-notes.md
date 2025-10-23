@@ -20,9 +20,6 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 
 * Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
 
-## 9.1.6 [connectors-9.1.6-release-notes]
-There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
-
 ## 9.1.5 [connectors-9.1.5-release-notes]
 
 ### Features and enhancements [connectors-9.1.5-features-enhancements]

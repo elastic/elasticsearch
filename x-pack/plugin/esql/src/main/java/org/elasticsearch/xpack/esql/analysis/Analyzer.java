@@ -247,12 +247,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
-            return resolveIndex(
-                plan,
-                plan.indexMode().equals(IndexMode.LOOKUP)
-                    ? context.lookupResolution().get(plan.indexPattern().indexPattern())
-                    : context.indexResolution()
-            );
+            IndexResolution indexResolution = plan.indexMode().equals(IndexMode.LOOKUP)
+                ? context.lookupResolution().get(plan.indexPattern().indexPattern())
+                : context.indexResolution().get(plan.indexPattern());
+            return resolveIndex(plan, indexResolution);
         }
 
         private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
@@ -270,6 +268,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.telemetryLabel()
                     );
             }
+            // assert indexResolution.matches(plan.indexPattern().indexPattern()) : "Expected index resolution to match the index pattern";
             IndexPattern table = plan.indexPattern();
             if (indexResolution.matches(table.indexPattern()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
@@ -537,7 +536,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (plan instanceof Insist i) {
-                return resolveInsist(i, childrenOutput, context.indexResolution());
+                return resolveInsist(i, childrenOutput, context);
             }
 
             if (plan instanceof Fuse fuse) {
@@ -958,15 +957,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, AnalyzerContext context) {
             List<Attribute> list = new ArrayList<>();
+            List<IndexResolution> resolutions = collectIndexResolutions(insist, context);
             for (Attribute a : insist.insistedAttributes()) {
-                list.add(resolveInsistAttribute(a, childrenOutput, indexResolution));
+                list.add(resolveInsistAttribute(a, childrenOutput, resolutions));
             }
             return insist.withAttributes(list);
         }
 
-        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+        private List<IndexResolution> collectIndexResolutions(LogicalPlan plan, AnalyzerContext context) {
+            List<IndexResolution> resolutions = new ArrayList<>();
+            plan.forEachDown(EsRelation.class, e -> {
+                var resolution = context.indexResolution().get(new IndexPattern(e.source(), e.indexPattern()));
+                if (resolution != null) {
+                    resolutions.add(resolution);
+                }
+            });
+            return resolutions;
+        }
+
+        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, List<IndexResolution> indices) {
             Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
             // Field isn't mapped anywhere.
             if (resolvedCol instanceof UnresolvedAttribute) {
@@ -974,7 +985,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             // Field is partially unmapped.
-            if (resolvedCol instanceof FieldAttribute fa && indexResolution.get().isPartiallyUnmappedField(fa.name())) {
+            // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
+            if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
                 return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
             }
 

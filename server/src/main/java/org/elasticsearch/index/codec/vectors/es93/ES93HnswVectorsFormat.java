@@ -32,26 +32,26 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         flatVectorsFormat = new ES93GenericFlatVectorsFormat();
     }
 
-    public ES93HnswVectorsFormat(boolean bfloat16, boolean useDirectIO) {
+    public ES93HnswVectorsFormat(ES93GenericFlatVectorsFormat.ElementType elementType, boolean useDirectIO) {
         super(NAME);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(bfloat16, useDirectIO);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
-    public ES93HnswVectorsFormat(int maxConn, int beamWidth, boolean bfloat16, boolean useDirectIO) {
+    public ES93HnswVectorsFormat(int maxConn, int beamWidth, ES93GenericFlatVectorsFormat.ElementType elementType, boolean useDirectIO) {
         super(NAME, maxConn, beamWidth);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(bfloat16, useDirectIO);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
     public ES93HnswVectorsFormat(
         int maxConn,
         int beamWidth,
-        boolean bfloat16,
+        ES93GenericFlatVectorsFormat.ElementType elementType,
         boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(bfloat16, useDirectIO);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
     @Override

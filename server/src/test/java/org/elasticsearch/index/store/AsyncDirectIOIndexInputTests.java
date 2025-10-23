@@ -15,7 +15,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -26,6 +25,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AsyncDirectIOIndexInputTests extends ESTestCase {
 
@@ -244,7 +245,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
                 actualInput.prefetch((ord + j) * bytesLength, bytesLength);
             }
             // check we prefetch enough data. We need to add 1 because of the current buffer.
-            assertThat(prefetchSize * bytesLength, Matchers.lessThanOrEqualTo((long) (1 + actualInput.prefetchSlots()) * bufferSize));
+            assertThat(prefetchSize * bytesLength, lessThanOrEqualTo((long) (1 + actualInput.prefetchSlots()) * bufferSize));
             for (int j = 0; j < prefetchSize; j++) {
                 actualInput.seek((ord + j) * bytesLength);
                 actualInput.readFloats(floats, 0, floats.length);
@@ -257,7 +258,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
             actualInput.prefetch(ords.apply(k) * bytesLength, bytesLength);
         }
         // check we prefetch enough data. We need to add 1 because of the current buffer.
-        assertThat((numVectors - i) * bytesLength, Matchers.lessThanOrEqualTo((long) (1 + actualInput.prefetchSlots()) * bufferSize));
+        assertThat((numVectors - i) * bytesLength, lessThanOrEqualTo((long) (1 + actualInput.prefetchSlots()) * bufferSize));
         for (; i < numVectors; i++) {
             int ord = ords.apply(i);
             actualInput.seek(ord * bytesLength);

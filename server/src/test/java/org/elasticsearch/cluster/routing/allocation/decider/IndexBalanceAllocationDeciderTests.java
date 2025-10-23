@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -72,10 +74,11 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     private final String indexName = "IndexBalanceAllocationDeciderIndex";
     private final Map<DiscoveryNode, List<ShardRouting>> nodeToShardRoutings = new HashMap<>();
     private ClusterState clusterState;
+    private IndexMetadata indexMetadata;
+    private ShardRouting masterPrimaryShardRouting;
 
-    @Before
-    public void setup() {
-        numberOfPrimaryShards = 10;
+    private void setup() {
+        numberOfPrimaryShards = 11;
         replicationFactor = 2;
 
         indexNodeOne = DiscoveryNodeUtils.builder("indexNodeOne").roles(Collections.singleton(DiscoveryNodeRole.INDEX_ROLE)).build();
@@ -94,7 +97,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test-IndexBalanceAllocationDecider"));
 
         final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+        indexMetadata = IndexMetadata.builder(indexName)
             .settings(
                 indexSettings(IndexVersion.current(), numberOfPrimaryShards, replicationFactor).put(
                     SETTING_CREATION_DATE,
@@ -111,7 +114,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         Metadata.Builder metadataBuilder = Metadata.builder();
 
         shardIds = new ShardId[numberOfPrimaryShards];
-        for (int i = 0; i < numberOfPrimaryShards; i++) {
+        for (int i = 0; i < numberOfPrimaryShards - 1; i++) {
             shardIds[i] = new ShardId(indexMetadata.getIndex(), i);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardIds[i]);
 
@@ -140,6 +143,19 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
 
+        ShardId lastPrimaryShardId = new ShardId(indexMetadata.getIndex(), numberOfPrimaryShards - 1);
+        masterPrimaryShardRouting = TestShardRouting.newShardRouting(
+            lastPrimaryShardId,
+            masterNode.getId(),
+            null,
+            true,
+            ShardRoutingState.STARTED
+        );
+        IndexShardRoutingTable.Builder indexShardRoutingBuilderMasterNode = IndexShardRoutingTable.builder(lastPrimaryShardId);
+        indexShardRoutingBuilderMasterNode.addShard(masterPrimaryShardRouting);
+        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilderMasterNode);
+        routingTableBuilder.add(indexRoutingTableBuilder.build());
+
         metadataBuilder.put(projectBuilder).generateClusterUuidIfNeeded();
         state.nodes(discoveryNodeBuilder);
         state.metadata(metadataBuilder);
@@ -166,10 +182,13 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             searchNodeTwo,
             nodeToShardRoutings.get(searchNodeTwo).toArray(new ShardRouting[0])
         );
-        routingMasterNode = RoutingNodesHelper.routingNode(masterNode.getId(), masterNode);
+        routingMasterNode = RoutingNodesHelper.routingNode(
+            masterNode.getId(), masterNode, masterPrimaryShardRouting);
+
     }
 
     public void testCanAllocate() {
+        setup();
 
         Settings settings = Settings.builder()
             .put("stateless.enabled", "true")
@@ -202,15 +221,29 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         for (RoutingNode routingNode : List.of(routingIndexNodeOne, routingIndexNodeTwo, routingSearchNodeOne, routingSearchNodeTwo)) {
-
             assertDecisionMatches(
-                "Assigning a new shard to a node that has capacity should succeed",
+                "Assigning a new index to a node should succeed",
                 indexBalanceAllocationDecider.canAllocate(newIndexShardRouting, routingNode, routingAllocation),
                 Decision.Type.YES,
                 "Node does not currently host this index."
             );
-
         }
+
+        ShardRouting primaryIndexShardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 1),
+            indexNodeTwo.getId(),
+            null,
+            true,
+            ShardRoutingState.STARTED
+        );
+
+        assertDecisionMatches(
+            "Assigning a new shard to a node that is not index or search node should succeed",
+            indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingMasterNode, routingAllocation),
+            Decision.Type.YES,
+            "Node has neither index nor search roles, outside purview."
+        );
+
 
     }
 

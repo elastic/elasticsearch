@@ -21,6 +21,8 @@ import java.io.IOException;
  * This is used to replace a field attribute with a function that can extract
  * the value in a way that is more efficient than loading the raw field value
  * and applying the function to it.
+ * The original function is included to retrieve from it the {@link org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderFunction}
+ * used to load the values, or to execute the function itself in case the block loader has not been implemented in an older node.
  */
 public class FieldFunctionAttribute extends FieldAttribute {
 

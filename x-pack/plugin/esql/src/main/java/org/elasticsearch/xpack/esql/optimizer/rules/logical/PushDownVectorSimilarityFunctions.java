@@ -22,6 +22,11 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.List;
 
+/**
+ * Replaces vector similarity functions with a field function attribute that applies
+ * the similarity function during value loading, when one side of the function is a literal.
+ * It also adds the new field function attribute to the EsRelation output, and adds a projection after it to remove it from the output.
+ */
 public class PushDownVectorSimilarityFunctions extends OptimizerRules.OptimizerRule<Eval> {
 
     @Override

@@ -711,7 +711,9 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Function that can be used to transform values loaded by a {@link BlockLoader}. Will be part of the {@link BlockLoaderContext}
+     * Load values into blocks, using a function to transform the read values before writing them into blocks.
+     * Will be part of the {@link BlockLoaderContext}
+     * A name and a config object are provided to allow the {@link MappedFieldType} to choose the appropriate implementation.
      */
     public record BlockLoaderFunction<T>(String name, T config) {}
 

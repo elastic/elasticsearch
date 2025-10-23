@@ -194,6 +194,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
 
+        // Apply any block loader function if present
         MappedFieldType.BlockLoaderFunction<?> blockLoaderValueFunction = null;
         if (attr instanceof FieldFunctionAttribute fieldFunctionAttr
             && fieldFunctionAttr.getFunction() instanceof BlockLoaderFunctionProvider<?> blockLoaderFunctionProvider) {

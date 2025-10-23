@@ -61,8 +61,6 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
      */
     protected final Set<Attribute> boundsAttributes;
 
-    protected final Set<Attribute> fieldFunctionAttributes;
-
     private List<Attribute> lazyOutput;
 
     public FieldExtractExec(
@@ -71,7 +69,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         List<Attribute> attributesToExtract,
         MappedFieldType.FieldExtractPreference defaultPreference
     ) {
-        this(source, child, attributesToExtract, defaultPreference, Set.of(), Set.of(), Set.of());
+        this(source, child, attributesToExtract, defaultPreference, Set.of(), Set.of());
     }
 
     protected FieldExtractExec(
@@ -80,8 +78,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         List<Attribute> attributesToExtract,
         MappedFieldType.FieldExtractPreference defaultPreference,
         Set<Attribute> docValuesAttributes,
-        Set<Attribute> boundsAttributes,
-        Set<Attribute> fieldFunctionAttributes
+        Set<Attribute> boundsAttributes
     ) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
@@ -89,7 +86,6 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         this.docValuesAttributes = docValuesAttributes;
         this.boundsAttributes = boundsAttributes;
         this.defaultPreference = defaultPreference;
-        this.fieldFunctionAttributes = fieldFunctionAttributes;
     }
 
     private FieldExtractExec(StreamInput in) throws IOException {
@@ -138,63 +134,19 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(
-            source(),
-            newChild,
-            attributesToExtract,
-            defaultPreference,
-            docValuesAttributes,
-            boundsAttributes,
-            fieldFunctionAttributes
-        );
+        return new FieldExtractExec(source(), newChild, attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
     }
 
     public FieldExtractExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new FieldExtractExec(
-            source(),
-            child(),
-            attributesToExtract,
-            defaultPreference,
-            docValuesAttributes,
-            boundsAttributes,
-            fieldFunctionAttributes
-        );
+        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
     }
 
     public FieldExtractExec withBoundsAttributes(Set<Attribute> boundsAttributes) {
-        return new FieldExtractExec(
-            source(),
-            child(),
-            attributesToExtract,
-            defaultPreference,
-            docValuesAttributes,
-            boundsAttributes,
-            fieldFunctionAttributes
-        );
+        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
     }
 
     public FieldExtractExec withAttributesToExtract(List<Attribute> attributesToExtract) {
-        return new FieldExtractExec(
-            source(),
-            child(),
-            attributesToExtract,
-            defaultPreference,
-            docValuesAttributes,
-            boundsAttributes,
-            fieldFunctionAttributes
-        );
-    }
-
-    public FieldExtractExec withFieldFunctionAttributes(Set<Attribute> fieldFunctionAttributes) {
-        return new FieldExtractExec(
-            source(),
-            child(),
-            attributesToExtract,
-            defaultPreference,
-            docValuesAttributes,
-            boundsAttributes,
-            fieldFunctionAttributes
-        );
+        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
     }
 
     public List<Attribute> attributesToExtract() {
@@ -211,10 +163,6 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     public Set<Attribute> boundsAttributes() {
         return boundsAttributes;
-    }
-
-    public Set<Attribute> fieldFunctionAttributes() {
-        return fieldFunctionAttributes;
     }
 
     @Override

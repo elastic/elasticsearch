@@ -517,6 +517,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
+    /**
+     * {@link BlockLoader} for {@link org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderFunction} that use a
+     * {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarityFunctionConfig} configuration.
+     * It extracts vector from doc values and computes similarity as a result.
+     */
     public static class DenseVectorSimilarityFunctionBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
         private final DenseVectorFieldMapper.DenseVectorFieldType fieldType;
@@ -608,11 +613,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public int docId() {
             return iterator.docID();
         }
-
-        @Override
-        public String toString() {
-            return "BlockDocValuesReader.FloatDenseVectorFunctionBlockReader";
-        }
     }
 
     private static class FloatDenseVectorSimilarityFunctionReader extends DenseVectorSimilarityFunctionReader<FloatVectorValues, float[]> {
@@ -683,7 +683,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.ByteDenseVectorValueBlockReader";
+            return "BlockDocValuesReader.ByteDenseVectorFunctionLoaderValueFunctionReader";
         }
     }
 

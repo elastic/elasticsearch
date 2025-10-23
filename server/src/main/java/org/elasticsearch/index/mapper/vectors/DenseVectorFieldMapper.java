@@ -3156,8 +3156,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     /**
-     * A specialized BlockLoaderValueFunction that calculates similarity between an indexed vector and the query vector. As
-     * vectors can be indexed either as float[] or byte[] we need to handle both cases to route similarity correctly
+     * Configuration for a {@link org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderFunction} that calculates vector similarity.
+     * Functions that use this config should use SIMILARITY_FUNCTION_NAME as their name.
      */
     public static class VectorSimilarityFunctionConfig {
 

@@ -74,7 +74,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     // default for testing
     void init() {
         // If the EIS url is not configured, then we won't be able to interact with the service, so don't start the task.
-        if (Strings.isNullOrEmpty(pollerParameters.eisComponents().elasticInferenceServiceUrl()) == false) {
+        if (Strings.isNullOrEmpty(pollerParameters.elasticInferenceServiceSettings().getElasticInferenceServiceUrl()) == false) {
             clusterService.addListener(this);
         }
     }

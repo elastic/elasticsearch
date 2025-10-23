@@ -14,9 +14,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
@@ -62,8 +62,7 @@ public class AuthorizationPollerTests extends ESTestCase {
             createWithEmptySettings(taskQueue.getThreadPool()),
             authorizationRequestHandler,
             mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            new ElasticInferenceServiceComponents(""),
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mock(Client.class),
             null
@@ -100,15 +99,12 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
 
-        var eisComponents = new ElasticInferenceServiceComponents("");
-
         var poller = new AuthorizationPoller(
             new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
             createWithEmptySettings(taskQueue.getThreadPool()),
             mockAuthHandler,
             mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            eisComponents,
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mockClient,
             null
@@ -125,7 +121,7 @@ public class AuthorizationPollerTests extends ESTestCase {
                 List.of(
                     PreconfiguredEndpointModelAdapter.createModel(
                         InternalPreconfiguredEndpoints.getWithInferenceId(InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2),
-                        eisComponents
+                        new ElasticInferenceServiceComponents("")
                     )
                 )
             )
@@ -159,15 +155,12 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
 
-        var eisComponents = new ElasticInferenceServiceComponents("");
-
         var poller = new AuthorizationPoller(
             new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
             createWithEmptySettings(taskQueue.getThreadPool()),
             mockAuthHandler,
             mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            eisComponents,
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mockClient,
             null
@@ -206,15 +199,12 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
 
-        var eisComponents = new ElasticInferenceServiceComponents("");
-
         var poller = new AuthorizationPoller(
             new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
             createWithEmptySettings(taskQueue.getThreadPool()),
             mockAuthHandler,
             mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            eisComponents,
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mockClient,
             null
@@ -252,7 +242,6 @@ public class AuthorizationPollerTests extends ESTestCase {
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
         var mockClient = mock(Client.class);
-        var eisComponents = new ElasticInferenceServiceComponents("");
 
         var callbackCount = new AtomicInteger(0);
         var latch = new CountDownLatch(2);
@@ -276,8 +265,7 @@ public class AuthorizationPollerTests extends ESTestCase {
             createWithEmptySettings(taskQueue.getThreadPool()),
             mockAuthHandler,
             mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            eisComponents,
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mockClient,
             callback

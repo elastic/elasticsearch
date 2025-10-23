@@ -20,9 +20,9 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
@@ -64,7 +64,6 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
         Sender sender,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        ElasticInferenceServiceComponents eisComponents,
         ModelRegistry modelRegistry,
         Client client
     ) {}
@@ -80,7 +79,6 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             parameters.authorizationRequestHandler,
             parameters.sender,
             parameters.elasticInferenceServiceSettings,
-            parameters.eisComponents,
             parameters.modelRegistry,
             parameters.client,
             null
@@ -94,7 +92,6 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
         Sender sender,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        ElasticInferenceServiceComponents components,
         ModelRegistry modelRegistry,
         Client client,
         // this is a hack to facilitate testing
@@ -105,7 +102,9 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         this.authorizationHandler = Objects.requireNonNull(authorizationRequestHandler);
         this.sender = Objects.requireNonNull(sender);
         this.elasticInferenceServiceSettings = Objects.requireNonNull(elasticInferenceServiceSettings);
-        this.elasticInferenceServiceComponents = Objects.requireNonNull(components);
+        this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
+            elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
+        );
         this.modelRegistry = Objects.requireNonNull(modelRegistry);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
         this.callback = callback;

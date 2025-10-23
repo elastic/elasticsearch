@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
 import org.junit.After;
 import org.junit.Before;
@@ -75,7 +74,6 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                new ElasticInferenceServiceComponents(eisUrl),
                 mock(ModelRegistry.class),
                 mock(Client.class)
             )
@@ -125,7 +123,6 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                new ElasticInferenceServiceComponents(""),
                 mock(ModelRegistry.class),
                 mock(Client.class)
             )
@@ -153,7 +150,6 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                new ElasticInferenceServiceComponents(null),
                 mock(ModelRegistry.class),
                 mock(Client.class)
             )
@@ -204,7 +200,6 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-                new ElasticInferenceServiceComponents(eisUrl),
                 mock(ModelRegistry.class),
                 mock(Client.class)
             )

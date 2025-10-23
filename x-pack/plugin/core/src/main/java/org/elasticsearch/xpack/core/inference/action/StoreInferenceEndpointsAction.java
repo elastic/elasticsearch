@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.registry;
+package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,8 +42,26 @@ public class StoreInferenceEndpointsAction extends ActionType<StoreInferenceEndp
             models = in.readCollectionAsImmutableList(Model::new);
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeCollection(models);
+        }
+
         public List<Model> getModels() {
             return models;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(models, request.models);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(models);
         }
     }
 

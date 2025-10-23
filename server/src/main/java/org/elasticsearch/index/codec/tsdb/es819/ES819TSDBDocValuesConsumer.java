@@ -615,14 +615,13 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 LZ4.compress(docLengths, 0, numDocsInCurrentBlock * Integer.BYTES, output, ht);
                 LZ4.compress(block, 0, uncompressedBlockLength, output, ht);
 
-                int minDocInBlock = maxDocInBlock - numDocsInCurrentBlock + 1;
-                tempDocRanges.writeVInt(minDocInBlock);
-                tempDocRanges.writeVInt(maxDocInBlock);
-
+                tempDocRanges.writeVInt(numDocsInCurrentBlock);
                 numDocsInCurrentBlock = 0;
+
                 uncompressedBlockLength = 0;
                 maxPointer = data.getFilePointer();
-                tempBinaryOffsets.writeVLong(maxPointer - thisBlockStartPointer);
+                long blockLenBytes = maxPointer - thisBlockStartPointer;
+                tempBinaryOffsets.writeVLong(blockLenBytes);
             }
         }
 
@@ -661,13 +660,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                         final DirectMonotonicWriter filePointers = DirectMonotonicWriter.getInstance(
                             meta,
                             data,
-                            totalChunks,
+                            totalChunks + 1,
                             ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
                         );
                         long fp = blockAddressesStart;
+                        filePointers.add(fp);
                         for (int i = 0; i < totalChunks; ++i) {
-                            filePointers.add(fp);
                             fp += filePointersIn.readVLong();
+                            filePointers.add(fp);
                         }
                         if (maxPointer < fp) {
                             throw new CorruptIndexException(
@@ -707,17 +707,18 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     );
                     Throwable priorE = null;
                     try {
-                        long numDocRangeBounds = totalChunks * 2L;
                         final DirectMonotonicWriter docRanges = DirectMonotonicWriter.getInstance(
                             meta,
                             data,
-                            numDocRangeBounds,
+                            totalChunks + 1,
                             ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
                         );
-                        long bound = 0;
-                        for (int i = 0; i < numDocRangeBounds; ++i) {
-                            bound = docRangesIn.readVInt();
-                            docRanges.add(bound);
+
+                        long docOffset = 0;
+                        docRanges.add(docOffset);
+                        for (int i = 0; i < totalChunks; ++i) {
+                            docOffset += docRangesIn.readVLong();
+                            docRanges.add(docOffset);
                         }
                         docRanges.finish();
                     } catch (Throwable e) {

@@ -345,9 +345,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private final int[] uncompressedDocStarts;
         private final byte[] uncompressedBlock;
         private final BytesRef uncompressedBytesRef;
-        private final long[] offsets;
-        private long minDocIdInBlock = -1;
-        private long maxDocIdInBlock = -1;
+        private long startDocNumForBlock = -1;
+        private long limitDocNumForBlock = -1;
 
         BinaryDecoder(
             LongValues addresses,
@@ -356,7 +355,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int biggestUncompressedBlockSize,
             int maxNumDocsInAnyBlock
         ) {
-            super();
             this.addresses = addresses;
             this.docRanges = docRanges;
             this.compressedData = compressedData;
@@ -365,7 +363,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             uncompressedBytesRef = new BytesRef(uncompressedBlock);
             uncompressedDocLengths = new byte[(maxNumDocsInAnyBlock + 1) * Integer.BYTES];
             uncompressedDocStarts = new int[maxNumDocsInAnyBlock + 1];
-            offsets = new long[maxNumDocsInAnyBlock + 1];
         }
 
         // unconditionally decompress blockId into
@@ -403,19 +400,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         // Find range containing docId that is within or after lastBlockId
         // Could change to binary search, though since we usually scan forward this would probably be slower
         long getBlockContainingDoc(LongValues docRanges, long lastBlockId, int docNumber, int numBlocks) {
-            long blockId = lastBlockId + 1;
-
-            while (blockId < numBlocks) {
-                minDocIdInBlock = docRanges.get(2L * blockId);
-                maxDocIdInBlock = docRanges.get(2L * blockId + 1);
-
-                if (docNumber < minDocIdInBlock) {
-                    break;
-                }
-                if (docNumber <= maxDocIdInBlock) {
+            for (long blockId = lastBlockId + 1; blockId < numBlocks; blockId++) {
+                startDocNumForBlock = docRanges.get(blockId);
+                limitDocNumForBlock = docRanges.get(blockId + 1);
+                if (docNumber < limitDocNumForBlock) {
                     return blockId;
                 }
-                blockId++;
             }
             return -1;
         }
@@ -427,15 +417,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         static final BytesRef EMPTY_BYTES_REF = new BytesRef();
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
             // docNumber because these are dense and could be indices from a DISI
-            long blockId = docNumber <= maxDocIdInBlock ? lastBlockId : getBlockContainingDoc(docRanges, lastBlockId, docNumber, numBlocks);
+            long blockId = docNumber < limitDocNumForBlock ? lastBlockId : getBlockContainingDoc(docRanges, lastBlockId, docNumber, numBlocks);
+            assert blockId >= 0;
 
-            if (blockId < 0) {
-                return EMPTY_BYTES_REF;
-            }
-
-            int numDocsInBlock = (int) (maxDocIdInBlock - minDocIdInBlock + 1);
-
-            int idxInBlock = (int) (docNumber - minDocIdInBlock);
+            int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
+            int idxInBlock = (int) (docNumber - startDocNumForBlock);
             assert idxInBlock < numDocsInBlock;
 
             // already read and uncompressed?

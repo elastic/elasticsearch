@@ -1,5 +1,0 @@
-pr: 131641
-summary: Add exception for perform embedding inference requests with query provided
-area: Machine Learning
-type: bug
-issues: []

@@ -17,12 +17,17 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.gen.Types;
 
 import java.util.List;
+import java.util.Objects;
 
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
+import static org.elasticsearch.compute.gen.Methods.getMethod;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.vectorType;
 import static org.elasticsearch.compute.gen.argument.StandardArgument.isBlockType;
 
 /**
@@ -45,7 +50,7 @@ public interface Argument {
 
         Position position = v.getAnnotation(Position.class);
         if (position != null) {
-            return new PositionArgument();
+            return new PositionArgument(type, name);
         }
 
         if (type instanceof ClassName c
@@ -62,6 +67,50 @@ public interface Argument {
             return new BlockArgument(type, name);
         }
         return new StandardArgument(type, name);
+    }
+
+    default String blockName() {
+        return paramName(true);
+    }
+
+    default String vectorName() {
+        return paramName(false);
+    }
+
+    default String valueName() {
+        return name() + "Value";
+    }
+
+    default String startName() {
+        return name() + "Start";
+    }
+
+    default String endName() {
+        return name() + "End";
+    }
+
+    default String offsetName() {
+        return name() + "Offset";
+    }
+
+    default String scratchName() {
+        if (isBytesRef() == false) {
+            throw new IllegalStateException("can't build scratch for non-BytesRef");
+        }
+
+        return name() + "Scratch";
+    }
+
+    default boolean isBytesRef() {
+        return Objects.equals(type(), BYTES_REF);
+    }
+
+    String name();
+
+    TypeName type();
+
+    default TypeName elementType() {
+        return type();
     }
 
     /**
@@ -121,7 +170,7 @@ public interface Argument {
      * call the block flavored evaluator if this is a block. Noop if the
      * parameter is {@link Fixed}.
      */
-    void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval);
+    void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval);
 
     /**
      * Create any scratch structures needed by {@code eval}.
@@ -143,6 +192,27 @@ public interface Argument {
      * unpacks the values into an array, otherwise it just reads to a local.
      */
     void read(MethodSpec.Builder builder, boolean blockStyle);
+
+    /**
+     * Read the value of this parameter to a local variable, by calling the accessor's typed get method and passing necessary params.
+     */
+    default void read(MethodSpec.Builder builder, String accessor, String firstParam) {
+        String params = firstParam;
+        if (isBytesRef()) {
+            params += ", " + scratchName();
+        }
+        builder.addStatement("$T $L = $L.$L($L)", type(), valueName(), accessor, getMethod(type()), params);
+    }
+
+    /**
+     * Adds the parameter declaration for this argument to the method spec.
+     */
+    default void declareProcessParameter(MethodSpec.Builder builder, boolean blockStyle) {
+        TypeName typeName = elementType();
+        ClassName parameterType = blockStyle ? blockType(typeName) : vectorType(typeName);
+        String parameterName = blockStyle ? blockName() : vectorName();
+        builder.addParameter(parameterType, parameterName);
+    }
 
     /**
      * Build the invocation of the process method for this parameter.

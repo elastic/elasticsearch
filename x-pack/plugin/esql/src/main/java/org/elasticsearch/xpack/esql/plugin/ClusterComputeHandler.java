@@ -11,12 +11,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -28,18 +32,23 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Manages computes across multiple clusters by sending {@link ClusterComputeRequest} to remote clusters and executing the computes.
@@ -273,6 +282,11 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         final EsqlFlags flags = computeService.createFlags();
         final long startTimeInNanos = System.nanoTime();
+        final QueryRewriteContext queryRewriteContext = computeService.buildQueryRewriteContext(
+            configuration.absoluteStartedTimeInMillis(),
+            clusterAlias,
+            originalIndices
+        );
         final Runnable cancelQueryOnFailure = computeService.cancelQueryOnFailure(parentTask);
         try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
             final TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
@@ -301,24 +315,108 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     coordinatorPlan,
                     computeListener.acquireCompute()
                 );
-                dataNodeComputeHandler.startComputeOnDataNodes(
-                    localSessionId,
-                    clusterAlias,
-                    parentTask,
-                    flags,
-                    configuration,
+
+                performCoordinatorRewrite(
                     reductionPlan.dataNodePlan(),
-                    concreteIndices,
-                    originalIndices,
-                    exchangeSource,
-                    cancelQueryOnFailure,
-                    computeListener.acquireCompute().map(r -> {
-                        finalResponse.set(r);
-                        return r.getCompletionInfo();
-                    })
+                    transportService.getThreadPool(),
+                    queryRewriteContext,
+                    computeListener,
+                    p -> dataNodeComputeHandler.startComputeOnDataNodes(
+                        localSessionId,
+                        clusterAlias,
+                        parentTask,
+                        flags,
+                        configuration,
+                        p,
+                        concreteIndices,
+                        originalIndices,
+                        exchangeSource,
+                        cancelQueryOnFailure,
+                        computeListener.acquireCompute().map(r -> {
+                            finalResponse.set(r);
+                            return r.getCompletionInfo();
+                        })
+                    )
                 );
             }
         }
     }
 
+    private void performCoordinatorRewrite(
+        PhysicalPlan dataNodePlan,
+        ThreadPool threadPool,
+        QueryRewriteContext queryRewriteContext,
+        ComputeListener computeListener,
+        Consumer<PhysicalPlan> startComputeOnDataNodes
+    ) {
+        ActionListener<Void> listener = computeListener.acquireAvoid();
+        Consumer<Map<EsQueryExec, List<EsQueryExec.QueryBuilderAndTags>>> transformPlan = m -> {
+            dataNodePlan.transformDown(EsQueryExec.class, e -> {
+                List<EsQueryExec.QueryBuilderAndTags> rewritten = m.get(e);
+
+                EsQueryExec newExec = e;
+                if (rewritten != null) {
+                    newExec = new EsQueryExec(
+                        e.source(),
+                        e.indexPattern(),
+                        e.indexMode(),
+                        e.indexNameWithModes(),
+                        e.attrs(),
+                        e.limit(),
+                        e.sorts(),
+                        e.estimatedRowSize(),
+                        rewritten
+                    );
+                }
+
+                return newExec;
+            });
+
+            startComputeOnDataNodes.accept(dataNodePlan);
+        };
+
+        Runnable rewriteQueries = () -> {
+            final AtomicInteger rewriteCount = new AtomicInteger(0);
+            dataNodePlan.forEachDown(EsQueryExec.class, e -> rewriteCount.accumulateAndGet(e.queryBuilderAndTags().size(), Math::addExact));
+
+            final int finalRewriteCount = rewriteCount.get();
+            if (finalRewriteCount > 0) {
+                GroupedActionListener<Tuple<EsQueryExec, EsQueryExec.QueryBuilderAndTags>> gal = new GroupedActionListener<>(
+                    finalRewriteCount,
+                    listener.delegateFailureAndWrap((l, c) -> {
+                        // Use an identity hash map to ensure that we never overwrite instances in the map
+                        final Map<EsQueryExec, List<EsQueryExec.QueryBuilderAndTags>> rewrittenQueryMap = new IdentityHashMap<>();
+                        c.forEach(t -> {
+                            EsQueryExec exec = t.v1();
+                            EsQueryExec.QueryBuilderAndTags qbt = t.v2();
+
+                            List<EsQueryExec.QueryBuilderAndTags> qbtList = rewrittenQueryMap.computeIfAbsent(exec, k -> new ArrayList<>());
+                            qbtList.add(qbt);
+                        });
+
+                        transformPlan.accept(rewrittenQueryMap);
+                    })
+                );
+
+                dataNodePlan.forEachDown(EsQueryExec.class, e -> {
+                    e.queryBuilderAndTags()
+                        .forEach(
+                            qbt -> Rewriteable.rewriteAndFetch(
+                                qbt.query(),
+                                queryRewriteContext,
+                                gal.delegateFailureAndWrap(
+                                    (l, qb) -> l.onResponse(Tuple.tuple(e, new EsQueryExec.QueryBuilderAndTags(qb, qbt.tags())))
+                                )
+                            )
+                        );
+                });
+            } else {
+                startComputeOnDataNodes.accept(dataNodePlan);
+            }
+        };
+
+        try (ExecutorService executor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)) {
+            executor.execute(rewriteQueries);
+        }
+    }
 }

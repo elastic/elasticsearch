@@ -31,7 +31,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
 
     public ES93HnswScalarQuantizedVectorsFormat() {
         super(NAME);
-        this.flatVectorsFormat = new ES93ScalarQuantizedVectorsFormat(
+        this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
             false,
             false
@@ -46,7 +46,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         boolean useDirectIO
     ) {
         super(NAME, maxConn, beamWidth);
-        this.flatVectorsFormat = new ES93ScalarQuantizedVectorsFormat(encoding, useBFloat16, useDirectIO);
+        this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(encoding, useBFloat16, useDirectIO);
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
@@ -59,7 +59,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
-        this.flatVectorsFormat = new ES93ScalarQuantizedVectorsFormat(encoding, useBFloat16, useDirectIO);
+        this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(encoding, useBFloat16, useDirectIO);
     }
 
     @Override
@@ -69,7 +69,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
+        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec, 0);
     }
 
     @Override

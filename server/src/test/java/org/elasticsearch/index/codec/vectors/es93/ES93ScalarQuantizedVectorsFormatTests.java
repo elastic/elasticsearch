@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 
-public class ES93ScalarQuantizedFlatVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES93ScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -42,7 +42,7 @@ public class ES93ScalarQuantizedFlatVectorsFormatTests extends BaseKnnVectorsFor
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93ScalarQuantizedFlatVectorsFormat(false));
+        return TestUtil.alwaysKnnVectorsFormat(new ES93ScalarQuantizedVectorsFormat(false));
     }
 
     public void testSearchWithVisitedLimit() {

@@ -166,7 +166,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                                             aliasFilter,
                                             inputPage.getBlock(matchFields.get(i).channel()),
                                             matchFields.get(i).type()
-                                        ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+                                        );
                                         queryLists.add(termQueryForEquals);
                                     } else {
                                         queryLists.add(

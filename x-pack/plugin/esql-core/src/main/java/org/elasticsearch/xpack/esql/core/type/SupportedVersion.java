@@ -11,15 +11,15 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 
 public interface SupportedVersion {
-    boolean supports(TransportVersion version);
+    boolean supportedOn(TransportVersion version);
 
     default boolean supportedLocally() {
-        return supports(TransportVersion.current());
+        return supportedOn(TransportVersion.current());
     }
 
     SupportedVersion SUPPORTED_ON_ALL_NODES = new SupportedVersion() {
         @Override
-        public boolean supports(TransportVersion version) {
+        public boolean supportedOn(TransportVersion version) {
             return true;
         }
 
@@ -56,7 +56,7 @@ public interface SupportedVersion {
     // Check usage of this constant to be sure.
     SupportedVersion UNDER_CONSTRUCTION = new SupportedVersion() {
         @Override
-        public boolean supports(TransportVersion version) {
+        public boolean supportedOn(TransportVersion version) {
             return Build.current().isSnapshot();
         }
 
@@ -73,10 +73,10 @@ public interface SupportedVersion {
      *     continue to work. Otherwise, we'd have to update bwc tests to skip older versions based
      *     on a capability check, which can be error-prone and risks turning off an unrelated bwc test.
      */
-    static SupportedVersion supportedOn(TransportVersion supportedVersion) {
+    static SupportedVersion supportedSince(TransportVersion supportedVersion) {
         return new SupportedVersion() {
             @Override
-            public boolean supports(TransportVersion version) {
+            public boolean supportedOn(TransportVersion version) {
                 return version.supports(supportedVersion) || Build.current().isSnapshot();
             }
 

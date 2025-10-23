@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.2.0 [elasticsearch-9.2.0-release-notes]
-```{applies_to}
-stack: ga 9.2.0
-```
 
 ### Highlights [elasticsearch-9.2.0-highlights]
 
@@ -56,8 +53,8 @@ Current restrictions:
   - all other restrictions that exist for `dense_vector` fields still apply
 
 To utilize the format, its just like any other:
-
-```yaml
+[source,yaml]
+----------------------------
 PUT vectors
  {
    "mappings": {
@@ -66,11 +63,10 @@ PUT vectors
      }
    }
  }
-```
-
+----------------------------
  Querying is just like any other field.
-
-```yaml
+[source,yaml]
+----------------------------
 POST vectors/_search{
   "query": {
     "knn": {
@@ -80,8 +76,7 @@ POST vectors/_search{
     }
   }
 }
-```
-
+----------------------------
 `num_candidates` can be used for tuning approximate nature of the search.
 Or, more granular control can be provided by setting `visit_percentage` directly.
 ::::
@@ -107,11 +102,10 @@ for a variety of use cases.
 
 ::::{dropdown} Add remote index support to LOOKUP JOIN
 Queries containing LOOKUP JOIN now can be preformed on cross-cluster indices, for example:
-
-```yaml
+[source,yaml]
+----------------------------
 FROM logs-*, remote:logs-* | LOOKUP JOIN clients on ip | SORT timestamp | LIMIT 100
-```
-
+----------------------------
 ::::
 
 ::::{dropdown} New lucene 10.3.0 release
@@ -495,6 +489,8 @@ Vector Search:
 * Fix _inference_fields handling on old indices [#136312](https://github.com/elastic/elasticsearch/pull/136312) (issue: [#136130](https://github.com/elastic/elasticsearch/issues/136130))
 * Have top level knn searches tracked in query stats [#132548](https://github.com/elastic/elasticsearch/pull/132548)
 
+
+
 ## 9.0.8 [elasticsearch-9.0.8-release-notes]
 
 ### Highlights [elasticsearch-9.0.8-highlights]
@@ -551,6 +547,8 @@ Search:
 Transform:
 * Fix a bug in the GET _transform API that incorrectly claims some Transform configurations are missing [#134963](https://github.com/elastic/elasticsearch/pull/134963) (issue: [#134263](https://github.com/elastic/elasticsearch/issues/134263))
 * Prevent Transform from queuing too many PIT close requests by waiting for PIT to close before finishing the checkpoint [#134955](https://github.com/elastic/elasticsearch/pull/134955) (issue: [#134925](https://github.com/elastic/elasticsearch/issues/134925))
+
+
 
 ## 9.1.5 [elasticsearch-9.1.5-release-notes]
 

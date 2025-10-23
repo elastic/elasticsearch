@@ -17,12 +17,11 @@ To give you insight into what deprecated features you’re using, {{es}}:
 % ## Next version [elasticsearch-nextversion-deprecations]
 
 ## 9.2.0 [elasticsearch-9.2.0-deprecations]
-```{applies_to}
-stack: ga 9.2.0
-```
 
 Cluster Coordination:
 * Remove `PeerFinder` request timeout [#134365](https://github.com/elastic/elasticsearch/pull/134365)
+
+
 
 ## 9.0.8 [elasticsearch-9.0.8-deprecations]
 

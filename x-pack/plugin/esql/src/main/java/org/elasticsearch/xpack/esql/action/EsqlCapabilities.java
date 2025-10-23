@@ -1558,6 +1558,12 @@ public class EsqlCapabilities {
          * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
          */
         FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/136851
+         */
+        INLINE_STATS_WITH_NO_COLUMNS(INLINE_STATS.enabled),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

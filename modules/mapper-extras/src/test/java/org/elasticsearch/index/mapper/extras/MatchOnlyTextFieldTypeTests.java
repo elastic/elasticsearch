@@ -299,7 +299,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
@@ -348,7 +349,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(

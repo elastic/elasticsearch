@@ -48,6 +48,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.SingletonBytesRefBuilder singletonBytesRefs(int expectedCount) {
+        return new SingletonBytesRefBuilder(expectedCount, factory);
+    }
+
+    @Override
     public BytesRefBlock constantBytes(BytesRef value, int count) {
         if (count == 1) {
             return factory.newConstantBytesRefBlockWith(value, count);

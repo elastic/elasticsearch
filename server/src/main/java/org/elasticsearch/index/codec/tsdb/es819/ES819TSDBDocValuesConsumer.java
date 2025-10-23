@@ -534,14 +534,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         CompressedBinaryBlockWriter() throws IOException {
             {
-                tempBinaryOffsets = EndiannessReverserUtil.createTempOutput(
-                    state.directory,
-                    state.segmentInfo.name,
-                    "binary_pointers",
-                    state.context
-                );
                 boolean success = false;
                 try {
+                    tempBinaryOffsets = EndiannessReverserUtil.createTempOutput(
+                        state.directory,
+                        state.segmentInfo.name,
+                        "binary_pointers",
+                        state.context
+                    );
                     CodecUtil.writeHeader(
                         tempBinaryOffsets,
                         ES819TSDBDocValuesFormat.META_CODEC + "FilePointers",
@@ -557,14 +557,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             }
 
             {
-                tempDocRanges = EndiannessReverserUtil.createTempOutput(
-                    state.directory,
-                    state.segmentInfo.name,
-                    "doc_ranges",
-                    state.context
-                );
                 boolean success = false;
                 try {
+                    tempDocRanges = EndiannessReverserUtil.createTempOutput(
+                        state.directory,
+                        state.segmentInfo.name,
+                        "doc_ranges",
+                        state.context
+                    );
                     CodecUtil.writeHeader(
                         tempDocRanges,
                         ES819TSDBDocValuesFormat.META_CODEC + "DocRanges",

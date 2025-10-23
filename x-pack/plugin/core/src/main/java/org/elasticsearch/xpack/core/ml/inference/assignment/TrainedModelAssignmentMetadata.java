@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,6 +76,14 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = clusterState.metadata().getSingleProjectCustom(NAME);
         if (trainedModelAssignmentMetadata == null) {
             trainedModelAssignmentMetadata = clusterState.metadata().getSingleProjectCustom(DEPRECATED_NAME);
+        }
+        return trainedModelAssignmentMetadata == null ? EMPTY : trainedModelAssignmentMetadata;
+    }
+
+    public static TrainedModelAssignmentMetadata fromMetadata(ProjectMetadata projectMetadata) {
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = projectMetadata.custom(NAME);
+        if (trainedModelAssignmentMetadata == null) {
+            trainedModelAssignmentMetadata = projectMetadata.custom(DEPRECATED_NAME);
         }
         return trainedModelAssignmentMetadata == null ? EMPTY : trainedModelAssignmentMetadata;
     }

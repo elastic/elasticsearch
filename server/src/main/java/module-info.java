@@ -469,6 +469,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedFlatVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
@@ -477,7 +478,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.Elasticsearch816Codec,
             org.elasticsearch.index.codec.Elasticsearch900Codec,
             org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec,
-            org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+            org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec,
+            org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
@@ -494,6 +496,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
     exports org.elasticsearch.index.codec.vectors to org.elasticsearch.test.knn, org.elasticsearch.gpu;
+    exports org.elasticsearch.index.codec.vectors.reflect to org.elasticsearch.gpu;
     exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
     exports org.elasticsearch.inference.telemetry;
     exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn;

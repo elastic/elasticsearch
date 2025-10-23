@@ -13,4 +13,5 @@ org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat
 org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedFlatVectorsFormat
 org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat
 org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat
+org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat
 org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat

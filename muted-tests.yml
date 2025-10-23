@@ -379,9 +379,6 @@ tests:
   - class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
     method: testRepositoryAnalysis
     issue: https://github.com/elastic/elasticsearch/issues/125668
-  - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
-    method: testEnterpriseDownloaderTask
-    issue: https://github.com/elastic/elasticsearch/issues/126124
   - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
     method: testSearchWithRandomDisconnects
     issue: https://github.com/elastic/elasticsearch/issues/122707

@@ -39,14 +39,10 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     public static final String FORK_FIELD = "_fork";
     public static final int MAX_BRANCHES = 8;
-    public static final int MIN_BRANCHES = 2;
     private final List<Attribute> output;
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
-        if (children.size() < MIN_BRANCHES) {
-            throw new IllegalArgumentException("FORK requires more than " + MIN_BRANCHES + " branches, got: " + children.size());
-        }
         if (children.size() > MAX_BRANCHES) {
             throw new IllegalArgumentException("FORK supports up to " + MAX_BRANCHES + " branches, got: " + children.size());
         }

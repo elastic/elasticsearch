@@ -49,9 +49,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
-import static org.elasticsearch.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.inference.telemetry.InferenceStats.responseAttributes;
+import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 
 /**
@@ -181,7 +180,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
     private void recordRequestDurationMetrics(Model model, InferenceTimer timer, @Nullable Throwable t) {
         Map<String, Object> metricAttributes = new HashMap<>();
-        metricAttributes.putAll(modelAttributes(model));
+        metricAttributes.putAll(InferenceStats.serviceAttributes(model));
         metricAttributes.putAll(responseAttributes(unwrapCause(t)));
 
         inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
@@ -270,7 +269,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
     private void recordRequestCountMetrics(Model model, Request request, String localNodeId) {
         Map<String, Object> requestCountAttributes = new HashMap<>();
-        requestCountAttributes.putAll(modelAttributes(model));
+        requestCountAttributes.putAll(InferenceStats.serviceAttributes(model));
 
         inferenceStats.requestCount().incrementBy(1, requestCountAttributes);
     }
@@ -283,7 +282,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         @Nullable Throwable t
     ) {
         Map<String, Object> metricAttributes = new HashMap<>();
-        metricAttributes.putAll(modelAndResponseAttributes(model, unwrapCause(t)));
+        metricAttributes.putAll(serviceAndResponseAttributes(model, unwrapCause(t)));
 
         inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
     }

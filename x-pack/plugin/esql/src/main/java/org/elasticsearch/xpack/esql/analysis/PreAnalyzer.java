@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * This class is part of the planner.  Acts somewhat like a linker, to find the indices and enrich policies referenced by the query.
@@ -26,15 +26,13 @@ import java.util.Set;
 public class PreAnalyzer {
 
     public record PreAnalysis(
-        IndexMode indexMode,
-        IndexPattern indexPattern,
+        Map<IndexPattern, IndexMode> indexes,
         List<Enrich> enriches,
         List<IndexPattern> lookupIndices,
         boolean supportsAggregateMetricDouble,
-        boolean supportsDenseVector,
-        Set<IndexPattern> subqueryIndices
+        boolean supportsDenseVector
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of(), false, false, Set.of());
+        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false);
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -46,21 +44,19 @@ public class PreAnalyzer {
     }
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
-        Holder<IndexMode> indexMode = new Holder<>();
+        Map<IndexPattern, IndexMode> indexes = new HashMap<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
-        LinkedHashSet<IndexPattern> mainAndSubqueryIndices = new LinkedHashSet<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
             if (p.indexMode() == IndexMode.LOOKUP) {
                 lookupIndices.add(p.indexPattern());
-            } else if (indexMode.get() == null || indexMode.get() == p.indexMode()) {
-                indexMode.set(p.indexMode());
-                if (mainAndSubqueryIndices.isEmpty()) { // the index pattern from main query is always the first to be seen
-                    mainAndSubqueryIndices.add(p.indexPattern());
-                } else { // collect subquery index patterns
-                    collectSubqueryIndexPattern(p, mainAndSubqueryIndices);
-                }
+            } else if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
+                indexes.put(p.indexPattern(), p.indexMode());
             } else {
-                throw new IllegalStateException("index mode is already set");
+                IndexMode m1 = p.indexMode();
+                IndexMode m2 = indexes.get(p.indexPattern());
+                throw new IllegalStateException(
+                    "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
+                );
             }
         });
 
@@ -78,6 +74,11 @@ public class PreAnalyzer {
          */
         Holder<Boolean> supportsAggregateMetricDouble = new Holder<>(false);
         Holder<Boolean> supportsDenseVector = new Holder<>(false);
+        indexes.forEach((ip, mode) -> {
+            if (mode == IndexMode.TIME_SERIES) {
+                supportsAggregateMetricDouble.set(true);
+            }
+        });
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
             if (fn.name().equalsIgnoreCase("knn")
                 || fn.name().equalsIgnoreCase("to_dense_vector")
@@ -97,30 +98,6 @@ public class PreAnalyzer {
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(
-            indexMode.get(),
-            // row command does not have an index pattern, mainAndSubqueryIndices could be empty in this case
-            mainAndSubqueryIndices.isEmpty() ? null : mainAndSubqueryIndices.removeFirst(),
-            unresolvedEnriches,
-            lookupIndices,
-            indexMode.get() == IndexMode.TIME_SERIES || supportsAggregateMetricDouble.get(),
-            supportsDenseVector.get(),
-            mainAndSubqueryIndices
-        );
-    }
-
-    private void collectSubqueryIndexPattern(UnresolvedRelation relation, LinkedHashSet<IndexPattern> mainAndSubqueryIndices) {
-        IndexPattern mainIndexPattern = mainAndSubqueryIndices.getFirst();
-        IndexPattern pattern = relation.indexPattern();
-        boolean isLookup = relation.indexMode() == IndexMode.LOOKUP;
-        boolean isMainIndexPattern = pattern == mainIndexPattern;
-        /*if the subquery's index pattern is the same as the main query, it won't be added
-         * to the subquery indices set, if Analyzer doesn't find the subquery' indexResolution,
-         * it falls back to the main query's indexResolution
-         */
-        if (isLookup || isMainIndexPattern) {
-            return;
-        }
-        mainAndSubqueryIndices.add(pattern);
+        return new PreAnalysis(indexes, unresolvedEnriches, lookupIndices, supportsAggregateMetricDouble.get(), supportsDenseVector.get());
     }
 }

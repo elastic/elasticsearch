@@ -96,11 +96,9 @@ public class SubqueryTests extends AbstractStatementParserTests {
      *           |       \_Limit[10[INTEGER],false]
      *           |         \_OrderBy[[Order[?cnt,DESC,FIRST]]]
      *           |           \_Grok[?h,Parser[pattern=%{WORD:word} %{NUMBER:number},
-     *           grok=org.elasticsearch.grok.Grok@710201ab],[number{r}#22, word{
-     * r}#23]]
+     *           grok=org.elasticsearch.grok.Grok@710201ab],[number{r}#22, word{r}#23]]
      *           |             \_Dissect[?g,Parser[pattern=%{b} %{c}, appendSeparator=,
-     *           parser=org.elasticsearch.dissect.DissectParser@6bd8533a],[b{r}#16
-     * , c{r}#17]]
+     *           parser=org.elasticsearch.dissect.DissectParser@6bd8533a],[b{r}#16, c{r}#17]]
      *           |               \_InlineStats[]
      *           |                 \_Aggregate[[?f],[?MAX[?e] AS max_e#14, ?f]]
      *           |                   \_Aggregate[[?e],[?COUNT[*] AS cnt#11, ?e]]
@@ -184,10 +182,10 @@ public class SubqueryTests extends AbstractStatementParserTests {
             UnionAll unionAll = as(filter.child(), UnionAll.class);
             List<LogicalPlan> children = unionAll.children();
             assertEquals(2, children.size());
-            // leg1
+            // main query
             UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
             assertEquals(unquoteIndexPattern(mainQueryIndexPattern), unresolvedRelation.indexPattern().indexPattern());
-            // leg2
+            // subquery
             Subquery subquery = as(children.get(1), Subquery.class);
             Filter subqueryFilter = as(subquery.plan(), Filter.class);
             LessThan lessThan = as(subqueryFilter.condition(), LessThan.class);
@@ -223,11 +221,9 @@ public class SubqueryTests extends AbstractStatementParserTests {
      *               |       \_Limit[10[INTEGER],false]
      *               |         \_OrderBy[[Order[?cnt,DESC,FIRST]]]
      *               |           \_Grok[?h,Parser[pattern=%{WORD:word} %{NUMBER:number},
-     *               grok=org.elasticsearch.grok.Grok@2d54cab4],[number{r}#41, word{
-     * r}#42]]
+     *               grok=org.elasticsearch.grok.Grok@2d54cab4],[number{r}#41, word{r}#42]]
      *               |             \_Dissect[?g,Parser[pattern=%{b} %{c}, appendSeparator=,
-     *               parser=org.elasticsearch.dissect.DissectParser@5ca49d89],[b{r}#35
-     * , c{r}#36]]
+     *               parser=org.elasticsearch.dissect.DissectParser@5ca49d89],[b{r}#35, c{r}#36]]
      *               |               \_InlineStats[]
      *               |                 \_Aggregate[[?f],[?MAX[?e] AS max_e#10, ?f]]
      *               |                   \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
@@ -276,10 +272,10 @@ public class SubqueryTests extends AbstractStatementParserTests {
         UnionAll unionAll = as(plan, UnionAll.class);
         List<LogicalPlan> children = unionAll.children();
         assertEquals(2, children.size());
-        // leg1
+        // main query
         UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
         assertEquals(unquoteIndexPattern(mainQueryIndexPattern), unresolvedRelation.indexPattern().indexPattern());
-        // leg2
+        // subquery
         Subquery subquery = as(children.get(1), Subquery.class);
         Rerank rerank = as(subquery.plan(), Rerank.class);
         Sample sample = as(rerank.child(), Sample.class);
@@ -314,7 +310,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
 
     /**
      * A combination of the two previous tests with processing commands in both the subquery and main query.
-     * Plan string is skipped as it is too long.
+     * Plan string is skipped as it is too long, and it should be the combination of the above two tests..
      */
     public void testSubqueryWithProcessingCommandsInSubqueryAndMainquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -393,10 +389,10 @@ public class SubqueryTests extends AbstractStatementParserTests {
             UnionAll unionAll = as(filter.child(), UnionAll.class);
             List<LogicalPlan> children = unionAll.children();
             assertEquals(2, children.size());
-            // leg1
+            // main query
             UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
             assertEquals(unquoteIndexPattern(mainQueryIndexPattern), unresolvedRelation.indexPattern().indexPattern());
-            // leg2
+            // subquery
             Subquery subquery = as(children.get(1), Subquery.class);
             rerank = as(subquery.plan(), Rerank.class);
             sample = as(rerank.child(), Sample.class);
@@ -460,10 +456,10 @@ public class SubqueryTests extends AbstractStatementParserTests {
             UnionAll unionAll = as(filter.child(), UnionAll.class);
             List<LogicalPlan> children = unionAll.children();
             assertEquals(2, children.size());
-            // leg1
+            // main query
             UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
             assertEquals(unquoteIndexPattern(mainQueryIndexPattern), unresolvedRelation.indexPattern().indexPattern());
-            // leg2
+            // subquery
             Subquery subquery = as(children.get(1), Subquery.class);
         }
     }
@@ -505,7 +501,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
     }
 
     /**
-     * If the FROM command contains only a subquery, the subquery is merged into an index pattern.
+     * If the FROM command contains only one subquery, the subquery is merged into an index pattern.
      *
      * Keep[[?g]]
      * \_Drop[[?f]]

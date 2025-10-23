@@ -1814,6 +1814,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         return tempList.subList(0, size);
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static <T> List<T> shuffledList(T... values) {
+        return shuffledList(Arrays.asList(values));
+    }
+
     public static <T> List<T> shuffledList(List<T> list) {
         return randomSubsetOf(list.size(), list);
     }

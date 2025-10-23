@@ -340,7 +340,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
 
             // Validate downsampling interval
-            validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
+            validateDownsamplingConfiguration(mapperService, request.getDownsampleConfig(), sourceIndexMetadata);
 
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
@@ -722,7 +722,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         builder.startObject("properties");
 
         addTimestampField(config, sourceIndexMappings, builder);
-        addMetricFields(helper, sourceIndexMappings, builder);
+        addMetricFieldOverwrites(config, helper, sourceIndexMappings, builder);
 
         builder.endObject(); // match initial startObject
         builder.endObject(); // match startObject("properties")
@@ -736,11 +736,20 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .utf8ToString();
     }
 
-    private static void addMetricFields(
+    /**
+     * Adds metric mapping overwrites. When downsampling certain metrics change their mapping type. For example,
+     * when we are using the aggregate sampling method, the mapping of a gauge metric becomes an aggregate_metric_double.
+     */
+    private static void addMetricFieldOverwrites(
+        final DownsampleConfig config,
         final TimeseriesFieldTypeHelper helper,
         final Map<String, Object> sourceIndexMappings,
         final XContentBuilder builder
     ) {
+        // The last value sampling method preserves the source mapping.
+        if (config.getSamplingMethodOrDefault() == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+            return;
+        }
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
             if (helper.isTimeSeriesMetric(field, mapping)) {
                 try {
@@ -843,7 +852,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         builder.endObject();
     }
 
-    private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {
+    private static void validateDownsamplingConfiguration(
+        MapperService mapperService,
+        DownsampleConfig config,
+        IndexMetadata sourceIndexMetadata
+    ) {
         MappedFieldType timestampFieldType = mapperService.fieldType(config.getTimestampField());
         assert timestampFieldType != null : "Cannot find timestamp field [" + config.getTimestampField() + "] in the mapping";
         ActionRequestValidationException e = new ActionRequestValidationException();
@@ -851,12 +864,22 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         Map<String, String> meta = timestampFieldType.meta();
         if (meta.isEmpty() == false) {
             String interval = meta.get(config.getIntervalType());
+            DownsampleConfig.SamplingMethod sourceSamplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(sourceIndexMetadata);
             if (interval != null) {
                 try {
-                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval));
+                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval), sourceSamplingMethod);
                     DownsampleConfig.validateSourceAndTargetIntervals(sourceConfig, config);
                 } catch (IllegalArgumentException exception) {
                     e.addValidationError("Source index is a downsampled index. " + exception.getMessage());
+                }
+                if (Objects.equals(sourceSamplingMethod, config.getSamplingMethodOrDefault()) == false) {
+                    e.addValidationError(
+                        "Source index is a downsampled index. Downsampling method ["
+                            + config.getSamplingMethodOrDefault()
+                            + "] is not compatible with the source index downsampling method ["
+                            + sourceSamplingMethod
+                            + "]."
+                    );
                 }
             }
 
@@ -965,6 +988,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
             .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.STARTED)
             .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsampleInterval)
+            .put(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey(), request.getDownsampleConfig().getSamplingMethodOrDefault().toString())
             .put(IndexSettings.MODE.getKey(), sourceIndexMetadata.getIndexMode())
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths())
             .put(

@@ -52,11 +52,11 @@ public record AnalyzerContext(
         this(
             configuration,
             functionRegistry,
-            result.indices(),
-            result.lookupIndices(),
-            result.enrichResolution(),
-            result.inferenceResolution(),
-            result.minimumTransportVersion()
+            result.indices,
+            result.lookupIndices,
+            result.enrichResolution,
+            result.inferenceResolution,
+            result.minimumTransportVersion
         );
     }
 }

@@ -118,6 +118,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         int targetShardId = indexMetadata.getReshardingMetadata().getSplit().targetShard(sourceShard.id());
         ShardId targetShard = new ShardId(request.shardId().getIndex(), targetShardId);
         requestsByShard.put(targetShard, new ShardFlushRequest(request.getRequest(), targetShard, shardCountSummary));
+        return requestsByShard;
     }
 
     @Override

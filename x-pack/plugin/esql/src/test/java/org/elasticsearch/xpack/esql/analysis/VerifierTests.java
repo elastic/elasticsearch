@@ -2845,7 +2845,7 @@ public class VerifierTests extends ESTestCase {
 
         assertThat(
             error(
-                "FROM employees\n"
+                "FROM test\n"
                     + "| KEEP emp_no, languages, gender\n"
                     + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
                     + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"
@@ -2861,7 +2861,7 @@ public class VerifierTests extends ESTestCase {
 
         assertThat(
             error(
-                "FROM employees\n"
+                "FROM test\n"
                     + "| KEEP emp_no, languages, gender\n"
                     + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
                     + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"

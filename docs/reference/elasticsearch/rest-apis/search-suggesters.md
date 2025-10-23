@@ -276,7 +276,7 @@ The response contains suggestions scored by the most likely spelling correction 
 }
 ```
 % TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
-% TESTRESPONSE[s/"hits": \.\.\.​/"hits": "$body.hits",/]
+% TESTRESPONSE[s/"hits": \.\.\. /"hits": "$body.hits",/]
 % TESTRESPONSE[s/"took": 3,/"took": "$body.took",/]
 
 $$$_basic_phrase_suggest_api_parameters$$$
@@ -621,7 +621,7 @@ It returns this response:
   }
 }
 ```
-% TESTRESPONSE[s/"hits": \.\.\.​/"hits": "$body.hits",/]
+% TESTRESPONSE[s/"hits": \.\.\. /"hits": "$body.hits",/]
 % TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
 ::::{important} 

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -47,12 +48,20 @@ public final class IndexMetaDataGenerations {
      */
     final Map<String, String> identifiers;
 
+    /**
+     * Map of blob uuid to index metadata identifier. This is a reverse lookup of the identifiers map.
+     */
+    final Map<String, String> blobUuidToIndexMetadataMap;
+
     IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
         assert identifiers.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet()))
             : "identifier mappings " + identifiers + " don't track the same blob ids as the lookup map " + lookup;
         assert lookup.values().stream().noneMatch(Map::isEmpty) : "Lookup contained empty map [" + lookup + "]";
         this.lookup = Map.copyOf(lookup);
         this.identifiers = Map.copyOf(identifiers);
+        this.blobUuidToIndexMetadataMap = identifiers.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getValue, Map.Entry::getKey));
     }
 
     public boolean isEmpty() {
@@ -69,6 +78,21 @@ public final class IndexMetaDataGenerations {
     @Nullable
     public String getIndexMetaBlobId(String metaIdentifier) {
         return identifiers.get(metaIdentifier);
+    }
+
+    /**
+     * Returns the index metadata identifier associated with the given blob UUID.
+     * <p>
+     * This method provides a reverse lookup from a blob UUID to its corresponding index metadata identifier.
+     * If the specified blob UUID is not present, this method returns {@code null}.
+     * </p>
+     *
+     * @param blobUuid the UUID of the blob whose index metadata identifier is to be retrieved
+     * @return the index metadata identifier associated with the given blob UUID, or {@code null} if not found
+     */
+    @Nullable
+    public String getIndexMetadataIdentifierByBlobUuid(String blobUuid) {
+        return blobUuidToIndexMetadataMap.get(blobUuid);
     }
 
     /**
@@ -156,7 +180,7 @@ public final class IndexMetaDataGenerations {
 
     @Override
     public int hashCode() {
-        return Objects.hash(identifiers, lookup);
+        return Objects.hash(identifiers, lookup, blobUuidToIndexMetadataMap);
     }
 
     @Override
@@ -168,12 +192,12 @@ public final class IndexMetaDataGenerations {
             return false;
         }
         final IndexMetaDataGenerations other = (IndexMetaDataGenerations) that;
-        return lookup.equals(other.lookup) && identifiers.equals(other.identifiers);
+        return lookup.equals(other.lookup) && identifiers.equals(other.identifiers) && blobUuidToIndexMetadataMap.equals(other.blobUuidToIndexMetadataMap);
     }
 
     @Override
     public String toString() {
-        return "IndexMetaDataGenerations{lookup:" + lookup + "}{identifier:" + identifiers + "}";
+        return "IndexMetaDataGenerations{lookup:" + lookup + "}{identifier:" + identifiers + "}{blobUuidToIndexMetadataMap:" + blobUuidToIndexMetadataMap + "}";
     }
 
     /**
@@ -199,31 +223,27 @@ public final class IndexMetaDataGenerations {
 
     /**
      * Given a blobId, returns the index UUID associated with it.
+     * <p>
      * If the blobId is not found, returns null.
+     * <p>
+     * If the index UUID is _na_ {@code ClusterState.UNKNOWN_UUID}
      * @param blobId The blob ID
      */
     @Nullable
     public String convertBlobIdToIndexUUID(String blobId) {
         // Find the unique identifier for this blobId
-        String uniqueIdentifier = null;
-        for (Map.Entry<String, String> entry : this.identifiers.entrySet()) {
-            if (Objects.equals(entry.getValue(), blobId)) {
-                uniqueIdentifier = entry.getKey();
-                break;
-            }
-        }
+        String uniqueIdentifier = blobUuidToIndexMetadataMap.get(blobId);
         if (uniqueIdentifier == null) {
             return null;
         }
 
-        // The uniqueIdentifier was built in buildUniqueIdentifier, is of the format IndexUUID-String-long-long-long,
-        // and uses '-' as a delimiter.
-        // The below regex accounts for the fact that the IndexUUID can also contain the '-' character
-        Pattern pattern = Pattern.compile("^(.*?)-[^-]+-\\d+-\\d+-\\d+$");
-        Matcher matcher = pattern.matcher(uniqueIdentifier);
-        if (matcher.matches()) {
-            return matcher.group(1);
+        // The uniqueIdentifier is built in {@code buildUniqueIdentifier}, and is prefixed with indexUUID
+        // The indexUUID is either a random UUID of length 22, or _na_
+        boolean na = uniqueIdentifier.startsWith(ClusterState.UNKNOWN_UUID + "-");
+        if (na) {
+            return ClusterState.UNKNOWN_UUID;
         }
-        throw new IllegalArgumentException("Error parsing the IndexMetadata identifier");
+        assert uniqueIdentifier.length() >=22;
+        return uniqueIdentifier.substring(0, 22);
     }
 }

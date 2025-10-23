@@ -1262,11 +1262,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             private final IndexId indexId;
             private final Set<SnapshotId> snapshotsWithIndex;
             private final BlobContainer indexContainer;
-
-            /**
-             * Maps the Index UUID to its shard count
-             */
-            private final ConcurrentMap<String, Integer> indexUUIDToShardCountMap = new ConcurrentHashMap<>();
+            private final Set<String> indexUUIDs = new HashSet<>();
 
             IndexSnapshotsDeletion(IndexId indexId) {
                 this.indexId = indexId;
@@ -1294,12 +1290,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         .filter(snapshotsWithIndex::contains)
                         .map(id -> originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
                         .collect(Collectors.toSet())) {
-                        snapshotExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
-                            // NB since 7.9.0 we deduplicate index metadata blobs, and one of the components of the deduplication key is the
-                            // index UUID; the shard count is going to be the same for all metadata with the same index UUID, so it is
-                            // unnecessary to read multiple metadata blobs corresponding to the same index UUID.
-                            String indexUUID = originalRepositoryData.indexMetaDataGenerations().convertBlobIdToIndexUUID(blobId);
-                            if (indexUUIDToShardCountMap.containsKey(indexUUID) == false) {
+                        // NB since 7.9.0 we deduplicate index metadata blobs, and one of the components of the deduplication key is the
+                        // index UUID; the shard count is going to be the same for all metadata with the same index UUID, so it is
+                        // unnecessary to read multiple metadata blobs corresponding to the same index UUID.
+                        // NB if the index metadata blob is in the pre-7.9.0 format then this will return null
+                        String indexUUID = originalRepositoryData.indexMetaDataGenerations().convertBlobIdToIndexUUID(blobId);
+
+                        // Without an index UUID, we don't know if we've encountered this index before and must read it's IndexMetadata
+                        // from heap. If this is a new index UUID, with a possibly higher shard count, then we also need to read
+                        // it's IndexMetadata from heap
+                        if (indexUUID == null || indexUUIDs.add(indexUUID)) {
+                            snapshotExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
                                 try {
                                     IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.read(
                                         getProjectRepo(),
@@ -1307,9 +1308,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         blobId,
                                         namedXContentRegistry
                                     );
-                                    int numberOfShards = indexMetadata.getNumberOfShards();
-                                    indexUUIDToShardCountMap.put(indexUUID, numberOfShards);
-                                    updateShardCount(numberOfShards);
+                                    updateShardCount(indexMetadata.getNumberOfShards());
                                 } catch (Exception ex) {
                                     logger.warn(() -> format("[%s] [%s] failed to read metadata for index", blobId, indexId.getName()), ex);
                                     // Definitely indicates something fairly badly wrong with the repo, but not immediately fatal here: we
@@ -1321,12 +1320,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     // extra data anyway.
                                     // TODO: Should we fail the delete here? See https://github.com/elastic/elasticsearch/issues/100569.
                                 }
-                            } else {
-                                // indexUUIDToShardCountMap is shared across all threads. Therefore, while there may be an entry for this
-                                // UUID in the map, there is no guarantee that we've encountered it in this thread.
-                                updateShardCount(indexUUIDToShardCountMap.get(indexUUID));
-                            }
-                        }));
+                            }));
+                        }
                     }
                 }
             }

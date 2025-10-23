@@ -9,11 +9,14 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
@@ -21,44 +24,62 @@ import static org.mockito.Mockito.when;
 
 public class IndexMetaDataGenerationsTests extends ESTestCase {
 
+    public void testIndexMetaDataGenerations() {
+        Map<String, String> identifiers = new HashMap<>();
+        Map<IndexId, String> lookupInternal = new HashMap<>();
+        Map<String, String> blobUuidToIndexMetadataMap = new HashMap<>();
+
+        int numberOfMetadataIdentifiers = randomIntBetween(5, 10);
+        for (int i = 0; i < numberOfMetadataIdentifiers; i++) {
+            String indexUUID = generateUUID();
+            String metaIdentifier = generateMetaIdentifier(indexUUID);
+            String blobUUID = randomAlphanumericOfLength(randomIntBetween(5, 10));
+            identifiers.put(metaIdentifier, blobUUID);
+            blobUuidToIndexMetadataMap.put(blobUUID, metaIdentifier);
+
+            IndexId indexId = new IndexId(randomAlphanumericOfLength(10), indexUUID);
+            lookupInternal.put(indexId, metaIdentifier);
+        }
+
+        SnapshotId snapshotId = new SnapshotId(randomAlphanumericOfLength(10), randomUUID());
+        Map<SnapshotId, Map<IndexId, String>> lookup = Map.of(
+            snapshotId, lookupInternal
+        );
+
+        IndexMetaDataGenerations generations = new IndexMetaDataGenerations(lookup, identifiers);
+
+        assertEquals(lookup, generations.lookup);
+        assertEquals(identifiers, generations.identifiers);
+        assertEquals(blobUuidToIndexMetadataMap, generations.blobUuidToIndexMetadataMap);
+    }
+
     public void testBuildUniqueIdentifierWithAllFieldsPresent() {
-        String indexUUID = randomAlphanumericOfLength(randomIntBetween(10, 64));
+        String indexUUID = generateUUID();
         String historyUUID = randomAlphanumericOfLength(randomIntBetween(10, 64));
         long settingsVersion = randomLong();
         long mappingVersion = randomLong();
         long aliasesVersion = randomLong();
 
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        when(indexMetadata.getIndexUUID()).thenReturn(indexUUID);
-        when(indexMetadata.getSettings()).thenReturn(Settings.builder().put(IndexMetadata.SETTING_HISTORY_UUID, historyUUID).build());
-        when(indexMetadata.getSettingsVersion()).thenReturn(settingsVersion);
-        when(indexMetadata.getMappingVersion()).thenReturn(mappingVersion);
-        when(indexMetadata.getAliasesVersion()).thenReturn(aliasesVersion);
+        IndexMetadata indexMetadata = createIndexMetadata(indexUUID, historyUUID, settingsVersion, mappingVersion, aliasesVersion);
 
         String result = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
         assertEquals(indexUUID + "-" + historyUUID + "-" + settingsVersion + "-" + mappingVersion + "-" + aliasesVersion, result);
     }
 
     public void testBuildUniqueIdentifierWithMissingHistoryUUID() {
-        String indexUUID = randomAlphanumericOfLength(randomIntBetween(10, 64));
+        String indexUUID = generateUUID();
         long settingsVersion = randomLong();
         long mappingVersion = randomLong();
         long aliasesVersion = randomLong();
 
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        when(indexMetadata.getIndexUUID()).thenReturn(indexUUID);
-        when(indexMetadata.getSettings()).thenReturn(Settings.builder().build());
-        when(indexMetadata.getSettingsVersion()).thenReturn(settingsVersion);
-        when(indexMetadata.getMappingVersion()).thenReturn(mappingVersion);
-        when(indexMetadata.getAliasesVersion()).thenReturn(aliasesVersion);
+        IndexMetadata indexMetadata = createIndexMetadata(indexUUID, null, settingsVersion, mappingVersion, aliasesVersion);
 
         String result = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
         assertEquals(indexUUID + "-_na_-" + settingsVersion + "-" + mappingVersion + "-" + aliasesVersion, result);
     }
 
     public void testConvertBlobIdToIndexUUIDReturnsIndexUUID() {
-        // May include the - symbol, which as of 9.3.0 is the same symbol as the delimiter
-        String indexUUID = randomUUID();
+        String indexUUID = generateUUID();
         String randomSetting = randomAlphaOfLength(randomIntBetween(5, 10));
         long settingsVersion = randomNonNegativeLong();
         long mappingsVersion = randomNonNegativeLong();
@@ -80,69 +101,29 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         assertNull(generations.convertBlobIdToIndexUUID(randomAlphanumericOfLength(randomIntBetween(5, 10))));
     }
 
-    /**
-     * A helper function that tests whether an IAE is thrown when a malformed IndexMetadata Identifier is passed into
-     * the {@code convertBlobIdToIndexUUID} function
-     * @param indexUUID The indexUUID
-     * @param uniqueIdentifier The malformed identifier
-     * @param blobId The blobId
-     */
-    private void internalMalformedIndexMetadataIdentifierThrowsIAE(String indexUUID, String uniqueIdentifier, String blobId) {
-        // Creates the lookup map
-        SnapshotId snapshotId = new SnapshotId("snapshot", randomUUID());
-        IndexId indexId = new IndexId("index", indexUUID);
-        Map<SnapshotId, Map<IndexId, String>> lookup = Map.of(snapshotId, Map.of(indexId, uniqueIdentifier));
-
-        IndexMetaDataGenerations malformedGenerations = new IndexMetaDataGenerations(lookup, Map.of(uniqueIdentifier, blobId));
-        IllegalArgumentException ex = assertThrows(
-            IllegalArgumentException.class,
-            () -> malformedGenerations.convertBlobIdToIndexUUID(blobId)
-        );
-        assertTrue(ex.getMessage().contains("Error parsing the IndexMetadata identifier"));
+    private String generateUUID() {
+        return usually() ? UUIDs.randomBase64UUID(random()) : ClusterState.UNKNOWN_UUID;
     }
 
-    public void testConvertBlobIdToIndexUUIDThrowsIllegalArgumentExceptionWhenMalformedIndexMetadataIdentifierIsMissingIndexUUID() {
-        String indexUUID = randomUUID();
-        String randomSetting = randomAlphaOfLength(randomIntBetween(5, 10));
-        long settingsVersion = randomNonNegativeLong();
-        long mappingsVersion = randomNonNegativeLong();
-        long aliasesVersion = randomNonNegativeLong();
-        // Build the unique identifier without including the index uuid
-        String uniqueIdentifier = randomSetting + "-" + settingsVersion + "-" + mappingsVersion + "-" + aliasesVersion;
-        String blobId = randomAlphanumericOfLength(randomIntBetween(5, 10));
-        internalMalformedIndexMetadataIdentifierThrowsIAE(indexUUID, uniqueIdentifier, blobId);
+    private String generateMetaIdentifier(String indexUUID) {
+        String historyUUID = generateUUID();
+        long settingsVersion = randomLong();
+        long mappingVersion = randomLong();
+        long aliasesVersion = randomLong();
+        return indexUUID + "-" + historyUUID + "-" + settingsVersion + "-" + mappingVersion + "-" + aliasesVersion;
     }
 
-    public void testConvertBlobIdToIndexUUIDThrowsIllegalArgumentExceptionWhenMalformedIndexMetadataIdentifierIsMissingSettings() {
-        String indexUUID = randomAlphanumericOfLength(randomIntBetween(5, 10));
-        long settingsVersion = randomNonNegativeLong();
-        long mappingsVersion = randomNonNegativeLong();
-        long aliasesVersion = randomNonNegativeLong();
-        // Build the unique identifier without including the settings
-        String uniqueIdentifier = indexUUID + "-" + settingsVersion + "-" + mappingsVersion + "-" + aliasesVersion;
-        String blobId = randomAlphanumericOfLength(randomIntBetween(5, 10));
-        internalMalformedIndexMetadataIdentifierThrowsIAE(indexUUID, uniqueIdentifier, blobId);
-    }
-
-    public void testConvertBlobIdToIndexUUIDThrowsIllegalArgumentExceptionWhenMalformedIndexMetadataIdentifierIsMissingSettingsVersion() {
-        String indexUUID = randomUUID();
-        String randomSetting = randomAlphaOfLength(randomIntBetween(5, 10));
-        long mappingsVersion = randomNonNegativeLong();
-        long aliasesVersion = randomNonNegativeLong();
-        // Build the unique identifier without including the settings version
-        String uniqueIdentifier = indexUUID + "-" + randomSetting + "-" + mappingsVersion + "-" + aliasesVersion;
-        String blobId = randomAlphanumericOfLength(randomIntBetween(5, 10));
-        internalMalformedIndexMetadataIdentifierThrowsIAE(indexUUID, uniqueIdentifier, blobId);
-    }
-
-    public void testConvertBlobIdToIndexUUIDThrowsIllegalArgumentExceptionWhenMalformedIndexMetadataIdentifierHasIncorrectTypes() {
-        String indexUUID = randomUUID();
-        String randomSetting = randomAlphaOfLength(randomIntBetween(5, 10));
-        long settingsVersion = randomNonNegativeLong();
-        long mappingsVersion = randomNonNegativeLong();
-        String aliasesVersion = randomAlphaOfLength(randomIntBetween(5, 10));
-        String uniqueIdentifier = indexUUID + "-" + randomSetting + "-" + settingsVersion + "-" + mappingsVersion + "-" + aliasesVersion;
-        String blobId = randomAlphanumericOfLength(randomIntBetween(5, 10));
-        internalMalformedIndexMetadataIdentifierThrowsIAE(indexUUID, uniqueIdentifier, blobId);
+    private IndexMetadata createIndexMetadata(String indexUUID, String historyUUID, long settingsVersion, long mappingVersion, long aliasesVersion) {
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (historyUUID != null) {
+            settingsBuilder.put(IndexMetadata.SETTING_HISTORY_UUID, historyUUID);
+        }
+        when(indexMetadata.getIndexUUID()).thenReturn(indexUUID);
+        when(indexMetadata.getSettings()).thenReturn(settingsBuilder.build());
+        when(indexMetadata.getSettingsVersion()).thenReturn(settingsVersion);
+        when(indexMetadata.getMappingVersion()).thenReturn(mappingVersion);
+        when(indexMetadata.getAliasesVersion()).thenReturn(aliasesVersion);
+        return indexMetadata;
     }
 }

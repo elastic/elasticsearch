@@ -2684,7 +2684,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             if (dims == null) {
                 // No data has been indexed yet

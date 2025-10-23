@@ -8,22 +8,15 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.exponentialhistogram.AbstractExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
-import org.elasticsearch.exponentialhistogram.ZeroBucket;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.List;
-import java.util.Objects;
 
 public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCounted implements ExponentialHistogramBlock {
 
@@ -55,13 +48,18 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
         for (Block b : getSubBlocks()) {
             assert b.isReleased() == false;
-            assert b.doesHaveMultivaluedFields() == false : "ExponentialHistogramArrayBlock sub-blocks can't have multi-values but [" + b + "] does";
-            assert b.getPositionCount() == getPositionCount() : "ExponentialHistogramArrayBlock sub-blocks must have the same position count but [" + b + "] has "
-                + b.getPositionCount()
-                + " instead of "
-                + getPositionCount();
-            for (int i=0; i<b.getPositionCount(); i++) {
-                assert b.isNull(i) == isNull(i) : "ExponentialHistogramArrayBlock sub-blocks can't have nulls but [" + b + "] is null at position " + i;
+            assert b.doesHaveMultivaluedFields() == false
+                : "ExponentialHistogramArrayBlock sub-blocks can't have multi-values but [" + b + "] does";
+            assert b.getPositionCount() == getPositionCount()
+                : "ExponentialHistogramArrayBlock sub-blocks must have the same position count but ["
+                    + b
+                    + "] has "
+                    + b.getPositionCount()
+                    + " instead of "
+                    + getPositionCount();
+            for (int i = 0; i < b.getPositionCount(); i++) {
+                assert b.isNull(i) == isNull(i)
+                    : "ExponentialHistogramArrayBlock sub-blocks can't have nulls but [" + b + "] is null at position " + i;
             }
         }
         return true;
@@ -289,17 +287,17 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(
-                    copiedMinima,
-                    copiedMaxima,
-                    copiedSums,
-                    copiedValueCounts,
-                    copiedZeroThresholds,
-                    copiedEncodedHistograms
-                );
+                Releasables.close(copiedMinima, copiedMaxima, copiedSums, copiedValueCounts, copiedZeroThresholds, copiedEncodedHistograms);
             }
         }
-        return new ExponentialHistogramArrayBlock(copiedMinima, copiedMaxima , copiedSums, copiedValueCounts, copiedZeroThresholds, copiedEncodedHistograms);
+        return new ExponentialHistogramArrayBlock(
+            copiedMinima,
+            copiedMaxima,
+            copiedSums,
+            copiedValueCounts,
+            copiedZeroThresholds,
+            copiedEncodedHistograms
+        );
     }
 
     @Override
@@ -334,14 +332,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
                 Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
             }
         }
-        return new ExponentialHistogramArrayBlock(
-            minima,
-            maxima,
-            sums,
-            valueCounts,
-            zeroThresholds,
-            encodedHistograms
-        );
+        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
     }
 
     @Override
@@ -381,17 +372,17 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     boolean equalsAfterTypeCheck(ExponentialHistogramArrayBlock that) {
         return minima.equals(that.minima)
-                && maxima.equals(that.maxima)
-                && sums.equals(that.sums)
-                && valueCounts.equals(that.valueCounts)
-                && zeroThresholds.equals(that.zeroThresholds)
-                && encodedHistograms.equals(that.encodedHistograms);
+            && maxima.equals(that.maxima)
+            && sums.equals(that.sums)
+            && valueCounts.equals(that.valueCounts)
+            && zeroThresholds.equals(that.zeroThresholds)
+            && encodedHistograms.equals(that.encodedHistograms);
     }
 
     @Override
     public int hashCode() {
-       // for now we use just the hash of encodedHistograms
-       // this ensures proper equality with null blocks and should be unique enough for practical purposes
-       return encodedHistograms.hashCode();
+        // for now we use just the hash of encodedHistograms
+        // this ensures proper equality with null blocks and should be unique enough for practical purposes
+        return encodedHistograms.hashCode();
     }
 }

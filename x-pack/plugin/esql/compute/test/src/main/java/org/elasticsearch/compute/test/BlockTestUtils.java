@@ -388,7 +388,11 @@ public class BlockTestUtils {
         ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
 
         int numBuckets = randomIntBetween(4, 300);
-        ReleasableExponentialHistogram histo = ExponentialHistogram.create(numBuckets, ExponentialHistogramCircuitBreaker.noop(), rawValues);
+        ReleasableExponentialHistogram histo = ExponentialHistogram.create(
+            numBuckets,
+            ExponentialHistogramCircuitBreaker.noop(),
+            rawValues
+        );
         return histo;
     }
 

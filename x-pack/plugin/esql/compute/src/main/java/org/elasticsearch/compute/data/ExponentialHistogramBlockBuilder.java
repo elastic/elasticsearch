@@ -8,17 +8,15 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
-import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
-public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoader.ExponentialHistogramBuilder {
+public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
     private final DoubleBlock.Builder minimaBuilder;
     private final DoubleBlock.Builder maximaBuilder;
@@ -63,46 +61,17 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoa
         }
     }
 
-    @Override
-    public BlockLoader.DoubleBuilder minima() {
-        return minimaBuilder;
-    }
-
-    @Override
-    public BlockLoader.DoubleBuilder maxima() {
-        return maximaBuilder;
-    }
-
-    @Override
-    public BlockLoader.DoubleBuilder sums() {
-        return sumsBuilder;
-    }
-
-    @Override
-    public BlockLoader.LongBuilder valueCounts() {
-        return valueCountsBuilder;
-    }
-
-    @Override
-    public BlockLoader.DoubleBuilder zeroThresholds() {
-        return zeroThresholdsBuilder;
-    }
-
-    @Override
-    public BlockLoader.BytesRefBuilder encodedHistograms() {
-        return encodedHistogramsBuilder;
-    }
-
     public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
         assert histogram != null;
-        //TODO: fix performance and correctness before using in production code
+        // TODO: fix performance and correctness before using in production code
         // The current implementation encodes the histogram into the format we use for storage on disk
         // This format is optimized for minimal memory usage at the cost of encoding speed
         // In addition, it only support storing the zero threshold as a double value, which is lossy when merging histograms
         // We should add a dedicated encoding when building a block from computed histograms which do not originate from doc values
         // That encoding should be optimized for speed and support storing the zero threshold as (scale, index) pair
         ZeroBucket zeroBucket = histogram.zeroBucket();
-        assert zeroBucket.compareZeroThreshold(ZeroBucket.minimalEmpty()) == 0 || zeroBucket.isIndexBased() == false: "Current encoding only supports double-based zero thresholds";
+        assert zeroBucket.compareZeroThreshold(ZeroBucket.minimalEmpty()) == 0 || zeroBucket.isIndexBased() == false
+            : "Current encoding only supports double-based zero thresholds";
 
         ByteArrayOutputStream encodedBytes = new ByteArrayOutputStream();
         try {
@@ -149,24 +118,10 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoa
             zeroThresholds = zeroThresholdsBuilder.build();
             encodedHistograms = encodedHistogramsBuilder.build();
             success = true;
-            return new ExponentialHistogramArrayBlock(
-                minima,
-                maxima,
-                sums,
-                valueCounts,
-                zeroThresholds,
-                encodedHistograms
-            );
+            return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
         } finally {
             if (success == false) {
-                Releasables.close(
-                    minima,
-                    maxima,
-                    sums,
-                    valueCounts,
-                    zeroThresholds,
-                    encodedHistograms
-                );
+                Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
             }
         }
     }
@@ -223,23 +178,12 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoa
 
     @Override
     public long estimatedBytes() {
-        return minimaBuilder.estimatedBytes() +
-            maximaBuilder.estimatedBytes() +
-            sumsBuilder.estimatedBytes() +
-            valueCountsBuilder.estimatedBytes() +
-            zeroThresholdsBuilder.estimatedBytes() +
-            encodedHistogramsBuilder.estimatedBytes();
+        return minimaBuilder.estimatedBytes() + maximaBuilder.estimatedBytes() + sumsBuilder.estimatedBytes() + valueCountsBuilder
+            .estimatedBytes() + zeroThresholdsBuilder.estimatedBytes() + encodedHistogramsBuilder.estimatedBytes();
     }
 
     @Override
     public void close() {
-        Releasables.close(
-            minimaBuilder,
-            maximaBuilder,
-            sumsBuilder,
-            valueCountsBuilder,
-            zeroThresholdsBuilder,
-            encodedHistogramsBuilder
-        );
+        Releasables.close(minimaBuilder, maximaBuilder, sumsBuilder, valueCountsBuilder, zeroThresholdsBuilder, encodedHistogramsBuilder);
     }
 }

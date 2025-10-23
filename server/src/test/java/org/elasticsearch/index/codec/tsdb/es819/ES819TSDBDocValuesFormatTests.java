@@ -42,6 +42,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseDenseNumericValues;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseSortedDocValues;
@@ -68,12 +69,18 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
+    public static BinaryDVCompressionMode randomCompressionMode() {
+        BinaryDVCompressionMode[] modes = BinaryDVCompressionMode.values();
+        return modes[random().nextInt(modes.length)];
+    }
+
     private final Codec codec = new Elasticsearch92Lucene103Codec() {
 
         final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
             ESTestCase.randomIntBetween(1, 512),
-            random().nextBoolean()
+            random().nextBoolean(),
+            randomCompressionMode()
         );
 
         @Override

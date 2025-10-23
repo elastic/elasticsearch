@@ -1386,11 +1386,11 @@ public class SamlRealmTests extends SamlTestCase {
 
             Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort(), builder -> {
                 builder.put(
-                    SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT),
+                    getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT),
                     customConnectTimeout.getStringRep()
                 );
                 builder.put(
-                    SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT),
+                    getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT),
                     customReadTimeout.getStringRep()
                 );
             });
@@ -1455,10 +1455,10 @@ public class SamlRealmTests extends SamlTestCase {
 
         Tuple<RealmConfig, SSLService> config = buildConfig(unreachableUrl, builder -> {
             builder.put(
-                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT),
+                getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT),
                 shortConnectTimeout.getStringRep()
             );
-            builder.put(SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR), false);
+            builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR), false);
         });
 
         final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);

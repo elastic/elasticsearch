@@ -25,6 +25,8 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
 
     @Override
     protected InferenceContext mutateInstance(InferenceContext instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String originalProductUseCase = instance.productUseCase();
+        String newProductUseCase = randomValueOtherThan(originalProductUseCase, () -> randomAlphaOfLength(10));
+        return new InferenceContext(newProductUseCase);
     }
 }

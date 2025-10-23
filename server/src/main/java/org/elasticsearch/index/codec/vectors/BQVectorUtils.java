@@ -22,12 +22,11 @@ package org.elasticsearch.index.codec.vectors;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 /** Utility class for vector quantization calculations */
 public class BQVectorUtils {
     // NOTE: this is currently > 1e-4f due to bfloat16
-    private static final float EPSILON = 1e-2f;
+    private static final float EPSILON = 0.02f;
 
     public static double sqrtNewtonRaphson(double x, double curr, double prev) {
         return (curr == prev) ? curr : sqrtNewtonRaphson(x, 0.5 * (curr + x / curr), curr);
@@ -40,24 +39,6 @@ public class BQVectorUtils {
     public static boolean isUnitVector(float[] v) {
         double l1norm = VectorUtil.dotProduct(v, v);
         return Math.abs(l1norm - 1.0d) <= EPSILON;
-    }
-
-    public static void packAsBinaryLegacy(int[] vector, byte[] packed) {
-        for (int i = 0; i < vector.length;) {
-            byte result = 0;
-            for (int j = 7; j >= 0 && i < vector.length; j--) {
-                assert vector[i] == 0 || vector[i] == 1;
-                result |= (byte) ((vector[i] & 1) << j);
-                ++i;
-            }
-            int index = ((i + 7) / 8) - 1;
-            assert index < packed.length;
-            packed[index] = result;
-        }
-    }
-
-    public static void packAsBinary(int[] vector, byte[] packed) {
-        ESVectorUtil.packAsBinary(vector, packed);
     }
 
     public static int discretize(int value, int bucket) {

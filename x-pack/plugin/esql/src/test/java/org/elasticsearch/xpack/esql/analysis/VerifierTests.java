@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -2811,6 +2812,171 @@ public class VerifierTests extends ESTestCase {
         assertThat(error("TS test | INLINE STATS max(network.connections) | STATS max(network.connections) by host", tsdb), equalTo("""
             1:11: INLINE STATS [INLINE STATS max(network.connections)] \
             can only be used after STATS when used with TS command"""));
+    }
+
+    public void testLimitBeforeInlineStats_WithTS() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        assertThat(
+            error("TS test | STATS m=max(languages) BY s=salary/10000 | LIMIT 5 | INLINE STATS max(s) BY m"),
+            containsString(
+                "1:64: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@1:54]"
+            )
+        );
+    }
+
+    public void testLimitBeforeInlineStats_WithFork() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        assertThat(
+            error(
+                "FROM test\n"
+                    + "| WHERE emp_no == 10048 OR emp_no == 10081\n"
+                    + "| FORK (EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
+                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                    + "       (EVAL b = CONCAT(last_name, \" \", emp_no::keyword, \" \", first_name)\n"
+                    + "        | GROK b \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                    + "| SORT _fork, emp_no"
+                    + "| INLINE STATS max_lang = MAX(languages) BY gender"
+            ),
+            containsString(
+                "7:23: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
+                    + "after [(EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
+                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WOR...] [@3:8]"
+            )
+        );
+
+        assertThat(
+            error(
+                "FROM employees\n"
+                    + "| KEEP emp_no, languages, gender\n"
+                    + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
+                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"
+                    + "| LIMIT 5"
+                    + "| INLINE STATS max_lang = MAX(languages) BY gender \n"
+                    + "| SORT emp_no, gender, _fork\n"
+            ),
+            containsString(
+                "5:12: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 5] [@5:3]"
+            )
+        );
+
+        assertThat(
+            error(
+                "FROM employees\n"
+                    + "| KEEP emp_no, languages, gender\n"
+                    + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
+                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"
+                    + "| INLINE STATS max_lang = MAX(languages) BY gender \n"
+                    + "| SORT emp_no, gender, _fork\n"
+                    + "| LIMIT 5"
+            ),
+            containsString(
+                "5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
+                    + "after [(WHERE emp_no == 10048 OR emp_no == 10081)\n"
+                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)] [@3:8]"
+            )
+        );
+    }
+
+    public void testLimitBeforeInlineStats_WithFrom_And_Row() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        var sourceCommands = new String[] { "FROM test | ", "ROW salary=1,gender=\"M\",languages=1 | " };
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "SORT languages | LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        assertThat(
+            error(
+                randomFrom(sourceCommands) + "LIMIT 1 | LIMIT 2 | INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"
+            ),
+            allOf(
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+                ),
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS avg(salary)] after [LIMIT 2] [@"
+                )
+            )
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + """
+                EVAL x = 1
+                | LIMIT 1
+                | INLINE STATS avg(salary)
+                | STATS m=max(languages) BY s=salary/10000
+                | LIMIT 5
+                | INLINE STATS max(s) BY m
+                """),
+            allOf(
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@"
+                ),
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS avg(salary)] after [LIMIT 1] [@"
+                )
+            )
+        );
+    }
+
+    public void testMvExpandBeforeTSStatsNotAllowed() {
+        assertThat(error("TS test | MV_EXPAND name | STATS max(network.connections)", tsdb), equalTo("""
+            1:11: mv_expand [MV_EXPAND name] in the time-series before the first aggregation \
+            [STATS max(network.connections)] is not allowed"""));
+
+        assertThat(error("TS test | MV_EXPAND name | MV_EXPAND network.connections | STATS max(network.connections)", tsdb), equalTo("""
+            1:28: mv_expand [MV_EXPAND network.connections] in the time-series before the first aggregation \
+            [STATS max(network.connections)] is not allowed
+            line 1:11: mv_expand [MV_EXPAND name] in the time-series before the first aggregation \
+            [STATS max(network.connections)] is not allowed"""));
+    }
+
+    public void testTRangeFailures() {
+        assertThat(error("TS test | WHERE TRANGE(-1h) | KEEP @timestamp", tsdb), equalTo("1:24: start_time_or_offset cannot be negative"));
+
+        assertThat(error("TS test | WHERE TRANGE(\"2024-05-10T00:17:14.000Z\") | KEEP @timestamp", tsdb), equalTo("""
+            1:17: first argument of [TRANGE("2024-05-10T00:17:14.000Z")] must be [time_duration or date_period], \
+            found value ["2024-05-10T00:17:14.000Z"] type [keyword]"""));
+
+        assertThat(error("TS test | WHERE TRANGE(1 hour, 2 hours) | KEEP @timestamp", tsdb), equalTo("""
+            1:17: first argument of [TRANGE(1 hour, 2 hours)] must be [string, long, date or date_nanos], \
+            found value [1 hour] type [time_duration]"""));
+
+        assertThat(error("TS test | WHERE TRANGE(1715300236000, \"2024-05-10T00:17:14.000Z\") | KEEP @timestamp", tsdb), equalTo("""
+            1:17: second argument of [TRANGE(1715300236000, "2024-05-10T00:17:14.000Z")] must be [long], \
+            found value ["2024-05-10T00:17:14.000Z"] type [keyword]"""));
+
+        assertThat(error("TS test | WHERE TRANGE(\"2024-05-10T00:17:14.000Z\", 1 hour) | KEEP @timestamp", tsdb), equalTo("""
+            1:17: second argument of [TRANGE("2024-05-10T00:17:14.000Z", 1 hour)] must be [keyword], \
+            found value [1 hour] type [time_duration]"""));
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

@@ -27,7 +27,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -48,14 +47,24 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
     /**
      * Constructs a format using the given graph construction parameters.
      *
-     * @param maxConn     the maximum number of connections to a node in the HNSW graph
-     * @param beamWidth   the size of the queue maintained during graph construction.
+     * @param useDirectIO whether to use direct IO when reading raw vectors
+     */
+    public ES93HnswBinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType elementType, boolean useDirectIO) {
+        super(NAME);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+    }
+
+    /**
+     * Constructs a format using the given graph construction parameters.
+     *
+     * @param maxConn the maximum number of connections to a node in the HNSW graph
+     * @param beamWidth the size of the queue maintained during graph construction.
      * @param useDirectIO whether to use direct IO when reading raw vectors
      */
     public ES93HnswBinaryQuantizedVectorsFormat(
         int maxConn,
         int beamWidth,
-        DenseVectorFieldMapper.ElementType elementType,
+        ES93GenericFlatVectorsFormat.ElementType elementType,
         boolean useDirectIO
     ) {
         super(NAME, maxConn, beamWidth);
@@ -76,7 +85,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
     public ES93HnswBinaryQuantizedVectorsFormat(
         int maxConn,
         int beamWidth,
-        DenseVectorFieldMapper.ElementType elementType,
+        ES93GenericFlatVectorsFormat.ElementType elementType,
         boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec

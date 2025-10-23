@@ -216,30 +216,52 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
+            FoldContext patternFoldContext = FoldContext.small(); /* TODO remove me */
+            List<String> patterns = ctx.string()
+                .stream()
+                .map(stringContext -> BytesRefs.toString(visitString(stringContext).fold(patternFoldContext)))
+                .toList();
+
+            String combinePattern = org.elasticsearch.grok.Grok.combinePatterns(patterns);
+
             Grok.Parser grokParser;
             try {
-                grokParser = Grok.pattern(source, pattern);
+                grokParser = Grok.pattern(source, combinePattern);
             } catch (SyntaxException e) {
-                throw new ParsingException(source, "Invalid grok pattern [{}]: [{}]", pattern, e.getMessage());
+                if (patterns.size() == 1) {
+                    throw new ParsingException(source, "Invalid GROK pattern [{}]: [{}]", patterns.getFirst(), e.getMessage());
+                } else {
+                    throw new ParsingException(source, "Invalid GROK patterns {}: [{}]", patterns, e.getMessage());
+                }
             }
-            validateGrokPattern(source, grokParser, pattern);
+            validateGrokPattern(source, grokParser, combinePattern, patterns);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;
         };
     }
 
-    private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern) {
+    private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern, List<String> originalPatterns) {
         Map<String, DataType> definedAttributes = new HashMap<>();
         for (Attribute field : grokParser.extractedFields()) {
             String name = field.name();
             DataType type = field.dataType();
             DataType prev = definedAttributes.put(name, type);
             if (prev != null) {
-                throw new ParsingException(
-                    source,
-                    "Invalid GROK pattern [" + pattern + "]: the attribute [" + name + "] is defined multiple times with different types"
-                );
+                if (originalPatterns.size() == 1) {
+                    throw new ParsingException(
+                        source,
+                        "Invalid GROK pattern [{}]: the attribute [{}] is defined multiple times with different types",
+                        originalPatterns.getFirst(),
+                        name
+                    );
+                } else {
+                    throw new ParsingException(
+                        source,
+                        "Invalid GROK patterns {}: the attribute [{}] is defined multiple times with different types",
+                        originalPatterns,
+                        name
+                    );
+                }
             }
         }
     }
@@ -826,9 +848,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() < Fork.MIN_BRANCHES) {
-            throw new ParsingException(source(ctx), "Fork requires at least " + Fork.MIN_BRANCHES + " branches");
-        }
         if (subQueries.size() > Fork.MAX_BRANCHES) {
             throw new ParsingException(source(ctx), "Fork supports up to " + Fork.MAX_BRANCHES + " branches");
         }

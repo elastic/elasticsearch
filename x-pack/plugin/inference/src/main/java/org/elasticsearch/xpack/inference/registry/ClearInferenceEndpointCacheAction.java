@@ -134,7 +134,7 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
 
     public static class Request extends AcknowledgedRequest<ClearInferenceEndpointCacheAction.Request> {
         protected Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+            super(INFINITE_MASTER_NODE_TIMEOUT, TimeValue.ZERO);
         }
 
         protected Request(StreamInput in) throws IOException {

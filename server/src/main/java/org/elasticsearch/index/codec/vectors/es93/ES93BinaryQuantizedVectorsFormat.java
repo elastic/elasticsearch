@@ -30,7 +30,6 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryFlatVectorsScorer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsReader;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsWriter;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 
@@ -98,16 +97,16 @@ public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat 
     private final ES93GenericFlatVectorsFormat rawFormat;
 
     public ES93BinaryQuantizedVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, false);
+        this(ES93GenericFlatVectorsFormat.ElementType.STANDARD, false);
     }
 
-    public ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
+    public ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType elementType, boolean useDirectIO) {
         super(NAME);
         rawFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
     @Override
-    protected FlatVectorsScorer flatVectorsScorer() {
+    public FlatVectorsScorer flatVectorsScorer() {
         return scorer;
     }
 

@@ -143,6 +143,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
             // https://github.com/elastic/elasticsearch-serverless/issues/4458
             + "org.elasticsearch.index.engine.Engine:trace,"
             + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:trace,"
+            + "org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction:trace,"
             + "org.elasticsearch.indices.recovery:debug",
         reason = "ensure shard file deletion on DEBUG level"
     )

@@ -22,7 +22,7 @@ steps:
               limit: 3
 
       - label: 8.1.3 / bwc
-        command: .ci/scripts/run-gradle.sh  --continue -Dbwc.checkout.align=true v8.1.3#bwcTest
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.1.3#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -466,6 +466,7 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
+
   - label: encryption-at-rest
     command: .buildkite/scripts/encryption-at-rest.sh
     timeout_in_minutes: 420
@@ -474,6 +475,7 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
+
   - label: eql-correctness
     command: .buildkite/scripts/eql-correctness.sh
     timeout_in_minutes: 300
@@ -482,10 +484,10 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
+
   - label: example-plugins
     command: |-
       cd $$WORKSPACE/plugins/examples
-
       $$WORKSPACE/.ci/scripts/run-gradle.sh build
     timeout_in_minutes: 300
     agents:
@@ -493,10 +495,11 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
+
   - group: java-fips-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-matrix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true $$GRADLE_TASK
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true $$GRADLE_TASK
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -518,6 +521,7 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-fips-matrix-bwc"
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -534,10 +538,11 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
+
   - group: java-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true $$GRADLE_TASK
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -561,6 +566,7 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-matrix-bwc"
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -578,6 +584,7 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
+
   - label: release-tests
     command: .buildkite/scripts/release-tests.sh
     timeout_in_minutes: 360
@@ -586,6 +593,7 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
+
   - label: single-processor-node-tests
     command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true functionalTests
     timeout_in_minutes: 420
@@ -594,6 +602,7 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
+
   - group: third-party tests
     steps:
       - label: third-party / azure-sas
@@ -610,6 +619,7 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
       - label: third-party / azure
         command: |
           export azure_storage_container=elasticsearch-ci-thirdparty
@@ -624,6 +634,7 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
       - label: third-party / gcs
         command: |
           export google_storage_bucket=elasticsearch-ci-thirdparty
@@ -638,6 +649,7 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
       - label: third-party / geoip
         command: |
           .ci/scripts/run-gradle.sh --continue :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
@@ -647,6 +659,7 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
       - label: third-party / s3
         command: |
           export amazon_s3_bucket=elasticsearch-ci.us-west-2
@@ -661,6 +674,7 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
       - label: third-party / ms-graph
         command: |
           .ci/scripts/run-gradle.sh --continue msGraphThirdPartyTest
@@ -672,6 +686,7 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+
   - group: lucene-compat
     steps:
       - label: "{{matrix.LUCENE_VERSION}} / lucene-compat"
@@ -693,6 +708,7 @@ steps:
         env:
           ES_VERSION: "{{matrix.ES_VERSION}}"
           ES_COMMIT: "{{matrix.ES_COMMIT}}"
+
   - label: Upload Snyk Dependency Graph
     command: .ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=$BUILDKITE_BRANCH
     env:
@@ -704,6 +720,7 @@ steps:
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
     if: build.branch =~ /^(main|\d+\.\d+|\d+\.x)$$/
+
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15
@@ -711,6 +728,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n2-standard-2
+
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh
     timeout_in_minutes: 5

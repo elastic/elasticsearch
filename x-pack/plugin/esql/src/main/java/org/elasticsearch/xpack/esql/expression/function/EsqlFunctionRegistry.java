@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -340,7 +341,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Bucket.class, Bucket::new, "bucket", "bin"),
                 def(Categorize.class, Categorize::new, "categorize"),
-                def(TBucket.class, uni(TBucket::new), "tbucket") },
+                def(TBucket.class, tcab(TBucket::new), "tbucket") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -1261,6 +1262,26 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
     }
 
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        UnaryTimestampAwareBuilder<T> ctorRef,
+        String... names
+    ) {
+        FunctionBuilder builder = (source, children, timestampSupplier) -> {
+            if (children.size() != 1) {
+                throw new QlIllegalArgumentException("expects exactly one argument");
+            }
+            Expression child = children.get(0);
+            return ctorRef.build(source, child, () -> UnresolvedTimestamp.INSTANCE);
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface UnaryTimestampAwareBuilder<T> {
+        T build(Source source, Expression one, TimestampAttributeSupplier timestampSupplier);
+    }
+
     //
     // Utility functions to help disambiguate the method handle passed in.
     // They work by providing additional method information to help the compiler know which method to pick.
@@ -1281,4 +1302,7 @@ public class EsqlFunctionRegistry {
         return function;
     }
 
+    private static <T extends Function> UnaryTimestampAwareBuilder<T> tcab(UnaryTimestampAwareBuilder<T> function) {
+        return function;
+    }
 }

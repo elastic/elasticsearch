@@ -338,10 +338,7 @@ public class TransportDeleteSampleConfigurationActionTests extends ESTestCase {
         DeleteSampleConfigurationAction.Request request = new DeleteSampleConfigurationAction.Request(masterNodeTimeout, ackTimeout);
 
         // Verify that setting multiple indices throws IllegalArgumentException
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> request.indices(indexName1, indexName2)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request.indices(indexName1, indexName2));
         assertThat(exception.getMessage(), equalTo("[indices] must contain only one index"));
     }
 

@@ -88,7 +88,7 @@ public class ClampMax extends EsqlScalarFunction {
         }
 
         var field = children().get(0);
-        var min = children().get(1);
+        var max = children().get(1);
         var fieldDataType = field.dataType();
         TypeResolution resolution = TypeResolutions.isType(
             field,
@@ -104,8 +104,8 @@ public class ClampMax extends EsqlScalarFunction {
             return new TypeResolution("'field' must not be null in clamp()");
         }
         resolution = TypeResolutions.isType(
-            min,
-            t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType,
+            max,
+            t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType.noText(),
             sourceText(),
             TypeResolutions.ParamOrdinal.SECOND,
             fieldDataType.typeName()
@@ -133,11 +133,10 @@ public class ClampMax extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        // force datatype initialization
         var outputType = dataType();
 
         var max = children().get(1);
-        var maxF = outputType != max.dataType()
+        var maxF = PlannerUtils.toElementType(outputType) != PlannerUtils.toElementType(max.dataType())
             ? Cast.cast(source(), max.dataType(), outputType, toEvaluator.apply(max))
             : toEvaluator.apply(max);
 

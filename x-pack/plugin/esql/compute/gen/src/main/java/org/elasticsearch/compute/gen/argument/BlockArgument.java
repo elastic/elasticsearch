@@ -11,6 +11,8 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
+import org.elasticsearch.compute.gen.Types;
+
 import java.util.List;
 
 import javax.lang.model.element.Modifier;
@@ -22,6 +24,11 @@ public record BlockArgument(TypeName type, String name) implements Argument {
     @Override
     public TypeName dataType(boolean blockStyle) {
         return type;
+    }
+
+    @Override
+    public TypeName elementType() {
+        return Types.elementType(type());
     }
 
     @Override
@@ -67,7 +74,7 @@ public record BlockArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
         // nothing to do
     }
 

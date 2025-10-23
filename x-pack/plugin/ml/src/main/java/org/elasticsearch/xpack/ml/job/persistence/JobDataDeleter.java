@@ -391,8 +391,6 @@ public class JobDataDeleter {
                 deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
                 return;
             }
-            String defaultSharedIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
-                + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
             List<String> indicesToDelete = new ArrayList<>();
             boolean needToRunDBQTemp = false;
             assert multiSearchResponse.getResponses().length == indexNames.get().length;

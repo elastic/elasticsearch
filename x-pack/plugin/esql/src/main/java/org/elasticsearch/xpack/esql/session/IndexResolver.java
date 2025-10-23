@@ -329,7 +329,7 @@ public class IndexResolver {
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
         boolean typeSupported = type.supportedVersion()
-            .supports(fieldsInfo.effectiveMinTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
+            .supportedOn(fieldsInfo.effectiveMinTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
             || switch (type) {
                 case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
                 case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;

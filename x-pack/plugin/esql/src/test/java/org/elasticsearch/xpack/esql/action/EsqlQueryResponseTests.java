@@ -86,6 +86,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
@@ -195,7 +196,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.TIME_DURATION
                 || t == DataType.PARTIAL_AGG
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
-                || t == DataType.TSID_DATA_TYPE,
+                || t == DataType.TSID_DATA_TYPE
+                || t == DataType.DATE_RANGE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -1261,6 +1263,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         // This has been added just to test a round trip. In reality, TSID should never be taken from XContent
                         byte[] decode = Base64.getUrlDecoder().decode(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(decode));
+                    }
+                    case DATE_RANGE -> {
+                        BlockLoader.LongRangeBuilder b = (BlockLoader.LongRangeBuilder) builder;
+                        var ll = parseDateRange(value.toString());
+                        b.from().appendLong(ll.from());
+                        b.to().appendLong(ll.to());
                     }
                 }
             }

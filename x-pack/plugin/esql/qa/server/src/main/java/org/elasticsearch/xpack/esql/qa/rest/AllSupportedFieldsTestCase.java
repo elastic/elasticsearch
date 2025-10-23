@@ -398,6 +398,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     doc.field("value_count", 25);
                     doc.endObject();
                 }
+                case DATE_RANGE -> {
+                    doc.startObject();
+                    doc.field("gte", "1989-01-01");
+                    doc.field("lt", "2025-01-01");
+                    doc.endObject();
+                }
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
             }
@@ -434,6 +440,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield nullValue();
             }
             case DENSE_VECTOR -> {
+                // Currently, we cannot tell if all nodes support it or not so we treat it as unsupported.
+                // TODO: Fix this once we know the node versions.
+                yield nullValue();
+            }
+            case DATE_RANGE -> {
                 // Currently, we cannot tell if all nodes support it or not so we treat it as unsupported.
                 // TODO: Fix this once we know the node versions.
                 yield nullValue();

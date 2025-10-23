@@ -224,6 +224,7 @@ public final class BlockUtils {
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
             case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral((AggregateMetricDoubleLiteral) val);
+            case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendDateRange((LongRangeBlockBuilder.LongRange) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
@@ -253,6 +254,7 @@ public final class BlockUtils {
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             case AGGREGATE_METRIC_DOUBLE -> blockFactory.newConstantAggregateMetricDoubleBlock((AggregateMetricDoubleLiteral) val, size);
             case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
+            case LONG_RANGE -> blockFactory.newConstantLongRangeBlock((LongRangeBlockBuilder.LongRange) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -305,6 +307,12 @@ public final class BlockUtils {
                     aggBlock.sumBlock().getDouble(offset),
                     aggBlock.countBlock().getInt(offset)
                 );
+            }
+            case LONG_RANGE -> {
+                LongRangeBlock b = (LongRangeBlock) block;
+                LongBlock fromBlock = b.getFromBlock();
+                LongBlock toBlock = b.getToBlock();
+                yield new LongRangeBlockBuilder.LongRange(fromBlock.getLong(offset), toBlock.getLong(offset));
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

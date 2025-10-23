@@ -1648,8 +1648,9 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
-            + "or dense_vector or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
+        final String supportedTypes =
+            "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
+                + "or dense_vector or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -3167,6 +3168,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 ),
                 true,
+                true,
                 true
             )
         );
@@ -3193,6 +3195,7 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 ),
+                true,
                 true,
                 true
             )
@@ -3223,6 +3226,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 ),
                 true,
+                true,
                 true
             )
         );
@@ -3250,6 +3254,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 ),
                 true,
+                true,
                 true
             )
         );
@@ -3276,6 +3281,7 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 ),
+                true,
                 true,
                 true
             )
@@ -3305,6 +3311,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 ),
                 true,
+                true,
                 true
             )
         );
@@ -3325,13 +3332,13 @@ public class AnalyzerTests extends ESTestCase {
             List.of()
         );
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
         }
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, false));
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, false, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
@@ -3349,7 +3356,7 @@ public class AnalyzerTests extends ESTestCase {
             List.of()
         );
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(
@@ -3358,7 +3365,7 @@ public class AnalyzerTests extends ESTestCase {
             );
         }
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, false, true));
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, false, true, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
@@ -3808,7 +3815,12 @@ public class AnalyzerTests extends ESTestCase {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
-        IndexResolver.FieldsInfo caps = new IndexResolver.FieldsInfo(new FieldCapabilitiesResponse(idxResponses, List.of()), true, true);
+        IndexResolver.FieldsInfo caps = new IndexResolver.FieldsInfo(
+            new FieldCapabilitiesResponse(idxResponses, List.of()),
+            true,
+            true,
+            true
+        );
         IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);

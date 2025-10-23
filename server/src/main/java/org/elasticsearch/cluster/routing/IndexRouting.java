@@ -70,6 +70,7 @@ public abstract class IndexRouting {
     }
 
     protected final String indexName;
+    private final int numberOfShards;
     private final int routingNumShards;
     private final int routingFactor;
     @Nullable
@@ -77,6 +78,7 @@ public abstract class IndexRouting {
 
     private IndexRouting(IndexMetadata metadata) {
         this.indexName = metadata.getIndex().getName();
+        this.numberOfShards = metadata.getNumberOfShards();
         this.routingNumShards = metadata.getRoutingNumShards();
         this.routingFactor = metadata.getRoutingFactor();
         this.indexReshardingMetadata = metadata.getReshardingMetadata();
@@ -142,6 +144,15 @@ public abstract class IndexRouting {
      * shard id.
      */
     protected final int hashToShardId(int hash) {
+        return Math.floorMod(hash, numberOfShards);
+    }
+
+
+    /**
+     * Convert a hash generated from an {@code (id, routing}) pair into a
+     * shard id using the old routingNumShards mechanism.
+     */
+    protected final int hashToShardIdOld(int hash) {
         return Math.floorMod(hash, routingNumShards) / routingFactor;
     }
 

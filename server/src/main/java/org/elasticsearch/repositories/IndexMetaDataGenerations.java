@@ -22,8 +22,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -192,12 +190,20 @@ public final class IndexMetaDataGenerations {
             return false;
         }
         final IndexMetaDataGenerations other = (IndexMetaDataGenerations) that;
-        return lookup.equals(other.lookup) && identifiers.equals(other.identifiers) && blobUuidToIndexMetadataMap.equals(other.blobUuidToIndexMetadataMap);
+        return lookup.equals(other.lookup)
+            && identifiers.equals(other.identifiers)
+            && blobUuidToIndexMetadataMap.equals(other.blobUuidToIndexMetadataMap);
     }
 
     @Override
     public String toString() {
-        return "IndexMetaDataGenerations{lookup:" + lookup + "}{identifier:" + identifiers + "}{blobUuidToIndexMetadataMap:" + blobUuidToIndexMetadataMap + "}";
+        return "IndexMetaDataGenerations{lookup:"
+            + lookup
+            + "}{identifier:"
+            + identifiers
+            + "}{blobUuidToIndexMetadataMap:"
+            + blobUuidToIndexMetadataMap
+            + "}";
     }
 
     /**
@@ -243,7 +249,7 @@ public final class IndexMetaDataGenerations {
         if (na) {
             return ClusterState.UNKNOWN_UUID;
         }
-        assert uniqueIdentifier.length() >=22;
+        assert uniqueIdentifier.length() >= 22;
         return uniqueIdentifier.substring(0, 22);
     }
 }

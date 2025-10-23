@@ -42,9 +42,7 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         }
 
         SnapshotId snapshotId = new SnapshotId(randomAlphanumericOfLength(10), randomUUID());
-        Map<SnapshotId, Map<IndexId, String>> lookup = Map.of(
-            snapshotId, lookupInternal
-        );
+        Map<SnapshotId, Map<IndexId, String>> lookup = Map.of(snapshotId, lookupInternal);
 
         IndexMetaDataGenerations generations = new IndexMetaDataGenerations(lookup, identifiers);
 
@@ -113,7 +111,13 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         return indexUUID + "-" + historyUUID + "-" + settingsVersion + "-" + mappingVersion + "-" + aliasesVersion;
     }
 
-    private IndexMetadata createIndexMetadata(String indexUUID, String historyUUID, long settingsVersion, long mappingVersion, long aliasesVersion) {
+    private IndexMetadata createIndexMetadata(
+        String indexUUID,
+        String historyUUID,
+        long settingsVersion,
+        long mappingVersion,
+        long aliasesVersion
+    ) {
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         Settings.Builder settingsBuilder = Settings.builder();
         if (historyUUID != null) {

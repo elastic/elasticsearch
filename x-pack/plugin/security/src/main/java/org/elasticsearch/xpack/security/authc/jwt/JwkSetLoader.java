@@ -280,7 +280,14 @@ public class JwkSetLoader implements Releasable {
         Scheduler.Cancellable task;
 
         UrlPkcJwkSetLoader(RealmConfig realmConfig, ThreadPool threadPool, URI jwkSetPathUri, SSLService ssl, Consumer<byte[]> listener) {
-            this(realmConfig, threadPool, threadPool.generic(), jwkSetPathUri, JwtUtil.createHttpClient(realmConfig, ssl), listener);
+            this(
+                realmConfig,
+                threadPool,
+                threadPool == null ? null : threadPool.generic(),
+                jwkSetPathUri,
+                JwtUtil.createHttpClient(realmConfig, ssl),
+                listener
+            );
         }
 
         UrlPkcJwkSetLoader(

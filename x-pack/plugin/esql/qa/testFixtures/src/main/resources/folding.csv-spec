@@ -105,6 +105,7 @@ a:s    | b:s      | x:i | y:s          | z:s
 
 mvBoolean_Equals_MultiValueConstant
 required_capability: fix_mv_constant_equals_field
+
 FROM employees
 | WHERE is_rehired == ([true, false])
 | KEEP is_rehired
@@ -117,6 +118,7 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 
 computedBoolean_Equals_MultiValueConstant
 required_capability: fix_mv_constant_equals_field
+
 FROM employees
 | EVAL x = gender IS NULL
 | WHERE x == [true, false]
@@ -130,6 +132,7 @@ warning:Line 3:9: java.lang.IllegalArgumentException: single-value function enco
 
 computedBoolean_Equals_SingleMultiValueConstant
 required_capability: fix_mv_constant_equals_field
+
 FROM employees
 | EVAL x = gender IS NULL
 | WHERE x == [true]
@@ -142,6 +145,8 @@ FROM employees
 ;
 
 mvDouble_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+
 FROM employees
 | WHERE salary_change IN ([1,2,3])
 | KEEP salary_change
@@ -153,6 +158,8 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 ;
 
 mvDouble_Equals_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+
 FROM employees
 | WHERE salary_change == [1,2,3]
 | KEEP salary_change

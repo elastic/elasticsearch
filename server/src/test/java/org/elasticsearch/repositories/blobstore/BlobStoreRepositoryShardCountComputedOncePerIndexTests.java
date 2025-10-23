@@ -231,35 +231,32 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
             firstBatchOfSnapshotNames
         );
 
-        List<String> secondBatchOfSnapshotNamesToDelete = new ArrayList<>();
-        if (numberOfIndicesRecreated > 0) {
-            // Now delete a random subset of indices, and then recreate them with the same name but a different shard count
-            // This will force the new indices to have the same indexId but a different UUID
-            List<String> indicesToDelete = randomSubsetOf(numberOfIndicesRecreated, indexNames);
-            for (String indexName : indicesToDelete) {
-                deleteIndex(indexName);
-                // Creates a new index with the same name but a different number of shards
-                createIndex(indexName, indexSettings(between(4, 6), 0).build());
-                ensureGreen(indexName);
-            }
-
-            // Do the second batch of snapshots
-            int numberOfSnapshotsInSecondBatch = randomIntBetween(3, 10);
-            List<String> secondBatchOfSnapshotNames = new ArrayList<>();
-            for (int i = 0; i < numberOfSnapshotsInSecondBatch; i++) {
-                String snapshotName = "second-snapshot-" + i;
-                secondBatchOfSnapshotNames.add(snapshotName);
-                client().admin()
-                    .cluster()
-                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName)
-                    .setWaitForCompletion(true)
-                    .get();
-            }
-            secondBatchOfSnapshotNamesToDelete = randomSubsetOf(
-                randomIntBetween(1, numberOfSnapshotsInSecondBatch - 1),
-                secondBatchOfSnapshotNames
-            );
+        // Now delete a random subset of indices (this can be 0) and then recreate them with the same name but a different shard count
+        // This will force the new indices to have the same indexId but a different UUID
+        List<String> indicesToDelete = randomSubsetOf(numberOfIndicesRecreated, indexNames);
+        for (String indexName : indicesToDelete) {
+            deleteIndex(indexName);
+            // Creates a new index with the same name but a different number of shards
+            createIndex(indexName, indexSettings(between(4, 6), 0).build());
+            ensureGreen(indexName);
         }
+
+        // Do the second batch of snapshots, whether we've modified any indices or not
+        int numberOfSnapshotsInSecondBatch = randomIntBetween(3, 10);
+        List<String> secondBatchOfSnapshotNames = new ArrayList<>();
+        for (int i = 0; i < numberOfSnapshotsInSecondBatch; i++) {
+            String snapshotName = "second-snapshot-" + i;
+            secondBatchOfSnapshotNames.add(snapshotName);
+            client().admin()
+                .cluster()
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, snapshotName)
+                .setWaitForCompletion(true)
+                .get();
+        }
+        List<String> secondBatchOfSnapshotNamesToDelete = randomSubsetOf(
+            randomIntBetween(1, numberOfSnapshotsInSecondBatch - 1),
+            secondBatchOfSnapshotNames
+        );
 
         firstBatchOfSnapshotNamesToDelete.addAll(secondBatchOfSnapshotNamesToDelete);
         return firstBatchOfSnapshotNamesToDelete;

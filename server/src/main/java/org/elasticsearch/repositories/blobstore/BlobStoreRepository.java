@@ -447,9 +447,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
     private volatile int maxHeapSizeForSnapshotDeletion;
 
-    public static final Setting<ByteSizeValue> HEAP_SIZE_SETTING = Setting.memorySizeSetting(
-        "repositories.blobstore.heap_size",
-        "100%",
+    public static final Setting<ByteSizeValue> MAX_HEAP_SIZE_FOR_INDEX_METADATA_SETTING = Setting.memorySizeSetting(
+        "repositories.blobstore.max_heap_size_for_index_metadata",
+        "10%",
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -581,16 +581,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 Math.min(maxHeapSizeForSnapshotDeletion.getBytes(), Integer.MAX_VALUE - ByteSizeUnit.MB.toBytes(1))
             );
         });
-        clusterSettings.initializeAndWatch(HEAP_SIZE_SETTING, heapSize -> {
-            // If the heap size is a fractional GB size, then the fractional part is discarded
-            long heapSizeInGb = heapSize.getGb();
-            this.maxIndexDeletionConcurrency = Math.min(
-                // Prevent smaller nodes from loading too many IndexMetadata objects in parallel
-                // and going OOMe (ES-12538)
-                (int) Math.pow(2, heapSizeInGb),
-                // Each per-index process needs at least one snapshot thread at all times, so threadPool.info(SNAPSHOT).getMax()
-                // of them at once is enough to keep the thread pool fully utilized.
-                threadPool.info(ThreadPool.Names.SNAPSHOT).getMax()
+        clusterSettings.initializeAndWatch(MAX_HEAP_SIZE_FOR_INDEX_METADATA_SETTING, maxHeapSizeForIndexMetadata -> {
+            this.maxIndexDeletionConcurrency = Math.toIntExact(
+                Math.min(
+                    // Prevent smaller nodes from loading too many IndexMetadata objects in parallel and going OOMe (ES-12538).
+                    // We use 50MB as an estimate for a large IndexMetadata object to load, and don't want to exceed 10% of total heap space
+                    Math.max(1, maxHeapSizeForIndexMetadata.getMb() / 50),
+                    // Each per-index process needs at least one snapshot thread at all times, so threadPool.info(SNAPSHOT).getMax()
+                    // of them at once is enough to keep the thread pool fully utilized.
+                    threadPool.info(ThreadPool.Names.SNAPSHOT).getMax()
+                )
             );
         });
     }

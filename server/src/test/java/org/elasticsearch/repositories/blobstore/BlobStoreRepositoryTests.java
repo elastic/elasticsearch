@@ -44,6 +44,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -114,13 +115,17 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     static final String REPO_TYPE = "fs";
     private static final String TEST_REPO_NAME = "test-repo";
+    /**
+     * The maximum number of threads possible to be used
+     */
+    private static final int THREAD_POOL_MAX_SNAPSHOT_THREADS = 10;
 
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
             // Mimic production
-            .put("thread_pool.snapshot.max", 10)
+            .put("thread_pool.snapshot.max", THREAD_POOL_MAX_SNAPSHOT_THREADS)
             .build();
     }
 
@@ -875,35 +880,32 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
      * according to the size of the heap memory
      */
     public void testMaxIndexDeletionConcurrency() {
-        long heapSizeInBytes = randomLongBetween(0, 5L * ONE_GIGABYTE_IN_BYTES);
+        // Randomly generate a heap size up to 10GB.
+        long heapSizeInBytes = randomLongBetween(0, 10L * ONE_GIGABYTE_IN_BYTES);
+        // We expect at most only 10% of the total heap space to be used when loading index metadata
+        long heapAvailableForIndexMetaData = heapSizeInBytes / 10;
         client().admin()
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(Settings.builder().put("repositories.blobstore.heap_size", heapSizeInBytes + "b").build())
+            .setPersistentSettings(
+                Settings.builder()
+                    .put("repositories.blobstore.max_heap_size_for_index_metadata", heapAvailableForIndexMetaData + "b")
+                    .build()
+            )
             .get();
 
         final var repo = setupRepo();
 
-        int expectedMaxSnapshotThreadsUsed;
-        if (heapSizeInBytes < ONE_GIGABYTE_IN_BYTES) {
-            expectedMaxSnapshotThreadsUsed = 1;
-        } else if (heapSizeInBytes < 2L * ONE_GIGABYTE_IN_BYTES) {
-            expectedMaxSnapshotThreadsUsed = 2;
-        } else if (heapSizeInBytes < 3L * ONE_GIGABYTE_IN_BYTES) {
-            expectedMaxSnapshotThreadsUsed = 4;
-        } else if (heapSizeInBytes < 4L * ONE_GIGABYTE_IN_BYTES) {
-            expectedMaxSnapshotThreadsUsed = 8;
-        } else {
-            expectedMaxSnapshotThreadsUsed = 10;
-        }
+        // We use 50MB as a heuristic of how many index metadata objects we could load concurrently
+        long maxConcurrentThreads = Math.max(1, ByteSizeValue.of(heapAvailableForIndexMetaData, ByteSizeUnit.BYTES).getMb() / 50);
 
-        assertEquals(expectedMaxSnapshotThreadsUsed, repo.getMaxIndexDeletionConcurrency());
+        assertEquals(Math.min(maxConcurrentThreads, THREAD_POOL_MAX_SNAPSHOT_THREADS), repo.getMaxIndexDeletionConcurrency());
 
         // reset original default setting
         client().admin()
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(Settings.builder().putNull("repositories.blobstore.heap_size").build())
+            .setPersistentSettings(Settings.builder().putNull("repositories.blobstore.max_heap_size_for_index_metadata").build())
             .get();
     }
 }

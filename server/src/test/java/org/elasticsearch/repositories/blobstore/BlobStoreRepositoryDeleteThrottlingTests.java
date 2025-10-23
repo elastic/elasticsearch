@@ -16,6 +16,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -55,16 +56,35 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
 
     private static final String TEST_REPO_TYPE = "concurrency-limiting-fs";
     private static final String TEST_REPO_NAME = "test-repo";
+    /**
+     * The maximum number of threads possible to be used
+     */
+    private static final int THREAD_POOL_MAX_SNAPSHOT_THREADS = 10;
+    /**
+     * The maximum number of snapshot threads we expect the BlobStore to use when deleting snapshots
+     */
     private static int maxSnapshotThreads;
 
     @Override
     protected Settings nodeSettings() {
+        // Randomly generate a heap size up to 5GB.
         long heapSizeInBytes = randomLongBetween(0, 5L * ONE_GIGABYTE_IN_BYTES);
-        maxSnapshotThreads = Math.min((int) Math.pow(2, ByteSizeValue.ofBytes(heapSizeInBytes).getGb()), 10);
+        // We expect at most only 10% of the total heap space to be used when loading index metadata
+        long heapAvailableForIndexMetaData = heapSizeInBytes / 10;
+
+        // Calculate the maximum number of snapshot threads the BlobStore should use given the heap restrictions above
+        maxSnapshotThreads = Math.toIntExact(
+            Math.min(
+                Math.max(1, ByteSizeValue.of(heapAvailableForIndexMetaData, ByteSizeUnit.BYTES).getMb() / 50),
+                THREAD_POOL_MAX_SNAPSHOT_THREADS
+            )
+        );
+
         return Settings.builder()
             .put(super.nodeSettings())
-            .put("thread_pool.snapshot.max", maxSnapshotThreads)
-            .put("repositories.blobstore.heap_size", heapSizeInBytes + "b")
+            // Mimic production by setting to 10
+            .put("thread_pool.snapshot.max", THREAD_POOL_MAX_SNAPSHOT_THREADS)
+            .put("repositories.blobstore.max_heap_size_for_index_metadata", heapAvailableForIndexMetaData + "b")
             .build();
     }
 

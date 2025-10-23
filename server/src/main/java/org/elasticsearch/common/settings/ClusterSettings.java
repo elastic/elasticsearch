@@ -656,6 +656,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL,
         SamplingService.TTL_POLL_INTERVAL_SETTING,
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
-        BlobStoreRepository.HEAP_SIZE_SETTING
+        BlobStoreRepository.MAX_HEAP_SIZE_FOR_INDEX_METADATA_SETTING
     );
 }

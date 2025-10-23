@@ -489,7 +489,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             try {
                 result = new UnresolvedNamePattern(
                     src,
-                    new CharacterRunAutomaton(Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)),
+                    new CharacterRunAutomaton(
+                        Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+                    ),
                     patternString.toString(),
                     nameString.toString()
                 );

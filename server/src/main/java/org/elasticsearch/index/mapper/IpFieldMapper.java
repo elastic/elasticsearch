@@ -111,11 +111,7 @@ public class IpFieldMapper extends FieldMapper {
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
                 if (v && (hasDocValues.getValue() == false)) {
                     throw new IllegalArgumentException(
-                        "Field ["
-                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
-                            + "] requires that ["
-                            + hasDocValues.name
-                            + "] is true"
+                        "Field [" + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + "] requires that [" + hasDocValues.name + "] is true"
                     );
                 }
             });

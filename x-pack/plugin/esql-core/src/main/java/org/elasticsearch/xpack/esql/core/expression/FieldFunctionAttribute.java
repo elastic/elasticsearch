@@ -34,20 +34,34 @@ public class FieldFunctionAttribute extends FieldAttribute {
 
     private final Function function;
 
-    private FieldFunctionAttribute(Source source, String parentName, String qualifier, String name, EsField field,
-                                  Nullability nullability, NameId id, boolean synthetic, Function function) {
+    private FieldFunctionAttribute(
+        Source source,
+        String parentName,
+        String qualifier,
+        String name,
+        EsField field,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic,
+        Function function
+    ) {
         super(source, parentName, qualifier, name, field, nullability, id, synthetic);
         this.function = function;
     }
 
-    public static FieldFunctionAttribute fromFieldAttribute(
-        FieldAttribute fieldAttribute,
-        Function function
-    ) {
+    public static FieldFunctionAttribute fromFieldAttribute(FieldAttribute fieldAttribute, Function function) {
         NameId nameId = new NameId();
-        return new FieldFunctionAttribute(fieldAttribute.source(), fieldAttribute.parentName(), fieldAttribute.qualifier(),
+        return new FieldFunctionAttribute(
+            fieldAttribute.source(),
+            fieldAttribute.parentName(),
+            fieldAttribute.qualifier(),
             Attribute.rawTemporaryName(fieldAttribute.name(), "replaced", nameId.toString()),
-            fieldAttribute.field(), fieldAttribute.nullable(), nameId, fieldAttribute.synthetic(), function);
+            fieldAttribute.field(),
+            fieldAttribute.nullable(),
+            nameId,
+            fieldAttribute.synthetic(),
+            function
+        );
     }
 
     public static FieldFunctionAttribute readFrom(StreamInput in) throws IOException {

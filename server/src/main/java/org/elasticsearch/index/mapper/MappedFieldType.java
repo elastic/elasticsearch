@@ -705,7 +705,7 @@ public abstract class MappedFieldType {
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
 
         @Nullable
-        default BlockLoaderFunction<?> blockLoaderFunction() {
+        default BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
             return null;
         }
     }
@@ -715,6 +715,6 @@ public abstract class MappedFieldType {
      * Will be part of the {@link BlockLoaderContext}
      * A name and a config object are provided to allow the {@link MappedFieldType} to choose the appropriate implementation.
      */
-    public record BlockLoaderFunction<T>(String name, T config) {}
+    public interface BlockLoaderFunctionConfig {}
 
 }

@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalar
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderFunctionProvider;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderFunctionConfigProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     implements
         EvaluatorMapper,
         VectorFunction,
-        BlockLoaderFunctionProvider<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> {
+    BlockLoaderFunctionConfigProvider {
 
     protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
         super(source, left, right);
@@ -207,7 +207,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     }
 
     @Override
-    public MappedFieldType.BlockLoaderFunction<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> getBlockLoaderFunction() {
+    public MappedFieldType.BlockLoaderFunctionConfig getBlockLoaderFunctionConfig() {
         Literal literal = (Literal) (left() instanceof Literal ? left() : right());
         @SuppressWarnings("unchecked")
         List<Number> numberList = (List<Number>) literal.value();
@@ -216,10 +216,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
             vector[i] = numberList.get(i).floatValue();
         }
 
-        return new MappedFieldType.BlockLoaderFunction<>(
-            DenseVectorFieldMapper.SIMILARITY_FUNCTION_NAME,
-            new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vector)
-        );
+        return new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vector);
     }
 
     interface VectorValueProvider extends Releasable {

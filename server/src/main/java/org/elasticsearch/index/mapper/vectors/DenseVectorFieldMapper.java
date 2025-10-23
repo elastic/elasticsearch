@@ -128,8 +128,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
 
-    public static final String SIMILARITY_FUNCTION_NAME = "similarity";
-
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
     }
@@ -2691,19 +2689,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (indexed) {
-                BlockLoaderFunction<?> blockLoaderFunction = blContext.blockLoaderFunction();
-                if (blockLoaderFunction == null) {
+                BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
+                if (config == null) {
                     return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims, this);
                 }
-                if (SIMILARITY_FUNCTION_NAME.equals(blockLoaderFunction.name()) == false) {
-                    throw new UnsupportedOperationException("Unknown block loader function: " + blockLoaderFunction.name());
+                if (config instanceof VectorSimilarityFunctionConfig similarityConfig) {
+                    return new BlockDocValuesReader.DenseVectorSimilarityFunctionBlockLoader(name(), this, similarityConfig);
                 }
-
-                return new BlockDocValuesReader.DenseVectorSimilarityFunctionBlockLoader(
-                    name(),
-                    this,
-                    (VectorSimilarityFunctionConfig) blockLoaderFunction.config()
-                );
+                throw new UnsupportedOperationException("Unknown block loader function config: " + config.getClass());
             }
 
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
@@ -3155,10 +3148,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     /**
-     * Configuration for a {@link org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderFunction} that calculates vector similarity.
+     * Configuration for a {@link MappedFieldType.BlockLoaderFunctionConfig} that calculates vector similarity.
      * Functions that use this config should use SIMILARITY_FUNCTION_NAME as their name.
      */
-    public static class VectorSimilarityFunctionConfig {
+    public static class VectorSimilarityFunctionConfig implements MappedFieldType.BlockLoaderFunctionConfig {
 
         private final SimilarityFunction similarityFunction;
         private final float[] vector;

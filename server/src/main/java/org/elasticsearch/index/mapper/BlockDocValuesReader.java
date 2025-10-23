@@ -518,7 +518,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     }
 
     /**
-     * {@link BlockLoader} for {@link org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderFunction} that use a
+     * {@link BlockLoader} for {@link MappedFieldType.BlockLoaderFunctionConfig} that use a
      * {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarityFunctionConfig} configuration.
      * It extracts vector from doc values and computes similarity as a result.
      */

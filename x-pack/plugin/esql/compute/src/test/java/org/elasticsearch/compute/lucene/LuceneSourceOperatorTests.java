@@ -467,7 +467,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             String name,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            MappedFieldType.BlockLoaderFunction<?> blockLoaderFunction
+            MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             throw new UnsupportedOperationException();
         }

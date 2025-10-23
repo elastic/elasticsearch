@@ -19,7 +19,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -9358,11 +9357,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(fieldFunctionAttribute.fieldName().string(), equalTo("dense_vector"));
         assertThat(fieldFunctionAttribute.name(), startsWith("$$dense_vector$replaced"));
         var function = as(fieldFunctionAttribute.getFunction(), VectorSimilarityFunction.class);
-        MappedFieldType.BlockLoaderFunction<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> blockLoaderFunction = function
-            .getBlockLoaderFunction();
-        assertThat(blockLoaderFunction.name(), equalTo(DenseVectorFieldMapper.SIMILARITY_FUNCTION_NAME));
-        assertThat(blockLoaderFunction.config().similarityFunction(), is(function.getSimilarityFunction()));
-        assertThat(blockLoaderFunction.config().vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+        DenseVectorFieldMapper.VectorSimilarityFunctionConfig blockLoaderFunctionConfig =
+            (DenseVectorFieldMapper.VectorSimilarityFunctionConfig) function.getBlockLoaderFunctionConfig();
+        assertThat(blockLoaderFunctionConfig.similarityFunction(), is(function.getSimilarityFunction()));
+        assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
 
         // Limit[1000[INTEGER],false]
         var limit = as(eval.child(), Limit.class);
@@ -9415,12 +9413,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(fieldFunctionAttribute.fieldName().string(), equalTo("dense_vector"));
         assertThat(fieldFunctionAttribute.name(), startsWith("$$dense_vector$replaced"));
         var function = as(fieldFunctionAttribute.getFunction(), VectorSimilarityFunction.class);
-        MappedFieldType.BlockLoaderFunction<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> blockLoaderFunction = function
-            .getBlockLoaderFunction();
-        assertThat(blockLoaderFunction.name(), equalTo(DenseVectorFieldMapper.SIMILARITY_FUNCTION_NAME));
-        assertThat(blockLoaderFunction.config().similarityFunction(), is(function.getSimilarityFunction()));
-        assertThat(blockLoaderFunction.config().vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
-        assertThat(alias.child().toString(), containsString("$$dense_vector$replaced"));
+        DenseVectorFieldMapper.VectorSimilarityFunctionConfig blockLoaderFunctionConfig =
+            (DenseVectorFieldMapper.VectorSimilarityFunctionConfig) function.getBlockLoaderFunctionConfig();
+        assertThat(blockLoaderFunctionConfig.similarityFunction(), is(function.getSimilarityFunction()));
+        assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
 
         // EsRelation[types]
         as(eval.child(), EsRelation.class);

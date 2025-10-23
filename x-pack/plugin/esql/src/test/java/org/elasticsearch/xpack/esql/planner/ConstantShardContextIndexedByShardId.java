@@ -70,7 +70,7 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
             String name,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            MappedFieldType.BlockLoaderFunction<?> blockLoaderFunction
+            MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             throw new UnsupportedOperationException();
         }

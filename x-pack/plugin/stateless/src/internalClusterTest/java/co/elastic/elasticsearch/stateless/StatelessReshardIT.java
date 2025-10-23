@@ -27,6 +27,7 @@ import co.elastic.elasticsearch.stateless.reshard.TransportReshardSplitAction;
 import co.elastic.elasticsearch.stateless.reshard.TransportUpdateSplitStateAction;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -59,6 +60,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
@@ -2388,12 +2390,20 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         );
     }
 
+    public PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {
+        return waitForClusterState(logger, clusterService(), predicate);
+    }
+
     /**
      * A future that waits if necessary for cluster state to match a given predicate, and returns that state
      * @param predicate continue waiting for state updates until true
      * @return A future whose get() will resolve to the cluster state that matches the supplied predicate
      */
-    private PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {
+    public static PlainActionFuture<ClusterState> waitForClusterState(
+        Logger logger,
+        ClusterService clusterService,
+        Predicate<ClusterState> predicate
+    ) {
         var future = new PlainActionFuture<ClusterState>();
         var listener = new ClusterStateObserver.Listener() {
             @Override
@@ -2413,7 +2423,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             }
         };
 
-        ClusterStateObserver.waitForState(clusterService(), new ThreadContext(Settings.EMPTY), listener, predicate, null, logger);
+        ClusterStateObserver.waitForState(clusterService, new ThreadContext(Settings.EMPTY), listener, predicate, null, logger);
 
         return future;
     }

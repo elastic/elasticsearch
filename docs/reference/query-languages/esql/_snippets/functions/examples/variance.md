@@ -3,7 +3,12 @@
 **Example**
 
 ```esql
-null
+FROM employees
+| STATS var_height = VARIANCE(height)
 ```
+
+| var_height:double |
+| --- |
+| 0.0425888 |
 
 

@@ -48,16 +48,23 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         this.valueCounts = valueCounts;
         this.zeroThresholds = zeroThresholds;
         this.encodedHistograms = encodedHistograms;
+        assert assertInvariants();
+    }
+
+    private boolean assertInvariants() {
+
         for (Block b : getSubBlocks()) {
-            if (b.getPositionCount() != encodedHistograms.getPositionCount()) {
-                throw new IllegalArgumentException("expected positionCount=" + encodedHistograms.getPositionCount() + " but was " + b);
-            }
-            if (b.isReleased()) {
-                throw new IllegalArgumentException(
-                    "can't build exponential_histogram block out of released blocks but [" + b + "] was released"
-                );
+            assert b.isReleased() == false;
+            assert b.doesHaveMultivaluedFields() == false : "ExponentialHistogramArrayBlock sub-blocks can't have multi-values but [" + b + "] does";
+            assert b.getPositionCount() == getPositionCount() : "ExponentialHistogramArrayBlock sub-blocks must have the same position count but [" + b + "] has "
+                + b.getPositionCount()
+                + " instead of "
+                + getPositionCount();
+            for (int i=0; i<b.getPositionCount(); i++) {
+                assert b.isNull(i) == isNull(i) : "ExponentialHistogramArrayBlock sub-blocks can't have nulls but [" + b + "] is null at position " + i;
             }
         }
+        return true;
     }
 
     private List<Block> getSubBlocks() {
@@ -76,12 +83,18 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         return new Accessor() {
             @Override
             public ExponentialHistogram getExponentialHistogram(int valueIndex) {
-                BytesRef bytes = encodedHistograms.getBytesRef(valueIndex, bytesRef);
-                double zeroThreshold = zeroThresholds.getDouble(valueIndex);
-                long valueCount = valueCounts.getLong(valueIndex);
-                double sum = sums.getDouble(valueIndex);
-                double min = valueCount == 0 ? Double.NaN : minima.getDouble(valueIndex);
-                double max = valueCount == 0 ? Double.NaN : maxima.getDouble(valueIndex);
+
+                // we don't support multivalues (yet) so valueIndex == position
+                if (isNull(valueIndex)) {
+                    return null;
+                }
+
+                BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), bytesRef);
+                double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
+                long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
+                double sum = sums.getDouble(sums.getFirstValueIndex(valueIndex));
+                double min = valueCount == 0 ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(valueIndex));
+                double max = valueCount == 0 ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(valueIndex));
                 try {
                     reusedHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
                 } catch (IOException e) {
@@ -114,12 +127,12 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     @Override
     public int getFirstValueIndex(int position) {
-        return encodedHistograms.getFirstValueIndex(position);
+        return position;
     }
 
     @Override
     public int getValueCount(int position) {
-        return encodedHistograms.getValueCount(position);
+        return isNull(position) ? 0 : 1;
     }
 
     @Override
@@ -134,7 +147,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     @Override
     public void allowPassingToDifferentDriver() {
-        encodedHistograms.allowPassingToDifferentDriver();
+        getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
     }
 
     @Override
@@ -154,35 +167,89 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     @Override
     public boolean mayHaveMultivaluedFields() {
-        return encodedHistograms.mayHaveMultivaluedFields();
+        return false;
     }
 
     @Override
     public boolean doesHaveMultivaluedFields() {
-        return encodedHistograms.doesHaveMultivaluedFields();
+        return false;
     }
 
     @Override
     public Block filter(int... positions) {
+        DoubleBlock filteredMinima = null;
+        DoubleBlock filteredMaxima = null;
+        DoubleBlock filteredSums = null;
+        LongBlock filteredValueCounts = null;
+        DoubleBlock filteredZeroThresholds = null;
+        BytesRefBlock filteredEncodedHistograms = null;
+        boolean success = false;
+        try {
+            filteredMinima = minima.filter(positions);
+            filteredMaxima = maxima.filter(positions);
+            filteredSums = sums.filter(positions);
+            filteredValueCounts = valueCounts.filter(positions);
+            filteredZeroThresholds = zeroThresholds.filter(positions);
+            filteredEncodedHistograms = encodedHistograms.filter(positions);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(
+                    filteredMinima,
+                    filteredMaxima,
+                    filteredSums,
+                    filteredValueCounts,
+                    filteredZeroThresholds,
+                    filteredEncodedHistograms
+                );
+            }
+        }
         return new ExponentialHistogramArrayBlock(
-            minima.filter(positions),
-            maxima.filter(positions),
-            sums.filter(positions),
-            valueCounts.filter(positions),
-            zeroThresholds.filter(positions),
-            encodedHistograms.filter(positions)
+            filteredMinima,
+            filteredMaxima,
+            filteredSums,
+            filteredValueCounts,
+            filteredZeroThresholds,
+            filteredEncodedHistograms
         );
     }
 
     @Override
     public Block keepMask(BooleanVector mask) {
+        DoubleBlock filteredMinima = null;
+        DoubleBlock filteredMaxima = null;
+        DoubleBlock filteredSums = null;
+        LongBlock filteredValueCounts = null;
+        DoubleBlock filteredZeroThresholds = null;
+        BytesRefBlock filteredEncodedHistograms = null;
+        boolean success = false;
+        try {
+            filteredMinima = minima.keepMask(mask);
+            filteredMaxima = maxima.keepMask(mask);
+            filteredSums = sums.keepMask(mask);
+            filteredValueCounts = valueCounts.keepMask(mask);
+            filteredZeroThresholds = zeroThresholds.keepMask(mask);
+            filteredEncodedHistograms = encodedHistograms.keepMask(mask);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(
+                    filteredMinima,
+                    filteredMaxima,
+                    filteredSums,
+                    filteredValueCounts,
+                    filteredZeroThresholds,
+                    filteredEncodedHistograms
+                );
+            }
+        }
         return new ExponentialHistogramArrayBlock(
-            minima.keepMask(mask),
-            maxima.keepMask(mask),
-            sums.keepMask(mask),
-            valueCounts.keepMask(mask),
-            zeroThresholds.keepMask(mask),
-            encodedHistograms.keepMask(mask)
+            filteredMinima,
+            filteredMaxima,
+            filteredSums,
+            filteredValueCounts,
+            filteredZeroThresholds,
+            filteredEncodedHistograms
         );
     }
 
@@ -198,39 +265,41 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     @Override
     public Block expand() {
-        BytesRefBlock expandedHistograms = encodedHistograms.expand();
-        if (expandedHistograms == encodedHistograms) {
-            // No values to expand, return original block
-            Releasables.close(expandedHistograms);
-            this.incRef();
-            return this;
-        } else {
-            DoubleBlock expandedMinima = minima.expand();
-            DoubleBlock expandedMaxima = maxima.expand();
-            DoubleBlock expandedSums = sums.expand();
-            LongBlock expandedValueCounts = valueCounts.expand();
-            DoubleBlock expandedZeroThresholds = zeroThresholds.expand();
-            return new ExponentialHistogramArrayBlock(
-                expandedMinima,
-                expandedMaxima,
-                expandedSums,
-                expandedValueCounts,
-                expandedZeroThresholds,
-                expandedHistograms
-            );
-        }
+        // we don't support multivalues so expanding is a no-op
+        this.incRef();
+        return this;
     }
 
     @Override
     public ExponentialHistogramArrayBlock deepCopy(BlockFactory blockFactory) {
-        return new ExponentialHistogramArrayBlock(
-            minima.deepCopy(blockFactory),
-            maxima.deepCopy(blockFactory),
-            sums.deepCopy(blockFactory),
-            valueCounts.deepCopy(blockFactory),
-            zeroThresholds.deepCopy(blockFactory),
-            encodedHistograms.deepCopy(blockFactory)
-        );
+        DoubleBlock copiedMinima = null;
+        DoubleBlock copiedMaxima = null;
+        DoubleBlock copiedSums = null;
+        LongBlock copiedValueCounts = null;
+        DoubleBlock copiedZeroThresholds = null;
+        BytesRefBlock copiedEncodedHistograms = null;
+        boolean success = false;
+        try {
+            copiedMinima = minima.deepCopy(blockFactory);
+            copiedMaxima = maxima.deepCopy(blockFactory);
+            copiedSums = sums.deepCopy(blockFactory);
+            copiedValueCounts = valueCounts.deepCopy(blockFactory);
+            copiedZeroThresholds = zeroThresholds.deepCopy(blockFactory);
+            copiedEncodedHistograms = encodedHistograms.deepCopy(blockFactory);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(
+                    copiedMinima,
+                    copiedMaxima,
+                    copiedSums,
+                    copiedValueCounts,
+                    copiedZeroThresholds,
+                    copiedEncodedHistograms
+                );
+            }
+        }
+        return new ExponentialHistogramArrayBlock(copiedMinima, copiedMaxima , copiedSums, copiedValueCounts, copiedZeroThresholds, copiedEncodedHistograms);
     }
 
     @Override

@@ -184,24 +184,12 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoa
 
     @Override
     public ExponentialHistogramBlockBuilder beginPositionEntry() {
-        minimaBuilder.beginPositionEntry();
-        maximaBuilder.beginPositionEntry();
-        sumsBuilder.beginPositionEntry();
-        valueCountsBuilder.beginPositionEntry();
-        zeroThresholdsBuilder.beginPositionEntry();
-        encodedHistogramsBuilder.beginPositionEntry();
-        return this;
+        throw new UnsupportedOperationException("ExponentialHistogramBlock does not support multi-values");
     }
 
     @Override
     public ExponentialHistogramBlockBuilder endPositionEntry() {
-        minimaBuilder.endPositionEntry();
-        maximaBuilder.endPositionEntry();
-        sumsBuilder.endPositionEntry();
-        valueCountsBuilder.endPositionEntry();
-        zeroThresholdsBuilder.endPositionEntry();
-        encodedHistogramsBuilder.endPositionEntry();
-        return this;
+        throw new UnsupportedOperationException("ExponentialHistogramBlock does not support multi-values");
     }
 
     @Override

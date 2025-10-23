@@ -211,6 +211,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+
+        builder.put("xpack.security.audit.enabled", true);
+
         // Disable native ML autodetect_process as the c++ controller won't be available
         // builder.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal, otherSettings);

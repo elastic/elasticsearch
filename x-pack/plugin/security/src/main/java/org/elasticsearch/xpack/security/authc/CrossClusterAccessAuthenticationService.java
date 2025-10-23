@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import io.netty.channel.Channel;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -16,6 +18,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.transport.Header;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -23,6 +26,8 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
 import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 
@@ -37,6 +42,8 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.getCertificateIdentity;
+import static org.elasticsearch.xpack.security.transport.X509CertificateSignature.CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY;
 
 public class CrossClusterAccessAuthenticationService implements RemoteClusterAuthenticationService {
 
@@ -46,17 +53,20 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
     private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
     private final CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier;
+    private final AuditTrailService auditTrailService;
 
     public CrossClusterAccessAuthenticationService(
         ClusterService clusterService,
         ApiKeyService apiKeyService,
         AuthenticationService authenticationService,
-        CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier
+        CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier,
+        AuditTrailService auditTrailService
     ) {
         this.clusterService = clusterService;
         this.apiKeyService = apiKeyService;
         this.authenticationService = authenticationService;
         this.crossClusterApiKeySignatureVerifier = crossClusterApiKeySignatureVerifier;
+        this.auditTrailService = auditTrailService;
     }
 
     @Override
@@ -71,15 +81,14 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
             // authn must verify only the provided api key and not try to extract any other credential from the thread context
             authcContext = authenticationService.newContext(action, request, apiKeyCredentials);
+            var signature = crossClusterAccessHeaders.signature();
+
+            // Always validate a signature if provided
+            if (signature != null && verifySignature(authcContext, signature, crossClusterAccessHeaders, listener) == false) {
+                return;
+            }
         } catch (Exception ex) {
             withRequestProcessingFailure(authenticationService.newContext(action, request, null), ex, listener);
-            return;
-        }
-
-        // TODO ALWAYS check if used api key has a certificate identity and do this verification conditionally based on that
-        var signature = crossClusterAccessHeaders.signature();
-        // Always validate a signature if provided
-        if (signature != null && verifySignature(authcContext, signature, crossClusterAccessHeaders, listener) == false) {
             return;
         }
 
@@ -120,7 +129,6 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
                     assert authentication.isApiKey() : "initial authentication for cross cluster access must be by API key";
                     assert false == authentication.isRunAs() : "initial authentication for cross cluster access cannot be run-as";
-
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
@@ -158,15 +166,14 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             );
         }
         if (authException != null) {
-            // TODO Verify this covers all audit logging scenarios
-            listener.onFailure(context.getRequest().exceptionProcessingRequest(authException, context.getMostRecentAuthenticationToken()));
+            withRequestProcessingFailure(context, authException, listener);
             return false;
         }
         return true;
     }
 
     @Override
-    public void authenticateHeaders(Map<String, String> headers, ActionListener<Void> listener) {
+    public void authenticateHeaders(Map<String, String> headers, Channel channel, Header header, ActionListener<Void> listener) {
         final ApiKeyService.ApiKeyCredentials credentials;
         try {
             credentials = extractApiKeyCredentialsFromHeaders(headers);
@@ -174,11 +181,11 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             listener.onFailure(e);
             return;
         }
-        tryAuthenticate(credentials, listener);
+        tryAuthenticate(credentials, channel, header, listener);
     }
 
     // package-private for testing
-    void tryAuthenticate(ApiKeyService.ApiKeyCredentials credentials, ActionListener<Void> listener) {
+    void tryAuthenticate(ApiKeyService.ApiKeyCredentials credentials, Channel channel, Header header, ActionListener<Void> listener) {
         Objects.requireNonNull(credentials);
         apiKeyService.tryAuthenticate(clusterService.threadPool().getThreadContext(), credentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
@@ -188,11 +195,10 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             }
 
             if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                Exception e = (authResult.getException() != null)
+                Exception ex = (authResult.getException() != null)
                     ? authResult.getException()
                     : Exceptions.authenticationError(authResult.getMessage());
-                logger.debug(() -> "API key service terminated authentication", e);
-                listener.onFailure(e);
+                logger.debug(() -> "API key service terminated authentication", ex);
             } else {
                 if (authResult.getMessage() != null) {
                     if (authResult.getException() != null) {
@@ -204,9 +210,26 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
                         logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
                     }
                 }
-                listener.onFailure(Exceptions.authenticationError(authResult.getMessage(), authResult.getException()));
             }
-        }, e -> listener.onFailure(Exceptions.authenticationError("failed to authenticate cross cluster credentials", e))));
+
+            // Audit the authentication failure
+            String requestId = AuditUtil.getOrGenerateRequestId(clusterService.threadPool().getThreadContext());
+            auditTrailService.get().authenticationFailed(requestId, credentials, header.getActionName(), channel.remoteAddress());
+
+            // Fail the request
+            Exception ex = (authResult.getException() != null)
+                ? authResult.getException()
+                : Exceptions.authenticationError(authResult.getMessage());
+            listener.onFailure(ex);
+
+        }, e -> {
+            logger.error("API key service threw exception during authentication", e);
+
+            String requestId = AuditUtil.getOrGenerateRequestId(clusterService.threadPool().getThreadContext());
+            auditTrailService.get().authenticationFailed(requestId, credentials, header.getActionName(), channel.remoteAddress());
+
+            listener.onFailure(e);
+        }));
     }
 
     public ApiKeyService.ApiKeyCredentials extractApiKeyCredentialsFromHeaders(Map<String, String> headers) {
@@ -216,7 +239,14 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             if (credentials == null) {
                 throw requiredHeaderMissingException(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
             }
-            return CrossClusterAccessHeaders.parseCredentialsHeader(credentials);
+
+            String certificateIdentity = null;
+            final String signature = headers.get(CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY);
+            if (signature != null) {
+                certificateIdentity = getCertificateIdentity(X509CertificateSignature.decode(signature));
+            }
+
+            return CrossClusterAccessHeaders.parseCredentialsHeader(credentials, certificateIdentity);
         } catch (Exception ex) {
             throw Exceptions.authenticationError("failed to extract credentials from headers", ex);
         }

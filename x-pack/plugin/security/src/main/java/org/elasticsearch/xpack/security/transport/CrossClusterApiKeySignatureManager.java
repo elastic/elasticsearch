@@ -192,9 +192,6 @@ public class CrossClusterApiKeySignatureManager {
             }
             authTrustManager.checkClientTrusted(signature.certificates(), signature.certificates()[0].getPublicKey().getAlgorithm());
 
-            // TODO Make sure the signing certificate belongs to the correct DN (the configured api key cert identity)
-            // TODO Make sure the signing certificate is valid
-            // Make sure signature is correct
             final Signature signer = Signature.getInstance(signature.algorithm());
             signer.initVerify(signature.certificates()[0]);
             signer.update(getSignableBytes(headers));

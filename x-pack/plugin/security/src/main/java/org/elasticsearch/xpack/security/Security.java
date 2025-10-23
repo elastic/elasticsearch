@@ -1198,7 +1198,8 @@ public class Security extends Plugin
             environment,
             threadPool,
             settings,
-            client
+            client,
+            auditTrailService
         );
         remoteClusterSecurityExtension.set(this.getRemoteClusterSecurityExtension(rcsComponents));
         remoteClusterAuthenticationService.set(remoteClusterSecurityExtension.get().getAuthenticationService());

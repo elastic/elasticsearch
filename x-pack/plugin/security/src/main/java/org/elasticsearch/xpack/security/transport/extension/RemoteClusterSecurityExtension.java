@@ -17,6 +17,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
@@ -98,6 +99,8 @@ public interface RemoteClusterSecurityExtension {
         Settings settings();
 
         Client client();
+
+        AuditTrailService auditTrailService();
 
     }
 

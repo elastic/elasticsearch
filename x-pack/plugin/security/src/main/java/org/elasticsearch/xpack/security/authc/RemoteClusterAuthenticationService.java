@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import io.netty.channel.Channel;
+
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.transport.Header;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
@@ -40,6 +43,6 @@ public interface RemoteClusterAuthenticationService {
      * @param listener callback to receive {@code null} on successful authentication,
      *                 or an exception on authentication failure
      */
-    void authenticateHeaders(Map<String, String> headers, ActionListener<Void> listener);
+    void authenticateHeaders(Map<String, String> headers, Channel channel, Header header, ActionListener<Void> listener);
 
 }

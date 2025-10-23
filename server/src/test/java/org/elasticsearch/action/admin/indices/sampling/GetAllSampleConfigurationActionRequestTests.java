@@ -25,13 +25,7 @@ public class GetAllSampleConfigurationActionRequestTests extends ESTestCase {
     protected GetAllSampleConfigurationAction.Request createTestInstance() {
         return new GetAllSampleConfigurationAction.Request(randomBoundedTimeValue());
     }
-
-    protected GetAllSampleConfigurationAction.Request mutateInstance(GetAllSampleConfigurationAction.Request instance) {
-        // Mutate the masterTimeout value
-        TimeValue newTimeout = randomValueOtherThan(instance.masterTimeout(), this::randomBoundedTimeValue);
-        return new GetAllSampleConfigurationAction.Request(newTimeout);
-    }
-
+    
     public void testGettersAndSetters() {
         TimeValue timeout = randomBoundedTimeValue();
         GetAllSampleConfigurationAction.Request request = new GetAllSampleConfigurationAction.Request(timeout);

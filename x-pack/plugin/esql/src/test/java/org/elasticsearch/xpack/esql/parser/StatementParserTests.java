@@ -1333,6 +1333,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testIdentifierPatternTooComplex() {
+        // It is incredibly unlikely that we will see this limit hit in practice
+        // The repetition value 2450 was a ballpark estimate and validated experimentally
+        String explodingWildcard = "a*".repeat(2450);
+        expectError("FROM a | KEEP " + explodingWildcard, "Pattern was too complex to determinize");
+    }
+
     public void testEnrich() {
         assertEquals(
             new Enrich(

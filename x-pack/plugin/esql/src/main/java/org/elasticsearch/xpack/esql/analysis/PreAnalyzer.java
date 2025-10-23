@@ -32,7 +32,7 @@ public class PreAnalyzer {
         boolean supportsAggregateMetricDouble,
         boolean supportsDenseVector
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(null, List.of(), List.of(), false, false);
+        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false);
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {

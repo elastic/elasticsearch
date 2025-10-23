@@ -996,21 +996,20 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(fieldNames, wildcardJoinIndices, Map.of(), new HashMap<>(), null, InferenceResolution.EMPTY, TransportVersion.current());
+            this(
+                fieldNames,
+                wildcardJoinIndices,
+                new HashMap<>(),
+                new HashMap<>(),
+                null,
+                InferenceResolution.EMPTY,
+                TransportVersion.current()
+            );
         }
 
         PreAnalysisResult withIndices(IndexPattern indexPattern, IndexResolution indices) {
-            Map<IndexPattern, IndexResolution> newIndexResolution = new HashMap<>(this.indexResolution);
-            newIndexResolution.put(indexPattern, indices);
-            return new PreAnalysisResult(
-                fieldNames,
-                wildcardJoinIndices,
-                newIndexResolution,
-                lookupIndices,
-                enrichResolution,
-                inferenceResolution,
-                minimumTransportVersion
-            );
+            indexResolution.put(indexPattern, indices);
+            return this;
         }
 
         PreAnalysisResult addLookupIndexResolution(String index, IndexResolution indexResolution) {

@@ -321,10 +321,12 @@ public class EsqlCCSUtils {
         Set<IndexPattern> indexPatterns,
         EsqlExecutionInfo executionInfo
     ) throws ElasticsearchStatusException {
-        if (indexPatterns == null || indexPatterns.isEmpty()) {
+        if (indexPatterns.isEmpty()) {
             return;
         }
         try {
+            // TODO it is not safe to concat multiple index patterns in case any of them contains exclusion.
+            // This is going to be resolved in #136804
             String[] indexExpressions = indexPatterns.stream()
                 .map(indexPattern -> Strings.splitStringByCommaToArray(indexPattern.indexPattern()))
                 .reduce((a, b) -> {

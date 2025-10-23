@@ -138,10 +138,12 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         }
     }
 
-    private Page processBulkQueries(IntVector.Builder positionsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder docsBuilder) {
+    private Page processBulkQueries(IntVector.Builder positionsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder docsBuilder)
+        throws IOException {
         queryPosition++;
         BulkKeywordQueryList bulkQueryList = queryList.getBulkQueryList();
         int totalMatches = 0;
+        bulkQueryList.initializeCaches(indexReader);
         while (queryPosition < queryList.getPositionCount()) {
             int matches = bulkQueryList.processQuery(queryPosition, indexReader, docsBuilder, segmentsBuilder, positionsBuilder);
             totalMatches += matches;

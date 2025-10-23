@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsolute
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
@@ -111,6 +112,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
+import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -459,6 +461,7 @@ public class EsqlFunctionRegistry {
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             new FunctionDefinition[] { def(IpPrefix.class, IpPrefix::new, "ip_prefix") },
+            new FunctionDefinition[] { def(NetworkDirection.class, NetworkDirection::new, "network_direction", "netdir") },
             // conversion functions
             new FunctionDefinition[] {
                 def(FromBase64.class, FromBase64::new, "from_base64"),
@@ -533,6 +536,7 @@ public class EsqlFunctionRegistry {
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
+                def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
 

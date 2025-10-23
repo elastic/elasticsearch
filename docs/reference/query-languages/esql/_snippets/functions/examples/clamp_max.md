@@ -4,8 +4,7 @@
 
 ```esql
 TS k8s
-| EVAL full_clamped_cost = clamp(network.cost, 1, 20)
-| KEEP full_clamped_cost, @timestamp
+| STATS full_clamped_cost=sum(clamp(network.cost, 1, 2)), clamped_cost=sum(clamp_max(network.cost, 1)), clamped_min_cost=sum(clamp_min(network.cost, 10)) BY time_bucket = bucket(@timestamp,1minute)
 ```
 
 | full_clamped_cost:double | clamped_cost:double | clamped_min_cost:double | time_bucket:datetime |

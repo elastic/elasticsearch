@@ -168,19 +168,23 @@ Lets say that documents 1 and 3 end up on shard A and documents 2 and 4 end up o
 This is run once on each shard before any document collection is performed, and so we will have a copy on each shard:
 
 Shard A
-:   ```js
-"state" : {
-    "transactions" : []
-}
-```
+:   
+  ```js
+  "state" : {
+      "transactions" : []
+  }
+  ```
+  % NOTCONSOLE
 
 
 Shard B
-:   ```js
-"state" : {
-    "transactions" : []
-}
-```
+:   
+  ```js
+  "state" : {
+      "transactions" : []
+  }
+  ```
+  % NOTCONSOLE
 
 
 
@@ -189,19 +193,23 @@ Shard B
 Each shard collects its documents and runs the map_script on each document that is collected:
 
 Shard A
-:   ```js
-"state" : {
-    "transactions" : [ 80, -30 ]
-}
-```
+:   
+  ```js
+  "state" : {
+      "transactions" : [ 80, -30 ]
+  }
+  ```
+  % NOTCONSOLE
 
 
 Shard B
-:   ```js
-"state" : {
-    "transactions" : [ -10, 130 ]
-}
-```
+:   
+  ```js
+  "state" : {
+      "transactions" : [ -10, 130 ]
+  }
+  ```
+  % NOTCONSOLE
 
 
 

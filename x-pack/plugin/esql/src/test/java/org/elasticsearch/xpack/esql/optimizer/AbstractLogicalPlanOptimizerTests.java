@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.BeforeClass;
 
@@ -27,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -36,6 +39,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static EsqlParser parser;
@@ -82,6 +86,24 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
         enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
+        AnalyzerTestUtils.loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.REMOTE,
+            MATCH_TYPE,
+            "languages_remote",
+            "id",
+            "languages_idx",
+            "mapping-languages.json"
+        );
+        AnalyzerTestUtils.loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.COORDINATOR,
+            MATCH_TYPE,
+            "languages_coordinator",
+            "id",
+            "languages_idx",
+            "mapping-languages.json"
+        );
 
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
@@ -247,4 +269,14 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
+
+    protected <T extends Throwable> void failPlan(String esql, Class<T> exceptionClass, String reason) {
+        var e = expectThrows(exceptionClass, () -> plan(esql));
+        assertThat(e.getMessage(), containsString(reason));
+    }
+
+    protected void failPlan(String esql, String reason) {
+        failPlan(esql, VerificationException.class, reason);
+    }
+
 }

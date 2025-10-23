@@ -12,6 +12,8 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
 import org.elasticsearch.action.admin.indices.sampling.PutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
@@ -19,11 +21,13 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.SamplingService.RANDOM_SAMPLING_FEATURE_FLAG;
@@ -63,6 +67,38 @@ public class SamplingServiceIT extends ESIntegTestCase {
                 ResourceNotFoundException.class,
                 () -> client().execute(GetSampleAction.INSTANCE, new GetSampleAction.Request(indexName)).actionGet()
             );
+        });
+    }
+
+    public void testDeleteIndex() throws Exception {
+        assumeTrue("Requires sampling feature flag", RANDOM_SAMPLING_FEATURE_FLAG);
+        String indexName = randomIdentifier();
+        client().execute(TransportCreateIndexAction.TYPE, new CreateIndexRequest(indexName)).actionGet();
+        ensureYellow(indexName);
+        PutSampleConfigurationAction.Request putSampleConfigRequest = new PutSampleConfigurationAction.Request(
+            new SamplingConfiguration(1.0d, 10, null, null, null),
+            TimeValue.THIRTY_SECONDS,
+            TimeValue.THIRTY_SECONDS
+        ).indices(indexName);
+        client().execute(PutSampleConfigurationAction.INSTANCE, putSampleConfigRequest).actionGet();
+        for (int i = 0; i < 5; i++) {
+            BulkRequest bulkRequest = new BulkRequest();
+            for (int j = 0; j < 20; j++) {
+                IndexRequest indexRequest = new IndexRequest(indexName);
+                indexRequest.source(Map.of("foo", randomBoolean() ? 3L : randomLong(), "bar", randomBoolean()));
+                bulkRequest.add(indexRequest);
+            }
+            BulkResponse bulkResponse = client().execute(TransportBulkAction.TYPE, bulkRequest).actionGet();
+            assertThat(bulkResponse.hasFailures(), equalTo(false));
+        }
+        GetSampleAction.Response getSampleResponse = client().execute(GetSampleAction.INSTANCE, new GetSampleAction.Request(indexName))
+            .actionGet();
+        assertThat(getSampleResponse.getSample().size(), equalTo(10));
+        client().execute(TransportDeleteIndexAction.TYPE, new DeleteIndexRequest(indexName)).actionGet();
+        assertBusy(() -> {
+            for (SamplingService samplingService : internalCluster().getInstances(SamplingService.class)) {
+                assertThat(samplingService.getLocalSample(ProjectId.DEFAULT, indexName), equalTo(List.of()));
+            }
         });
     }
 

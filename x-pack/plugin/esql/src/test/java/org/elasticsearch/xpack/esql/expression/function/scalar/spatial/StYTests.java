@@ -36,7 +36,7 @@ public class StYTests extends AbstractScalarFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedEvaluator, DOUBLE, StYTests::valueOf, List.of());
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedEvaluator, DOUBLE, StYTests::valueOf, List.of());
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static double valueOf(BytesRef wkb) {

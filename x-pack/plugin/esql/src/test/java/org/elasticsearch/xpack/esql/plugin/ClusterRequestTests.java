@@ -18,6 +18,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -49,7 +50,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
 
     @Override
     protected Writeable.Reader<ClusterComputeRequest> instanceReader() {
-        return ClusterComputeRequest::new;
+        return (in) -> new ClusterComputeRequest(in, new SerializationTestUtils.TestNameIdMapper());
     }
 
     @Override
@@ -121,7 +122,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                     in.configuration(),
                     new RemoteClusterPlan(
                         plan.plan(),
-                        randomValueOtherThan(plan.targetIndices(), () -> generateRandomStringArray(10, 10, false, false)),
+                        randomArrayOtherThan(plan.targetIndices(), () -> generateRandomStringArray(10, 10, false, false)),
                         plan.originalIndices()
                     )
                 );

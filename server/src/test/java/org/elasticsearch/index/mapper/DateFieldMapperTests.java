@@ -56,7 +56,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -756,19 +755,28 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
     }
 
+    private static IndexSettings buildIndexSettings(IndexVersion indexVersion) {
+        return new IndexSettings(
+            new IndexMetadata.Builder("index").settings(indexSettings(indexVersion, 1, 1).build()).build(),
+            Settings.EMPTY
+        );
+    }
+
     public void testLegacyDateFormatName() {
+
+        // BWC compatible index, e.g 7.x
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+        );
+
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(
             "format",
             DateFieldMapper.Resolution.MILLISECONDS,
             null,
             mock(ScriptService.class),
-            true,
-            // BWC compatible index, e.g 7.x
-            IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
-            )
+            buildIndexSettings(indexVersion)
         );
 
         // Check that we allow the use of camel case date formats on 7.x indices
@@ -785,8 +793,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             DateFieldMapper.Resolution.MILLISECONDS,
             null,
             mock(ScriptService.class),
-            true,
-            IndexVersion.current()
+            buildIndexSettings(IndexVersion.current())
         );
 
         @SuppressWarnings("unchecked")

@@ -30,6 +30,8 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
     }
 
     public void testSerializationWithConfiguration() {
+        assumeTrue("can't serialize function", canSerialize());
+
         Configuration config = randomConfiguration();
         Expression expr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), config);
 

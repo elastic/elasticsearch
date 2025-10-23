@@ -92,7 +92,6 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         this(vectorPerCluster, centroidsPerParentCluster, DenseVectorFieldMapper.ElementType.FLOAT, false);
     }
 
-    // TODO: ElementType
     public ES920DiskBBQVectorsFormat(
         int vectorPerCluster,
         int centroidsPerParentCluster,

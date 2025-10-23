@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -9351,4 +9352,81 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var rightRelation = as(rightFilter.child(), EsRelation.class);
     }
 
+    /**
+     * EsqlProject[[@timestamp{r}#3]]
+     * \_Eval[[1715300259000[DATETIME] AS @timestamp#3]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[k8s][@timestamp{f}#5, client.ip{f}#9, cluster{f}#6, ...]
+     */
+    public void testTranslateTRangeFoldsToLiteralWhenTimestampInsideRange() {
+        String timestampValue = "2024-05-10T00:17:39.000Z";
+
+        String query = String.format(Locale.ROOT, """
+            TS k8s
+            | EVAL @timestamp = to_datetime("%s")
+            | WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
+            | KEEP @timestamp
+            """, timestampValue);
+
+        LogicalPlan statement = parser.createStatement(query);
+        LogicalPlan analyze = metricsAnalyzer.analyze(statement);
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+
+        Literal timestampLiteral = as(Alias.unwrap(eval.fields().getFirst()), Literal.class);
+        long expectedTimestamp = DateUtils.asDateTimeWithNanos(timestampValue, DateUtils.UTC).toInstant().toEpochMilli();
+        assertThat(timestampLiteral.fold(FoldContext.small()), equalTo(expectedTimestamp));
+
+        Limit limit = asLimit(eval.child(), 1000, false);
+        assertThat(limit.children(), hasSize(1));
+
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertThat(relation.children(), hasSize(0));
+    }
+
+    /**
+     * LocalRelation[[@timestamp{r}#3],EMPTY]
+     */
+    public void testTranslateTRangeFoldsToLiteralWhenTimestampOutsideRange() {
+        String timestampValue = "2024-05-10T00:15:39.000Z";
+
+        String query = String.format(Locale.ROOT, """
+            TS k8s
+            | EVAL @timestamp = to_datetime("%s")
+            | WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
+            | KEEP @timestamp
+            """, timestampValue);
+
+        LogicalPlan statement = parser.createStatement(query);
+        LogicalPlan analyze = metricsAnalyzer.analyze(statement);
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+
+        LocalRelation relation = as(plan, LocalRelation.class);
+        assertThat(relation.output(), hasSize(1));
+        assertThat(relation.children(), hasSize(0));
+    }
+
+    /**
+     * LocalRelation[[@timestamp{r}#3],EMPTY]
+     */
+    public void testTranslateTRangeFoldsToLocalRelation() {
+        LogicalPlan statement = parser.createStatement("""
+            TS k8s
+            | EVAL @timestamp = null::datetime
+            | WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
+            | KEEP @timestamp
+            """);
+        LogicalPlan analyze = metricsAnalyzer.analyze(statement);
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+
+        LocalRelation relation = as(plan, LocalRelation.class);
+        assertThat(relation.output(), hasSize(1));
+        assertThat(relation.children(), hasSize(0));
+
+        Attribute attribute = relation.output().get(0);
+        assertThat(attribute.name(), equalTo("@timestamp"));
+    }
 }

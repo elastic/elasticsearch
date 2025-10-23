@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
@@ -435,7 +436,8 @@ public class EsqlFunctionRegistry {
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),
                 def(DayName.class, DayName::new, "day_name"),
                 def(MonthName.class, MonthName::new, "month_name"),
-                def(Now.class, Now::new, "now") },
+                def(Now.class, Now::new, "now"),
+                def(TRange.class, bic(TRange::new), "trange") },
             // spatial
             new FunctionDefinition[] {
                 def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
@@ -540,7 +542,6 @@ public class EsqlFunctionRegistry {
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
-
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
@@ -1291,6 +1292,10 @@ public class EsqlFunctionRegistry {
     }
 
     private static <T extends Function> BinaryBuilder<T> bi(BinaryBuilder<T> function) {
+        return function;
+    }
+
+    private static <T extends Function> BinaryConfigurationAwareBuilder<T> bic(BinaryConfigurationAwareBuilder<T> function) {
         return function;
     }
 

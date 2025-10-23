@@ -32,7 +32,7 @@ import java.util.Objects;
 /**
  * Action type for retrieving all sampling configurations for cluster indices.
  * <p>
- * This action allows clients to get the all sampling configurations
+ * This action allows clients to get all sampling configurations
  * that have been set. This action
  * targets all indices and returns any existing configurations in a structured format.
  * </p>

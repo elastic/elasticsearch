@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
@@ -28,7 +29,7 @@ public enum XContentLengthPrefixedStreamingType implements MediaType {
     /**
      * Json length prefixed type.
      */
-    JSON(SmileXContent.smileXContent) {
+    JSON(JsonXContent.jsonXContent) {
 
         @Override
         public String queryParameter() {

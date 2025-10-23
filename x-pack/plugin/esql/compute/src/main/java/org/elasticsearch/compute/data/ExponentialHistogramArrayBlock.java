@@ -8,12 +8,14 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,8 +46,32 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         assert assertInvariants();
     }
 
-    private boolean assertInvariants() {
+    static BytesRef encodeHistogramBytes(ExponentialHistogram histogram) {
+        // TODO: fix performance and correctness before using in production code
+        // The current implementation encodes the histogram into the format we use for storage on disk
+        // This format is optimized for minimal memory usage at the cost of encoding speed
+        // In addition, it only support storing the zero threshold as a double value, which is lossy when merging histograms
+        // We should add a dedicated encoding when building a block from computed histograms which do not originate from doc values
+        // That encoding should be optimized for speed and support storing the zero threshold as (scale, index) pair
+        ZeroBucket zeroBucket = histogram.zeroBucket();
+        assert zeroBucket.compareZeroThreshold(ZeroBucket.minimalEmpty()) == 0 || zeroBucket.isIndexBased() == false
+            : "Current encoding only supports double-based zero thresholds";
 
+        BytesStreamOutput encodedBytes = new BytesStreamOutput();
+        try {
+            CompressedExponentialHistogram.writeHistogramBytes(
+                encodedBytes,
+                histogram.scale(),
+                histogram.negativeBuckets().iterator(),
+                histogram.positiveBuckets().iterator()
+            );
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to encode histogram", e);
+        }
+        return encodedBytes.bytes().toBytesRef();
+    }
+
+    private boolean assertInvariants() {
         for (Block b : getSubBlocks()) {
             assert b.isReleased() == false;
             assert b.doesHaveMultivaluedFields() == false
@@ -58,15 +84,24 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
                     + " instead of "
                     + getPositionCount();
             for (int i = 0; i < b.getPositionCount(); i++) {
-                assert b.isNull(i) == isNull(i)
-                    : "ExponentialHistogramArrayBlock sub-blocks can't have nulls but [" + b + "] is null at position " + i;
+                if (isNull(i)) {
+                    assert b.isNull(i) : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be null at position " + i+", but was not";
+                } else {
+                    if (b == minima || b == maxima) {
+                        // minima / maxima should be null exactly when value count is 0 or the histogram is null
+                        assert b.isNull(i) == (valueCounts.getLong(valueCounts.getFirstValueIndex(i)) == 0)
+                            : "ExponentialHistogramArrayBlock minima/maxima sub-block [" + b + "] has wrong nullity at position " + i;
+                    } else {
+                        assert b.isNull(i) == false : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be non-null at position " + i + ", but was not";
+                    }
+                }
             }
         }
         return true;
     }
 
     private List<Block> getSubBlocks() {
-        return List.of(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+        return List.of(sums, valueCounts, zeroThresholds, encodedHistograms, minima, maxima);
     }
 
     @Override

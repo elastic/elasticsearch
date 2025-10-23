@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroi
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -177,6 +179,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -218,7 +221,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -652,6 +655,234 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // for doc ids, emp_no, salary
         int estimatedSize = Integer.BYTES * 3;
         assertThat(query.estimatedRowSize(), equalTo(estimatedSize));
+    }
+
+    /** Expects
+     * LimitExec[1000[INTEGER],2284]
+     * \_ExchangeExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4],false]
+     *   \_ProjectExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4]]
+     *     \_FieldExtractExec[_meta_field{f}#11, emp_no{f}#5, gender{f}#7, hire_d..]
+     *       \_EvalExec[[SCORE(MATCH(first_name{f}#6,foo[KEYWORD])) AS s#4]]
+     *         \_FieldExtractExec[first_name{f}#6]
+     *           \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[1000], sort[] estimatedRowSize[2288] queryBuilderAndTags
+     *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+    */
+    public void testEvalWithScoreImplicitLimit() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL s = SCORE(MATCH(first_name, "foo"))
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        assertThat(limit.limit(), is(l(1000)));
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var eval = as(fieldExtract.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(Score.class));
+        var extract = as(eval.child(), FieldExtractExec.class);
+        var query = source(extract.child());
+        assertThat(query.limit(), is(l(1000)));
+    }
+
+    /**
+     * LimitExec[42[INTEGER],2284]
+     * \_ExchangeExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4],false]
+     *   \_ProjectExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4]]
+     *     \_FieldExtractExec[_meta_field{f}#11, emp_no{f}#5, gender{f}#7, hire_d..]
+     *       \_EvalExec[[SCORE(MATCH(first_name{f}#6,foo[KEYWORD])) AS s#4]]
+     *         \_FieldExtractExec[first_name{f}#6]
+     *           \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[42], sort[] estimatedRowSize[2288] queryBuilderAndTags
+     *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     */
+    public void testEvalWithScoreExplicitLimit() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL s = SCORE(MATCH(first_name, "foo"))
+            | LIMIT 42
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        assertThat(limit.limit(), is(l(42)));
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var eval = as(fieldExtract.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(Score.class));
+        var extract = as(eval.child(), FieldExtractExec.class);
+        var query = source(extract.child());
+        assertThat(query.limit(), is(l(42)));
+    }
+
+    /**
+     * Expects
+     * ProjectExec[[last_name{f}#13]]
+     * \_TopNExec[[Order[emp_no{f}#9,ASC,LAST]],2[INTEGER],54]
+     *   \_LimitExec[42[INTEGER],54]
+     *     \_ExchangeExec[[emp_no{f}#9, last_name{f}#13],false]
+     *       \_ProjectExec[[emp_no{f}#9, last_name{f}#13]]
+     *         \_FieldExtractExec[emp_no{f}#9, last_name{f}#13]
+     *           \_LimitExec[42[INTEGER],78]
+     *             \_FilterExec[s{r}#4 > 0.5[DOUBLE]]
+     *               \_EvalExec[[SCORE(MATCH(first_name{f}#10,foo[KEYWORD])) AS s#4]]
+     *                 \_FieldExtractExec[first_name{f}#10]
+     *                   \_EsQueryExec[test], indexMode[standard], [_doc{f}#32], limit[], sort[] estimatedRowSize[116] queryBuilderAndTags
+     *                      [[QueryBuilderAndTags{queryBuilder=[{
+     *   "exists" : {
+     *     "field" : "last_name",
+     *     "boost" : 0.0
+     *   }
+     * }], tags=[]}]]
+     **/
+    public void testEvalWithScoreAndFilterOnEval() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL s = SCORE(MATCH(first_name, "foo"))
+            | WHERE s > 0.5 AND last_name IS NOT NULL
+            | LIMIT 42
+            | SORT emp_no
+            | KEEP last_name
+            | LIMIT 2
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var project = as(optimized, ProjectExec.class);
+        assertThat(names(project.projections()), contains("last_name"));
+        var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.limit(), is(l(2)));
+        var limit = as(topN.child(), LimitExec.class);
+        assertThat(limit.limit(), is(l(42)));
+        var exchange = asRemoteExchange(limit.child());
+        var project2 = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project2.child(), FieldExtractExec.class);
+        var dataNodeLimit = as(fieldExtract.child(), LimitExec.class);
+        assertThat(dataNodeLimit.limit(), is(l(42)));
+        var filter = as(dataNodeLimit.child(), FilterExec.class);
+        var filterCondition = as(filter.condition(), GreaterThan.class);
+        assertThat(filterCondition.toString(), equalTo("s > 0.5"));
+        var eval = as(filter.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(Score.class));
+        var extract = as(eval.child(), FieldExtractExec.class);
+        var query = source(extract.child());
+        assertNull(query.limit());
+        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+    }
+
+    /**
+     * Expects
+     *ProjectExec[[s{r}#4]]
+     * \_TopNExec[[Order[emp_no{f}#8,ASC,LAST]],2[INTEGER],12]
+     *   \_LimitExec[42[INTEGER],12]
+     *     \_ExchangeExec[[emp_no{f}#8, s{r}#4],false]
+     *       \_ProjectExec[[emp_no{f}#8, s{r}#4]]
+     *         \_FieldExtractExec[emp_no{f}#8]
+     *           \_EvalExec[[SCORE(MATCH(first_name{f}#9,foo[KEYWORD])) AS s#4]]
+     *             \_FieldExtractExec[first_name{f}#9]
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#31], limit[42], sort[] estimatedRowSize[66] queryBuilderAndTags
+     *                  [[QueryBuilderAndTags{queryBuilder=[{
+     *   "exists" : {
+     *     "field" : "last_name",
+     *     "boost" : 0.0
+     *   }
+     * }], tags=[]}]]
+     **/
+    public void testEvalWithScoreAndGenericFilter() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL s = SCORE(MATCH(first_name, "foo"))
+            | WHERE last_name IS NOT NULL
+            | LIMIT 42
+            | SORT emp_no
+            | KEEP s
+            | LIMIT 2
+            """);
+
+        // this should drop the eval as it is not needed for the filter nor the final projection
+        var optimized = optimizedPlan(plan);
+        var project = as(optimized, ProjectExec.class);
+        assertThat(names(project.projections()), contains("s"));
+        var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.limit(), is(l(2)));
+        var limit = as(topN.child(), LimitExec.class);
+        assertThat(limit.limit(), is(l(42)));
+        var exchange = asRemoteExchange(limit.child());
+        var project2 = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project2.child(), FieldExtractExec.class);
+        var eval = as(fieldExtract.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(Score.class));
+        var extract = as(eval.child(), FieldExtractExec.class);
+        var query = source(extract.child());
+        assertThat(query.limit(), is(l(42)));
+        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+    }
+
+    /**
+     * Expects
+     * TopNExec[[Order[last_name{f}#12,ASC,LAST]],2[INTEGER],2284]
+     * \_TopNExec[[Order[s{r}#4,ASC,LAST]],42[INTEGER],2284]
+     *   \_ExchangeExec[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, s{r}#4],false]
+     *     \_ProjectExec[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, s{r}#4]]
+     *       \_FieldExtractExec[_meta_field{f}#14, emp_no{f}#8, gender{f}#10, hire_..]
+     *         \_TopNExec[[Order[s{r}#4,ASC,LAST]],42[INTEGER],2304]
+     *           \_EvalExec[[SCORE(MATCH(first_name{f}#9,foo[KEYWORD])) AS s#4]]
+     *             \_FieldExtractExec[first_name{f}#9]
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#31], limit[], sort[] estimatedRowSize[62] queryBuilderAndTags
+     *               [[QueryBuilderAndTags{queryBuilder=[{
+     *   "exists" : {
+     *     "field" : "last_name",
+     *     "boost" : 0.0
+     *   }
+     * }], tags=[]}]]
+     */
+    public void testEvalWithScoreForTopN() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL s = SCORE(MATCH(first_name, "foo"))
+            | WHERE last_name IS NOT NULL
+            | SORT s
+            | LIMIT 42
+            | SORT last_name
+            | LIMIT 2
+            """);
+        var optimized = optimizedPlan(plan);
+        var topN = as(optimized, TopNExec.class);
+        assertThat(topN.limit(), is(l(2)));
+        var topN2 = as(topN.child(), TopNExec.class);
+        assertThat(topN2.limit(), is(l(42)));
+        var exchange = asRemoteExchange(topN2.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var dataNodeTopN = as(fieldExtract.child(), TopNExec.class);
+        assertThat(dataNodeTopN.limit(), is(l(42)));
+        var eval = as(dataNodeTopN.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().getFirst().child(), isA(Score.class));
+        var extract = as(eval.child(), FieldExtractExec.class);
+        var query = source(extract.child());
+        assertNull(query.limit());
+        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
     }
 
     /**
@@ -2938,12 +3169,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
-        var plan = physicalPlan("""
+        var plan = physicalPlanNoSerializationCheck("""
               FROM test
             | RENAME languages AS language_code
             | SORT language_code
             | LOOKUP JOIN languages_lookup ON language_code
-            """, testData, false);
+            """);
 
         var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
 
@@ -7037,7 +7268,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(partialLimit.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
@@ -7045,11 +7278,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var finalLimit = as(plan, LimitExec.class);
             var exchange = as(finalLimit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
-            var enrich = as(fragment.fragment(), Enrich.class);
+            var enrichLimit = asLimit(fragment.fragment(), 10, true, false);
+            var enrich = as(enrichLimit.child(), Enrich.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
             var evalFragment = as(enrich.child(), Eval.class);
-            var partialLimit = as(evalFragment.child(), Limit.class);
+            var partialLimit = asLimit(evalFragment.child(), 10, false, true);
             as(partialLimit.child(), EsRelation.class);
         }
     }
@@ -7092,7 +7326,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLimitThenEnrichRemote() {
-        var plan = physicalPlan("""
+        // Do not assert serialization:
+        // This has local LIMIT which does not serialize to a local LIMIT.
+        var plan = physicalPlanNoSerializationCheck("""
             FROM test
             | LIMIT 10
             | EVAL employee_id = to_str(emp_no)
@@ -7101,11 +7337,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var finalLimit = as(plan, LimitExec.class);
         var exchange = as(finalLimit.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
-        var enrich = as(fragment.fragment(), Enrich.class);
+        var enrichLimit = asLimit(fragment.fragment(), 10, true, false);
+        var enrich = as(enrichLimit.child(), Enrich.class);
         assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
         assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
         var evalFragment = as(enrich.child(), Eval.class);
-        var partialLimit = as(evalFragment.child(), Limit.class);
+        var partialLimit = asLimit(evalFragment.child(), 10, false, true);
+        assertTrue(partialLimit.local());
         as(partialLimit.child(), EsRelation.class);
     }
 
@@ -7144,7 +7382,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(eval.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
@@ -7161,7 +7401,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(eval.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
@@ -7181,7 +7423,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testEnrichAfterTopN() {
         {
-            var plan = physicalPlan("""
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | SORT emp_no
                 | LIMIT 10
@@ -7217,7 +7461,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(partialTopN.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | SORT emp_no
                 | LIMIT 10
@@ -7227,11 +7473,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var topN = as(plan, TopNExec.class);
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
-            var enrich = as(fragment.fragment(), Enrich.class);
+            var dupTopN = as(fragment.fragment(), TopN.class);
+            assertThat(Foldables.limitValue(dupTopN.limit(), dupTopN.sourceText()), equalTo(10));
+            var enrich = as(dupTopN.child(), Enrich.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
             var evalFragment = as(enrich.child(), Eval.class);
             var partialTopN = as(evalFragment.child(), TopN.class);
+            assertThat(Foldables.limitValue(partialTopN.limit(), partialTopN.sourceText()), equalTo(10));
+            assertTrue(partialTopN.local());
             as(partialTopN.child(), EsRelation.class);
         }
     }
@@ -7843,7 +8093,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     ) {
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
-        var plan = physicalPlan(query, data, false);
+        var plan = physicalOptimizer().optimize(physicalPlan(query, data, false));
 
         var physicalOperations = physicalOperationsFromPhysicalPlan(plan, useDataNodePlan);
 
@@ -8307,6 +8557,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return physicalPlan(query, dataSource, true);
     }
 
+    private PhysicalPlan physicalPlanNoSerializationCheck(String query) {
+        return physicalPlan(query, testData, false);
+    }
+
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logicalOptimizer = dataSource.logicalOptimizer();
         var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
@@ -8321,6 +8575,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private LogicalPlanOptimizer logicalOptimizer() {
         return testData.logicalOptimizer();
+    }
+
+    private PhysicalPlanOptimizer physicalOptimizer() {
+        return testData.physicalOptimizer();
     }
 
     private List<FieldSort> fieldSorts(List<Order> orders) {

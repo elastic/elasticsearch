@@ -137,10 +137,12 @@ class DownsampleShardIndexer {
             this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
+            var samplingMethod = config.getSamplingMethodOrDefault();
 
             List<FieldValueFetcher> fetchers = new ArrayList<>(metrics.length + labels.length + dimensions.length);
-            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics));
-            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labels));
+            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics, samplingMethod));
+            // Labels are downsampled using the last value, they are not influenced by the requested sampling method
+            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labels, DownsampleConfig.SamplingMethod.LAST_VALUE));
             fetchers.addAll(DimensionFieldValueFetcher.create(searchExecutionContext, dimensions));
             this.fieldValueFetchers = Collections.unmodifiableList(fetchers);
             toClose = null;

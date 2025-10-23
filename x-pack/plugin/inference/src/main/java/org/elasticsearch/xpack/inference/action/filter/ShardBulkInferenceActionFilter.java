@@ -77,7 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
+import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
@@ -461,7 +461,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
         private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
             Map<String, Object> requestCountAttributes = new HashMap<>();
-            requestCountAttributes.putAll(modelAndResponseAttributes(model, throwable));
+            requestCountAttributes.putAll(serviceAndResponseAttributes(model, throwable));
             requestCountAttributes.put("inference_source", "semantic_text_bulk");
             inferenceStats.requestCount().incrementBy(incrementBy, requestCountAttributes);
         }

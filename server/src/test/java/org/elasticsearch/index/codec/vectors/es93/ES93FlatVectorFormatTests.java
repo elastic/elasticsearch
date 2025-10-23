@@ -23,11 +23,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class ES93FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
 
@@ -36,17 +38,13 @@ public class ES93FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    boolean useBFloat16() {
-        return false;
-    }
-
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(useBFloat16()));
+        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(false));
     }
 
     public void testSearchWithVisitedLimit() {
-        // requires graph-based vector codec
+        throw new AssumptionViolatedException("requires graph-based vector codec");
     }
 
     public void testSimpleOffHeapSize() throws IOException {
@@ -65,9 +63,8 @@ public class ES93FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    int bytes = useBFloat16() ? BFloat16.BYTES : Float.BYTES;
-                    assertEquals(vector.length * bytes, (long) offHeap.get("vec"));
-                    assertEquals(1, offHeap.size());
+                    assertThat(offHeap, aMapWithSize(1));
+                    assertThat(offHeap, hasEntry("vec", (long) vector.length * Float.BYTES));
                 }
             }
         }

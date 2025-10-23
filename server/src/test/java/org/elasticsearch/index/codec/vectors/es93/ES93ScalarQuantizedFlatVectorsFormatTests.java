@@ -23,7 +23,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 
@@ -40,17 +40,13 @@ public class ES93ScalarQuantizedFlatVectorsFormatTests extends BaseKnnVectorsFor
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    boolean useBFloat16() {
-        return false;
-    }
-
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93ScalarQuantizedFlatVectorsFormat(useBFloat16()));
+        return TestUtil.alwaysKnnVectorsFormat(new ES93ScalarQuantizedFlatVectorsFormat(false));
     }
 
     public void testSearchWithVisitedLimit() {
-        // requires graph vector codec
+        throw new AssumptionViolatedException("requires graph vector codec");
     }
 
     public void testSimpleOffHeapSize() throws IOException {
@@ -70,11 +66,10 @@ public class ES93ScalarQuantizedFlatVectorsFormatTests extends BaseKnnVectorsFor
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertThat(offHeap, aMapWithSize(2));
-                    assertThat(offHeap, hasEntry("vec", vector.length * (useBFloat16() ? BFloat16.BYTES : Float.BYTES)));
+                    assertThat(offHeap, hasEntry("vec", (long) vector.length * Float.BYTES));
                     assertThat(offHeap, hasEntry(equalTo("veq"), greaterThan(0L)));
                 }
             }
         }
     }
-
 }

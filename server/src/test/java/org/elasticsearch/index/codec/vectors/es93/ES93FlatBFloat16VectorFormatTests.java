@@ -9,95 +9,65 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
-import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.junit.AssumptionViolatedException;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.io.IOException;
 
-import static org.hamcrest.Matchers.closeTo;
+import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.hasEntry;
 
-public class ES93FlatBFloat16VectorFormatTests extends ES93FlatVectorFormatTests {
-    @Override
-    boolean useBFloat16() {
-        return true;
+public class ES93FlatBFloat16VectorFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
     @Override
-    protected VectorEncoding randomVectorEncoding() {
-        return VectorEncoding.FLOAT32;
+    protected Codec getCodec() {
+        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(true));
     }
 
-    @Override
-    public void testEmptyByteVectorData() throws Exception {
-        // no bytes
+    public void testSearchWithVisitedLimit() {
+        throw new AssumptionViolatedException("requires graph-based vector codec");
     }
 
-    @Override
-    public void testMergingWithDifferentByteKnnFields() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testByteVectorScorerIteration() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testSortedIndexBytes() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testMismatchedFields() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testRandomBytes() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testWriterRamEstimate() throws Exception {
-        // estimate is different due to bfloat16
-    }
-
-    @Override
-    public void testRandom() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testRandom);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testRandomWithUpdatesAndGraph() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testRandomWithUpdatesAndGraph);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testSparseVectors() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testSparseVectors);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testVectorValuesReportCorrectDocs() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testVectorValuesReportCorrectDocs);
-        assertFloatsWithinBounds(err);
-    }
-
-    private static final Pattern FLOAT_ASSERTION_FAILURE = Pattern.compile(".*expected:<([0-9.-]+)> but was:<([0-9.-]+)>");
-
-    private static void assertFloatsWithinBounds(AssertionError error) {
-        Matcher m = FLOAT_ASSERTION_FAILURE.matcher(error.getMessage());
-        if (m.matches() == false) {
-            throw error;    // nothing to do with us, just rethrow
+    public void testSimpleOffHeapSize() throws IOException {
+        float[] vector = randomVector(random().nextInt(12, 500));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));
+            w.addDocument(doc);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                LeafReader r = getOnlyLeafReader(reader);
+                if (r instanceof CodecReader codecReader) {
+                    KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        knnVectorsReader = fieldsReader.getFieldReader("f");
+                    }
+                    var fieldInfo = r.getFieldInfos().fieldInfo("f");
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+                    assertThat(offHeap, aMapWithSize(1));
+                    assertThat(offHeap, hasEntry("vec", (long) vector.length * BFloat16.BYTES));
+                }
+            }
         }
-
-        // numbers just need to be in the same vicinity
-        double expected = Double.parseDouble(m.group(1));
-        double actual = Double.parseDouble(m.group(2));
-        double allowedError = expected * 0.01;  // within 1%
-        assertThat(error.getMessage(), actual, closeTo(expected, allowedError));
     }
 }

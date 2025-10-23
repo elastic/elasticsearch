@@ -1993,12 +1993,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             return switch (elementType) {
-                case BIT -> new ES93HnswVectorsFormat(
-                    m,
-                    efConstruction,
-                    ES93GenericFlatVectorsFormat.ElementType.BIT,
-                    onDiskRescore
-                );
+                case BIT -> new ES93HnswVectorsFormat(m, efConstruction, ES93GenericFlatVectorsFormat.ElementType.BIT, onDiskRescore);
                 case BYTE, FLOAT -> new ES93HnswVectorsFormat(
                     m,
                     efConstruction,
@@ -2035,6 +2030,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
+            if (onDiskRescore) {
+                builder.field("on_disk_rescore", true);
+            }
             builder.endObject();
             return builder;
         }
@@ -2044,12 +2042,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             HnswIndexOptions that = (HnswIndexOptions) o;
-            return m == that.m && efConstruction == that.efConstruction;
+            return m == that.m && efConstruction == that.efConstruction && onDiskRescore == that.onDiskRescore;
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction);
+            return Objects.hash(m, efConstruction, onDiskRescore);
         }
 
         @Override
@@ -2067,7 +2065,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public String toString() {
-            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + "}";
+            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + ", on_disk_rescore=" + onDiskRescore + "}";
         }
     }
 

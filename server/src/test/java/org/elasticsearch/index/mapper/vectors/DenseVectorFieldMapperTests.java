@@ -2764,12 +2764,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn="
+        String expectedString = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn="
             + (setM ? m : DEFAULT_MAX_CONN)
             + ", beamWidth="
             + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
-            + ", flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
-            + ")";
+            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
+            + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 

@@ -167,7 +167,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
@@ -279,21 +279,20 @@ public final class KeywordFieldMapper extends FieldMapper {
                 null
             ).acceptsNull();
             this.script.precludesParameters(nullValue);
-            addScriptValidation(script, indexed, hasDocValues);
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension()).addValidator(v -> {
-                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                if (v && (hasDocValues.getValue() == false)) {
                     throw new IllegalArgumentException(
                         "Field ["
                             + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
                             + "] requires that ["
-                            + indexed.name
-                            + "] and ["
                             + hasDocValues.name
-                            + "] are true"
+                            + "] is true"
                     );
                 }
             }).precludesParameters(normalizer);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> this.dimension.get() == false);
+            addScriptValidation(script, indexed, hasDocValues);
             this.ignoreAboveDefault = ignoreAboveDefault;
             this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).fieldType().ignoreAbove().get(), ignoreAboveDefault);
             this.indexSortConfig = indexSortConfig;
@@ -457,7 +456,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public KeywordFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = resolveFieldType(
                 enableDocValuesSkipper,
-                forceDocValuesSkipper,
+                forceDocValuesSkipper || (this.dimension.get() && this.indexed.get() == false),
                 hasDocValues,
                 indexCreatedVersion,
                 indexSortConfig,

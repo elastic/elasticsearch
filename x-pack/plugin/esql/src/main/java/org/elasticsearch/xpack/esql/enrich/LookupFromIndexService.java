@@ -123,7 +123,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                     aliasFilter,
                     request.inputPage.getBlock(matchField.channel()),
                     matchField.type()
-                ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+                );
                 queryLists.add(q);
             }
             if (queryLists.size() == 1 && lookupNodePlan instanceof FilterExec == false) {

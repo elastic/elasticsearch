@@ -266,10 +266,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 // TermQuery is faster than BinaryComparisonQueryList, as it does less work per row
                 // so here we reuse the existing logic from field based join to build a termQueryList for Equals
                 if (binaryComparison instanceof Equals) {
-                    QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, block, dataType).onlySingleValues(
-                        warnings,
-                        "LOOKUP JOIN encountered multi-value"
-                    );
+                    QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, block, dataType);
                     queryLists.add(termQueryForEquals);
                 } else {
                     queryLists.add(

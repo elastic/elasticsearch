@@ -68,7 +68,7 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
             this.delegate = delegate;
         }
 
-        private FieldInfo safeIdFieldInfo(FieldInfos fieldInfos) {
+        private void ensureSyntheticIdFields(FieldInfos fieldInfos) {
             // Ensure _tsid exists
             var fi = fieldInfos.fieldInfo(TS_ID);
             if (fi == null) {
@@ -94,28 +94,22 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
                 assert false;
                 throw new IllegalArgumentException("Field [" + SYNTHETIC_ID + "] has incorrect index options");
             }
-            return fi;
+            if (SyntheticIdField.hasSyntheticIdAttributes(fi.attributes()) == false) {
+                throw new IllegalArgumentException("Field [" + SYNTHETIC_ID + "] is not synthetic");
+            }
         }
 
         @Override
         public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos fieldInfos, IOContext context)
             throws IOException {
-
-            final var fieldInfo = safeIdFieldInfo(fieldInfos);
-            if (SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes()) == false) {
-                throw new IllegalArgumentException("Field [" + SYNTHETIC_ID + "] is not synthetic");
-            }
+            ensureSyntheticIdFields(fieldInfos);
             delegate.write(directory, segmentInfo, segmentSuffix, fieldInfos, context);
         }
 
         @Override
         public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext) throws IOException {
             final var fieldInfos = delegate.read(directory, segmentInfo, segmentSuffix, iocontext);
-
-            final var fieldInfo = safeIdFieldInfo(fieldInfos);
-            if (SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes()) == false) {
-                throw new IllegalArgumentException("Field [" + SYNTHETIC_ID + "] is not synthetic");
-            }
+            ensureSyntheticIdFields(fieldInfos);
 
             // Change the _id field index options from IndexOptions.NONE to IndexOptions.DOCS, so that terms and postings work when
             // applying doc values updates in Lucene.
@@ -123,7 +117,7 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
             int i = 0;
             for (FieldInfo fi : fieldInfos) {
                 if (SYNTHETIC_ID.equals(fi.getName())) {
-                    final var attributes = new HashMap<>(fieldInfo.attributes());
+                    final var attributes = new HashMap<>(fi.attributes());
 
                     // Assert that PerFieldPostingsFormat are not written to field infos on disk
                     assert attributes.containsKey(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY) == false;

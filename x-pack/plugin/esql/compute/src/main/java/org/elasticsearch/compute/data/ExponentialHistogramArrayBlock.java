@@ -85,14 +85,16 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
                     + getPositionCount();
             for (int i = 0; i < b.getPositionCount(); i++) {
                 if (isNull(i)) {
-                    assert b.isNull(i) : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be null at position " + i+", but was not";
+                    assert b.isNull(i)
+                        : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be null at position " + i + ", but was not";
                 } else {
                     if (b == minima || b == maxima) {
                         // minima / maxima should be null exactly when value count is 0 or the histogram is null
                         assert b.isNull(i) == (valueCounts.getLong(valueCounts.getFirstValueIndex(i)) == 0)
                             : "ExponentialHistogramArrayBlock minima/maxima sub-block [" + b + "] has wrong nullity at position " + i;
                     } else {
-                        assert b.isNull(i) == false : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be non-null at position " + i + ", but was not";
+                        assert b.isNull(i) == false
+                            : "ExponentialHistogramArrayBlock sub-block [" + b + "] should be non-null at position " + i + ", but was not";
                     }
                 }
             }

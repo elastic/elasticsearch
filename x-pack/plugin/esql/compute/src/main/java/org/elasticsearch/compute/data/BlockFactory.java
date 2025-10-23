@@ -498,10 +498,10 @@ public class BlockFactory {
             valueCounts = newConstantLongBlockWith(histogram.valueCount(), positionCount);
             zeroThresholds = newConstantDoubleBlockWith(histogram.zeroBucket().zeroThreshold(), positionCount);
 
-            //TODO: ConstantBytesRefBlock does not support deserialization yet, so we can't use it here
+            // TODO: ConstantBytesRefBlock does not support deserialization yet, so we can't use it here
             BytesRef encoded = ExponentialHistogramArrayBlock.encodeHistogramBytes(histogram);
             try (BytesRefBlock.Builder bytesBuilder = newBytesRefBlockBuilder(positionCount)) {
-                for (int i=0; i < positionCount; i++) {
+                for (int i = 0; i < positionCount; i++) {
                     bytesBuilder.appendBytesRef(encoded);
                 }
                 encodedHistograms = bytesBuilder.build();

@@ -29,15 +29,19 @@ public class ActiveReaders {
         this.idGenerator = idGenerator;
     }
 
-    ReaderContext put(ShardSearchContextId contextId, ReaderContext context) {
+    void put(ReaderContext context) {
+        ShardSearchContextId contextId = context.id();
+        ReaderContext previous;
         if (sessionId.equals(contextId.getSessionId())) {
-            return activeReaders.put(contextId.getId(), context);
+            previous = activeReaders.put(contextId.getId(), context);
         } else {
             // the reader context is relocated from another session, keep a relocation mapping for retrieval
+            assert relocationMap.containsKey(contextId) == false;
             long activeReaderKey = idGenerator.incrementAndGet();
             relocationMap.put(contextId, activeReaderKey);
-            return activeReaders.put(activeReaderKey, context);
+            previous = activeReaders.put(activeReaderKey, context);
         }
+        assert previous == null;
     }
 
     ReaderContext get(ShardSearchContextId contextId) {

@@ -26,32 +26,35 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static java.util.Objects.requireNonNull;
+
 public class ActiveReadersTests extends ESTestCase {
 
     public void testAddAndGetReader() {
+        int numberOfTestContexts = 50;
+        AtomicLong idGenerator = new AtomicLong();
+
         final String sessionId = UUIDs.randomBase64UUID();
         List<String> relocatedSessionIds = randomList(5, 5, UUIDs::randomBase64UUID);
-        int numberOfTestContexts = 50;
-        Queue<Long> randomUniqueLongs = new LinkedList<>(
-            randomSet(numberOfTestContexts, numberOfTestContexts, () -> randomLongBetween(1, 3 * numberOfTestContexts))
-        );
-
-        AtomicLong idGenerator = new AtomicLong();
         ActiveReaders activeReaders = new ActiveReaders(sessionId, idGenerator);
 
         // add a couple of readers, both from same session and relocated ones (different sessionId)
         Map<ShardSearchContextId, ReaderContext> controlData = new HashMap<>();
+
+        Queue<Long> randomUniqueLongs = new LinkedList<>(
+            randomSet(numberOfTestContexts, numberOfTestContexts, () -> randomLongBetween(1, 3 * numberOfTestContexts))
+        );
 
         for (int i = 0; i < numberOfTestContexts; i++) {
             final ShardSearchContextId id;
             if (randomBoolean()) {
                 id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
             } else {
-                id = new ShardSearchContextId(randomFrom(relocatedSessionIds), randomUniqueLongs.poll());
+                id = new ShardSearchContextId(randomFrom(relocatedSessionIds), requireNonNull(randomUniqueLongs.poll()));
             }
             ReaderContext readerContext = createRandomReaderContext(id);
             controlData.put(id, readerContext);
-            activeReaders.put(id, readerContext);
+            activeReaders.put(readerContext);
         }
 
         // check that we can retrieve all of them again correctly
@@ -62,6 +65,24 @@ public class ActiveReadersTests extends ESTestCase {
         // check a few non-existing context ids
         assertNull(activeReaders.get(new ShardSearchContextId(sessionId, idGenerator.get() + randomLongBetween(1, 100))));
         assertNull(activeReaders.get(new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLongBetween(0, idGenerator.get() * 2))));
+    }
+
+    public void testAddPreventAddingSameIdTwice() {
+        final String primarySessionId = UUIDs.randomBase64UUID();
+        AtomicLong idGenerator = new AtomicLong();
+        ActiveReaders activeReaders = new ActiveReaders(primarySessionId, idGenerator);
+        long id = randomLongBetween(0, 1000);
+        final String testSessionId = randomBoolean() ? primarySessionId : UUIDs.randomBase64UUID();
+        String readerId = randomBoolean() ? null : UUIDs.randomBase64UUID();
+        ReaderContext readerContext = createRandomReaderContext(new ShardSearchContextId(testSessionId, id, readerId));
+        activeReaders.put(readerContext);
+
+        // putting same context should throw error
+        expectThrows(AssertionError.class, () -> activeReaders.put(readerContext));
+
+        // putting context with same id should also throw
+        ReaderContext anotherReaderContext = createRandomReaderContext(new ShardSearchContextId(testSessionId, id, readerId));
+        expectThrows(AssertionError.class, () -> activeReaders.put(anotherReaderContext));
     }
 
     public void testRemove() {
@@ -84,18 +105,18 @@ public class ActiveReadersTests extends ESTestCase {
             if (randomBoolean()) {
                 id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
             } else {
-                id = new ShardSearchContextId(randomFrom(relocatedSessionIds), randomUniqueLongs.poll());
+                id = new ShardSearchContextId(randomFrom(relocatedSessionIds), requireNonNull(randomUniqueLongs.poll()));
                 activeRelocatedContexts++;
             }
             ReaderContext readerContext = createRandomReaderContext(id);
             controlData.put(id, readerContext);
-            activeReaders.put(id, readerContext);
+            activeReaders.put(readerContext);
         }
         assertEquals(controlData.size(), activeReaders.size());
         assertEquals(activeRelocatedContexts, activeReaders.relocatioMapSize());
 
         // remove all contexts in random order
-        while (controlData.size() > 0) {
+        while (controlData.isEmpty() == false) {
             int lastReaderCount = activeReaders.size();
             int lastRelocatopnMapCount = activeReaders.relocatioMapSize();
             ShardSearchContextId contextId = randomFrom(controlData.keySet());
@@ -118,9 +139,16 @@ public class ActiveReadersTests extends ESTestCase {
         ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
         Mockito.when(mockThreadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         Mockito.when(mockShard.getThreadPool()).thenReturn(mockThreadPool);
-        return randomBoolean()
-            ? new LegacyReaderContext(id, null, mockShard, null, Mockito.mock(ShardSearchRequest.class), randomPositiveTimeValue().millis())
-            : new ReaderContext(id, null, mockShard, null, randomPositiveTimeValue().millis(), randomBoolean());
+        return randomBoolean() || id.isRetryable()
+            ? new ReaderContext(id, null, mockShard, null, randomPositiveTimeValue().millis(), randomBoolean())
+            : new LegacyReaderContext(
+                id,
+                null,
+                mockShard,
+                null,
+                Mockito.mock(ShardSearchRequest.class),
+                randomPositiveTimeValue().millis()
+            );
     }
 
 }

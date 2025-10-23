@@ -543,14 +543,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected void putReaderContext(ReaderContext context) {
-        final ShardSearchContextId id = context.id();
-        final ReaderContext previous = activeReaders.put(id, context);
-        assert previous == null;
+        activeReaders.put(context);
         // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
         final Index index = context.indexShard().shardId().getIndex();
         if (indicesService.hasIndex(index) == false) {
-            removeReaderContext(id);
+            removeReaderContext(context.id());
             throw new IndexNotFoundException(index);
         }
     }

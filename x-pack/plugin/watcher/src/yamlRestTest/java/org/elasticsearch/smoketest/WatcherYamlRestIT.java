@@ -6,8 +6,11 @@
  */
 package org.elasticsearch.smoketest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.xpack.watcher.WatcherYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 /**
  * Runs the YAML rest tests against an external cluster
@@ -15,5 +18,18 @@ import org.elasticsearch.xpack.watcher.WatcherYamlSuiteTestCase;
 public class WatcherYamlRestIT extends WatcherYamlSuiteTestCase {
     public WatcherYamlRestIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = watcherClusterSpec().build();
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return createParameters("mustache", "painless", "watcher");
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

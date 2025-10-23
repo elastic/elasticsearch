@@ -10,13 +10,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.watcher.WatcherRestTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,19 +29,12 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
 
-    private static final String TEST_ADMIN_USERNAME = "test_admin";
-    private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
+    @ClassRule
+    public static ElasticsearchCluster cluster = watcherClusterSpec().build();
 
     @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("watcher_manager", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @Override
-    protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52453")
@@ -79,8 +70,8 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
                 .field("scheme", "http")
                 .startObject("auth")
                 .startObject("basic")
-                .field("username", TEST_ADMIN_USERNAME)
-                .field("password", TEST_ADMIN_PASSWORD)
+                .field("username", ADMIN_USER)
+                .field("password", TEST_PASSWORD)
                 .endObject()
                 .endObject()
                 .endObject()

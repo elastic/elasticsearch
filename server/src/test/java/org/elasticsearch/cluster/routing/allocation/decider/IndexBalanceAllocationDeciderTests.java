@@ -322,16 +322,36 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             ShardRoutingState.STARTED
         );
 
+        ShardRouting replicaIndexShardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 1),
+            searchNodeTwo.getId(),
+            null,
+            false,
+            ShardRoutingState.STARTED
+        );
+
         assertDecisionMatches(
             "Assigning an additional primary shard to an index node at capacity should fail",
             indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingIndexNodeOne, routingAllocation),
             Decision.Type.NOT_PREFERRED,
-            "For index [[IndexBalanceAllocationDeciderIndex]] with [10] shards, Node [indexNodeOne] is "
-                + "expected to hold [5] shards for index [[IndexBalanceAllocationDeciderIndex]], based on the total of [2]\n"
+            "For index [[IndexBalanceAllocationDeciderIndex]] with [10] primary shards, Node [indexNodeOne] is "
+                + "expected to hold [5] primary shards for index [[IndexBalanceAllocationDeciderIndex]], based on the total of [2]\n"
                 + "nodes available. The configured load skew tolerance is [1.00], which yields an allocation threshold of\n"
-                + "Math.ceil([5] × [1.00]) = [5] shards. Currently, node [indexNodeOne] is assigned [5] shards of index "
+                + "Math.ceil([5] × [1.00]) = [5] primary shards. Currently, node [indexNodeOne] is assigned [5] primary shards of index "
                 + "[[IndexBalanceAllocationDeciderIndex]]. Therefore,\n"
-                + "assigning additional shards is not preferred.\n"
+                + "assigning additional primary shards is not preferred.\n"
+        );
+
+        assertDecisionMatches(
+            "Assigning an additional replica shard to an replica node at capacity should fail",
+            indexBalanceAllocationDecider.canAllocate(replicaIndexShardRouting, routingSearchNodeOne, routingAllocation),
+            Decision.Type.NOT_PREFERRED,
+            "For index [[IndexBalanceAllocationDeciderIndex]] with [20] replicas, Node [searchNodeOne] is "
+                + "expected to hold [10] replicas for index [[IndexBalanceAllocationDeciderIndex]], based on the total of [2]\n"
+                + "nodes available. The configured load skew tolerance is [1.00], which yields an allocation threshold of\n"
+                + "Math.ceil([10] × [1.00]) = [10] replicas. Currently, node [searchNodeOne] is assigned [10] replicas of index "
+                + "[[IndexBalanceAllocationDeciderIndex]]. Therefore,\n"
+                + "assigning additional replicas is not preferred.\n"
         );
     }
 

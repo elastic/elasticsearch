@@ -11,6 +11,8 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -43,6 +45,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocat
 public class IndexBalanceAllocationDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(IndexBalanceAllocationDecider.class);
+    private static final String EMPTY = "";
 
     public static final String NAME = "index_balance";
 
@@ -89,15 +92,19 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         final ProjectId projectId = allocation.getClusterState().metadata().projectFor(index).id();
         final Set<DiscoveryNode> eligibleNodes = new HashSet<>();
         int totalShards = 0;
+        String nomenclature = EMPTY;
 
         if (node.node().getRoles().contains(INDEX_ROLE)) {
             collectEligibleNodes(allocation, eligibleNodes, INDEX_ROLE);
             // Primary shards only.
             totalShards = allocation.getClusterState().routingTable(projectId).index(index).size();
+            nomenclature = "primary shards";
         } else if (node.node().getRoles().contains(SEARCH_ROLE)) {
             collectEligibleNodes(allocation, eligibleNodes, SEARCH_ROLE);
             // Replicas only.
-            totalShards = allocation.getClusterState().metadata().getProject(projectId).index(index).getNumberOfReplicas();
+            final IndexMetadata indexMetadata = allocation.getClusterState().metadata().getProject(projectId).index(index);
+            totalShards = indexMetadata.getNumberOfShards() * indexMetadata.getNumberOfReplicas();
+            nomenclature = "replicas";
         }
 
         assert eligibleNodes.isEmpty() == false;
@@ -110,24 +117,29 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         if (currentAllocation >= threshold) {
             String explanation = Strings.format(
                 """
-                    For index [%s] with [%d] shards, Node [%s] is expected to hold [%.0f] shards for index [%s], based on the total of [%d]
+                    For index [%s] with [%d] %s, Node [%s] is expected to hold [%.0f] %s for index [%s], based on the total of [%d]
                     nodes available. The configured load skew tolerance is [%.2f], which yields an allocation threshold of
-                    Math.ceil([%.0f] × [%.2f]) = [%d] shards. Currently, node [%s] is assigned [%d] shards of index [%s]. Therefore,
-                    assigning additional shards is not preferred.
+                    Math.ceil([%.0f] × [%.2f]) = [%d] %s. Currently, node [%s] is assigned [%d] %s of index [%s]. Therefore,
+                    assigning additional %s is not preferred.
                     """,
                 index,
                 totalShards,
+                nomenclature,
                 node.nodeId(),
                 idealAllocation,
+                nomenclature,
                 index,
                 eligibleNodes.size(),
                 indexBalanceConstraintSettings.getLoadSkewTolerance(),
                 idealAllocation,
                 indexBalanceConstraintSettings.getLoadSkewTolerance(),
                 threshold,
+                nomenclature,
                 node.nodeId(),
                 currentAllocation,
-                index
+                nomenclature,
+                index,
+                nomenclature
             );
 
             logger.trace(explanation);

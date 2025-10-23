@@ -295,7 +295,9 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
     private static String buildErrorString(String inferenceId, Set<String> nonEmptyIndices, Set<String> pipelinesUsingInferenceId) {
         StringBuilder errorString = new StringBuilder();
-        errorString.append("Inference endpoint [").append(inferenceId).append("] could not be created because it is ");
+        errorString.append("Inference endpoint [")
+            .append(inferenceId)
+            .append("] could not be created because the inference_id is already ");
         if (nonEmptyIndices.isEmpty() == false) {
             errorString.append("being used in mappings for indices: ").append(nonEmptyIndices).append(" ");
         }
@@ -305,7 +307,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             }
             errorString.append("referenced by pipelines: ").append(pipelinesUsingInferenceId);
         }
-        errorString.append(".");
+        errorString.append(
+            ". Please either use a different inference_id or update the index mappings "
+                + "and/or pipelines to refer to a different inference_id."
+        );
         return errorString.toString();
     }
 

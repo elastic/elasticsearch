@@ -101,7 +101,9 @@ public class CreateInferenceEndpointIT extends ESIntegTestCase {
         assertThat(
             statusException.getMessage(),
             containsString(
-                "Inference endpoint [" + INFERENCE_ID + "] could not be created because it is being used in mappings for indices: ["
+                "Inference endpoint ["
+                    + INFERENCE_ID
+                    + "] could not be created because the inference_id is already being used in mappings for indices: ["
             )
         );
 

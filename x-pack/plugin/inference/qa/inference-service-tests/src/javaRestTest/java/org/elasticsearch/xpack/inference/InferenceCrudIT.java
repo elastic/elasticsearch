@@ -320,10 +320,21 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         );
         assertThat(
             responseException.getMessage(),
-            containsString("Inference endpoint [" + endpointId + "] could not be created because it is referenced by pipelines: [")
+            containsString(
+                "Inference endpoint ["
+                    + endpointId
+                    + "] could not be created because the inference_id is already referenced by pipelines: ["
+            )
         );
         assertThat(responseException.getMessage(), containsString(pipelineId1));
         assertThat(responseException.getMessage(), containsString(pipelineId2));
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "Please either use a different inference_id or update the index mappings "
+                    + "and/or pipelines to refer to a different inference_id."
+            )
+        );
 
         deletePipeline(pipelineId1);
         deletePipeline(pipelineId2);
@@ -367,11 +378,20 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertThat(
             responseException.getMessage(),
             containsString(
-                "Inference endpoint [" + endpointId + "] could not be created because it is being used in mappings for indices: ["
+                "Inference endpoint ["
+                    + endpointId
+                    + "] could not be created because the inference_id is already being used in mappings for indices: ["
             )
         );
         assertThat(responseException.getMessage(), containsString(indexName1));
         assertThat(responseException.getMessage(), containsString(indexName2));
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "Please either use a different inference_id or update the index mappings "
+                    + "and/or pipelines to refer to a different inference_id."
+            )
+        );
 
         deleteIndex(indexName1);
         deleteIndex(indexName2);
@@ -399,11 +419,12 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         String errorString = "Inference endpoint ["
             + endpointId
-            + "] could not be created because it is being used in mappings for indices: ["
+            + "] could not be created because the inference_id is already being used in mappings for indices: ["
             + indexName
             + "] and referenced by pipelines: ["
             + pipelineId
-            + "].";
+            + "]. Please either use a different inference_id or update the index mappings "
+            + "and/or pipelines to refer to a different inference_id.";
 
         ResponseException responseException = assertThrows(
             ResponseException.class,

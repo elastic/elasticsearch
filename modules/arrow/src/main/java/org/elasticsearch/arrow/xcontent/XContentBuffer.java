@@ -27,6 +27,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 
 /**
  * A buffer of {@code XContent} events that can be replayed as an {@code XContentParser}. Useful to create synthetic
@@ -305,7 +306,8 @@ public class XContentBuffer implements XContentGenerator {
     @Override
     public void writeUTF8String(byte[] value, int offset, int length) throws IOException {
         try {
-            generator.writeUTF8String(value, offset, length);
+            // TokenBuffer doesn't support writeUTF8String
+            generator.writeString(new String(value, offset, length, StandardCharsets.UTF_8));
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }

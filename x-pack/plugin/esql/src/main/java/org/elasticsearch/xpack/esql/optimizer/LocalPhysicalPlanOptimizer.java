@@ -90,7 +90,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
             new SpatialShapeBoundsExtraction()
-//            new VectorSimilarityFunctionsPushdown()
         );
         return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
     }

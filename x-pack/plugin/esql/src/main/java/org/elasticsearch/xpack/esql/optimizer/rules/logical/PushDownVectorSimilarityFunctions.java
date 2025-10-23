@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldFunctionAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunctionProvider;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -22,14 +22,14 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.List;
 
-public class ReplaceVectorFunctionsWithFieldFunctionAttrs extends OptimizerRules.OptimizerRule<Eval> {
+public class PushDownVectorSimilarityFunctions extends OptimizerRules.OptimizerRule<Eval> {
 
     @Override
     protected LogicalPlan rule(Eval eval) {
         // TODO Extend to WHERE if necessary
 
         AttributeSet.Builder addedAttrs = AttributeSet.builder();
-        Eval transformedEval = (Eval) eval.transformExpressionsDown(VectorSimilarityFunctionProvider.class, similarityFunction -> {
+        Eval transformedEval = (Eval) eval.transformExpressionsDown(VectorSimilarityFunction.class, similarityFunction -> {
             if (similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) {
                 return replaceFieldsForFieldTransformations(similarityFunction, addedAttrs);
             }
@@ -50,7 +50,7 @@ public class ReplaceVectorFunctionsWithFieldFunctionAttrs extends OptimizerRules
     }
 
     private static Expression replaceFieldsForFieldTransformations(
-        VectorSimilarityFunctionProvider similarityFunction,
+        VectorSimilarityFunction similarityFunction,
         AttributeSet.Builder addedAttrs
     ) {
         // Only replace if exactly one side is a literal and the other a field attribute

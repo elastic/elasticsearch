@@ -43,17 +43,17 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 /**
  * Base class for vector similarity functions, which compute a similarity score between two dense vectors
  */
-public abstract class VectorSimilarityFunctionProvider extends BinaryScalarFunction
+public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     implements
         EvaluatorMapper,
         VectorFunction,
         BlockLoaderFunctionProvider<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> {
 
-    protected VectorSimilarityFunctionProvider(Source source, Expression left, Expression right) {
+    protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
         super(source, left, right);
     }
 
-    protected VectorSimilarityFunctionProvider(StreamInput in) throws IOException {
+    protected VectorSimilarityFunction(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -210,8 +210,10 @@ public abstract class VectorSimilarityFunctionProvider extends BinaryScalarFunct
             vector[i] = numberList.get(i).floatValue();
         }
 
-        return new MappedFieldType.BlockLoaderFunction<>(DenseVectorFieldMapper.SIMILARITY_FUNCTION_NAME,
-            new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vector));
+        return new MappedFieldType.BlockLoaderFunction<>(
+            DenseVectorFieldMapper.SIMILARITY_FUNCTION_NAME,
+            new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vector)
+        );
     }
 
     interface VectorValueProvider extends Releasable {

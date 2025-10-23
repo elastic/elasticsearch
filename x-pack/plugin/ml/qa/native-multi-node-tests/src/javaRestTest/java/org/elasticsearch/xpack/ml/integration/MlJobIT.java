@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
@@ -82,7 +83,7 @@ public class MlJobIT extends ESRestTestCase {
         Response response = createFarequoteJob("given-farequote-config-job");
         String responseAsString = EntityUtils.toString(response.getEntity());
         assertThat(responseAsString, containsString("\"job_id\":\"given-farequote-config-job\""));
-        assertThat(responseAsString, containsString("\"results_index_name\":\"shared-000001\""));
+        assertThat(responseAsString, containsString("\"results_index_name\":\"shared\""));
 
         String mlIndicesResponseAsString = getMlResultsIndices();
         assertThat(mlIndicesResponseAsString, containsString("green open .ml-anomalies-shared-000001"));
@@ -537,7 +538,10 @@ public class MlJobIT extends ESRestTestCase {
         // Check the index mapping contains the first by_field_name
         Request getResultsMappingRequest = new Request(
             "GET",
-            AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "/_mapping"
+            AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+                + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+                + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX
+                + "/_mapping"
         );
         getResultsMappingRequest.addParameter("pretty", null);
         String resultsMappingAfterJob1 = EntityUtils.toString(client().performRequest(getResultsMappingRequest).getEntity());
@@ -660,7 +664,8 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testDeleteJob() throws Exception {
         String jobId = "delete-job-job";
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
@@ -726,7 +731,8 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testDeleteJob_TimingStatsDocumentIsDeleted() throws Exception {
         String jobId = "delete-job-with-timing-stats-document-job";
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         assertThat(
@@ -779,7 +785,8 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testDeleteJobAsync() throws Exception {
         String jobId = "delete-job-async-job";
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
@@ -836,7 +843,8 @@ public class MlJobIT extends ESRestTestCase {
     public void testDeleteJobAfterMissingIndex() throws Exception {
         String jobId = "delete-job-after-missing-index-job";
         String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
@@ -870,7 +878,8 @@ public class MlJobIT extends ESRestTestCase {
         String jobId = "delete-job-after-missing-alias-job";
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         // With security enabled cat aliases throws an index_not_found_exception
@@ -900,7 +909,8 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testMultiIndexDelete() throws Exception {
         String jobId = "multi-index-delete-job";
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         createFarequoteJob(jobId);
 
         // Make the job's results span an extra two indices, i.e. three in total.

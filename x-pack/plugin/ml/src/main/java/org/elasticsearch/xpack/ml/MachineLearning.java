@@ -719,9 +719,11 @@ public class MachineLearning extends Plugin
         Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> NIGHTLY_MAINTENANCE_ROLLOVER_MAX_SIZE = Setting.byteSizeSetting(
-        "xpack.ml.nightly_maintenance_rollover_max_size",
+    public static final Setting<ByteSizeValue> RESULTS_INDEX_ROLLOVER_MAX_SIZE = Setting.byteSizeSetting(
+        "xpack.ml.results_index_rollover_max_size",
         ByteSizeValue.of(50, ByteSizeUnit.GB),
+        ByteSizeValue.ofBytes(0L),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.OperatorDynamic,
         Property.NodeScope
     );
@@ -849,7 +851,7 @@ public class MachineLearning extends Plugin
             ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
             ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
-            NIGHTLY_MAINTENANCE_ROLLOVER_MAX_SIZE,
+            RESULTS_INDEX_ROLLOVER_MAX_SIZE,
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,

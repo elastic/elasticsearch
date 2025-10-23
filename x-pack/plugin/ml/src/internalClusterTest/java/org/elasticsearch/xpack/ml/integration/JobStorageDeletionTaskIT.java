@@ -119,7 +119,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         ensureStableCluster(1);
         String jobIdDedicated = "delete-test-job-dedicated";
 
-        Job.Builder job = createJob(jobIdDedicated, ByteSizeValue.ofMb(2)).setResultsIndexName(jobIdDedicated);
+        Job.Builder job = createJob(jobIdDedicated, ByteSizeValue.ofMb(2)).setResultsIndexName(jobIdDedicated + "-000001");
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).actionGet();
         String dedicatedIndex = job.build().getInitialResultsIndexName();

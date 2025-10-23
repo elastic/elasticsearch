@@ -41,6 +41,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
@@ -79,7 +80,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class MlDailyMaintenanceService implements Releasable {
 
-    private static final org.elasticsearch.logging.Logger logger = LogManager.getLogger(MlDailyMaintenanceService.class);
+    // The service to use for creating log messages.
+    private static final Logger logger = LogManager.getLogger(MlDailyMaintenanceService.class);
 
     private static final int MAX_TIME_OFFSET_MINUTES = 120;
 
@@ -99,8 +101,6 @@ public class MlDailyMaintenanceService implements Releasable {
     private final boolean isAnomalyDetectionEnabled;
     private final boolean isDataFrameAnalyticsEnabled;
     private final boolean isNlpEnabled;
-
-    private RolloverConditions rolloverConditions;
 
     private volatile Scheduler.Cancellable cancellable;
     private volatile float deleteExpiredDataRequestsPerSecond;
@@ -125,12 +125,10 @@ public class MlDailyMaintenanceService implements Releasable {
         this.schedulerProvider = Objects.requireNonNull(schedulerProvider);
         this.expressionResolver = Objects.requireNonNull(expressionResolver);
         this.deleteExpiredDataRequestsPerSecond = MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND.get(settings);
-        this.rolloverMaxSize = MachineLearning.NIGHTLY_MAINTENANCE_ROLLOVER_MAX_SIZE.get(settings);
+        this.rolloverMaxSize = MachineLearning.RESULTS_INDEX_ROLLOVER_MAX_SIZE.get(settings);
         this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
         this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
         this.isNlpEnabled = isNlpEnabled;
-
-        this.rolloverConditions = RolloverConditions.newBuilder().addMaxIndexSizeCondition(rolloverMaxSize).build();
     }
 
     public MlDailyMaintenanceService(
@@ -163,7 +161,13 @@ public class MlDailyMaintenanceService implements Releasable {
         this.deleteExpiredDataRequestsPerSecond = value;
     }
 
-    void setRolloverMaxSize(ByteSizeValue value) {
+    // Public for testing
+    /**
+     * Set the value of the rollover max size.
+     *
+     * @param value The value of the rollover max size.
+     */
+    public void setRolloverMaxSize(ByteSizeValue value) {
         this.rolloverMaxSize = value;
     }
 
@@ -187,7 +191,7 @@ public class MlDailyMaintenanceService implements Releasable {
     }
 
     public synchronized void start() {
-        logger.info("Starting ML daily maintenance service");
+        logger.debug("Starting ML daily maintenance service");
         scheduleNext();
     }
 
@@ -292,7 +296,8 @@ public class MlDailyMaintenanceService implements Releasable {
         // Currently a NOOP
     }
 
-    void removeRolloverAlias(
+    // Helper function to remove an alias from a given index.
+    private void removeAlias(
         String index,
         String alias,
         IndicesAliasesRequestBuilder aliasRequestBuilder,
@@ -308,33 +313,20 @@ public class MlDailyMaintenanceService implements Releasable {
             client,
             new RolloverRequestBuilder(client).setRolloverTarget(rolloverAlias)
                 .setNewIndexName(newIndexName)
-                .setConditions(rolloverConditions)
+                .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(rolloverMaxSize).build())
                 .request(),
             listener
         );
     }
 
     private void rollAndUpdateAliases(ClusterState clusterState, String index, ActionListener<Boolean> listener) {
-        // Create an alias specifically for rolling over.
-        // The ml-anomalies index has aliases for each job, any
-        // of which could be used but that means one alias is
-        // treated differently.
-        // Using a `.` in the alias name avoids any conflicts
-        // as AD job Ids cannot start with `.`
-        String rolloverAlias = index + ".rollover_alias";
-
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
 
-        // If the index does not end in a digit then rollover does not know
-        // what to name the new index so it must be specified in the request.
-        // Otherwise leave null and rollover will calculate the new name
-        String newIndexName = MlIndexAndAlias.has6DigitSuffix(index) ? null : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
-        IndicesAliasesRequestBuilder aliasRequestBuilder = originSettingClient.admin()
-            .indices()
-            .prepareAliases(
-                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
-                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
-            );
+        Tuple<String, String> newIndexNameAndRolloverAlias = MlIndexAndAlias.createRolloverAliasAndNewIndexName(index);
+        String rolloverAlias = newIndexNameAndRolloverAlias.v1();
+        String newIndexName = newIndexNameAndRolloverAlias.v2();
+
+        IndicesAliasesRequestBuilder aliasRequestBuilder = MlIndexAndAlias.createIndicesAliasesRequestBuilder(client);
 
         // 4 Clean up any dangling aliases
         ActionListener<Boolean> aliasListener = ActionListener.wrap(listener::onResponse, e -> {
@@ -342,19 +334,14 @@ public class MlDailyMaintenanceService implements Releasable {
                 // Removal of the rollover alias may have failed in the case of rollover not occurring, e.g. when the rollover conditions
                 // were not satisfied.
                 // We must still clean up the temporary alias from the original index.
-                // The index name is either the original one provided or the original with a suffix appended.
-                var indexName = MlIndexAndAlias.has6DigitSuffix(index) ? index : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
-
+                var indexName = MlIndexAndAlias.ensureValidResultsIndexName(index);
                 // Make sure we use a fresh IndicesAliasesRequestBuilder, the original one may have changed internal state.
-                IndicesAliasesRequestBuilder localAliasRequestBuilder = originSettingClient.admin()
-                    .indices()
-                    .prepareAliases(
-                        MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
-                        MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
-                    );
+                IndicesAliasesRequestBuilder localAliasRequestBuilder = MlIndexAndAlias.createIndicesAliasesRequestBuilder(
+                    originSettingClient
+                );
 
                 // Execute the cleanup, no need to propagate the original failure.
-                removeRolloverAlias(indexName, rolloverAlias, localAliasRequestBuilder, listener);
+                removeAlias(indexName, rolloverAlias, localAliasRequestBuilder, listener);
             } else {
                 listener.onFailure(e);
             }
@@ -367,13 +354,13 @@ public class MlDailyMaintenanceService implements Releasable {
             // Note that the rollover request is considered "successful" even if it didn't occur due to a condition not being met
             // (no exception will be thrown). In which case the attempt to remove the alias here will fail with an
             // IndexNotFoundException. We handle this case with a secondary listener.
-            removeRolloverAlias(newIndexNameResponse, rolloverAlias, aliasRequestBuilder, aliasListener);
+            removeAlias(newIndexNameResponse, rolloverAlias, aliasRequestBuilder, aliasListener);
         }, e -> {
             // If rollover fails, we must still clean up the temporary alias from the original index.
             // The index name is either the original one provided or the original with a suffix appended.
-            var indexName = MlIndexAndAlias.has6DigitSuffix(index) ? index : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
+            var targetIndexName = MlIndexAndAlias.ensureValidResultsIndexName(index);
             // Execute the cleanup, no need to propagate the original failure.
-            removeRolloverAlias(indexName, rolloverAlias, aliasRequestBuilder, aliasListener);
+            removeAlias(targetIndexName, rolloverAlias, aliasRequestBuilder, aliasListener);
         });
 
         // 2 rollover the index alias to the new index name
@@ -385,16 +372,7 @@ public class MlDailyMaintenanceService implements Releasable {
         MlIndexAndAlias.createAliasForRollover(originSettingClient, index, rolloverAlias, getIndicesAliasesListener);
     }
 
-    // public for testing
-    public void setRolloverConditions(RolloverConditions rolloverConditions) {
-        this.rolloverConditions = Objects.requireNonNull(rolloverConditions);
-    }
-
-    // public for testing
-    public void triggerRollResultsIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
-        List<Exception> failures = new ArrayList<>();
-
-        ClusterState clusterState = clusterService.state();
+    private String[] findIndicesNeedingRollover(ClusterState clusterState) {
         // list all indices starting .ml-anomalies-
         // this includes the shared index and all custom results indices
         String[] indices = expressionResolver.concreteIndexNames(
@@ -402,47 +380,57 @@ public class MlDailyMaintenanceService implements Releasable {
             IndicesOptions.lenientExpandOpenHidden(),
             AnomalyDetectorsIndex.jobResultsIndexPattern()
         );
-
-        logger.info("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask");
-
         logger.trace("triggerRollResultsIndicesIfNecessaryTask: indices found: {}", Arrays.toString(indices));
+        return indices;
+    }
 
-        if (indices.length == 0) {
-            // Early bath
-            finalListener.onResponse(AcknowledgedResponse.TRUE);
-        }
-
-        for (String index : indices) {
-            // Check if this index has already been rolled over
-            String latestIndex = MlIndexAndAlias.latestIndexMatchingBaseName(index, expressionResolver, clusterState);
-
-            if (index.equals(latestIndex) == false) {
-                continue;
-            }
-
-            PlainActionFuture<Boolean> updated = new PlainActionFuture<>();
-            rollAndUpdateAliases(clusterState, index, updated);
-            try {
-                updated.actionGet();
-            } catch (Exception ex) {
-                var message = "failed rolling over ml anomalies index [" + index + "]";
-                logger.warn(message, ex);
-                if (ex instanceof ElasticsearchException elasticsearchException) {
-                    failures.add(new ElasticsearchStatusException(message, elasticsearchException.status(), elasticsearchException));
-                } else {
-                    failures.add(new ElasticsearchStatusException(message, RestStatus.REQUEST_TIMEOUT, ex));
-                }
+    private void rolloverIndexSafely(ClusterState clusterState, String index, List<Exception> failures) {
+        PlainActionFuture<Boolean> updated = new PlainActionFuture<>();
+        rollAndUpdateAliases(clusterState, index, updated);
+        try {
+            updated.actionGet();
+        } catch (Exception ex) {
+            String message = String.format("Failed to rollover ML anomalies index [%s]: %s", index, ex.getMessage());
+            logger.warn(message);
+            if (ex instanceof ElasticsearchException elasticsearchException) {
+                failures.add(new ElasticsearchStatusException(message, elasticsearchException.status(), elasticsearchException));
+            } else {
+                failures.add(new ElasticsearchStatusException(message, RestStatus.REQUEST_TIMEOUT, ex));
             }
         }
+    }
 
+    private void handleRolloverResults(String[] indices, List<Exception> failures, ActionListener<AcknowledgedResponse> finalListener) {
         if (failures.isEmpty()) {
-            logger.info("ml anomalies indices [{}] rolled over and aliases updated", String.join(",", indices));
+            logger.debug("ML anomalies indices [{}] rolled over and aliases updated", String.join(",", indices));
             finalListener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
 
         logger.warn("failed to roll over ml anomalies results indices: [{}]", failures);
         finalListener.onResponse(AcknowledgedResponse.FALSE);
+    }
+
+    // public for testing
+    public void triggerRollResultsIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
+        logger.info("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask");
+
+        ClusterState clusterState = clusterService.state();
+
+        String[] indices = findIndicesNeedingRollover(clusterState);
+        if (indices.length == 0) {
+            // Early bath
+            finalListener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+
+        List<Exception> failures = new ArrayList<>();
+
+        Arrays.stream(indices)
+            .filter(index -> MlIndexAndAlias.latestIndexMatchingBaseName(index, expressionResolver, clusterState).equals(index))
+            .forEach(index -> rolloverIndexSafely(clusterState, index, failures));
+
+        handleRolloverResults(indices, failures, finalListener);
     }
 
     private void triggerDeleteExpiredDataTask(ActionListener<AcknowledgedResponse> finalListener) {

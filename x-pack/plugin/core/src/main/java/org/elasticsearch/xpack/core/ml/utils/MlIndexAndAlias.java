@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -75,6 +76,10 @@ public final class MlIndexAndAlias {
 
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
     private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
+    private static final Predicate<String> IS_ANOMALIES_SHARED_INDEX = Pattern.compile(
+        AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "-\\d{6}"
+    ).asMatchPredicate();
+    private static final String ROLLOVER_ALIAS_SUFFIX = ".rollover_alias";
 
     static final Comparator<String> INDEX_NAME_COMPARATOR = (index1, index2) -> {
         String[] index1Parts = index1.split("-");
@@ -229,6 +234,21 @@ public final class MlIndexAndAlias {
         loggingListener.onResponse(false);
     }
 
+    /**
+     * Creates a system index based on the provided descriptor if it does not already exist.
+     * <p>
+     * The check for existence is simple and will return the listener on the calling thread if successful.
+     * If the index needs to be created an async call will be made and this method will wait for the index to reach at least
+     * a yellow health status before notifying the listener, ensuring it is ready for use
+     * upon a successful response. A {@link ResourceAlreadyExistsException} during creation
+     * is handled gracefully and treated as a success.
+     *
+     * @param client            The client to use for the create index request.
+     * @param clusterState      The current cluster state, used for the initial existence check.
+     * @param descriptor        The descriptor containing the index name, settings, and mappings.
+     * @param masterNodeTimeout The timeout for waiting on the master node.
+     * @param finalListener     Async listener
+     */
     public static void createSystemIndexIfNecessary(
         Client client,
         ClusterState clusterState,
@@ -328,6 +348,16 @@ public final class MlIndexAndAlias {
         );
     }
 
+    /**
+     * Creates or moves a write alias from one index to another.
+     *
+     * @param client            The client to use for the add alias request.
+     * @param alias             The alias to update.
+     * @param currentIndex      The index the alias is currently pointing to.
+     * @param newIndex          The new index the alias should point to.
+     * @param masterNodeTimeout The timeout for waiting on the master node.
+     * @param listener          Async listener
+     */
     public static void updateWriteAlias(
         Client client,
         String alias,
@@ -362,7 +392,7 @@ public final class MlIndexAndAlias {
     /**
      * Installs the index template specified by {@code templateConfig} if it is not in already
      * installed in {@code clusterState}.
-     *
+     * <p>
      * The check for presence is simple and will return the listener on
      * the calling thread if successful. If the template has to be installed
      * an async call will be made.
@@ -432,15 +462,36 @@ public final class MlIndexAndAlias {
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportPutComposableIndexTemplateAction.TYPE, templateRequest, innerListener);
     }
 
-    public static boolean hasIndexTemplate(ClusterState state, String templateName, long version) {
+    private static boolean hasIndexTemplate(ClusterState state, String templateName, long version) {
         var template = state.getMetadata().getProject().templatesV2().get(templateName);
         return template != null && Long.valueOf(version).equals(template.version());
     }
 
+    public static String ensureValidResultsIndexName(String indexName) {
+        // The results index name is either the original one provided or the original with a suffix appended.
+        return has6DigitSuffix(indexName) ? indexName : indexName + FIRST_INDEX_SIX_DIGIT_SUFFIX;
+    }
+
+    /**
+     * Checks if an index name ends with a 6-digit suffix (e.g., "-000001").
+     *
+     * @param indexName The name of the index to check.
+     * @return {@code true} if the index name has a 6-digit suffix, {@code false} otherwise.
+     */
     public static boolean has6DigitSuffix(String indexName) {
         String[] indexParts = indexName.split("-");
         String suffix = indexParts[indexParts.length - 1];
         return HAS_SIX_DIGIT_SUFFIX.test(suffix);
+    }
+
+    /**
+     * Checks if an index name matches the pattern for the default ML anomalies indices (e.g., ".ml-anomalies-shared-000001").
+     *
+     * @param indexName The name of the index to check.
+     * @return {@code true} if the index is a shared anomalies index, {@code false} otherwise.
+     */
+    public static boolean isAnomaliesSharedIndex(String indexName) {
+        return IS_ANOMALIES_SHARED_INDEX.test(indexName);
     }
 
     /**
@@ -503,6 +554,15 @@ public final class MlIndexAndAlias {
         return MlIndexAndAlias.latestIndex(filtered);
     }
 
+    /**
+     * Executes a rollover request. It handles {@link ResourceAlreadyExistsException} gracefully by treating it as a success
+     * and returning the name of the existing index.
+     *
+     * @param client            The client to use for the rollover request.
+     * @param rolloverRequest   The rollover request to execute.
+     * @param listener          A listener that will be notified with the name of the new (or pre-existing) index on success,
+     *                          or an exception on failure.
+     */
     public static void rollover(Client client, RolloverRequest rolloverRequest, ActionListener<String> listener) {
         client.admin()
             .indices()
@@ -516,6 +576,35 @@ public final class MlIndexAndAlias {
             }));
     }
 
+    public static Tuple<String, String> createRolloverAliasAndNewIndexName(String index) {
+        // Create an alias specifically for rolling over.
+        // The ml-anomalies index has aliases for each job, any
+        // of which could be used but that means one alias is
+        // treated differently.
+        // Using a `.` in the alias name avoids any conflicts
+        // as AD job Ids cannot start with `.`
+        String rolloverAlias = index + ROLLOVER_ALIAS_SUFFIX;
+
+        // If the index does not end in a digit then rollover does not know
+        // what to name the new index so it must be specified in the request.
+        // Otherwise leave null and rollover will calculate the new name
+        String newIndexName = MlIndexAndAlias.has6DigitSuffix(index) ? null : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
+
+        return new Tuple<>(rolloverAlias, newIndexName);
+    }
+
+    public static IndicesAliasesRequestBuilder createIndicesAliasesRequestBuilder(Client client) {
+        return client.admin().indices().prepareAliases(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS);
+    }
+
+    /**
+     * Creates a hidden alias for an index, typically used as a rollover target.
+     *
+     * @param client      The client to use for the alias request.
+     * @param indexName   The name of the index to which the alias will be added.
+     * @param aliasName   The name of the alias to create.
+     * @param listener    A listener that will be notified with the response.
+     */
     public static void createAliasForRollover(
         Client client,
         String indexName,
@@ -523,17 +612,31 @@ public final class MlIndexAndAlias {
         ActionListener<IndicesAliasesResponse> listener
     ) {
         logger.info("creating rollover [{}] alias for [{}]", aliasName, indexName);
-        client.admin()
-            .indices()
-            .prepareAliases(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName).isHidden(true))
-            .execute(listener);
+        createIndicesAliasesRequestBuilder(client).addAliasAction(
+            IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName).isHidden(true)
+        ).execute(listener);
     }
 
+    /**
+     * Executes a prepared {@link IndicesAliasesRequestBuilder} and notifies the listener of the result.
+     *
+     * @param request  The prepared request builder containing alias actions.
+     * @param listener A listener that will be notified with {@code true} on success.
+     */
     public static void updateAliases(IndicesAliasesRequestBuilder request, ActionListener<Boolean> listener) {
         request.execute(listener.delegateFailure((l, response) -> l.onResponse(Boolean.TRUE)));
     }
 
+    /**
+     * Adds alias actions to a request builder to move ML job aliases from an old index to a new one after a rollover.
+     * This includes moving the write alias and re-creating the filtered read aliases on the new index.
+     *
+     * @param aliasRequestBuilder The request builder to add actions to.
+     * @param oldIndex            The index from which aliases are being moved.
+     * @param newIndex            The new index to which aliases will be moved.
+     * @param clusterState        The current cluster state, used to inspect existing aliases on the old index.
+     * @return The modified {@link IndicesAliasesRequestBuilder}.
+     */
     public static IndicesAliasesRequestBuilder addIndexAliasesRequests(
         IndicesAliasesRequestBuilder aliasRequestBuilder,
         String oldIndex,
@@ -570,10 +673,22 @@ public final class MlIndexAndAlias {
         return aliasRequestBuilder;
     }
 
+    /**
+     * Determines if an alias name is an ML anomalies write alias.
+     *
+     * @param aliasName The alias name to check.
+     * @return {@code true} if the name matches the write alias pattern, {@code false} otherwise.
+     */
     public static boolean isAnomaliesWriteAlias(String aliasName) {
         return aliasName.startsWith(AnomalyDetectorsIndexFields.RESULTS_INDEX_WRITE_PREFIX);
     }
 
+    /**
+     * Determines if an alias name is an ML anomalies read alias.
+     *
+     * @param aliasName The alias name to check.
+     * @return {@code true} if the name matches the read alias pattern, {@code false} otherwise.
+     */
     public static boolean isAnomaliesReadAlias(String aliasName) {
         if (aliasName.startsWith(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX) == false) {
             return false;

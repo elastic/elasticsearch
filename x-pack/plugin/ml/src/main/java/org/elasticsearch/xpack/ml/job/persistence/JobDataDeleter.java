@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
@@ -408,7 +409,7 @@ public class JobDataDeleter {
                     }
                 }
                 SearchResponse searchResponse = item.getResponse();
-                if (searchResponse.getHits().getTotalHits().value() > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
+                if (searchResponse.getHits().getTotalHits().value() > 0 || MlIndexAndAlias.isAnomaliesSharedIndex(indexNames.get()[i])) {
                     needToRunDBQTemp = true;
                 } else {
                     indicesToDelete.add(indexNames.get()[i]);

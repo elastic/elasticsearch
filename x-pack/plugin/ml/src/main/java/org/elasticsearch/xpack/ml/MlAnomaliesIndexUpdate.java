@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -142,24 +143,11 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     }
 
     private void rollAndUpdateAliases(ClusterState clusterState, String index, ActionListener<Boolean> listener) {
-        // Create an alias specifically for rolling over.
-        // The ml-anomalies index has aliases for each job, any
-        // of which could be used but that means one alias is
-        // treated differently.
-        // Using a `.` in the alias name avoids any conflicts
-        // as AD job Ids cannot start with `.`
-        String rolloverAlias = index + ".rollover_alias";
+        Tuple<String, String> newIndexNameAndRolloverAlias = MlIndexAndAlias.createRolloverAliasAndNewIndexName(index);
+        String rolloverAlias = newIndexNameAndRolloverAlias.v1();
+        String newIndexName = newIndexNameAndRolloverAlias.v2();
 
-        // If the index does not end in a digit then rollover does not know
-        // what to name the new index so it must be specified in the request.
-        // Otherwise leave null and rollover will calculate the new name
-        String newIndexName = MlIndexAndAlias.has6DigitSuffix(index) ? null : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
-        IndicesAliasesRequestBuilder aliasRequestBuilder = client.admin()
-            .indices()
-            .prepareAliases(
-                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
-                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
-            );
+        IndicesAliasesRequestBuilder aliasRequestBuilder = MlIndexAndAlias.createIndicesAliasesRequestBuilder(client);
 
         SubscribableListener.<Boolean>newForked(
             l -> { createAliasForRollover(index, rolloverAlias, l.map(AcknowledgedResponse::isAcknowledged)); }

@@ -7,11 +7,12 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -71,9 +72,9 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
     public void testTriggerRollResultsIndicesIfNecessaryTask_givenNoIndices() throws Exception {
         // The null case, nothing to do.
 
-        // replace the default set of conditions with an empty set so we can roll the index unconditionally
+        // set the rollover max size to 0B so we can roll the index unconditionally
         // It's not the conditions or even the rollover itself we are testing but the state of the indices and aliases afterwards.
-        maintenanceService.setRolloverConditions(RolloverConditions.newBuilder().build());
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
         {
             GetIndexResponse getIndexResponse = client().admin()
                 .indices()
@@ -115,7 +116,7 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
     }
 
     public void testTriggerRollResultsIndicesIfNecessaryTask_withMixedIndexTypes() throws Exception {
-        maintenanceService.setRolloverConditions(RolloverConditions.newBuilder().build());
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
 
         // 1. Create a job using the default shared index
         Job.Builder sharedJob = createJob("shared-job");
@@ -169,51 +170,30 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
     }
 
     public void testTriggerRollResultsIndicesIfNecessaryTask_givenNoJobAliases() throws Exception {
-        maintenanceService.setRolloverConditions(RolloverConditions.newBuilder().build());
-
-        String jobId = "job-to-be-deleted";
-        Job.Builder job = createJob(jobId);
-        putJob(job);
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
 
         String indexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001";
         String rolledIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000002";
-        assertIndicesAndAliases(
-            "Before job deletion",
-            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*",
-            Map.of(indexName, List.of(writeAlias(jobId), readAlias(jobId)))
-        );
+        String indexWildcard = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*";
 
-        // Delete the job, which also removes its aliases
-        deleteJob(jobId);
+        // 1. Create an index that looks like an ML results index but has no aliases
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        client().admin().indices().create(createIndexRequest).actionGet();
 
-        // Verify the index still exists but has no aliases
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(indexName).get();
-        assertThat(getIndexResponse.getIndices().length, is(1));
-        assertThat(getIndexResponse.getAliases().size(), is(0));
+        // Expect the index to exist with no aliases
+        assertIndicesAndAliases("Before rollover attempt", indexWildcard, Map.of(indexName, List.of()));
 
-        // Trigger maintenance
+        // 2. Trigger maintenance
         blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
 
         // Verify that the index was rolled over, even though it had no ML aliases
-        GetIndexResponse finalIndexResponse = client().admin()
-            .indices()
-            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-            .setIndices(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*")
-            .get();
-        assertThat(finalIndexResponse.getIndices().length, is(2));
-        List<String> expectedIndexList = List.of(indexName, rolledIndexName);
-        List<String> actualIndexList = Arrays.asList(finalIndexResponse.getIndices());
-
-        assertThat("Mismatch for indices", actualIndexList, containsInAnyOrder(expectedIndexList.toArray(String[]::new)));
-
-        assertThat(finalIndexResponse.getIndices()[0], is(indexName));
-        assertThat(finalIndexResponse.getIndices()[1], is(rolledIndexName));
+        assertIndicesAndAliases("After rollover attempt", indexWildcard, Map.of(indexName, List.of(), rolledIndexName, List.of()));
     }
 
     public void testTriggerRollResultsIndicesIfNecessaryTask() throws Exception {
         // replace the default set of conditions with an empty set so we can roll the index unconditionally
         // It's not the conditions or even the rollover itself we are testing but the state of the indices and aliases afterwards.
-        maintenanceService.setRolloverConditions(RolloverConditions.newBuilder().build());
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
 
         // Create jobs that will use the default results indices - ".ml-anomalies-shared-*"
         Job.Builder[] jobs_with_default_index = { createJob("job_using_default_index"), createJob("another_job_using_default_index") };
@@ -326,21 +306,28 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
             .setIndices(indexWildcard)
             .get();
 
+        var indices = Arrays.asList(getIndexResponse.getIndices());
+        assertThat("Context: " + context, indices.size(), is(expectedAliases.size()));
+        assertThat("Index mismatch. Context: " + context, indices, containsInAnyOrder(expectedAliases.keySet().toArray(String[]::new)));
+
         var aliases = getIndexResponse.getAliases();
-        assertThat("Context: " + context, aliases.size(), is(expectedAliases.size()));
 
         StringBuilder sb = new StringBuilder(context).append(". Aliases found:\n");
 
         expectedAliases.forEach((indexName, expectedAliasList) -> {
-            assertTrue("Expected index [" + indexName + "] was not found. Context: " + context, aliases.containsKey(indexName));
-            List<AliasMetadata> actualAliasMetadata = aliases.get(indexName);
-            List<String> actualAliasList = actualAliasMetadata.stream().map(AliasMetadata::alias).toList();
-            assertThat(
-                "Alias mismatch for index [" + indexName + "]. Context: " + context,
-                actualAliasList,
-                containsInAnyOrder(expectedAliasList.toArray(String[]::new))
-            );
-            sb.append("  Index [").append(indexName).append("]: ").append(actualAliasList).append("\n");
+            assertThat("Context: " + context, indices.size(), is(expectedAliases.size()));
+            if (expectedAliasList.isEmpty()) {
+                assertThat("Context: " + context, aliases.size(), is(0));
+            } else {
+                List<AliasMetadata> actualAliasMetadata = aliases.get(indexName);
+                List<String> actualAliasList = actualAliasMetadata.stream().map(AliasMetadata::alias).toList();
+                assertThat(
+                    "Alias mismatch for index [" + indexName + "]. Context: " + context,
+                    actualAliasList,
+                    containsInAnyOrder(expectedAliasList.toArray(String[]::new))
+                );
+                sb.append("  Index [").append(indexName).append("]: ").append(actualAliasList).append("\n");
+            }
         });
         logger.warn(sb.toString().trim());
     }

@@ -103,6 +103,8 @@ import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.view.InMemoryViewService;
+import org.elasticsearch.xpack.esql.view.View;
 import org.junit.After;
 import org.junit.Before;
 
@@ -126,6 +128,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
@@ -345,6 +349,14 @@ public class CsvTests extends ESTestCase {
             assumeFalse(
                 "CSV tests cannot currently handle multi_match function that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
+            );
+            assumeFalse(
+                "CSV tests cannot currently handle subqueries",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
+            );
+            assumeFalse(
+                "CSV tests cannot currently handle views with branching",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {
@@ -570,6 +582,20 @@ public class CsvTests extends ESTestCase {
         return plan;
     }
 
+    private LogicalPlan resolveViews(LogicalPlan parsed) {
+        InMemoryViewService viewService = new InMemoryViewService(functionRegistry);
+        for (var viewConfig : VIEW_CONFIGS) {
+            try {
+                String viewQuery = loadViewQuery(viewConfig.viewName(), viewConfig.viewFileName(), LOGGER);
+                viewService.put(viewConfig.viewName(), new View(viewQuery), ActionListener.noop());
+            } catch (IOException e) {
+                logger.error("Failed to load view '" + viewConfig + "': " + e.getMessage());
+                throw new RuntimeException(e);
+            }
+        }
+        return viewService.replaceViews(parsed, new PlanTelemetry(functionRegistry));
+    }
+
     private Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> testDatasets(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         if (preAnalysis.indexes().isEmpty()) {
@@ -634,7 +660,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        LogicalPlan parsed = parser.createStatement(testCase.query);
+        LogicalPlan parsed = resolveViews(parser.createStatement(testCase.query));
         var testDatasets = testDatasets(parsed);
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
@@ -644,6 +670,7 @@ public class CsvTests extends ESTestCase {
         EsqlSession session = new EsqlSession(
             getTestName(),
             queryClusterSettings(),
+            null,
             null,
             null,
             null,

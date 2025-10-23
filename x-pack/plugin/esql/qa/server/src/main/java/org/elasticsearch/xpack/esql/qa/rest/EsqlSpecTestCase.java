@@ -71,7 +71,9 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
@@ -98,6 +100,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final String instructions;
     protected final Mode mode;
     protected static Boolean supportsTook;
+    protected static Boolean supportsViews;
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -163,6 +166,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     private static final Protected INGEST = new Protected();
+    private static final Protected VIEWS = new Protected();
     protected static boolean testClustersOk = true;
 
     @Before
@@ -174,6 +178,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 createInferenceEndpoints(adminClient());
             }
             loadDataSetIntoEs(client(), supportsIndexModeLookup(), supportsSourceFieldMapping(), supportsInferenceTestService());
+            return null;
+        });
+        // Views can be created before or after ingest, since index resolution is currently only done on the combined query
+        VIEWS.protectedBlock(() -> {
+            if (supportsViews()) {
+                loadViewsIntoEs(adminClient());
+            }
             return null;
         });
     }
@@ -192,6 +203,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
         }
         INGEST.reset();
+        deleteViews(adminClient());
+        VIEWS.reset();
         deleteInferenceEndpoints(adminClient());
     }
 
@@ -515,6 +528,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
         }
         return supportsTook;
+    }
+
+    protected boolean supportsViews() {
+        if (supportsViews == null) {
+            supportsViews = hasCapabilities(adminClient(), List.of("views_v1"));
+        }
+        return supportsViews;
     }
 
     private String tookKey(long took) {

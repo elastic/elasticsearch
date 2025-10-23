@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -42,12 +43,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -1005,5 +1008,232 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             Predicates.splitAnd(rightFilter.condition()).stream().map(Object::toString).toList()
         );
         assertEquals(expectedPushedFilters, actualPushedFilters);
+    }
+
+    public void testPushDownSimpleFilterPastUnionAll() {
+        // TODO: Replace with a VIEWS example
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Disabled until subquery support comes back", false);
+        var plan = planSubquery("""
+            FROM test, (FROM test1 | WHERE languages > 0), (FROM languages | WHERE language_code > 0)
+            | WHERE emp_no > 10000
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(3, unionAll.children().size());
+
+        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
+        Eval eval = as(child1.child(), Eval.class);
+        Limit childLimit = as(eval.child(), Limit.class);
+        Filter childFilter = as(childLimit.child(), Filter.class);
+        GreaterThan greaterThan = as(childFilter.condition(), GreaterThan.class);
+        FieldAttribute empNo = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        Literal right = as(greaterThan.right(), Literal.class);
+        assertEquals(10000, right.value());
+        EsRelation relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+
+        EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
+        eval = as(child2.child(), Eval.class);
+        childLimit = as(eval.child(), Limit.class);
+        /*
+        Subquery subquery = as(childLimit.child(), Subquery.class);
+        childFilter = as(subquery.child(), Filter.class);
+         */
+        And and = as(childFilter.condition(), And.class);
+        greaterThan = as(and.left(), GreaterThan.class);
+        empNo = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", empNo.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
+        greaterThan = as(and.right(), GreaterThan.class);
+        empNo = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(10000, right.value());
+        relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test1", relation.indexPattern());
+
+        LocalRelation localRelation = as(unionAll.children().get(2), LocalRelation.class);
+    }
+
+    public void testPushDownConjunctiveFilterPastUnionAll() {
+        // TODO: Replace with a VIEWS example
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Disabled until subquery support comes back", false);
+        var plan = planSubquery("""
+            FROM test, (FROM test1 | WHERE languages > 0), (FROM languages | WHERE language_code > 0)
+            | WHERE emp_no > 10000 and salary > 50000
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(3, unionAll.children().size());
+        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
+        Eval eval = as(child1.child(), Eval.class);
+        Limit childLimit = as(eval.child(), Limit.class);
+        Filter childFilter = as(childLimit.child(), Filter.class);
+        And and = as(childFilter.condition(), And.class);
+        GreaterThan emp_no = as(and.left(), GreaterThan.class);
+        FieldAttribute empNo = as(emp_no.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        Literal right = as(emp_no.right(), Literal.class);
+        assertEquals(10000, right.value());
+        GreaterThan salary = as(and.right(), GreaterThan.class);
+        FieldAttribute salaryField = as(salary.left(), FieldAttribute.class);
+        assertEquals("salary", salaryField.name());
+        right = as(salary.right(), Literal.class);
+        assertEquals(50000, right.value());
+        EsRelation relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+
+        EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
+        eval = as(child2.child(), Eval.class);
+        childLimit = as(eval.child(), Limit.class);
+        /*
+        Subquery subquery = as(childLimit.child(), Subquery.class);
+        childFilter = as(subquery.child(), Filter.class);
+         */
+        and = as(childFilter.condition(), And.class);
+        GreaterThan greaterThan = as(and.left(), GreaterThan.class);
+        FieldAttribute languages = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
+        and = as(and.right(), And.class);
+        emp_no = as(and.left(), GreaterThan.class);
+        empNo = as(emp_no.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        right = as(emp_no.right(), Literal.class);
+        assertEquals(10000, right.value());
+        salary = as(and.right(), GreaterThan.class);
+        salaryField = as(salary.left(), FieldAttribute.class);
+        assertEquals("salary", salaryField.name());
+        right = as(salary.right(), Literal.class);
+        assertEquals(50000, right.value());
+        relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test1", relation.indexPattern());
+        LocalRelation localRelation = as(unionAll.children().get(2), LocalRelation.class);
+    }
+
+    public void testPushDownDisjunctiveFilterPastUnionAll() {
+        // TODO: Replace with a VIEWS example
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Disabled until subquery support comes back", false);
+        var plan = planSubquery("""
+            FROM test, (FROM test1 | WHERE languages > 0), (FROM languages | WHERE language_code > 0)
+            | WHERE emp_no > 10000 or salary > 50000
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(3, unionAll.children().size());
+        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
+        Eval eval = as(child1.child(), Eval.class);
+        Limit childLimit = as(eval.child(), Limit.class);
+        Filter childFilter = as(childLimit.child(), Filter.class);
+        Or or = as(childFilter.condition(), Or.class);
+        GreaterThan emp_no = as(or.left(), GreaterThan.class);
+        FieldAttribute empNo = as(emp_no.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        Literal right = as(emp_no.right(), Literal.class);
+        assertEquals(10000, right.value());
+        GreaterThan salary = as(or.right(), GreaterThan.class);
+        FieldAttribute salaryField = as(salary.left(), FieldAttribute.class);
+        assertEquals("salary", salaryField.name());
+        right = as(salary.right(), Literal.class);
+        assertEquals(50000, right.value());
+        EsRelation relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+
+        EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
+        eval = as(child2.child(), Eval.class);
+        childLimit = as(eval.child(), Limit.class);
+        /*
+        Subquery subquery = as(childLimit.child(), Subquery.class);
+        childFilter = as(subquery.child(), Filter.class);
+         */
+        And and = as(childFilter.condition(), And.class);
+        GreaterThan greaterThan = as(and.left(), GreaterThan.class);
+        FieldAttribute languages = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
+        or = as(and.right(), Or.class);
+        emp_no = as(or.left(), GreaterThan.class);
+        empNo = as(emp_no.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        right = as(emp_no.right(), Literal.class);
+        assertEquals(10000, right.value());
+        salary = as(or.right(), GreaterThan.class);
+        salaryField = as(salary.left(), FieldAttribute.class);
+        assertEquals("salary", salaryField.name());
+        right = as(salary.right(), Literal.class);
+        assertEquals(50000, right.value());
+        relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test1", relation.indexPattern());
+        LocalRelation localRelation = as(unionAll.children().get(2), LocalRelation.class);
+    }
+
+    public void testPushDownAndCombineFilterPastUnionAll() {
+        // TODO: Replace with a VIEWS example
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Disabled until subquery support comes back", false);
+        var plan = planSubquery("""
+            FROM test, (FROM test1 | where salary < 100000), (FROM languages  | WHERE language_code > 0)
+            | WHERE emp_no > 10000 and salary > 50000
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(3, unionAll.children().size());
+        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
+        Eval eval = as(child1.child(), Eval.class);
+        Limit childLimit = as(eval.child(), Limit.class);
+        Filter childFilter = as(childLimit.child(), Filter.class);
+        And and = as(childFilter.condition(), And.class);
+        GreaterThan emp_no = as(and.left(), GreaterThan.class);
+        FieldAttribute empNo = as(emp_no.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        Literal right = as(emp_no.right(), Literal.class);
+        assertEquals(10000, right.value());
+        GreaterThan salary = as(and.right(), GreaterThan.class);
+        FieldAttribute salaryField = as(salary.left(), FieldAttribute.class);
+        assertEquals("salary", salaryField.name());
+        right = as(salary.right(), Literal.class);
+        assertEquals(50000, right.value());
+        EsRelation relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+
+        EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
+        eval = as(child2.child(), Eval.class);
+        childLimit = as(eval.child(), Limit.class);
+        /*
+        Subquery subquery = as(childLimit.child(), Subquery.class);
+        childFilter = as(subquery.child(), Filter.class);
+         */
+        and = as(childFilter.condition(), And.class);
+        And empNoAndSalary = as(and.right(), And.class);
+        emp_no = as(empNoAndSalary.left(), GreaterThan.class);
+        empNo = as(emp_no.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        right = as(emp_no.right(), Literal.class);
+        assertEquals(10000, right.value());
+        salary = as(empNoAndSalary.right(), GreaterThan.class);
+        salaryField = as(salary.left(), FieldAttribute.class);
+        assertEquals("salary", salaryField.name());
+        right = as(salary.right(), Literal.class);
+        assertEquals(50000, right.value());
+        LessThan lessThan = as(and.left(), LessThan.class);
+        salaryField = as(lessThan.left(), FieldAttribute.class);
+        assertEquals("salary", salaryField.name());
+        right = as(lessThan.right(), Literal.class);
+        assertEquals(100000, right.value());
+        relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test1", relation.indexPattern());
+
+        LocalRelation localRelation = as(unionAll.children().get(2), LocalRelation.class);
     }
 }

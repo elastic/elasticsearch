@@ -60,6 +60,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Analyzer metricsAnalyzer;
     protected static Analyzer multiIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
+    protected static Analyzer subqueryAnalyzer;
 
     protected static EnrichResolution enrichResolution;
 
@@ -211,6 +212,22 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             ),
             TEST_VERIFIER
         );
+
+        EsIndex test1 = new EsIndex("test1", mapping, Map.of("test1", IndexMode.STANDARD));
+        var mappingLanguages = loadMapping("mapping-languages.json");
+        EsIndex languages = new EsIndex("languages", mappingLanguages, Map.of("languages", IndexMode.STANDARD));
+
+        subqueryAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(test1, languages),
+                emptyMap(),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
     }
 
     protected LogicalPlan optimizedPlan(String query) {
@@ -249,6 +266,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planSample(String query) {
         var analyzed = sampleDataIndexAnalyzer.analyze(parser.createStatement(query));
+        return logicalOptimizer.optimize(analyzed);
+    }
+
+    protected LogicalPlan planSubquery(String query) {
+        var analyzed = subqueryAnalyzer.analyze(parser.createStatement(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

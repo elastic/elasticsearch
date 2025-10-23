@@ -1662,6 +1662,111 @@ ROW salary = 12300, emp_no = 5, gender = "F"
 emp_no:integer
 5
 ;
+
+inlineStatsWithShadowedOutput1
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x"
+| INLINE STATS a = MAX(c) BY b
+| EVAL a = c
+;
+
+c:keyword      |b:integer      |a:keyword
+x              |0              |x
+;
+
+inlineStatsWithShadowedOutput2
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c) by b
+| EVAL a = c, d = 2
+;
+
+c:keyword      |b:integer      |a:keyword |d:integer
+x              |0              |x         |2
+;
+
+inlineStatsWithShadowedOutput3
+required_capability: inline_stats_prune_column_fix
+
+FROM employees
+| KEEP emp_no, salary, birth_date
+| EVAL orig_emp_no = emp_no
+| INLINE STATS emp_no = MAX(birth_date) BY salary
+| EVAL emp_no = birth_date
+| SORT orig_emp_no
+| LIMIT 3
+;
+
+birth_date:date         |orig_emp_no:integer|salary:integer |emp_no:date
+1953-09-02T00:00:00.000Z|10001              |57305          |1953-09-02T00:00:00.000Z
+1964-06-02T00:00:00.000Z|10002              |56371          |1964-06-02T00:00:00.000Z
+1959-12-03T00:00:00.000Z|10003              |61805          |1959-12-03T00:00:00.000Z
+;
+
+inlineStatsWithShadowedOutput4
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c), e = AVG(b) by b
+| EVAL a = c, d = 2, e = a
+;
+
+c:keyword      |b:integer      |a:keyword      |d:integer      |e:keyword
+x              |0              |x              |2              |x
+;
+
+inlineStatsWithShadowedOutput5
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c), e = AVG(b), a = MIN(b) by b
+| EVAL a = c, d = 2, e = a
+;
+warning:Line 2:16: Field 'a' shadowed by field at line 2:52
+
+c:keyword      |b:integer      |a:keyword      |d:integer      |e:keyword
+x              |0              |x              |2              |x
+;
+
+inlineStatsWithShadowedOutput6
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c), e = AVG(b), a = MIN(b), f = MAX(b) by b
+| EVAL a = c, d = 2, e = a, f = d
+;
+warning:Line 2:16: Field 'a' shadowed by field at line 2:52
+
+c:keyword      |b:integer      |a:keyword      |d:integer      |e:keyword      |f:integer
+x              |0              |x              |2              |x              |2
+;
+
+tripleInlineStatsMultipleAssignmentsGetsPrunedPartially
+required_capability: inline_stats_prune_column_fix
+
+FROM employees
+// | SORT languages DESC
+| EVAL salaryK = salary / 10000
+| INLINE STATS count = COUNT(*) BY salaryK
+| EVAL hire_date_string = hire_date::keyword
+| INLINE STATS sum = SUM(languages) BY hire_date_string
+| DISSECT hire_date_string "%{date}"
+| INLINE STATS min = MIN(MV_COUNT(languages)) BY salaryK
+| SORT emp_no
+| KEEP emp_no, salaryK, count, min
+| LIMIT 5
+;
+
+emp_no:integer |salaryK:integer|count:long     |min:integer
+10001          |5              |17             |1
+10002          |5              |17             |1
+10003          |6              |17             |1
+10004          |3              |27             |1
+10005          |6              |17             |1
+;
+
 ///////////////////////////
 // INLINE STATS with filters
 ///////////////////////////

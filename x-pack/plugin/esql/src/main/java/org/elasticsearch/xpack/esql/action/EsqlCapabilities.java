@@ -1622,6 +1622,11 @@ public class EsqlCapabilities {
         FIX_FILTER_ORDINALS,
 
         /**
+         * Fix pruning of columns when shadowed in INLINE STATS
+         */
+        INLINE_STATS_PRUNE_COLUMN_FIX(INLINESTATS.enabled),
+
+        /**
          * Fix double release in inline stats when LocalRelation is reused
          */
         INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled),

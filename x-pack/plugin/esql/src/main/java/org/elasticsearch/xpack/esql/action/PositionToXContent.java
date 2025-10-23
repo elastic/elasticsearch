@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockAccessor;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -173,12 +174,12 @@ public abstract class PositionToXContent {
             };
             case EXPONENTIAL_HISTOGRAM -> new PositionToXContent(block) {
 
-                final ExponentialHistogramBlock.Accessor accessor = ((ExponentialHistogramBlock) block).accessor();
+                ExponentialHistogramBlockAccessor accessor = new ExponentialHistogramBlockAccessor((ExponentialHistogramBlock) block);
 
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
-                    ExponentialHistogram histogram = accessor.getExponentialHistogram(valueIndex);
+                    ExponentialHistogram histogram = accessor.get(valueIndex);
                     ExponentialHistogramXContent.serialize(builder, histogram);
                     return builder;
                 }

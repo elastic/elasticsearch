@@ -8,14 +8,12 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ZeroBucket;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,31 +42,6 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         this.zeroThresholds = zeroThresholds;
         this.encodedHistograms = encodedHistograms;
         assert assertInvariants();
-    }
-
-    static BytesRef encodeHistogramBytes(ExponentialHistogram histogram) {
-        // TODO: fix performance and correctness before using in production code
-        // The current implementation encodes the histogram into the format we use for storage on disk
-        // This format is optimized for minimal memory usage at the cost of encoding speed
-        // In addition, it only support storing the zero threshold as a double value, which is lossy when merging histograms
-        // We should add a dedicated encoding when building a block from computed histograms which do not originate from doc values
-        // That encoding should be optimized for speed and support storing the zero threshold as (scale, index) pair
-        ZeroBucket zeroBucket = histogram.zeroBucket();
-        assert zeroBucket.compareZeroThreshold(ZeroBucket.minimalEmpty()) == 0 || zeroBucket.isIndexBased() == false
-            : "Current encoding only supports double-based zero thresholds";
-
-        BytesStreamOutput encodedBytes = new BytesStreamOutput();
-        try {
-            CompressedExponentialHistogram.writeHistogramBytes(
-                encodedBytes,
-                histogram.scale(),
-                histogram.negativeBuckets().iterator(),
-                histogram.positiveBuckets().iterator()
-            );
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to encode histogram", e);
-        }
-        return encodedBytes.bytes().toBytesRef();
     }
 
     private boolean assertInvariants() {
@@ -106,38 +79,18 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         return List.of(sums, valueCounts, zeroThresholds, encodedHistograms, minima, maxima);
     }
 
-    @Override
-    public ExponentialHistogram getExponentialHistogram(int valueIndex) {
-        return accessor().getExponentialHistogram(valueIndex);
-    }
-
-    @Override
-    public Accessor accessor() {
-        BytesRef bytesRef = new BytesRef();
-        CompressedExponentialHistogram reusedHistogram = new CompressedExponentialHistogram();
-        return new Accessor() {
-            @Override
-            public ExponentialHistogram getExponentialHistogram(int valueIndex) {
-
-                // we don't support multivalues (yet) so valueIndex == position
-                if (isNull(valueIndex)) {
-                    return null;
-                }
-
-                BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), bytesRef);
-                double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
-                long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
-                double sum = sums.getDouble(sums.getFirstValueIndex(valueIndex));
-                double min = valueCount == 0 ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(valueIndex));
-                double max = valueCount == 0 ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(valueIndex));
-                try {
-                    reusedHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
-                } catch (IOException e) {
-                    throw new IllegalStateException("error loading histogram", e);
-                }
-                return reusedHistogram;
-            }
-        };
+    void loadAtPostion(int position, CompressedExponentialHistogram resultHistogram, BytesRef tempBytesRef) {
+        BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(position), tempBytesRef);
+        double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(position));
+        long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(position));
+        double sum = sums.getDouble(sums.getFirstValueIndex(position));
+        double min = valueCount == 0 ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(position));
+        double max = valueCount == 0 ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(position));
+        try {
+            resultHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
+        } catch (IOException e) {
+            throw new IllegalStateException("error loading histogram", e);
+        }
     }
 
     @Override

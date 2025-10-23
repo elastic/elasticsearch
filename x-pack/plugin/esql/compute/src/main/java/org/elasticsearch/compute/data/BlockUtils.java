@@ -311,7 +311,8 @@ public final class BlockUtils {
                 );
             }
             case EXPONENTIAL_HISTOGRAM -> {
-                ExponentialHistogram histogram = ((ExponentialHistogramArrayBlock) block).getExponentialHistogram(offset);
+                ExponentialHistogramBlock histoBlock = (ExponentialHistogramBlock) block;
+                ExponentialHistogram histogram = new ExponentialHistogramBlockAccessor(histoBlock).get(offset);
                 // return a copy so that the returned value is not bound to the lifetime of the block
                 yield ExponentialHistogram.builder(histogram, ExponentialHistogramCircuitBreaker.noop()).build();
             }

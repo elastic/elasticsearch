@@ -14,7 +14,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.util.BitSet;
@@ -473,46 +472,13 @@ public class BlockFactory {
         return new ExponentialHistogramBlockBuilder(estimatedSize, this);
     }
 
-    public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram histogram, int positionCount) {
-        assert histogram != null;
-
-        DoubleBlock minima = null;
-        DoubleBlock maxima = null;
-        DoubleBlock sums = null;
-        LongBlock valueCounts = null;
-        DoubleBlock zeroThresholds = null;
-        BytesRefBlock encodedHistograms = null;
-        boolean success = false;
-        try {
-            if (Double.isNaN(histogram.min())) {
-                minima = (DoubleBlock) newConstantNullBlock(positionCount);
-            } else {
-                minima = newConstantDoubleBlockWith(histogram.min(), positionCount);
+    public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
+        try (ExponentialHistogramBlockBuilder builder = newExponentialHistogramBlockBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                builder.append(value);
             }
-            if (Double.isNaN(histogram.max())) {
-                maxima = (DoubleBlock) newConstantNullBlock(positionCount);
-            } else {
-                maxima = newConstantDoubleBlockWith(histogram.max(), positionCount);
-            }
-            sums = newConstantDoubleBlockWith(histogram.sum(), positionCount);
-            valueCounts = newConstantLongBlockWith(histogram.valueCount(), positionCount);
-            zeroThresholds = newConstantDoubleBlockWith(histogram.zeroBucket().zeroThreshold(), positionCount);
-
-            // TODO: ConstantBytesRefBlock does not support deserialization yet, so we can't use it here
-            BytesRef encoded = ExponentialHistogramArrayBlock.encodeHistogramBytes(histogram);
-            try (BytesRefBlock.Builder bytesBuilder = newBytesRefBlockBuilder(positionCount)) {
-                for (int i = 0; i < positionCount; i++) {
-                    bytesBuilder.appendBytesRef(encoded);
-                }
-                encodedHistograms = bytesBuilder.build();
-            }
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
-            }
+            return builder.build();
         }
-        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
     }
 
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(

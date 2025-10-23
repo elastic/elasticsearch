@@ -7,8 +7,13 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
+
+import java.io.IOException;
 
 public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
@@ -57,6 +62,27 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
     public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
         assert histogram != null;
+        // TODO: fix performance and correctness before using in production code
+        // The current implementation encodes the histogram into the format we use for storage on disk
+        // This format is optimized for minimal memory usage at the cost of encoding speed
+        // In addition, it only support storing the zero threshold as a double value, which is lossy when merging histograms
+        // We should add a dedicated encoding when building a block from computed histograms which do not originate from doc values
+        // That encoding should be optimized for speed and support storing the zero threshold as (scale, index) pair
+        ZeroBucket zeroBucket = histogram.zeroBucket();
+        assert zeroBucket.compareZeroThreshold(ZeroBucket.minimalEmpty()) == 0 || zeroBucket.isIndexBased() == false
+            : "Current encoding only supports double-based zero thresholds";
+
+        BytesStreamOutput encodedBytes = new BytesStreamOutput();
+        try {
+            CompressedExponentialHistogram.writeHistogramBytes(
+                encodedBytes,
+                histogram.scale(),
+                histogram.negativeBuckets().iterator(),
+                histogram.positiveBuckets().iterator()
+            );
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to encode histogram", e);
+        }
         if (Double.isNaN(histogram.min())) {
             minimaBuilder.appendNull();
         } else {
@@ -69,8 +95,8 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
         }
         sumsBuilder.appendDouble(histogram.sum());
         valueCountsBuilder.appendLong(histogram.valueCount());
-        zeroThresholdsBuilder.appendDouble(histogram.zeroBucket().zeroThreshold());
-        encodedHistogramsBuilder.appendBytesRef(ExponentialHistogramArrayBlock.encodeHistogramBytes(histogram));
+        zeroThresholdsBuilder.appendDouble(zeroBucket.zeroThreshold());
+        encodedHistogramsBuilder.appendBytesRef(encodedBytes.bytes().toBytesRef());
         return this;
     }
 

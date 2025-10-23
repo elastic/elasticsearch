@@ -72,11 +72,6 @@ Vector Search:
 * Cardinality Aggregator Throws `UnsupportedOperationException` When Field Type is Vector [#135994](https://github.com/elastic/elasticsearch/pull/135994)
 
 
-
-## 9.0.8 [elasticsearch-9.0.8-release-notes]
-
-### Highlights [elasticsearch-9.0.8-highlights]
-
 ## 9.2.0 [elasticsearch-9.2.0-release-notes]
 
 ### Highlights [elasticsearch-9.2.0-highlights]

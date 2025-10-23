@@ -25,6 +25,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -38,7 +39,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRemoteClusterSecurityTestCase {
 
-    private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
+    private static final AtomicReference<Map<String, Object>> MY_REMOTE_API_KEY_MAP_REF = new AtomicReference<>();
+    private static final String TEST_ACCESS_JSON = """
+        {
+            "search": [
+              {
+                "names": ["index*", "not_found_index"]
+              }
+            ]
+        }""";
+    private static final String[] MATCHING_CERTIFICATE_IDENTITY_PATTERNS = new String[] {
+        "CN=instance",
+        "^CN=instance$",
+        "(?i)" + "^CN=instance$",
+        "^CN=[A-Za-z0-9_]+$" };
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -49,8 +63,12 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
+            .setting("xpack.security.audit.enabled", "true")
+            .setting(
+                "xpack.security.audit.logfile.events.include",
+                "[authentication_success, authentication_failed, access_denied, access_granted]"
+            )
             .configFile("signing_ca.crt", Resource.fromClasspath("signing/root.crt"))
-            .setting("cluster.remote.signing.certificate_authorities", "signing_ca.crt")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
             .build();
 
@@ -60,22 +78,14 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .configFile("signing.crt", Resource.fromClasspath("signing/signing.crt"))
-            .setting("cluster.remote.my_remote_cluster.signing.certificate", "signing.crt")
             .configFile("signing.key", Resource.fromClasspath("signing/signing.key"))
-            .setting("cluster.remote.my_remote_cluster.signing.key", "signing.key")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
-                if (API_KEY_MAP_REF.get() == null) {
-                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                        {
-                            "search": [
-                              {
-                                "names": ["index*", "not_found_index"]
-                              }
-                            ]
-                        }""");
-                    API_KEY_MAP_REF.set(apiKeyMap);
+                if (MY_REMOTE_API_KEY_MAP_REF.get() == null) {
+                    MY_REMOTE_API_KEY_MAP_REF.set(
+                        createCrossClusterAccessApiKey(TEST_ACCESS_JSON, randomFrom(MATCHING_CERTIFICATE_IDENTITY_PATTERNS))
+                    );
                 }
-                return (String) API_KEY_MAP_REF.get().get("encoded");
+                return (String) MY_REMOTE_API_KEY_MAP_REF.get().get("encoded");
             })
             .keystore("cluster.remote.invalid_remote.credentials", randomEncodedApiKey())
             .build();
@@ -86,33 +96,113 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterSearchWithCrossClusterApiKeySigning() throws Exception {
-        indexTestData();
-        assertCrossClusterSearchSuccessfulWithResult();
-
-        // Change the CA to something that doesn't trust the signing cert
-        updateClusterSettingsFulfillingCluster(
-            Settings.builder().put("cluster.remote.signing.certificate_authorities", "transport-ca.crt").build()
+        updateClusterSettings(
+            Settings.builder()
+                .put("cluster.remote.my_remote_cluster.signing.certificate", "signing.crt")
+                .put("cluster.remote.my_remote_cluster.signing.key", "signing.key")
+                .build()
         );
-        assertCrossClusterAuthFail();
 
-        // Update settings on query cluster to ignore unavailable remotes
-        updateClusterSettings(Settings.builder().put("cluster.remote.my_remote_cluster.skip_unavailable", Boolean.toString(true)).build());
+        updateClusterSettingsFulfillingCluster(
+            Settings.builder().put("cluster.remote.signing.certificate_authorities", "signing_ca.crt").build()
+        );
 
-        assertCrossClusterSearchSuccessfulWithoutResult();
+        indexTestData();
 
-        // TODO add test for certificate identity configured for API key but no signature provided (should 401)
+        // Make sure we can search if cert trusted
+        {
+            assertCrossClusterSearchSuccessfulWithResult();
+        }
 
-        // TODO add test for certificate identity not configured for API key but signature provided (should 200)
+        // Test CA that does not trust cert
+        {
+            // Change the CA to something that doesn't trust the signing cert
+            updateClusterSettingsFulfillingCluster(
+                Settings.builder().put("cluster.remote.signing.certificate_authorities", "transport-ca.crt").build()
+            );
+            assertCrossClusterAuthFail("Failed to verify cross cluster api key signature certificate from [(");
 
-        // TODO add test for certificate identity not configured for API key but wrong signature provided (should 401)
+            // Change the CA to the default trust store
+            updateClusterSettingsFulfillingCluster(Settings.builder().putNull("cluster.remote.signing.certificate_authorities").build());
+            assertCrossClusterAuthFail("Failed to verify cross cluster api key signature certificate from [(");
 
-        // TODO add test for certificate identity regex matching (should 200)
+            // Update settings on query cluster to ignore unavailable remotes
+            updateClusterSettings(
+                Settings.builder().put("cluster.remote.my_remote_cluster.skip_unavailable", Boolean.toString(true)).build()
+            );
+            assertCrossClusterSearchSuccessfulWithoutResult();
+
+            // Reset skip_unavailable
+            updateClusterSettings(
+                Settings.builder().put("cluster.remote.my_remote_cluster.skip_unavailable", Boolean.toString(false)).build()
+            );
+
+            // Reset ca cert
+            updateClusterSettingsFulfillingCluster(
+                Settings.builder().put("cluster.remote.signing.certificate_authorities", "signing_ca.crt").build()
+            );
+            // Confirm reset was successful
+            assertCrossClusterSearchSuccessfulWithResult();
+        }
+
+        // Test no signature provided
+        {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull("cluster.remote.my_remote_cluster.signing.certificate")
+                    .putNull("cluster.remote.my_remote_cluster.signing.key")
+                    .build()
+            );
+
+            assertCrossClusterAuthFail(
+                "API key (type:[cross_cluster], id:["
+                    + MY_REMOTE_API_KEY_MAP_REF.get().get("id")
+                    + "]) requires certificate identity matching ["
+            );
+
+            // Reset
+            updateClusterSettings(
+                Settings.builder()
+                    .put("cluster.remote.my_remote_cluster.signing.certificate", "signing.crt")
+                    .put("cluster.remote.my_remote_cluster.signing.key", "signing.key")
+                    .build()
+            );
+        }
+
+        // Test API key without certificate identity and send signature anyway
+        {
+            updateCrossClusterAccessApiKey(null);
+            assertCrossClusterSearchSuccessfulWithResult();
+
+            // Change the CA to the default trust store to make sure untrusted signature fails auth even if it's not required
+            updateClusterSettingsFulfillingCluster(Settings.builder().putNull("cluster.remote.signing.certificate_authorities").build());
+            assertCrossClusterAuthFail("Failed to verify cross cluster api key signature certificate from [(");
+
+            // Reset
+            updateClusterSettingsFulfillingCluster(
+                Settings.builder().put("cluster.remote.signing.certificate_authorities", "signing_ca.crt").build()
+            );
+            updateCrossClusterAccessApiKey(randomFrom(MATCHING_CERTIFICATE_IDENTITY_PATTERNS));
+        }
+
+        // Test API key with non-matching certificate identity is rejected
+        {
+            var nonMatchingCertificateIdentity = randomFrom("", "no-match", "^CN= instance$", "^CN=instance.$", "^cn=instance$");
+            updateCrossClusterAccessApiKey(nonMatchingCertificateIdentity);
+            assertCrossClusterAuthFail(
+                "DN from provided certificate [CN=instance] does not match API Key certificate identity pattern ["
+                    + nonMatchingCertificateIdentity
+                    + "]"
+            );
+            // Reset
+            updateCrossClusterAccessApiKey(randomFrom(MATCHING_CERTIFICATE_IDENTITY_PATTERNS));
+        }
     }
 
-    private void assertCrossClusterAuthFail() {
+    private void assertCrossClusterAuthFail(String expectedMessage) {
         var responseException = assertThrows(ResponseException.class, () -> simpleCrossClusterSearch(randomBoolean()));
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-        assertThat(responseException.getMessage(), containsString("Failed to verify cross cluster api key signature certificate from [("));
+        assertThat(responseException.getMessage(), containsString(expectedMessage));
     }
 
     private void assertCrossClusterSearchSuccessfulWithoutResult() throws IOException {
@@ -226,5 +316,47 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
     private Response performRequestWithRemoteAccessUser(final Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(REMOTE_SEARCH_USER, PASS)));
         return client().performRequest(request);
+    }
+
+    protected static Map<String, Object> createCrossClusterAccessApiKey(String accessJson, String certificateIdentity) {
+        initFulfillingClusterClient();
+        final var createCrossClusterApiKeyRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createCrossClusterApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "cross_cluster_access_key",
+              "certificate_identity": "%s",
+              "access": %s
+            }""", certificateIdentity, accessJson));
+        try {
+            final Response createCrossClusterApiKeyResponse = performRequestWithAdminUser(
+                fulfillingClusterClient,
+                createCrossClusterApiKeyRequest
+            );
+            assertOK(createCrossClusterApiKeyResponse);
+            return responseAsMap(createCrossClusterApiKeyResponse);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    protected static Map<String, Object> updateCrossClusterAccessApiKey(String certificateIdentity) {
+        initFulfillingClusterClient();
+        final var createCrossClusterApiKeyRequest = new Request(
+            "PUT",
+            "/_security/cross_cluster/api_key/" + MY_REMOTE_API_KEY_MAP_REF.get().get("id")
+        );
+        createCrossClusterApiKeyRequest.setJsonEntity(
+            "{\"certificate_identity\": " + (certificateIdentity != null ? "\"" + certificateIdentity + "\"" : "null") + "}"
+        );
+        try {
+            final Response createCrossClusterApiKeyResponse = performRequestWithAdminUser(
+                fulfillingClusterClient,
+                createCrossClusterApiKeyRequest
+            );
+            assertOK(createCrossClusterApiKeyResponse);
+            return responseAsMap(createCrossClusterApiKeyResponse);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

@@ -689,7 +689,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     ShardSearchFailure shardSearchFailure = pitIdsToUpdate.get(
                         new RetriedPitShard(shardId, originalShard.getClusterAlias())
                     );
-                    if (shardSearchFailure != null && isExceptionFromRetriedPit(shardSearchFailure)) {
+                    if (shardSearchFailure == null || isExceptionFromRetriedPit(shardSearchFailure)) {
                         idChanged = true;
                         if (updatedShardMap == null) {
                             // initialize the map with entries from old map to keep ids for shards that have not responded in this results

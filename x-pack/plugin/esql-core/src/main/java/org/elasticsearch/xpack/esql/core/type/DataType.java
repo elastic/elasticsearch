@@ -338,7 +338,7 @@ public enum DataType implements Writeable {
 
     EXPONENTIAL_HISTOGRAM(
         builder().esType("exponential_histogram")
-            .estimatedSize(16 * 180)// guess 180 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
+            .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
             .underConstruction()
     ),

@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -20,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAttributeSupplier;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,15 +62,17 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
     )
     public TBucket(
         Source source,
-        @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets
+        @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets,
+        Expression timestamp
     ) {
-        this(source, buckets, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD));
-    }
-
-    public TBucket(Source source, Expression buckets, Expression timestamp) {
         super(source, List.of(buckets, timestamp));
         this.buckets = buckets;
         this.timestamp = timestamp;
+    }
+
+    // needs to remain the 2nd c'tor, as it has same number of arguments as the first one (arrangement required by EsqlNodeSubclassTests)
+    public TBucket(Source source, Expression buckets, TimestampAttributeSupplier timestampSupplier) {
+        this(source, buckets, timestampSupplier.timestampAttribute());
     }
 
     @Override

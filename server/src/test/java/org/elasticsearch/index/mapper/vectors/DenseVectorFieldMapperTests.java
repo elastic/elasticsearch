@@ -2766,6 +2766,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + (setM ? m : DEFAULT_MAX_CONN)
             + ", beamWidth="
             + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
+            + ", tinySegmentsThreshold=0"
             + ", flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
             + ")";
         assertEquals(expectedString, knnVectorsFormat.toString());

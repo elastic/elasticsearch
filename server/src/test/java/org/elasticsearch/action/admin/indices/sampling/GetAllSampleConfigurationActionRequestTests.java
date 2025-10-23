@@ -25,7 +25,7 @@ public class GetAllSampleConfigurationActionRequestTests extends ESTestCase {
     protected GetAllSampleConfigurationAction.Request createTestInstance() {
         return new GetAllSampleConfigurationAction.Request(randomBoundedTimeValue());
     }
-    
+
     public void testGettersAndSetters() {
         TimeValue timeout = randomBoundedTimeValue();
         GetAllSampleConfigurationAction.Request request = new GetAllSampleConfigurationAction.Request(timeout);

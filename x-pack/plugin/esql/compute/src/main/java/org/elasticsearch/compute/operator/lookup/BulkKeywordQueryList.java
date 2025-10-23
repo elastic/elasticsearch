@@ -10,7 +10,9 @@ package org.elasticsearch.compute.operator.lookup;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.Block;
@@ -21,6 +23,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.AliasFilter;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.IntFunction;
 
 public class BulkKeywordQueryList {
@@ -32,6 +38,9 @@ public class BulkKeywordQueryList {
     private final Warnings warnings;
     private final String fieldName;
     private final IntFunction<Object> blockValueReader;
+
+    private final Map<LeafReaderContext, TermsEnum> termsEnumCache = new HashMap<>();
+    private final Map<LeafReaderContext, PostingsEnum> postingsCache = new HashMap<>();
 
     public BulkKeywordQueryList(
         MappedFieldType rightFieldType,
@@ -73,13 +82,36 @@ public class BulkKeywordQueryList {
             BytesRef termBytes = block.getBytesRef(firstValueIndex, new BytesRef());
             int totalMatches = 0;
             for (LeafReaderContext leafContext : indexReader.leaves()) {
-                final TermsEnum termsEnum = leafContext.reader().terms(fieldName).iterator();
+                TermsEnum termsEnum = termsEnumCache.computeIfAbsent(leafContext, ctx -> {
+                    try {
+                        Terms terms = ctx.reader().terms(fieldName);
+                        return terms != null ? terms.iterator() : null;
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+
                 if (termsEnum.seekExact(termBytes) == false) {
                     continue; // Term doesn't exist in this segment
                 }
-                PostingsEnum postings = termsEnum.postings(null, 0);
+                PostingsEnum postings = postingsCache.computeIfAbsent(leafContext, ctx -> {
+                    try {
+                        return termsEnum.postings(null, 0);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+
+                // Reset the postings to the current term (reuse the cached PostingsEnum)
+                postings = termsEnum.postings(postings, 0);
+
+                Bits liveDocs = leafContext.reader().getLiveDocs();
                 int docId;
                 while ((docId = postings.nextDoc()) != PostingsEnum.NO_MORE_DOCS) {
+                    // Check if document is not deleted
+                    if (liveDocs != null && liveDocs.get(docId) == false) {
+                        continue; // Skip deleted documents
+                    }
                     docsBuilder.appendInt(docId);
                     if (segmentsBuilder != null) {
                         segmentsBuilder.appendInt(leafContext.ord);

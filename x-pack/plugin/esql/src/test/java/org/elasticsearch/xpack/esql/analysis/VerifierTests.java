@@ -2816,14 +2816,11 @@ public class VerifierTests extends ESTestCase {
     public void testChunkFunctionWithNullInputs() {
         query("from test | eval chunks = chunk(body, null, 20)", fullTextAnalyzer);
         query("from test | eval chunks = chunk(body, 5, null)", fullTextAnalyzer);
+        query("from test | eval chunks = chunk(null, 5, 20)", fullTextAnalyzer);
     }
 
     public void testChunkFunctionInvalidInputs() {
         if (EsqlCapabilities.Cap.CHUNK_FUNCTION.isEnabled()) {
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(null)", fullTextAnalyzer),
-                equalTo("1:27: first argument of [CHUNK(null)] cannot be null, received [null]")
-            );
             assertThat(
                 error("from test | EVAL chunks = CHUNK(body, \"foo\", 20)", fullTextAnalyzer),
                 equalTo("1:39: Cannot convert string [foo] to [INTEGER], error [Cannot parse number [foo]]")

@@ -117,10 +117,6 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isNotNull(field(), sourceText(), FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
 
         if (numChunks() != null) {
             resolution = TypeResolutions.isType(numChunks(), dt -> dt == INTEGER, sourceText(), SECOND, "integer");

@@ -54,8 +54,9 @@ import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.Types;
-import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.elasticsearch.libs.arrow.Arrow;
 import org.elasticsearch.test.ESTestCase;
@@ -255,7 +256,7 @@ public class ArrowToXContentTests extends ESTestCase {
             vector.allocateNew(3);
             vector.set(0, 0); // 0 is false, other values are true
             vector.set(1, 1);
-            vector.set(1, 2);
+            vector.set(2, 2);
             vector.setValueCount(3);
             checkPosition(vector, 0, "{\"bitField\":false}");
             checkPosition(vector, 1, "{\"bitField\":true}");
@@ -447,7 +448,7 @@ public class ArrowToXContentTests extends ESTestCase {
     public void testDuration() throws IOException {
         var millis = randomLongBetween(-1_000_000L, 1_000_000L);
 
-        try (var vector = new DurationVector(new Field("field", FieldType.nullable(Types.MinorType.DURATION.getType()), null), allocator)) {
+        try (var vector = new DurationVector("field", FieldType.nullable(new ArrowType.Duration(TimeUnit.SECOND)), allocator)) {
             vector.allocateNew(1);
             vector.set(0, millis / 1000L);
             vector.setValueCount(1);

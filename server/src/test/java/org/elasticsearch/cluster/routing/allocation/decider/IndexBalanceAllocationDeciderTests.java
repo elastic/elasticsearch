@@ -237,13 +237,47 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             ShardRoutingState.STARTED
         );
 
+        ShardRouting replicaIndexShardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 1),
+            searchNodeTwo.getId(),
+            null,
+            false,
+            ShardRoutingState.STARTED
+        );
+
         assertDecisionMatches(
-            "Assigning a new shard to a node that is not index or search node should succeed",
+            "Assigning a shard to a node that is not index or search node should succeed",
             indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingMasterNode, routingAllocation),
             Decision.Type.YES,
             "Node has neither index nor search roles, outside purview."
         );
 
+        for (RoutingNode routingNode : List.of(routingSearchNodeOne, routingSearchNodeTwo)) {
+            assertDecisionMatches(
+                "Assigning a new primary shard to a search node should succeed",
+                indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingNode, routingAllocation),
+                Decision.Type.YES,
+                "Decider allows primaries move to search nodes."
+            );
+        }
+
+        for (RoutingNode routingNode : List.of(routingSearchNodeOne, routingSearchNodeTwo)) {
+            assertDecisionMatches(
+                "Assigning a primary shard to a search node should succeed",
+                indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingNode, routingAllocation),
+                Decision.Type.YES,
+                "Decider allows primaries move to search nodes."
+            );
+        }
+
+        for (RoutingNode routingNode : List.of(routingIndexNodeOne, routingIndexNodeTwo)) {
+            assertDecisionMatches(
+                "Assigning a replica shard to a search node should succeed",
+                indexBalanceAllocationDecider.canAllocate(replicaIndexShardRouting, routingNode, routingAllocation),
+                Decision.Type.YES,
+                "Decider allows replicas move to index nodes."
+            );
+        }
 
     }
 

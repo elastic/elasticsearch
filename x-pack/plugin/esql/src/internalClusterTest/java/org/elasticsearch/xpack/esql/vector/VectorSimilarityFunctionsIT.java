@@ -156,12 +156,12 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testSimilarityWithOneDimVector() {
         final float oneDimFloat = randomFloat();
-        final float[] randomVector = randomVectorArray(1);
+        var randomVector = randomVector(1);
         var query = String.format(Locale.ROOT, """
                 ROW left_vector = to_dense_vector(%s)
                 | EVAL similarity = %s(left_vector, %f)
                 | KEEP left_vector, similarity
-            """, Arrays.toString(randomVector), functionName, oneDimFloat);
+            """, randomVector, functionName, oneDimFloat);
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             valuesList.forEach(values -> {

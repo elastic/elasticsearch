@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -21,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
-import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -30,12 +27,6 @@ import static java.util.Collections.emptyList;
  * Similar to {@link StdDev}, but it is used to calculate the standard deviation over a time series of values from the given field.
  */
 public class StdDevOverTime extends TimeSeriesAggregateFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "StdDevOverTime",
-        StdDevOverTime::new
-    );
-
     @FunctionInfo(
         returnType = "double",
         description = "Calculates the population standard deviation over time of a numeric field.",
@@ -59,10 +50,6 @@ public class StdDevOverTime extends TimeSeriesAggregateFunction {
         super(source, field, filter, emptyList());
     }
 
-    private StdDevOverTime(StreamInput in) throws IOException {
-        super(in);
-    }
-
     @Override
     protected TypeResolution resolveType() {
         return perTimeSeriesAggregation().resolveType();
@@ -70,7 +57,7 @@ public class StdDevOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("StdDevOverTime does not have a writeable name");
     }
 
     @Override

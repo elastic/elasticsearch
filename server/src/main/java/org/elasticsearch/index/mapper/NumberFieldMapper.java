@@ -458,7 +458,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     HalfFloatDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -652,7 +652,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     FloatDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -812,7 +812,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     DoubleDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -946,7 +946,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     ByteDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -1074,7 +1074,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     ShortDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -1276,7 +1276,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     IntegerDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -1438,7 +1438,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     LongDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 

@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -141,11 +140,12 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         used.addAll(ij.references());
         var right = pruneColumns(ij.right(), used, true);
         if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
-            // InlineJoin updates the order of the output, so even if the computation is dropped, the groups need to be pulled to the end
+            // InlineJoin updates the order of the output, so even if the computation is dropped, the groups need to be pulled to the end.
+            // So we keep just the left side of the join (i.e. drop the computations), but place a Project on top to keep the right order.
             List<Attribute> newOutput = new ArrayList<>(ij.output());
             AttributeSet leftOutputSet = ij.left().outputSet();
             newOutput.removeIf(attr -> leftOutputSet.contains(attr) == false);
-            p = new EsqlProject(ij.source(), ij.left(), newOutput);
+            p = new Project(ij.source(), ij.left(), newOutput);
             recheck.set(true);
         } else if (right != ij.right()) {
             // if the right side has been updated, replace it

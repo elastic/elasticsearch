@@ -1677,6 +1677,44 @@ birth_date:date         |orig_emp_no:integer|salary:integer |emp_no:date
 1959-12-03T00:00:00.000Z|10003              |61805          |1959-12-03T00:00:00.000Z
 ;
 
+inlineStatsWithShadowedOutput4
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c), e = AVG(b) by b
+| EVAL a = c, d = 2, e = a
+;
+
+c:keyword      |b:integer      |a:keyword      |d:integer      |e:keyword
+x              |0              |x              |2              |x
+;
+
+inlineStatsWithShadowedOutput5
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c), e = AVG(b), a = MIN(b) by b
+| EVAL a = c, d = 2, e = a
+;
+warning:Line 2:16: Field 'a' shadowed by field at line 2:52
+
+c:keyword      |b:integer      |a:keyword      |d:integer      |e:keyword
+x              |0              |x              |2              |x
+;
+
+inlineStatsWithShadowedOutput6
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c), e = AVG(b), a = MIN(b), f = MAX(b) by b
+| EVAL a = c, d = 2, e = a, f = d
+;
+warning:Line 2:16: Field 'a' shadowed by field at line 2:52
+
+c:keyword      |b:integer      |a:keyword      |d:integer      |e:keyword      |f:integer
+x              |0              |x              |2              |x              |2
+;
+
 tripleInlineStatsMultipleAssignmentsGetsPrunedPartially
 required_capability: inline_stats_prune_column_fix
 

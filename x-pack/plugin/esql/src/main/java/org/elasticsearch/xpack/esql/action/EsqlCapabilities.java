@@ -1529,7 +1529,7 @@ public class EsqlCapabilities {
         /**
          * Fix pruning of columns when shadowed in INLINE STATS
          */
-        INLINE_STATS_PRUNE_COLUMN_FIX(INLINESTATS_V11.enabled),
+        INLINE_STATS_PRUNE_COLUMN_FIX(INLINESTATS.enabled),
 
         /**
          * Fix double release in inline stats when LocalRelation is reused

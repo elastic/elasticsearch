@@ -2959,6 +2959,26 @@ public class VerifierTests extends ESTestCase {
             [STATS max(network.connections)] is not allowed"""));
     }
 
+    public void testTRangeFailures() {
+        assertThat(error("TS test | WHERE TRANGE(-1h) | KEEP @timestamp", tsdb), equalTo("1:24: start_time_or_offset cannot be negative"));
+
+        assertThat(error("TS test | WHERE TRANGE(\"2024-05-10T00:17:14.000Z\") | KEEP @timestamp", tsdb), equalTo("""
+            1:17: first argument of [TRANGE("2024-05-10T00:17:14.000Z")] must be [time_duration or date_period], \
+            found value ["2024-05-10T00:17:14.000Z"] type [keyword]"""));
+
+        assertThat(error("TS test | WHERE TRANGE(1 hour, 2 hours) | KEEP @timestamp", tsdb), equalTo("""
+            1:17: first argument of [TRANGE(1 hour, 2 hours)] must be [string, long, date or date_nanos], \
+            found value [1 hour] type [time_duration]"""));
+
+        assertThat(error("TS test | WHERE TRANGE(1715300236000, \"2024-05-10T00:17:14.000Z\") | KEEP @timestamp", tsdb), equalTo("""
+            1:17: second argument of [TRANGE(1715300236000, "2024-05-10T00:17:14.000Z")] must be [long], \
+            found value ["2024-05-10T00:17:14.000Z"] type [keyword]"""));
+
+        assertThat(error("TS test | WHERE TRANGE(\"2024-05-10T00:17:14.000Z\", 1 hour) | KEEP @timestamp", tsdb), equalTo("""
+            1:17: second argument of [TRANGE("2024-05-10T00:17:14.000Z", 1 hour)] must be [keyword], \
+            found value [1 hour] type [time_duration]"""));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

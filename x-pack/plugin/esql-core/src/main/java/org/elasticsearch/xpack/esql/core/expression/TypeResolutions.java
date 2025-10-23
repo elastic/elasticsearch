@@ -93,11 +93,7 @@ public final class TypeResolutions {
         );
     }
 
-    public static TypeResolution isRepresentableExceptUnsortableTypes(
-        Expression e,
-        String operationName,
-        ParamOrdinal paramOrd
-    ) {
+    public static TypeResolution isRepresentableExceptUnsortableTypes(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(
             e,
             (t) -> isSpatialOrGrid(t) == false

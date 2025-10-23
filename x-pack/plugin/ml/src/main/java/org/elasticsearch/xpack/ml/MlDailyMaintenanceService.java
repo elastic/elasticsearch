@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -390,7 +391,7 @@ public class MlDailyMaintenanceService implements Releasable {
         try {
             updated.actionGet();
         } catch (Exception ex) {
-            String message = String.format("Failed to rollover ML anomalies index [%s]: %s", index, ex.getMessage());
+            String message = Strings.format("Failed to rollover ML anomalies index [%s]: %s", index, ex.getMessage());
             logger.warn(message);
             if (ex instanceof ElasticsearchException elasticsearchException) {
                 failures.add(new ElasticsearchStatusException(message, elasticsearchException.status(), elasticsearchException));

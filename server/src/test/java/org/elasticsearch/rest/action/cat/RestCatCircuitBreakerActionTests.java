@@ -13,10 +13,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,6 +33,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,17 +48,18 @@ public class RestCatCircuitBreakerActionTests extends RestActionTestCase {
 
     private RestCatCircuitBreakerAction action;
     private NodeClient nodeClient;
+    private NodesStatsResponse nodeStatsResponse;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         action = new RestCatCircuitBreakerAction();
-        ClusterStateResponse clusterStateResponse = createClusterStateResponse();
-        NodesStatsResponse nodeStatsResponse = mock(NodesStatsResponse.class);
+        nodeStatsResponse = mock(NodesStatsResponse.class);
         List<NodeStats> allNodeStats = createNodeStatsList();
         when(nodeStatsResponse.getNodes()).thenReturn(allNodeStats);
+        when(nodeStatsResponse.failures()).thenReturn(Collections.emptyList());
         try (var threadPool = createThreadPool()) {
-            nodeClient = buildNodeClient(threadPool, clusterStateResponse, nodeStatsResponse);
+            nodeClient = buildNodeClient(threadPool, nodeStatsResponse);
         }
     }
 
@@ -85,6 +87,7 @@ public class RestCatCircuitBreakerActionTests extends RestActionTestCase {
         assertThat(channel.responses().get(), equalTo(1));
         try (RestResponse response = channel.capturedResponse()) {
             assertThat(response.status(), equalTo(RestStatus.OK));
+            assertFalse(response.getHeaders().containsKey("Warning"));
             String responseContent = RestResponseUtils.getBodyContent(response).utf8ToString();
             assertEquals(
                 "node-1 request 1.4mb 750kb 0\n"
@@ -108,18 +111,37 @@ public class RestCatCircuitBreakerActionTests extends RestActionTestCase {
         assertThat(channel.responses().get(), equalTo(1));
         try (RestResponse response = channel.capturedResponse()) {
             assertThat(response.status(), equalTo(RestStatus.OK));
+            assertFalse(response.getHeaders().containsKey("Warning"));
             String responseContent = RestResponseUtils.getBodyContent(response).utf8ToString();
             assertEquals("node-1 request 1.4mb 750kb 0\n" + "node-2 request 1.4mb 1.3mb 25\n", responseContent);
         }
     }
 
-    private ClusterStateResponse createClusterStateResponse() {
-        DiscoveryNode node1 = createDiscoveryNode("node-1", "test-node-1");
-        DiscoveryNode node2 = createDiscoveryNode("node-2", "test-node-2");
-        DiscoveryNode node3 = createDiscoveryNode("node-3", "test-node-3");
-        DiscoveryNodes discoveryNodes = createDiscoveryNodes(node1, node2, node3);
-        ClusterState clusterState = createClusterState(discoveryNodes);
-        return createClusterStateResponse(clusterState);
+    public void testRestCatCircuitBreakerActionError() throws Exception {
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(GET)
+            .withPath("/_cat/circuit_breaker")
+            .build();
+        FakeRestChannel channel = new FakeRestChannel(restRequest, true, 0);
+
+        when(nodeStatsResponse.failures()).thenReturn(List.of(new FailedNodeException("failed-node", "error message", new Throwable())));
+
+        action.handleRequest(restRequest, channel, nodeClient);
+
+        assertThat(channel.responses().get(), equalTo(1));
+        try (RestResponse response = channel.capturedResponse()) {
+            assertThat(response.status(), equalTo(RestStatus.OK));
+            assertTrue(response.getHeaders().containsKey("Warning"));
+            assertEquals("Partial success, missing info from 1 nodes.", response.getHeaders().get("Warning").getFirst());
+            String responseContent = RestResponseUtils.getBodyContent(response).utf8ToString();
+            assertEquals(
+                "node-1      request       1.4mb 750kb 0\n"
+                    + "node-1      normal        2.4mb 1.2mb 1\n"
+                    + "node-2      request       1.4mb 1.3mb 25\n"
+                    + "node-3      big           1.5gb 768mb 5\n"
+                    + "failed-node error message N/A   N/A   N/A\n",
+                responseContent
+            );
+        }
     }
 
     private DiscoveryNode createDiscoveryNode(final String nodeId, final String nodeName) {
@@ -198,11 +220,7 @@ public class RestCatCircuitBreakerActionTests extends RestActionTestCase {
         return allStats;
     }
 
-    private NoOpNodeClient buildNodeClient(
-        ThreadPool threadPool,
-        ClusterStateResponse clusterStateResponse,
-        NodesStatsResponse nodesStatsResponse
-    ) {
+    private NoOpNodeClient buildNodeClient(ThreadPool threadPool, NodesStatsResponse nodesStatsResponse) {
         return new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
@@ -211,9 +229,7 @@ public class RestCatCircuitBreakerActionTests extends RestActionTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                if (request instanceof ClusterStateRequest) {
-                    listener.onResponse((Response) clusterStateResponse);
-                } else if (request instanceof NodesStatsRequest) {
+                if (request instanceof NodesStatsRequest) {
                     listener.onResponse((Response) nodesStatsResponse);
                 } else {
                     throw new AssertionError(String.format(Locale.ROOT, "Unexpected action type: %s request: %s", action, request));

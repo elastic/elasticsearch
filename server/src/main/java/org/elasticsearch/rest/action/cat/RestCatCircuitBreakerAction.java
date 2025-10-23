@@ -9,14 +9,12 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -25,7 +23,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
@@ -33,7 +30,6 @@ import java.util.Set;
 
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestCatCircuitBreakerAction extends AbstractCatAction {
@@ -63,22 +59,17 @@ public class RestCatCircuitBreakerAction extends AbstractCatAction {
 
     @Override
     protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
-        clusterStateRequest.clear().nodes(true);
+        NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(); // Empty nodes array sends request to all nodes.
+        nodesStatsRequest.clear().addMetric(NodesStatsRequestParameters.Metric.BREAKER);
 
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<>(channel) {
+        return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<>(channel) {
             @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(
-                    clusterStateResponse.getState().nodes().stream().map(DiscoveryNode::getId).toArray(String[]::new)
-                );
-                nodesStatsRequest.clear().addMetric(NodesStatsRequestParameters.Metric.BREAKER);
-                client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<>(channel) {
-                    @Override
-                    public RestResponse buildResponse(final NodesStatsResponse nodesStatsResponse) throws Exception {
-                        return RestTable.buildResponse(buildTable(request, nodesStatsResponse), channel);
-                    }
-                });
+            public RestResponse buildResponse(final NodesStatsResponse nodesStatsResponse) throws Exception {
+                RestResponse response = RestTable.buildResponse(buildTable(request, nodesStatsResponse), channel);
+                if (nodesStatsResponse.failures().isEmpty() == false) {
+                    response.addHeader("Warning", "Partial success, missing info from " + nodesStatsResponse.failures().size() + " nodes.");
+                }
+                return response;
             }
         });
     }
@@ -125,6 +116,21 @@ public class RestCatCircuitBreakerAction extends AbstractCatAction {
                 table.endRow();
             }
         }
+
+        for (final FailedNodeException errors : nodesStatsResponse.failures()) {
+            table.startRow();
+            table.addCell(errors.nodeId());
+            table.addCell("N/A");
+            table.addCell(errors.getMessage());
+            table.addCell("N/A");
+            table.addCell("N/A");
+            table.addCell("N/A");
+            table.addCell("N/A");
+            table.addCell("N/A");
+            table.addCell("N/A");
+            table.endRow();
+        }
+
         return table;
     }
 }

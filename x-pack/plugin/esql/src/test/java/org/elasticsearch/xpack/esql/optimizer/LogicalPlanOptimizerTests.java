@@ -5955,7 +5955,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var plan = optimizedPlan(query);
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "count")));
         var topN = as(project.child(), TopN.class);
         assertThat(topN.order().size(), is(1));
@@ -6125,7 +6125,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "salary"
         );
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "salaryK", "count", "min")));
         var topN = as(project.child(), TopN.class);
         var outerinline = as(topN.child(), InlineJoin.class);
@@ -6134,7 +6134,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         expectedOutterOutput.addAll(List.of("count", "hire_date_string", "date", "min", "salaryK"));
         assertThat(Expressions.names(outerinline.output()), is(expectedOutterOutput));
         // outer left
-        var outerProject = as(outerinline.left(), EsqlProject.class);
+        var outerProject = as(outerinline.left(), Project.class);
         var dissect = as(outerProject.child(), Dissect.class);
         var eval = as(dissect.child(), Eval.class);
         var innerinline = as(eval.child(), InlineJoin.class);
@@ -6181,7 +6181,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var plan = optimizedPlan(query);
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
         var topN = as(project.child(), TopN.class);
         var dissect = as(topN.child(), Dissect.class);
@@ -6430,7 +6430,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var plan = optimizedPlan(query);
 
-        var esqlProject = as(plan, EsqlProject.class);
+        var esqlProject = as(plan, Project.class);
         assertThat(Expressions.names(esqlProject.projections()), is(List.of("emp_no")));
         var limit = asLimit(esqlProject.child(), 1000, false);
         var localRelation = as(limit.child(), LocalRelation.class);
@@ -6536,7 +6536,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             return;
         }
         var plan = optimizedPlan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "b", "a")));
         var eval = as(project.child(), Eval.class);
         var limit = asLimit(eval.child(), 1000, false);

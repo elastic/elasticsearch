@@ -76,7 +76,7 @@ public class IngestLoadProbe {
      * are leaving the cluster and their shards are being relocated, or possibly due to a cold cache. To avoid a short spike in the
      * queue size to cause an unnecessary scale up, we ignore the queue contribution to the ingestion load for this initial interval.
      */
-    public static final TimeValue DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION = TimeValue.THIRTY_SECONDS;
+    public static final TimeValue DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION = TimeValue.ONE_MINUTE;
     public static final Setting<TimeValue> INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION = Setting.timeSetting(
         "serverless.autoscaling.indexing.sampler.initial_interval_to_ignore_queue_contribution",
         DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
@@ -92,7 +92,7 @@ public class IngestLoadProbe {
      */
     public static final Setting<TimeValue> MAX_MANAGEABLE_QUEUED_WORK = Setting.timeSetting(
         "serverless.autoscaling.indexing.sampler.max_manageable_queued_work",
-        TimeValue.ZERO, // This defaults to the existing behaviour before introducing this setting
+        TimeValue.timeValueSeconds(10),
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );

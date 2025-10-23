@@ -179,6 +179,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
                 .put(ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.getKey(), 0.1)
                 // Make sure initially queue contribution is not ignored
                 .put(IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey(), TimeValue.ZERO)
+                .put(IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK.getKey(), TimeValue.ZERO)
                 .build()
         );
 
@@ -906,6 +907,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
                 .put(AverageWriteLoadSampler.QUEUE_SIZE_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 0.0)
                 // Make sure queue size is always considered
                 .put(IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey(), TimeValue.ZERO)
+                .put(IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK.getKey(), TimeValue.ZERO)
                 .build()
         );
         final String indexName = randomIdentifier();

@@ -22,7 +22,6 @@ import java.util.Objects;
  * This class extends RateLimitGroupingModel to handle rate limiting based on modelId and API key.
  */
 public abstract class OpenShiftAiModel extends RateLimitGroupingModel {
-    protected RateLimitSettings rateLimitSettings;
 
     protected OpenShiftAiModel(ModelConfigurations configurations, ModelSecrets secrets) {
         super(configurations, secrets);

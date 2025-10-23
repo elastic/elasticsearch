@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -32,13 +31,11 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -182,8 +179,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             searchNodeTwo,
             nodeToShardRoutings.get(searchNodeTwo).toArray(new ShardRouting[0])
         );
-        routingMasterNode = RoutingNodesHelper.routingNode(
-            masterNode.getId(), masterNode, masterPrimaryShardRouting);
+        routingMasterNode = RoutingNodesHelper.routingNode(masterNode.getId(), masterNode, masterPrimaryShardRouting);
 
     }
 

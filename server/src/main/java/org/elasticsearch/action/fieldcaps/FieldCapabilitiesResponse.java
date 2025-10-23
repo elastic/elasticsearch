@@ -87,11 +87,12 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         this.failures = in.readCollectionAsList(FieldCapabilitiesFailure::new);
         if (in.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
             this.resolvedLocally = in.readOptionalWriteable(ResolvedIndexExpressions::new);
-            this.resolvedRemotely = Collections.emptyMap();
         } else {
             this.resolvedLocally = null;
-            this.resolvedRemotely = Collections.emptyMap();
         }
+        // when receiving a response we expect the resolved remotely to be empty.
+        // It's only non-empty on the coordinating node if the FC requests targets remotes.
+        this.resolvedRemotely = Collections.emptyMap();
     }
 
     /**
@@ -142,7 +143,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     }
 
     /**
-     * Locally resolved index expressions
+     * Remotely resolved index expressions, non-empty only in the FC coordinator
      */
     public Map<String, ResolvedIndexExpressions> getResolvedRemotely() {
         return resolvedRemotely;

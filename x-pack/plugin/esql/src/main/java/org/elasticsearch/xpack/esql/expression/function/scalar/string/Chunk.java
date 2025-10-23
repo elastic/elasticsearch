@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -36,7 +37,11 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
 
@@ -108,7 +113,25 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
             return new TypeResolution("Unresolved children");
         }
 
-        return isString(field(), sourceText(), FIRST);
+        TypeResolution resolution = isString(field(), sourceText(), FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+        resolution = isNotNull(field(), sourceText(), FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        if (numChunks() != null) {
+            resolution = TypeResolutions.isType(numChunks(), dt -> dt == INTEGER, sourceText(), SECOND, "integer");
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+        }
+
+        return chunkSize() == null
+            ? TypeResolution.TYPE_RESOLVED
+            : TypeResolutions.isType(chunkSize(), dt -> dt == INTEGER, sourceText(), THIRD, "integer");
     }
 
     @Override

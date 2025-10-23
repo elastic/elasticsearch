@@ -2813,6 +2813,28 @@ public class VerifierTests extends ESTestCase {
             can only be used after STATS when used with TS command"""));
     }
 
+    public void testChunkFunctionWithNullInputs() {
+        query("from test | eval chunks = chunk(body, null, 20)", fullTextAnalyzer);
+        query("from test | eval chunks = chunk(body, 5, null)", fullTextAnalyzer);
+    }
+
+    public void testChunkFunctionInvalidInputs() {
+        if (EsqlCapabilities.Cap.CHUNK_FUNCTION.isEnabled()) {
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(null)", fullTextAnalyzer),
+                equalTo("1:27: first argument of [CHUNK(null)] cannot be null, received [null]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, \"foo\", 20)", fullTextAnalyzer),
+                equalTo("1:39: Cannot convert string [foo] to [INTEGER], error [Cannot parse number [foo]]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, 5, \"foo\")", fullTextAnalyzer),
+                equalTo("1:42: Cannot convert string [foo] to [INTEGER], error [Cannot parse number [foo]]")
+            );
+        }
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

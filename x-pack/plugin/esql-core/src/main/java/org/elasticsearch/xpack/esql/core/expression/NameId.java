@@ -31,6 +31,15 @@ public class NameId implements Writeable {
         this.id = COUNTER.incrementAndGet();
     }
 
+    /**
+     * Absolutely only intended for tests, esp. to deal with serialization. Never use in production as it breaks the
+     * uniqueness guarantee.
+     */
+    @Deprecated
+    public NameId(long id) {
+        this.id = id;
+    }
+
     @Override
     public int hashCode() {
         return Long.hashCode(id);

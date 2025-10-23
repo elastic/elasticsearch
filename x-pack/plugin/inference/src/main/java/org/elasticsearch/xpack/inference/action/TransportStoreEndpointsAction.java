@@ -20,9 +20,9 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
+import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ModelStoreResponse;
-import org.elasticsearch.xpack.inference.registry.StoreInferenceEndpointsAction;
 
 import java.util.List;
 import java.util.Objects;

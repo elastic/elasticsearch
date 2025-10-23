@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.Client;
@@ -72,6 +70,7 @@ import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -116,7 +115,6 @@ import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAct
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
-import org.elasticsearch.xpack.inference.registry.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -220,12 +218,10 @@ public class InferencePlugin extends Plugin
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
 
-    private static final Logger log = LogManager.getLogger(InferencePlugin.class);
-
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
-    private final SetOnce<HttpRequestSender.Factory> elasicInferenceServiceFactory = new SetOnce<>();
+    private final SetOnce<HttpRequestSender.Factory> elasticInferenceServiceFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
     // This is mainly so that the rest handlers can access the ThreadPool in a way that avoids potential null pointers from it
     // not being initialized yet
@@ -328,7 +324,7 @@ public class InferencePlugin extends Plugin
             elasticInferenceServiceHttpClientManager,
             services.clusterService()
         );
-        elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
+        elasticInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
 
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             inferenceServiceSettings.getElasticInferenceServiceUrl(),
@@ -342,7 +338,7 @@ public class InferencePlugin extends Plugin
             new AuthorizationPoller.Parameters(
                 serviceComponents.get(),
                 authorizationHandler,
-                elasicInferenceServiceFactory.get().createSender(),
+                elasticInferenceServiceFactory.get().createSender(),
                 inferenceServiceSettings,
                 eisComponents,
                 modelRegistry.get(),
@@ -356,7 +352,7 @@ public class InferencePlugin extends Plugin
         inferenceServices.add(
             () -> List.of(
                 context -> new ElasticInferenceService(
-                    elasicInferenceServiceFactory.get(),
+                    elasticInferenceServiceFactory.get(),
                     serviceComponents.get(),
                     inferenceServiceSettings,
                     modelRegistry.get(),
@@ -414,7 +410,7 @@ public class InferencePlugin extends Plugin
         );
         components.add(inferenceStatsBinding);
         components.add(authorizationHandler);
-        components.add(new PluginComponentBinding<>(Sender.class, elasicInferenceServiceFactory.get().createSender()));
+        components.add(new PluginComponentBinding<>(Sender.class, elasticInferenceServiceFactory.get().createSender()));
         components.add(
             new InferenceEndpointRegistry(
                 services.clusterService(),

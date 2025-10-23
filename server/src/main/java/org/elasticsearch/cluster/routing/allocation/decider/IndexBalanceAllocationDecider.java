@@ -138,10 +138,10 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "Node index shard allocation is under the threshold.");
     }
 
-    private void collectEligibleNodes(RoutingAllocation allocation, Set<DiscoveryNode> eligibleNodes, DiscoveryNodeRole searchRole) {
+    private void collectEligibleNodes(RoutingAllocation allocation, Set<DiscoveryNode> eligibleNodes, DiscoveryNodeRole role) {
         for (DiscoveryNode discoveryNode : allocation.nodes()) {
             if (discoveryNode.canContainData()
-                && discoveryNode.getRoles().contains(searchRole)
+                && discoveryNode.getRoles().contains(role)
                 && (clusterExcludeFilters == null || clusterExcludeFilters.match(discoveryNode) == false)
                 && allocation.metadata().nodeShutdowns().contains(discoveryNode.getId()) == false) {
                 eligibleNodes.add(discoveryNode);

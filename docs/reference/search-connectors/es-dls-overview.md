@@ -5,6 +5,11 @@ mapped_pages:
 
 # How DLS works [es-dls-overview]
 
+:::{important}
+This page pertains to a specific implementation of DLS for Elastic content connectors.
+Refer to [Controlling access at the document and field level](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}} DLS feature.
+:::
+
 Document level security (DLS) enables you to control access to content at the document level. Access to each document in an index can be managed independently, based on the identities (such as usernames, emails, groups etc.) that are allowed to view it.
 
 This feature works with the help of special access control documents that are indexed by a connector into a hidden Elasticsearch index, associated with the standard content index. If your content documents have access control fields that match the criteria defined in your access control documents, Elasticsearch will apply DLS to the documents synced by the connector.
@@ -318,5 +323,5 @@ The API key can be invalidated using the [Invalidate API Key API](https://www.el
 ### Learn more [es-dls-overview-search-time-learn-more]
 
 * [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md)
-* [Elasticsearch Document Level Security^](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md)
+* [Elasticsearch Document Level Security](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md)
 

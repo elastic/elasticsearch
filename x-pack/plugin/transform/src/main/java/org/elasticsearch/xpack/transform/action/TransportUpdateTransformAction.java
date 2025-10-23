@@ -172,7 +172,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         boolean updateChangesSettings = update.changesSettings(originalConfig);
                         boolean updateChangesHeaders = update.changesHeaders(originalConfig);
                         boolean updateChangesDestIndex = update.changesDestIndex(originalConfig);
-                        if (updateChangesSettings || updateChangesHeaders || updateChangesDestIndex) {
+                        boolean updateFrequency = update.changesFrequency(originalConfig);
+                        if (updateChangesSettings || updateChangesHeaders || updateChangesDestIndex || updateFrequency) {
                             PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
                                 request.getId(),
                                 clusterState
@@ -258,6 +259,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         transformTask.applyNewSettings(request.getConfig().getSettings());
         transformTask.applyNewAuthState(request.getAuthState());
         transformTask.checkAndResetDestinationIndexBlock(request.getConfig());
+        transformTask.applyNewFrequency(request.getConfig());
         listener.onResponse(new Response(request.getConfig()));
     }
 

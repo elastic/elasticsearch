@@ -36,4 +36,9 @@ public class AmazonBedrockChatCompletionResponseHandler extends AmazonBedrockRes
     public void acceptChatCompletionResponseObject(ConverseResponse response) {
         this.responseResult = response;
     }
+
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return true;
+    }
 }

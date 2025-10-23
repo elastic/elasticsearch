@@ -240,7 +240,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
                 builder,
-                context.ctx.isSourceSynthetic()
+                context.ctx.isSourceSynthetic(),
+                false
             );
         }
     }

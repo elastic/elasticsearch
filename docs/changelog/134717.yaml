@@ -1,5 +1,0 @@
-pr: 134717
-summary: Allow including semantic field embeddings in `_source`
-area: Vector Search
-type: enhancement
-issues: []

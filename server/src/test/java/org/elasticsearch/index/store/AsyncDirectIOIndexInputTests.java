@@ -15,6 +15,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -194,7 +195,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
             final int bufferSize = 8192;
             // fetch all
             try (AsyncDirectIOIndexInput actualInput = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, bufferSize, 64)) {
-                assertPrefetchSlots(actualInput, numDimensions, numVectors, i -> i, vectors);
+                assertPrefetchSlots(actualInput, numDimensions, numVectors, i -> i, vectors, bufferSize);
             }
             // fetch all in slice
             try (AsyncDirectIOIndexInput actualInput = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, bufferSize, 64)) {
@@ -206,7 +207,8 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
                     numDimensions,
                     vectorsSlice.length,
                     i -> i,
-                    vectorsSlice
+                    vectorsSlice,
+                    bufferSize
                 );
             }
             // random fetch
@@ -218,7 +220,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
             List<Integer> subList = tempList.subList(0, randomIntBetween(1, numVectors));
             Collections.sort(subList);
             try (AsyncDirectIOIndexInput actualInput = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, bufferSize, 64)) {
-                assertPrefetchSlots(actualInput, numDimensions, subList.size(), subList::get, vectors);
+                assertPrefetchSlots(actualInput, numDimensions, subList.size(), subList::get, vectors, bufferSize);
             }
         }
     }
@@ -228,7 +230,8 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
         int numDimensions,
         int numVectors,
         IntToIntFunction ords,
-        float[][] vectors
+        float[][] vectors,
+        int bufferSize
     ) throws IOException {
         int prefetchSize = randomIntBetween(1, 64);
         float[] floats = new float[numDimensions];
@@ -240,22 +243,28 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
             for (int j = 0; j < prefetchSize; j++) {
                 actualInput.prefetch((ord + j) * bytesLength, bytesLength);
             }
+            // check we prefetch enough data. We need to add 1 because of the current buffer.
+            assertThat(prefetchSize * bytesLength, Matchers.lessThanOrEqualTo((long) (1 + actualInput.prefetchSlots()) * bufferSize));
             for (int j = 0; j < prefetchSize; j++) {
                 actualInput.seek((ord + j) * bytesLength);
                 actualInput.readFloats(floats, 0, floats.length);
                 assertArrayEquals(vectors[ord + j], floats, 0.0f);
             }
+            // check we have freed all the slots
             assertEquals(0, actualInput.prefetchSlots());
         }
         for (int k = i; k < numVectors; k++) {
             actualInput.prefetch(ords.apply(k) * bytesLength, bytesLength);
         }
+        // check we prefetch enough data. We need to add 1 because of the current buffer.
+        assertThat((numVectors - i) * bytesLength, Matchers.lessThanOrEqualTo((long) (1 + actualInput.prefetchSlots()) * bufferSize));
         for (; i < numVectors; i++) {
             int ord = ords.apply(i);
             actualInput.seek(ord * bytesLength);
             actualInput.readFloats(floats, 0, floats.length);
             assertArrayEquals(vectors[ord], floats, 0.0f);
         }
+        // check we have freed all the slots
         assertEquals(0, actualInput.prefetchSlots());
     }
 }

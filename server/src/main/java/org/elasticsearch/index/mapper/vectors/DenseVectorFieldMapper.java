@@ -1966,7 +1966,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (elementType == ElementType.BIT) {
                 return new ES815HnswBitVectorsFormat(m, efConstruction);
             }
-            return new Lucene99HnswVectorsFormat(m, efConstruction, 1, null);
+            return new Lucene99HnswVectorsFormat(m, efConstruction, 1, null, 0);
         }
 
         @Override
@@ -2284,6 +2284,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
             this.isSyntheticSource = isSyntheticSource;
+        }
+
+        public VectorSimilarity similarity() {
+            return similarity;
         }
 
         @Override
@@ -2890,7 +2894,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // if plugins provided alternative KnnVectorsFormat for this indexOptions, use it instead of standard
             KnnVectorsFormat extraKnnFormat = null;
             for (VectorsFormatProvider vectorsFormatProvider : extraVectorsFormatProviders) {
-                extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(indexSettings, indexOptions);
+                extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(indexSettings, indexOptions, fieldType().similarity());
                 if (extraKnnFormat != null) {
                     break;
                 }

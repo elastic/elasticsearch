@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -42,11 +41,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
     }
 
     public static Builder builder() {
-        return new Builder(new ArrayList<>());
-    }
-
-    public static Builder threadSafeBuilder() {
-        return new Builder(Collections.synchronizedList(new ArrayList<>()));
+        return new Builder();
     }
 
     @Override
@@ -55,11 +50,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
     }
 
     public static final class Builder {
-        private final List<ResolvedIndexExpression> expressions;
-
-        public Builder(List<ResolvedIndexExpression> expressions) {
-            this.expressions = expressions;
-        }
+        private final List<ResolvedIndexExpression> expressions = new ArrayList<>();
 
         /**
          * Add a new resolved expression.

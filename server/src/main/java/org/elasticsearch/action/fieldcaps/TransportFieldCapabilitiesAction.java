@@ -216,7 +216,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         };
         Map<String, ResolvedIndexExpressions.Builder> resolvedRemotely = new ConcurrentHashMap<>();
         for (String clusterAlias : remoteClusterIndices.keySet()) {
-            resolvedRemotely.put(clusterAlias, ResolvedIndexExpressions.threadSafeBuilder());
+            resolvedRemotely.put(clusterAlias, ResolvedIndexExpressions.builder());
         }
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
             if (fieldCapTask.isCancelled()) {

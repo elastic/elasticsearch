@@ -68,9 +68,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 forkPresent.set(true);
             }
             // pruning columns for Fork branches can have the side effect of having misaligned outputs
-//            if (forkPresent.get()) {
-//                return p;
-//            }
+            if (forkPresent.get()) {
+                return p;
+            }
 
             var recheck = new Holder<Boolean>();
             // analyze the unused items against dedicated 'producer' nodes such as Eval and Aggregate

@@ -242,7 +242,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                         "metric": {
                             "properties": {
                                 "field": {
-                                    "type": "keyword"
+                                    "type": "keyword",
+                                    "time_series_dimension": true
                                 },
                                 "value": {
                                     "type": "integer",

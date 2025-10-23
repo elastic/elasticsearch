@@ -342,7 +342,7 @@ The API returns the following response. Note that the duplicate tokens for `fox`
 }
 ```
 % TESTRESPONSE[s/"tokenizer": .../"tokenizer": $body.detail.tokenizer/]
-% TESTRESPONSE[s/"tokens": ... /"tokens": $body.$_path/]
+% TESTRESPONSE[s/"tokens": .../"tokens": $body.$_path/]
 
 ::::
 

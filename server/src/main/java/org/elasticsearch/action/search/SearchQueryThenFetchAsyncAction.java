@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -358,9 +359,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    private record ShardToQuery(float boost, String[] originalIndices, int shardIndex, ShardId shardId, ShardSearchContextId contextId)
-        implements
-            Writeable {
+    private record ShardToQuery(
+        float boost,
+        String[] originalIndices,
+        int shardIndex,
+        ShardId shardId,
+        ShardSearchContextId contextId,
+        SplitShardCountSummary reshardSplitShardCountSummary
+    ) implements Writeable {
 
         static ShardToQuery readFrom(StreamInput in) throws IOException {
             return new ShardToQuery(
@@ -368,7 +374,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 in.readStringArray(),
                 in.readVInt(),
                 new ShardId(in),
-                in.readOptionalWriteable(ShardSearchContextId::new)
+                in.readOptionalWriteable(ShardSearchContextId::new),
+                in.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)
+                    ? SplitShardCountSummary.fromInt(in.readVInt())
+                    : SplitShardCountSummary.UNSET
             );
         }
 
@@ -379,6 +388,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             out.writeVInt(shardIndex);
             shardId.writeTo(out);
             out.writeOptionalWriteable(contextId);
+            if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
+                out.writeVInt(reshardSplitShardCountSummary.asInt());
+            }
         }
     }
 
@@ -458,7 +470,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             getOriginalIndices(shardIndex).indices(),
                             shardIndex,
                             routing.getShardId(),
-                            shardRoutings.getSearchContextId()
+                            shardRoutings.getSearchContextId(),
+                            shardRoutings.getReshardSplitShardCountSummary()
                         )
                     );
                     var filterForAlias = aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY);
@@ -655,7 +668,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchRequest searchRequest,
         int totalShardCount,
         long absoluteStartMillis,
-        boolean hasResponse
+        boolean hasResponse,
+        SplitShardCountSummary reshardSplitShardCountSummary
     ) {
         ShardSearchRequest shardRequest = new ShardSearchRequest(
             originalIndices,
@@ -668,7 +682,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             absoluteStartMillis,
             clusterAlias,
             searchContextId,
-            searchContextKeepAlive
+            searchContextKeepAlive,
+            reshardSplitShardCountSummary
         );
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
@@ -706,7 +721,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             searchRequest,
                             nodeQueryRequest.totalShards,
                             nodeQueryRequest.absoluteStartMillis,
-                            state.hasResponse.getAcquire()
+                            state.hasResponse.getAcquire(),
+                            shardToQuery.reshardSplitShardCountSummary
                         )
                     ),
                     state.task,

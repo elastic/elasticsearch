@@ -29,10 +29,10 @@ import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
-import static org.elasticsearch.index.codec.vectors.BQSpaceUtils.transposeHalfByte;
 import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
+import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
 
 /**
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using

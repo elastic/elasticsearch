@@ -191,7 +191,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             final Span span = spanBuilder.startSpan();
             // If the agent decided not to record this span (e.g., due to transaction_max_spans), isRecording() will be false.
             if (span.isRecording() == false) {
-                logger.warn("Elastic APM agent has reached the transaction_max_spans limit. Span [{}] [{}] will not be recorded.", spanId, spanName);
+                logger.trace("Span [{}] [{}] will not be recorded, e.g. due to transaction_max_spans reached", spanId, spanName);
                 // It's good practice to end the no-op span immediately to release any resources.
                 span.end();
                 // Returning null from computeIfAbsent means no value will be inserted into the map.

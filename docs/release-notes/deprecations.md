@@ -23,6 +23,13 @@ stack: ga 9.1.6
 
 There are no deprecations associated with this release.
 
+## 9.2.0 [elasticsearch-9.2.0-deprecations]
+
+Cluster Coordination:
+* Remove `PeerFinder` request timeout [#134365](https://github.com/elastic/elasticsearch/pull/134365)
+
+
+
 ## 9.0.8 [elasticsearch-9.0.8-deprecations]
 
 There are no deprecations associated with this release.

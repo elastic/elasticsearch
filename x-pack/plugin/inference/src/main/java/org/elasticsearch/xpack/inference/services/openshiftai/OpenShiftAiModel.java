@@ -43,7 +43,7 @@ public abstract class OpenShiftAiModel extends RateLimitGroupingModel {
 
     @Override
     public int rateLimitGroupingHash() {
-        return Objects.hash(getServiceSettings().uri, getServiceSettings().modelId(), getSecretSettings().apiKey());
+        return Objects.hash(getServiceSettings().uri(), getServiceSettings().modelId());
     }
 
     @Override

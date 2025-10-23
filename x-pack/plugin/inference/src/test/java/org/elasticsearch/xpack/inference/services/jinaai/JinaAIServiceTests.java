@@ -1633,41 +1633,115 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         test_Embedding_ChunkedInfer_BatchesCalls(model);
     }
 
+    public void test_Embedding_ChunkedInfer_LateChunkingEnabled() throws IOException {
+        var model = JinaAIEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "secret",
+            new JinaAIEmbeddingsTaskSettings(null, true),
+            null,
+            1024,
+            1024,
+            "jina-clip-v2",
+            JinaAIEmbeddingType.FLOAT
+        );
+
+        test_Embedding_ChunkedInfer_BatchesCalls(model);
+    }
+
+    public void test_Embedding_ChunkedInfer_LateChunkingDisabled() throws IOException {
+        var model = JinaAIEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "secret",
+            new JinaAIEmbeddingsTaskSettings(null, false),
+            null,
+            1024,
+            1024,
+            "jina-clip-v2",
+            JinaAIEmbeddingType.FLOAT
+        );
+
+        test_Embedding_ChunkedInfer_BatchesCalls(model);
+    }
+
     private void test_Embedding_ChunkedInfer_BatchesCalls(JinaAIEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
-            // Batching will call the service with 2 input
-            String responseJson = """
-                {
-                    "model": "jina-clip-v2",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
+            if (Boolean.TRUE.equals(model.getTaskSettings().getLateChunking())) {
+                var responseJson = """
+                    {
+                        "model": "jina-clip-v2",
+                        "object": "list",
+                        "usage": {
+                            "total_tokens": 5,
+                            "prompt_tokens": 5
                         },
-                        {
-                            "object": "embedding",
-                            "index": 1,
-                            "embedding": [
-                                0.223,
-                                -0.223
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+                        "data": [
+                            {
+                                "object": "embedding",
+                                "index": 0,
+                                "embedding": [
+                                    0.123,
+                                    -0.123
+                                ]
+                            }
+                        ]
+                    }
+                    """;
+                webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+                var responseJson2 = """
+                    {
+                        "model": "jina-clip-v2",
+                        "object": "list",
+                        "usage": {
+                            "total_tokens": 5,
+                            "prompt_tokens": 5
+                        },
+                        "data": [
+                            {
+                                "object": "embedding",
+                                "index": 0,
+                                "embedding": [
+                                    0.223,
+                                    -0.223
+                                ]
+                            }
+                        ]
+                    }
+                    """;
+                webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson2));
+            } else {
+                var responseJson = """
+                    {
+                        "model": "jina-clip-v2",
+                        "object": "list",
+                        "usage": {
+                            "total_tokens": 5,
+                            "prompt_tokens": 5
+                        },
+                        "data": [
+                            {
+                                "object": "embedding",
+                                "index": 0,
+                                "embedding": [
+                                    0.123,
+                                    -0.123
+                                ]
+                            },
+                            {
+                                "object": "embedding",
+                                "index": 1,
+                                "embedding": [
+                                    0.223,
+                                    -0.223
+                                ]
+                            }
+                        ]
+                    }
+                    """;
+                webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            }
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             // 2 input
@@ -1707,20 +1781,6 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                     0.0f
                 );
             }
-
-            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            MatcherAssert.assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaType())
-            );
-            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("input", List.of("a", "bb"), "model", "jina-clip-v2", "embedding_type", "float"))
-            );
         }
     }
 

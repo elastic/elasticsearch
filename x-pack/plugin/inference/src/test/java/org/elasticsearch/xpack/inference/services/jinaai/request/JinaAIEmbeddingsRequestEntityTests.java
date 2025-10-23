@@ -27,7 +27,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
             InputType.INTERNAL_INGEST,
-            new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
+            new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true),
             "model",
             JinaAIEmbeddingType.FLOAT
         );
@@ -37,7 +37,41 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"float","task":"retrieval.passage"}"""));
+            {"input":["abc"],"model":"model","embedding_type":"float","task":"retrieval.passage","late_chunking":true}"""));
+    }
+
+    public void testXContent_WritesOnlyLateChunkingField_WhenItIsTheOnlyOptionalFieldDefined() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            InputType.INTERNAL_INGEST,
+            new JinaAIEmbeddingsTaskSettings(null, false),
+            "model",
+            null
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","task":"retrieval.passage","late_chunking":false}"""));
+    }
+
+    public void testXContent_WritesInputTypeField_WhenItIsDefinedOnlyInTaskSettings() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            null,
+            new JinaAIEmbeddingsTaskSettings(InputType.SEARCH, null),
+            "model",
+            null
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","task":"retrieval.query"}"""));
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {

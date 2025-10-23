@@ -58,8 +58,8 @@ import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomInterv
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 4)
-public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
-    private static final Logger logger = LogManager.getLogger(ILMDownsampleDisruptionIT.class);
+public class ILMDownsampleIT extends DownsamplingIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(ILMDownsampleIT.class);
     private static final String POLICY_NAME = "mypolicy";
     public static final int DOC_COUNT = 10_000;
 
@@ -134,6 +134,45 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
     }
 
+    public void testIlmDownsample() throws Exception {
+        final InternalTestCluster cluster = internalCluster();
+        cluster.startMasterOnlyNodes(1);
+        cluster.startDataOnlyNodes(3);
+        ensureStableCluster(cluster.size());
+        ensureGreen();
+
+        final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        long startTime = LocalDateTime.parse("1993-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
+        setup(sourceIndex, 1, 0, startTime);
+        DownsampleConfig.SamplingMethod samplingMethod = randomSamplingMethod();
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), samplingMethod);
+        final Supplier<XContentBuilder> sourceSupplier = () -> {
+            final String ts = randomDateForInterval(config.getInterval(), startTime);
+            double counterValue = DATE_FORMATTER.parseMillis(ts);
+            final List<String> dimensionValues = new ArrayList<>(5);
+            for (int j = 0; j < randomIntBetween(1, 5); j++) {
+                dimensionValues.add(randomAlphaOfLength(6));
+            }
+            try {
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field(FIELD_TIMESTAMP, ts)
+                    .field(FIELD_DIMENSION_KEYWORD, randomFrom(dimensionValues))
+                    .field(FIELD_DIMENSION_LONG, randomIntBetween(1, 10))
+                    .field(FIELD_METRIC_COUNTER_DOUBLE, counterValue)
+                    .endObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        int indexedDocs = bulkIndex(sourceIndex, sourceSupplier, DOC_COUNT);
+
+        final String targetIndex = "downsample-1h-" + sourceIndex;
+        startDownsampleTaskViaIlm(sourceIndex, targetIndex);
+        assertBusy(() -> assertTargetIndex(cluster, targetIndex, indexedDocs, samplingMethod));
+        ensureGreen(targetIndex);
+    }
+
     public void testILMDownsampleRollingRestart() throws Exception {
         final InternalTestCluster cluster = internalCluster();
         cluster.startMasterOnlyNodes(1);
@@ -144,7 +183,8 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         long startTime = LocalDateTime.parse("1993-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
         setup(sourceIndex, 1, 0, startTime);
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig.SamplingMethod samplingMethod = randomSamplingMethod();
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), samplingMethod);
         final Supplier<XContentBuilder> sourceSupplier = () -> {
             final String ts = randomDateForInterval(config.getInterval(), startTime);
             double counterValue = DATE_FORMATTER.parseMillis(ts);
@@ -170,7 +210,7 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
 
         final String targetIndex = "downsample-1h-" + sourceIndex;
         startDownsampleTaskViaIlm(sourceIndex, targetIndex);
-        assertBusy(() -> assertTargetIndex(cluster, targetIndex, indexedDocs));
+        assertBusy(() -> assertTargetIndex(cluster, targetIndex, indexedDocs, samplingMethod));
         ensureGreen(targetIndex);
     }
 
@@ -202,13 +242,22 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
-    private void assertTargetIndex(final InternalTestCluster cluster, final String targetIndex, int indexedDocs) {
+    private void assertTargetIndex(
+        final InternalTestCluster cluster,
+        final String targetIndex,
+        int indexedDocs,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
         final GetIndexResponse getIndexResponse = cluster.client()
             .admin()
             .indices()
             .getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(targetIndex))
             .actionGet();
         assertEquals(1, getIndexResponse.indices().length);
+        assertEquals(
+            getIndexResponse.getSetting(targetIndex, IndexMetadata.INDEX_DOWNSAMPLE_METHOD_KEY),
+            DownsampleConfig.SamplingMethod.getOrDefault(samplingMethod).toString()
+        );
         assertResponse(
             cluster.client()
                 .prepareSearch(targetIndex)

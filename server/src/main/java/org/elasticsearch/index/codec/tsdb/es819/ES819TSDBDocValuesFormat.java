@@ -48,7 +48,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final byte SORTED_NUMERIC = 4;
 
     static final int VERSION_START = 0;
-    static final int VERSION_BINARY_DV_COMPRESSION = VERSION_START;
+    static final int VERSION_BINARY_DV_COMPRESSION = 1;
     static final int VERSION_CURRENT = VERSION_BINARY_DV_COMPRESSION;
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
@@ -125,11 +125,16 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT, BinaryDVCompressionMode.NO_COMPRESS);
+        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT, BinaryDVCompressionMode.COMPRESSED_WITH_LZ4);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, int minDocsPerOrdinalForRangeEncoding, boolean enableOptimizedMerge, BinaryDVCompressionMode binaryDVCompressionMode) {
+    public ES819TSDBDocValuesFormat(
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge,
+        BinaryDVCompressionMode binaryDVCompressionMode
+    ) {
         super(CODEC_NAME);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");

@@ -27,6 +27,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -76,8 +77,8 @@ public class WriteLoadConstraintMonitor {
         logger.trace("processing new cluster info");
 
         final int numberOfNodes = clusterInfo.getNodeUsageStatsForThreadPools().size();
-        final Set<String> nodeIdsExceedingQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
-        final Set<String> nodeIdsBelowQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
+        final Set<String> writeNodeIdsExceedingQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
+        AtomicBoolean haveWriteNodesBelowQueueLatencyThreshold = new AtomicBoolean(false);
         clusterInfo.getNodeUsageStatsForThreadPools().forEach((nodeId, usageStats) -> {
             if (state.getNodes().get(nodeId).getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
                 // Search nodes are not expected to have write load hot-spots and are not considered for shard relocation.
@@ -88,20 +89,20 @@ public class WriteLoadConstraintMonitor {
                 .get(ThreadPool.Names.WRITE);
             assert writeThreadPoolStats != null : "Write thread pool is not publishing usage stats for node [" + nodeId + "]";
             if (writeThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= writeLoadConstraintSettings.getQueueLatencyThreshold().millis()) {
-                nodeIdsExceedingQueueLatencyThreshold.add(nodeId);
+                writeNodeIdsExceedingQueueLatencyThreshold.add(nodeId);
             } else {
-                nodeIdsBelowQueueLatencyThreshold.add(nodeId);
+                haveWriteNodesBelowQueueLatencyThreshold.set(true);
             }
         });
 
-        if (nodeIdsExceedingQueueLatencyThreshold.isEmpty()) {
+        if (writeNodeIdsExceedingQueueLatencyThreshold.isEmpty()) {
             logger.trace("No hot-spotting write nodes detected");
             return;
         }
-        if (nodeIdsBelowQueueLatencyThreshold.isEmpty()) {
+        if (haveWriteNodesBelowQueueLatencyThreshold.get() == false) {
             logger.debug("""
                 Nodes [{}] are above the queue latency threshold, but there are no write nodes below the threshold. \
-                Cannot rebalance shards.""", nodeSummary(nodeIdsExceedingQueueLatencyThreshold));
+                Cannot rebalance shards.""", nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold));
             return;
         }
 
@@ -113,14 +114,14 @@ public class WriteLoadConstraintMonitor {
         // We know that there is at least one hot-spotting node if we've reached this code. Now check whether there are any new hot-spots
         // or hot-spots that are persisting and need further balancing work.
         if (haveCalledRerouteRecently == false
-            || Sets.difference(nodeIdsExceedingQueueLatencyThreshold, lastSetOfHotSpottedNodes).isEmpty() == false) {
+            || Sets.difference(writeNodeIdsExceedingQueueLatencyThreshold, lastSetOfHotSpottedNodes).isEmpty() == false) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     """
                         Nodes [{}] are hot-spotting, of {} total cluster nodes. Reroute for hot-spotting {}. \
                         Previously hot-spotting nodes are [{}]. The write thread pool queue latency threshold is [{}]. Triggering reroute.
                         """,
-                    nodeSummary(nodeIdsExceedingQueueLatencyThreshold),
+                    nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold),
                     state.nodes().size(),
                     lastRerouteTimeMillis == 0
                         ? "has never previously been called"
@@ -139,7 +140,7 @@ public class WriteLoadConstraintMonitor {
                 )
             );
             lastRerouteTimeMillis = currentTimeMillisSupplier.getAsLong();
-            lastSetOfHotSpottedNodes = nodeIdsExceedingQueueLatencyThreshold;
+            lastSetOfHotSpottedNodes = writeNodeIdsExceedingQueueLatencyThreshold;
         } else {
             logger.debug(
                 "Not calling reroute because we called reroute [{}] ago and there are no new hot spots",

@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec;
 
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
@@ -444,7 +445,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         for (int i = 0; i < dims; i++) {
             toPack[i] = randomInt(3);
         }
-        int length = BQVectorUtils.discretize(dims, 64) / 8;
+        int length = ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
+        ;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
         defaultedProvider.getVectorUtilSupport().packDibit(toPack, packedLegacy);

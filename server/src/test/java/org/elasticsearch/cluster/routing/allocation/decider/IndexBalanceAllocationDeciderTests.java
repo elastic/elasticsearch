@@ -74,8 +74,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     private IndexMetadata indexMetadata;
     private ShardRouting masterPrimaryShardRouting;
 
-    private void setup() {
-        numberOfPrimaryShards = 11;
+    private void setup(boolean allowMaster) {
+        numberOfPrimaryShards = allowMaster ? 11 : 10;
         replicationFactor = 2;
 
         indexNodeOne = DiscoveryNodeUtils.builder("indexNodeOne").roles(Collections.singleton(DiscoveryNodeRole.INDEX_ROLE)).build();
@@ -111,7 +111,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         Metadata.Builder metadataBuilder = Metadata.builder();
 
         shardIds = new ShardId[numberOfPrimaryShards];
-        for (int i = 0; i < numberOfPrimaryShards - 1; i++) {
+        int shardCount = allowMaster ? numberOfPrimaryShards - 1 : numberOfPrimaryShards;
+        for (int i = 0; i < shardCount; i++) {
             shardIds[i] = new ShardId(indexMetadata.getIndex(), i);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardIds[i]);
 
@@ -140,18 +141,20 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
 
-        ShardId lastPrimaryShardId = new ShardId(indexMetadata.getIndex(), numberOfPrimaryShards - 1);
-        masterPrimaryShardRouting = TestShardRouting.newShardRouting(
-            lastPrimaryShardId,
-            masterNode.getId(),
-            null,
-            true,
-            ShardRoutingState.STARTED
-        );
-        IndexShardRoutingTable.Builder indexShardRoutingBuilderMasterNode = IndexShardRoutingTable.builder(lastPrimaryShardId);
-        indexShardRoutingBuilderMasterNode.addShard(masterPrimaryShardRouting);
-        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilderMasterNode);
-        routingTableBuilder.add(indexRoutingTableBuilder.build());
+        if (allowMaster) {
+            ShardId lastPrimaryShardId = new ShardId(indexMetadata.getIndex(), numberOfPrimaryShards - 1);
+            masterPrimaryShardRouting = TestShardRouting.newShardRouting(
+                lastPrimaryShardId,
+                masterNode.getId(),
+                null,
+                true,
+                ShardRoutingState.STARTED
+            );
+            IndexShardRoutingTable.Builder indexShardRoutingBuilderMasterNode = IndexShardRoutingTable.builder(lastPrimaryShardId);
+            indexShardRoutingBuilderMasterNode.addShard(masterPrimaryShardRouting);
+            indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilderMasterNode);
+            routingTableBuilder.add(indexRoutingTableBuilder.build());
+        }
 
         metadataBuilder.put(projectBuilder).generateClusterUuidIfNeeded();
         state.nodes(discoveryNodeBuilder);
@@ -179,12 +182,15 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             searchNodeTwo,
             nodeToShardRoutings.get(searchNodeTwo).toArray(new ShardRouting[0])
         );
-        routingMasterNode = RoutingNodesHelper.routingNode(masterNode.getId(), masterNode, masterPrimaryShardRouting);
-
+        if (allowMaster) {
+            routingMasterNode = RoutingNodesHelper.routingNode(masterNode.getId(), masterNode, masterPrimaryShardRouting);
+        } else {
+            routingMasterNode = RoutingNodesHelper.routingNode(masterNode.getId(), masterNode);
+        }
     }
 
-    public void testCanAllocate() {
-        setup();
+    public void testCanAllocate_under_threshold() {
+        setup(true);
 
         Settings settings = Settings.builder()
             .put("stateless.enabled", "true")
@@ -275,6 +281,58 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             );
         }
 
+        assertDecisionMatches(
+            "Assigning an additional primary shard to an index node has capacity should succeed",
+            indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingIndexNodeOne, routingAllocation),
+            Decision.Type.YES,
+            "Node index shard allocation is under the threshold."
+        );
+    }
+
+    public void testCanAllocate_exceed_threshold() {
+        setup(false);
+
+        Settings settings = Settings.builder()
+            .put("stateless.enabled", "true")
+            .put("cluster.routing.allocation.index_balance_decider.enabled", "true")
+            .put("cluster.routing.allocation.index_balance_decider.load_skew_tolerance", 1.0d)
+            .build();
+
+        IndexBalanceAllocationDecider indexBalanceAllocationDecider = new IndexBalanceAllocationDecider(
+            settings,
+            createBuiltInClusterSettings(settings)
+        );
+        ClusterInfo clusterInfo = ClusterInfo.builder().build();
+
+        var routingAllocation = new RoutingAllocation(
+            null,
+            RoutingNodes.immutable(clusterState.globalRoutingTable(), clusterState.nodes()),
+            clusterState,
+            clusterInfo,
+            null,
+            System.nanoTime()
+        );
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        ShardRouting primaryIndexShardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 1),
+            indexNodeTwo.getId(),
+            null,
+            true,
+            ShardRoutingState.STARTED
+        );
+
+        assertDecisionMatches(
+            "Assigning an additional primary shard to an index node at capacity should fail",
+            indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingIndexNodeOne, routingAllocation),
+            Decision.Type.NOT_PREFERRED,
+            "For index [[IndexBalanceAllocationDeciderIndex]] with [10] shards, Node [indexNodeOne] is "
+                + "expected to hold [5] shards for index [[IndexBalanceAllocationDeciderIndex]], based on the total of [2]\n"
+                + "nodes available. The configured load skew tolerance is [1.00], which yields an allocation threshold of\n"
+                + "Math.ceil([5] × [1.00]) = [5] shards. Currently, node [indexNodeOne] is assigned [5] shards of index "
+                + "[[IndexBalanceAllocationDeciderIndex]]. Therefore,\n"
+                + "assigning additional shards is not preferred.\n"
+        );
     }
 
 }

@@ -11,11 +11,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +38,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -49,11 +56,17 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsForResource;
+import static org.elasticsearch.xpack.core.ml.utils.SemanticTextInfoExtractor.extractIndexesReferencingInferenceEndpoints;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
@@ -65,6 +78,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
+    private final OriginSettingClient client;
     private volatile boolean skipValidationAndStart;
     private final ProjectResolver projectResolver;
 
@@ -78,7 +92,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         Settings settings,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        Client client
     ) {
         super(
             PutInferenceModelAction.NAME,
@@ -97,6 +112,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
         this.projectResolver = projectResolver;
+        this.client = new OriginSettingClient(client, INFERENCE_ORIGIN);
     }
 
     @Override
@@ -181,7 +197,15 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, request.getTimeout(), listener);
+        parseAndStoreModel(
+            service.get(),
+            request.getInferenceEntityId(),
+            resolvedTaskType,
+            requestAsMap,
+            request.getTimeout(),
+            state.metadata(),
+            listener
+        );
     }
 
     private void parseAndStoreModel(
@@ -190,6 +214,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         TaskType taskType,
         Map<String, Object> config,
         TimeValue timeout,
+        Metadata metadata,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
@@ -212,7 +237,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             )
         );
 
-        ActionListener<Model> parsedModelListener = listener.delegateFailureAndWrap((delegate, model) -> {
+        ActionListener<Model> modelValidatingListener = listener.delegateFailureAndWrap((delegate, model) -> {
             if (skipValidationAndStart) {
                 storeModelListener.onResponse(model);
             } else {
@@ -221,7 +246,67 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             }
         });
 
-        service.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
+        ActionListener<Model> existingUsesListener = listener.delegateFailureAndWrap((delegate, model) -> {
+            // Execute in another thread because checking for existing uses requires reading from indices
+            threadPool.executor(UTILITY_THREAD_POOL_NAME)
+                .execute(() -> checkForExistingUsesOfInferenceId(metadata, model, modelValidatingListener));
+        });
+
+        service.parseRequestConfig(inferenceEntityId, taskType, config, existingUsesListener);
+    }
+
+    private void checkForExistingUsesOfInferenceId(Metadata metadata, Model model, ActionListener<Model> modelValidatingListener) {
+        Set<String> inferenceEntityIdSet = Set.of(model.getInferenceEntityId());
+        Set<String> nonEmptyIndices = findNonEmptyIndices(extractIndexesReferencingInferenceEndpoints(metadata, inferenceEntityIdSet));
+        Set<String> pipelinesUsingInferenceId = pipelineIdsForResource(metadata, inferenceEntityIdSet);
+
+        if (nonEmptyIndices.isEmpty() && pipelinesUsingInferenceId.isEmpty()) {
+            modelValidatingListener.onResponse(model);
+        } else {
+            modelValidatingListener.onFailure(
+                new ElasticsearchStatusException(
+                    buildErrorString(model.getInferenceEntityId(), nonEmptyIndices, pipelinesUsingInferenceId),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+    }
+
+    private HashSet<String> findNonEmptyIndices(Set<String> indicesUsingInferenceId) {
+        var nonEmptyIndices = new HashSet<String>();
+        if (indicesUsingInferenceId.isEmpty() == false) {
+            // Search for documents in the indices
+            for (String indexName : indicesUsingInferenceId) {
+                SearchRequest countRequest = new SearchRequest(indexName);
+                countRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+                countRequest.allowPartialSearchResults(true);
+                // We just need to know whether any documents exist at all
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true).trackTotalHitsUpTo(1);
+                countRequest.source(searchSourceBuilder);
+                SearchResponse searchResponse = client.search(countRequest).actionGet();
+                if (searchResponse.getHits().getTotalHits().value() > 0) {
+                    nonEmptyIndices.add(indexName);
+                }
+                searchResponse.decRef();
+            }
+        }
+        return nonEmptyIndices;
+    }
+
+    private static String buildErrorString(String inferenceId, Set<String> nonEmptyIndices, Set<String> pipelinesUsingInferenceId) {
+        StringBuilder errorString = new StringBuilder();
+        errorString.append("Inference endpoint [").append(inferenceId).append("] could not be created because it is ");
+        if (nonEmptyIndices.isEmpty() == false) {
+            errorString.append("being used in mappings for indices: ").append(nonEmptyIndices).append(" ");
+        }
+        if (pipelinesUsingInferenceId.isEmpty() == false) {
+            if (nonEmptyIndices.isEmpty() == false) {
+                errorString.append("and ");
+            }
+            errorString.append("referenced by pipelines: ").append(pipelinesUsingInferenceId);
+        }
+        errorString.append(".");
+        return errorString.toString();
     }
 
     private void startInferenceEndpoint(

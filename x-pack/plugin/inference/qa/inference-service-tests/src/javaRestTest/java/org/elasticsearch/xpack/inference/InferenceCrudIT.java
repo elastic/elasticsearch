@@ -10,6 +10,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -211,7 +212,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         final String endpointId = "endpoint_referenced_by_semantic_text";
         final String searchEndpointId = "search_endpoint_referenced_by_semantic_text";
         final String indexName = randomAlphaOfLength(10).toLowerCase();
-        final Function<String, String> buildErrorString = endpointName -> " Inference endpoint "
+        final Function<String, String> buildErrorString = endpointName -> "Inference endpoint "
             + endpointName
             + " is being used in the mapping for indexes: "
             + Set.of(indexName)
@@ -299,6 +300,117 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString("\"acknowledged\":true"));
         }
+        deletePipeline(pipelineId);
+        deleteIndex(indexName);
+    }
+
+    public void testCreateEndpoint_withInferenceIdReferencedByPipeline() throws IOException {
+        String endpointId = "endpoint_referenced_by_pipeline";
+        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var pipelineId1 = "pipeline_referencing_model_1";
+        var pipelineId2 = "pipeline_referencing_model_2";
+        putPipeline(pipelineId1, endpointId);
+        putPipeline(pipelineId2, endpointId);
+
+        deleteModel(endpointId, "force=true");
+
+        ResponseException responseException = assertThrows(
+            ResponseException.class,
+            () -> putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING)
+        );
+        assertThat(
+            responseException.getMessage(),
+            containsString("Inference endpoint [" + endpointId + "] could not be created because it is referenced by pipelines: [")
+        );
+        assertThat(responseException.getMessage(), containsString(pipelineId1));
+        assertThat(responseException.getMessage(), containsString(pipelineId2));
+
+        deletePipeline(pipelineId1);
+        deletePipeline(pipelineId2);
+    }
+
+    public void testCreateEndpoint_withInferenceIdReferencedBySemanticText() throws IOException {
+        final String endpointId = "endpoint_referenced_by_semantic_text";
+        final String otherEndpointId = "other_endpoint_referenced_by_semantic_text";
+        final String indexName1 = randomAlphaOfLength(10).toLowerCase();
+        final String indexName2 = randomValueOtherThan(indexName1, () -> randomAlphaOfLength(10).toLowerCase());
+
+        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(otherEndpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        // Create two indices, one where the inference ID of the endpoint we'll be deleting and recreating is used for
+        // inference_id and one where it's used for search_inference_id
+        putSemanticText(endpointId, otherEndpointId, indexName1);
+        putSemanticText(otherEndpointId, endpointId, indexName2);
+
+        // Confirm that we can create the endpoint if there are no documents in the indices using it
+        deleteModel(endpointId, "force=true");
+        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+
+        // Index a document into each index
+        var request1 = new Request("PUT", indexName1 + "/_create/1");
+        request1.setJsonEntity("{\"inference_field\": \"value\"}");
+        assertStatusOkOrCreated(client().performRequest(request1));
+
+        var request2 = new Request("PUT", indexName2 + "/_create/1");
+        request2.setJsonEntity("{\"inference_field\": \"value\"}");
+        assertStatusOkOrCreated(client().performRequest(request2));
+
+        assertStatusOkOrCreated(client().performRequest(new Request("GET", "_refresh")));
+
+        deleteModel(endpointId, "force=true");
+
+        // Try to create an inference endpoint with the same ID
+        ResponseException responseException = assertThrows(
+            ResponseException.class,
+            () -> putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING)
+        );
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "Inference endpoint [" + endpointId + "] could not be created because it is being used in mappings for indices: ["
+            )
+        );
+        assertThat(responseException.getMessage(), containsString(indexName1));
+        assertThat(responseException.getMessage(), containsString(indexName2));
+
+        deleteIndex(indexName1);
+        deleteIndex(indexName2);
+
+        deleteModel(otherEndpointId, "force=true");
+    }
+
+    public void testCreateEndpoint_withInferenceIdReferencedBySemanticTextAndPipeline() throws IOException {
+        String endpointId = "endpoint_referenced_by_semantic_text";
+        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        String indexName = randomAlphaOfLength(10).toLowerCase();
+        putSemanticText(endpointId, indexName);
+
+        // Index a document into the index
+        var indexDocRequest = new Request("PUT", indexName + "/_create/1");
+        indexDocRequest.setJsonEntity("{\"inference_field\": \"value\"}");
+        assertStatusOkOrCreated(client().performRequest(indexDocRequest));
+
+        assertStatusOkOrCreated(client().performRequest(new Request("GET", "_refresh")));
+
+        var pipelineId = "pipeline_referencing_model";
+        putPipeline(pipelineId, endpointId);
+
+        deleteModel(endpointId, "force=true");
+
+        String errorString = "Inference endpoint ["
+            + endpointId
+            + "] could not be created because it is being used in mappings for indices: ["
+            + indexName
+            + "] and referenced by pipelines: ["
+            + pipelineId
+            + "].";
+
+        ResponseException responseException = assertThrows(
+            ResponseException.class,
+            () -> putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING)
+        );
+        assertThat(responseException.getMessage(), containsString(errorString));
+
         deletePipeline(pipelineId);
         deleteIndex(indexName);
     }

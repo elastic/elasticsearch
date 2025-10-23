@@ -63,11 +63,8 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
     @Override
     protected ShardFlushRequest newShardRequest(FlushRequest request, ShardId shardId, ProjectMetadata project) {
         // Get effective shardCount for shardId and pass it on as parameter to new ShardFlushRequest
-        var indexMetadata = project.index(shardId.getIndexName());
-        SplitShardCountSummary reshardSplitShardCountSummary = SplitShardCountSummary.UNSET;
-        if (indexMetadata != null) {
-            reshardSplitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
-        }
+        var indexMetadata = project.getIndexSafe(shardId.getIndex());
+        SplitShardCountSummary reshardSplitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
         return new ShardFlushRequest(request, shardId, reshardSplitShardCountSummary);
     }
 

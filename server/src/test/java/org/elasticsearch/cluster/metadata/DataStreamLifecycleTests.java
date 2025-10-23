@@ -12,6 +12,8 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
+import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.action.downsample.DownsampleConfigTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -64,7 +66,8 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
         var enabled = instance.enabled();
         var retention = instance.dataRetention();
         var downsamplingRounds = instance.downsamplingRounds();
-        switch (randomInt(3)) {
+        var downsamplingMethod = instance.downsamplingMethod();
+        switch (randomInt(4)) {
             case 0 -> {
                 if (instance.targetsFailureStore()) {
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
@@ -90,11 +93,28 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                     downsamplingRounds = randomBoolean()
                         ? null
                         : randomValueOtherThan(downsamplingRounds, DataStreamLifecycleTests::randomDownsamplingRounds);
+                    if (downsamplingRounds == null) {
+                        downsamplingMethod = null;
+                    }
+                }
+            }
+            case 3 -> {
+                // We need to enable downsampling in order to add a non value downsampling method
+                if (downsamplingRounds == null) {
+                    downsamplingRounds = randomDownsamplingRounds();
+                    lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
+                }
+                if (downsamplingMethod == null) {
+                    downsamplingMethod = randomFrom(DownsampleConfig.SamplingMethod.values());
+                } else if (downsamplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE) {
+                    downsamplingMethod = randomBoolean() ? null : DownsampleConfig.SamplingMethod.LAST_VALUE;
+                } else {
+                    downsamplingMethod = randomBoolean() ? null : DownsampleConfig.SamplingMethod.AGGREGATE;
                 }
             }
             default -> enabled = enabled == false;
         }
-        return new DataStreamLifecycle(lifecycleTarget, enabled, retention, downsamplingRounds);
+        return new DataStreamLifecycle(lifecycleTarget, enabled, retention, downsamplingRounds, downsamplingMethod);
     }
 
     public void testDataLifecycleXContentSerialization() throws IOException {
@@ -486,9 +506,11 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
     }
 
     public static DataStreamLifecycle randomDataLifecycle() {
+        List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds = randomBoolean() ? null : randomDownsamplingRounds();
         return DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
-            .downsamplingRounds(randomBoolean() ? null : randomDownsamplingRounds())
+            .downsamplingRounds(downsamplingRounds)
+            .downsamplingMethod(downsamplingRounds == null ? null : DownsampleConfigTests.randomSamplingMethod())
             .enabled(randomBoolean())
             .build();
     }
@@ -535,7 +557,8 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                     DataStreamLifecycle.LifecycleType.FAILURES,
                     null,
                     null,
-                    DataStreamLifecycleTests.randomDownsamplingRounds()
+                    DataStreamLifecycleTests.randomDownsamplingRounds(),
+                    DownsampleConfigTests.randomSamplingMethod()
                 )
             )
         );

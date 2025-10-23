@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -150,7 +151,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.createDataLifecycleTemplate(
                 true,
                 randomRetention(),
-                randomDownsampling()
+                randomDownsampling(),
+                ResettableValue.create(DataStreamLifecycleFixtures.randomSamplingMethod())
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
@@ -165,7 +167,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.createDataLifecycleTemplate(
                 false,
                 randomPositiveTimeValue(),
-                randomRounds()
+                randomRounds(),
+                DataStreamLifecycleFixtures.randomSamplingMethod()
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DATA_DEFAULT);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
@@ -178,12 +181,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle.Template lifecycle1 = DataStreamLifecycle.createDataLifecycleTemplate(
                 false,
                 randomPositiveTimeValue(),
-                randomRounds()
+                randomRounds(),
+                DataStreamLifecycleFixtures.randomSamplingMethod()
             );
             DataStreamLifecycle.Template lifecycle2 = DataStreamLifecycle.createDataLifecycleTemplate(
                 true,
                 randomPositiveTimeValue(),
-                randomRounds()
+                randomRounds(),
+                DataStreamLifecycleFixtures.randomSamplingMethod()
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();

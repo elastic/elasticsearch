@@ -12,6 +12,7 @@ package org.elasticsearch.datastreams.lifecycle;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
@@ -37,6 +38,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ESIntegTestCase.client;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.frequently;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.junit.Assert.assertTrue;
@@ -145,7 +147,8 @@ public class DataStreamLifecycleFixtures {
         return DataStreamLifecycle.createDataLifecycleTemplate(
             frequently(),
             randomResettable(ESTestCase::randomTimeValue),
-            randomResettable(DataStreamLifecycleFixtures::randomDownsamplingRounds)
+            randomResettable(DataStreamLifecycleFixtures::randomDownsamplingRounds),
+            randomResettable(DataStreamLifecycleFixtures::randomSamplingMethod)
         );
     }
 
@@ -178,5 +181,14 @@ public class DataStreamLifecycleFixtures {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
+    }
+
+    public static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        return switch (between(0, 2)) {
+            case 0 -> null;
+            case 1 -> DownsampleConfig.SamplingMethod.AGGREGATE;
+            case 2 -> DownsampleConfig.SamplingMethod.LAST_VALUE;
+            default -> throw new IllegalStateException("Unknown randomisation path");
+        };
     }
 }

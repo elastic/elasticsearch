@@ -1113,6 +1113,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         DataStreamLifecycle.Template lifecycleNullRetention = DataStreamLifecycle.createDataLifecycleTemplate(
             true,
             ResettableValue.reset(),
+            ResettableValue.undefined(),
             ResettableValue.undefined()
         );
         String ctNullRetention = "ct_null_retention";

@@ -52,7 +52,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * Lifecycle supports the following configurations:
  * - enabled, applicable to data and failures
  * - data retention, applicable to data and failures
- * - downsampling, applicable only to data
+ * - downsampling and downsampling method, applicable only to data
  */
 public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
@@ -75,6 +75,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         "Failure store lifecycle does not support downsampling, please remove the downsampling configuration.";
 
     private static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE = TransportVersion.fromName("introduce_lifecycle_template");
+    public static final String DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR =
+        "Downsampling method can only be set when there is at least one downsampling round.";
 
     /**
      * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
@@ -95,7 +97,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Setting.Property.NodeScope
     );
 
-    public static final DataStreamLifecycle DEFAULT_DATA_LIFECYCLE = DataStreamLifecycle.createDataLifecycle(null, null, null);
+    public static final DataStreamLifecycle DEFAULT_DATA_LIFECYCLE = DataStreamLifecycle.createDataLifecycle(null, null, null, null);
     public static final DataStreamLifecycle DEFAULT_FAILURE_LIFECYCLE = DataStreamLifecycle.createFailuresLifecycle(null, null);
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
@@ -105,13 +107,20 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static final ParseField EFFECTIVE_RETENTION_FIELD = new ParseField("effective_retention");
     public static final ParseField RETENTION_SOURCE_FIELD = new ParseField("retention_determined_by");
     public static final ParseField DOWNSAMPLING_FIELD = new ParseField("downsampling");
+    public static final ParseField DOWNSAMPLING_METHOD_FIELD = new ParseField("downsampling_method");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataStreamLifecycle, LifecycleType> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, lt) -> new DataStreamLifecycle(lt, (Boolean) args[0], (TimeValue) args[1], (List<DownsamplingRound>) args[2])
+        (args, lt) -> new DataStreamLifecycle(
+            lt,
+            (Boolean) args[0],
+            (TimeValue) args[1],
+            (List<DownsamplingRound>) args[2],
+            (DownsampleConfig.SamplingMethod) args[3]
+        )
     );
 
     static {
@@ -134,6 +143,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 return AbstractObjectParser.parseArray(p, null, DownsamplingRound::fromXContent);
             }
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DownsampleConfig.SamplingMethod.fromString(p.text()),
+            DOWNSAMPLING_METHOD_FIELD,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = TransportVersion.fromName("introduce_failures_lifecycle");
@@ -144,16 +159,20 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     private final TimeValue dataRetention;
     @Nullable
     private final List<DownsamplingRound> downsamplingRounds;
+    @Nullable
+    private final DownsampleConfig.SamplingMethod downsamplingMethod;
 
     /**
-     * This constructor is visible for testing, please use {@link DataStreamLifecycle#createDataLifecycle(Boolean, TimeValue, List)} or
+     * This constructor is visible for testing, please use
+     * {@link DataStreamLifecycle#createDataLifecycle(Boolean, TimeValue, List, DownsampleConfig.SamplingMethod)} or
      * {@link DataStreamLifecycle#createFailuresLifecycle(Boolean, TimeValue)}.
      */
     DataStreamLifecycle(
         LifecycleType lifecycleType,
         @Nullable Boolean enabled,
         @Nullable TimeValue dataRetention,
-        @Nullable List<DownsamplingRound> downsamplingRounds
+        @Nullable List<DownsamplingRound> downsamplingRounds,
+        @Nullable DownsampleConfig.SamplingMethod downsamplingMethod
     ) {
         this.lifecycleType = lifecycleType;
         this.enabled = enabled == null || enabled;
@@ -163,6 +182,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
         DownsamplingRound.validateRounds(downsamplingRounds);
         this.downsamplingRounds = downsamplingRounds;
+        if (downsamplingMethod != null && downsamplingRounds == null) {
+            throw new IllegalArgumentException(DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR);
+        }
+        this.downsamplingMethod = downsamplingMethod;
     }
 
     /**
@@ -172,9 +195,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static DataStreamLifecycle createDataLifecycle(
         @Nullable Boolean enabled,
         @Nullable TimeValue dataRetention,
-        @Nullable List<DownsamplingRound> downsampling
+        @Nullable List<DownsamplingRound> downsamplingRounds,
+        @Nullable DownsampleConfig.SamplingMethod downsamplingMethod
     ) {
-        return new DataStreamLifecycle(LifecycleType.DATA, enabled, dataRetention, downsampling);
+        return new DataStreamLifecycle(LifecycleType.DATA, enabled, dataRetention, downsamplingRounds, downsamplingMethod);
     }
 
     /**
@@ -182,7 +206,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * means it supports only enabling and retention.
      */
     public static DataStreamLifecycle createFailuresLifecycle(@Nullable Boolean enabled, @Nullable TimeValue dataRetention) {
-        return new DataStreamLifecycle(LifecycleType.FAILURES, enabled, dataRetention, null);
+        return new DataStreamLifecycle(LifecycleType.FAILURES, enabled, dataRetention, null, null);
     }
 
     /**
@@ -305,11 +329,19 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     /**
      * The configured downsampling rounds with the `after` and the `fixed_interval` per round. If downsampling is
-     * not configured then it returns null.
+     * not configured, then it returns null.
      */
     @Nullable
     public List<DownsamplingRound> downsamplingRounds() {
         return downsamplingRounds;
+    }
+
+    /**
+     * The configured downsampling method. If downsampling is not configured, then it returns null.
+     */
+    @Nullable
+    public DownsampleConfig.SamplingMethod downsamplingMethod() {
+        return downsamplingMethod;
     }
 
     @Override
@@ -321,12 +353,13 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         return lifecycleType == that.lifecycleType
             && Objects.equals(dataRetention, that.dataRetention)
             && Objects.equals(downsamplingRounds, that.downsamplingRounds)
+            && Objects.equals(downsamplingMethod, that.downsamplingMethod)
             && enabled == that.enabled;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(lifecycleType, enabled, dataRetention, downsamplingRounds);
+        return Objects.hash(lifecycleType, enabled, dataRetention, downsamplingRounds, downsamplingMethod);
     }
 
     @Override
@@ -349,6 +382,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
         if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
             lifecycleType.writeTo(out);
+        }
+        if (out.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)) {
+            out.writeOptionalWriteable(downsamplingMethod);
         }
     }
 
@@ -374,6 +410,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             enabled = true;
         }
         lifecycleType = in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? LifecycleType.read(in) : LifecycleType.DATA;
+        downsamplingMethod = in.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)
+            ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
+            : null;
     }
 
     /**
@@ -428,6 +467,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             + dataRetention
             + ", downsamplingRounds="
             + downsamplingRounds
+            + ", downsamplingMethod="
+            + downsamplingMethod
             + '}';
     }
 
@@ -468,6 +509,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
         if (downsamplingRounds != null) {
             builder.field(DOWNSAMPLING_FIELD.getPreferredName(), downsamplingRounds);
+        }
+        if (downsamplingMethod != null) {
+            builder.field(DOWNSAMPLING_METHOD_FIELD.getPreferredName(), downsamplingMethod.toString());
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
@@ -634,9 +678,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static Template createDataLifecycleTemplate(
         boolean enabled,
         TimeValue dataRetention,
-        List<DataStreamLifecycle.DownsamplingRound> downsampling
+        List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
+        DownsampleConfig.SamplingMethod downsamplingMethod
     ) {
-        return new Template(LifecycleType.DATA, enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
+        return new Template(
+            LifecycleType.DATA,
+            enabled,
+            ResettableValue.create(dataRetention),
+            ResettableValue.create(downsamplingRounds),
+            ResettableValue.create(downsamplingMethod)
+        );
     }
 
     /**
@@ -646,9 +697,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static Template createDataLifecycleTemplate(
         boolean enabled,
         ResettableValue<TimeValue> dataRetention,
-        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsamplingRounds,
+        ResettableValue<DownsampleConfig.SamplingMethod> downsamplingMethod
     ) {
-        return new Template(LifecycleType.DATA, enabled, dataRetention, downsampling);
+        return new Template(LifecycleType.DATA, enabled, dataRetention, downsamplingRounds, downsamplingMethod);
     }
 
     /**
@@ -656,7 +708,13 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * means it supports only setting the enabled and the retention.
      */
     public static Template createFailuresLifecycleTemplate(boolean enabled, TimeValue dataRetention) {
-        return new Template(LifecycleType.FAILURES, enabled, ResettableValue.create(dataRetention), ResettableValue.undefined());
+        return new Template(
+            LifecycleType.FAILURES,
+            enabled,
+            ResettableValue.create(dataRetention),
+            ResettableValue.undefined(),
+            ResettableValue.undefined()
+        );
     }
 
     /**
@@ -667,16 +725,24 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         LifecycleType lifecycleType,
         boolean enabled,
         ResettableValue<TimeValue> dataRetention,
-        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsamplingRounds
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsamplingRounds,
+        ResettableValue<DownsampleConfig.SamplingMethod> downsamplingMethod
     ) implements ToXContentObject, Writeable {
 
         Template(
             LifecycleType lifecycleType,
             boolean enabled,
             TimeValue dataRetention,
-            List<DataStreamLifecycle.DownsamplingRound> downsampling
+            List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
+            DownsampleConfig.SamplingMethod downsamplingMethod
         ) {
-            this(lifecycleType, enabled, ResettableValue.create(dataRetention), ResettableValue.create(downsampling));
+            this(
+                lifecycleType,
+                enabled,
+                ResettableValue.create(dataRetention),
+                ResettableValue.create(downsamplingRounds),
+                ResettableValue.create(downsamplingMethod)
+            );
         }
 
         public Template {
@@ -685,12 +751,15 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
             if (downsamplingRounds.isDefined() && downsamplingRounds.get() != null) {
                 DownsamplingRound.validateRounds(downsamplingRounds.get());
+            } else if (downsamplingMethod.isDefined() && downsamplingMethod.get() != null) {
+                throw new IllegalArgumentException(DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR);
             }
         }
 
         public static final DataStreamLifecycle.Template DATA_DEFAULT = new DataStreamLifecycle.Template(
             LifecycleType.DATA,
             true,
+            ResettableValue.undefined(),
             ResettableValue.undefined(),
             ResettableValue.undefined()
         );
@@ -703,7 +772,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 lt,
                 args[0] == null || (boolean) args[0],
                 args[1] == null ? ResettableValue.undefined() : (ResettableValue<TimeValue>) args[1],
-                args[2] == null ? ResettableValue.undefined() : (ResettableValue<List<DataStreamLifecycle.DownsamplingRound>>) args[2]
+                args[2] == null ? ResettableValue.undefined() : (ResettableValue<List<DataStreamLifecycle.DownsamplingRound>>) args[2],
+                args[3] == null ? ResettableValue.undefined() : (ResettableValue<DownsampleConfig.SamplingMethod>) args[3]
             )
         );
 
@@ -722,6 +792,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                     return ResettableValue.create(AbstractObjectParser.parseArray(p, null, DownsamplingRound::fromXContent));
                 }
             }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+                String value = p.textOrNull();
+                return value == null ? ResettableValue.reset() : ResettableValue.create(DownsampleConfig.SamplingMethod.fromString(value));
+            }, DOWNSAMPLING_METHOD_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
         }
 
         @Override
@@ -744,6 +818,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
             if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
                 lifecycleType.writeTo(out);
+            }
+            if (out.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)) {
+                ResettableValue.write(out, downsamplingMethod, StreamOutput::writeWriteable);
             }
         }
 
@@ -784,7 +861,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         public static Template read(StreamInput in) throws IOException {
             boolean enabled = true;
             ResettableValue<TimeValue> dataRetention = ResettableValue.undefined();
-            ResettableValue<List<DownsamplingRound>> downsampling = ResettableValue.undefined();
+            ResettableValue<List<DownsamplingRound>> downsamplingRounds = ResettableValue.undefined();
 
             // The order of the fields is like this for bwc reasons
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
@@ -796,16 +873,20 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
             if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
                 if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                    downsampling = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
+                    downsamplingRounds = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
                 } else {
-                    downsampling = readLegacyValues(in, i -> i.readCollectionAsList(DownsamplingRound::read));
+                    downsamplingRounds = readLegacyValues(in, i -> i.readCollectionAsList(DownsamplingRound::read));
                 }
                 enabled = in.readBoolean();
             }
             var lifecycleTarget = in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
                 ? LifecycleType.read(in)
                 : LifecycleType.DATA;
-            return new Template(lifecycleTarget, enabled, dataRetention, downsampling);
+            ResettableValue<DownsampleConfig.SamplingMethod> downsamplingMethod = in.getTransportVersion()
+                .supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)
+                    ? ResettableValue.read(in, DownsampleConfig.SamplingMethod::read)
+                    : ResettableValue.undefined();
+            return new Template(lifecycleTarget, enabled, dataRetention, downsamplingRounds, downsamplingMethod);
         }
 
         public static Template dataLifecycleTemplatefromXContent(XContentParser parser) throws IOException {
@@ -840,6 +921,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             builder.field(ENABLED_FIELD.getPreferredName(), enabled);
             dataRetention.toXContent(builder, params, DATA_RETENTION_FIELD.getPreferredName(), TimeValue::getStringRep);
             downsamplingRounds.toXContent(builder, params, DOWNSAMPLING_FIELD.getPreferredName());
+            downsamplingMethod.toXContent(
+                builder,
+                params,
+                DOWNSAMPLING_METHOD_FIELD.getPreferredName(),
+                DownsampleConfig.SamplingMethod::toString
+            );
             if (rolloverConfiguration != null) {
                 builder.field(ROLLOVER_FIELD.getPreferredName());
                 rolloverConfiguration.evaluateAndConvertToXContent(
@@ -853,7 +940,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public DataStreamLifecycle toDataStreamLifecycle() {
-            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention.get(), downsamplingRounds.get());
+            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention.get(), downsamplingRounds.get(), downsamplingMethod.get());
         }
     }
 
@@ -891,6 +978,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         private TimeValue dataRetention = null;
         @Nullable
         private List<DownsamplingRound> downsamplingRounds = null;
+        @Nullable
+        private DownsampleConfig.SamplingMethod downsamplingMethod = null;
 
         private Builder(LifecycleType lifecycleType) {
             this.lifecycleType = lifecycleType;
@@ -901,6 +990,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             enabled = template.enabled();
             dataRetention = template.dataRetention().get();
             downsamplingRounds = template.downsamplingRounds().get();
+            downsamplingMethod = template.downsamplingMethod().get();
         }
 
         private Builder(DataStreamLifecycle lifecycle) {
@@ -908,6 +998,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             enabled = lifecycle.enabled();
             dataRetention = lifecycle.dataRetention();
             downsamplingRounds = lifecycle.downsamplingRounds();
+            downsamplingMethod = lifecycle.downsamplingMethod();
         }
 
         public Builder composeTemplate(DataStreamLifecycle.Template template) {
@@ -915,6 +1006,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             enabled(template.enabled());
             dataRetention(template.dataRetention());
             downsamplingRounds(template.downsamplingRounds());
+            downsamplingMethod(template.downsamplingMethod());
             return this;
         }
 
@@ -947,12 +1039,24 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return this;
         }
 
+        public Builder downsamplingMethod(ResettableValue<DownsampleConfig.SamplingMethod> downsamplingMethod) {
+            if (downsamplingMethod.isDefined()) {
+                this.downsamplingMethod = downsamplingMethod.get();
+            }
+            return this;
+        }
+
+        public Builder downsamplingMethod(@Nullable DownsampleConfig.SamplingMethod downsamplingMethod) {
+            this.downsamplingMethod = downsamplingMethod;
+            return this;
+        }
+
         public DataStreamLifecycle build() {
-            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention, downsamplingRounds);
+            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention, downsamplingRounds, downsamplingMethod);
         }
 
         public Template buildTemplate() {
-            return new Template(lifecycleType, enabled, dataRetention, downsamplingRounds);
+            return new Template(lifecycleType, enabled, dataRetention, downsamplingRounds, downsamplingMethod);
         }
     }
 

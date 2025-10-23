@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 
 import java.io.IOException;
 
@@ -47,7 +48,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final byte SORTED_NUMERIC = 4;
 
     static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_START;
+    static final int VERSION_BINARY_DV_COMPRESSION = VERSION_START;
+    static final int VERSION_CURRENT = VERSION_BINARY_DV_COMPRESSION;
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -119,14 +121,15 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     final int skipIndexIntervalSize;
     final int minDocsPerOrdinalForRangeEncoding;
     private final boolean enableOptimizedMerge;
+    final BinaryDVCompressionMode binaryDVCompressionMode;
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT);
+        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT, BinaryDVCompressionMode.NO_COMPRESS);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, int minDocsPerOrdinalForRangeEncoding, boolean enableOptimizedMerge) {
+    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, int minDocsPerOrdinalForRangeEncoding, boolean enableOptimizedMerge, BinaryDVCompressionMode binaryDVCompressionMode) {
         super(CODEC_NAME);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
@@ -134,11 +137,13 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         this.skipIndexIntervalSize = skipIndexIntervalSize;
         this.minDocsPerOrdinalForRangeEncoding = minDocsPerOrdinalForRangeEncoding;
         this.enableOptimizedMerge = enableOptimizedMerge;
+        this.binaryDVCompressionMode = binaryDVCompressionMode;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
         return new ES819TSDBDocValuesConsumer(
+            binaryDVCompressionMode,
             state,
             skipIndexIntervalSize,
             minDocsPerOrdinalForRangeEncoding,

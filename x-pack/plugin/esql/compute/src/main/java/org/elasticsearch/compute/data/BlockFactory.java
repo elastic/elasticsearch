@@ -503,12 +503,6 @@ public class BlockFactory {
         }
     }
 
-    public LongRangeBlock newLongRangeBlock(long[] fromValues, long[] toValues, int positions) {
-        var from = newLongArrayVector(fromValues, positions).asBlock();
-        var to = newLongArrayVector(toValues, positions).asBlock();
-        return new LongRangeArrayBlock(from, to);
-    }
-
     /**
      * Returns the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
      */

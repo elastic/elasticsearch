@@ -472,9 +472,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO fix geo
-                CARTESIAN_POINT, CARTESIAN_SHAPE,
-                // Excluded for now, until a proper workaround
-                DATE_RANGE -> false;
+                CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
             default -> true;
         };
     }

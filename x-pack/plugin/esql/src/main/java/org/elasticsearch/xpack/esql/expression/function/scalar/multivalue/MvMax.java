@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersSpatialDenseVectorAndAggregateMetricDouble;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptUnsortableTypes;
 
 /**
  * Reduce a multivalued field to a single valued field containing the maximum value.
@@ -68,7 +68,7 @@ public class MvMax extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isRepresentableExceptCountersSpatialDenseVectorAndAggregateMetricDouble(field(), sourceText(), DEFAULT);
+        return isRepresentableExceptUnsortableTypes(field(), sourceText(), DEFAULT);
     }
 
     @Override

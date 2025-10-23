@@ -93,7 +93,7 @@ public final class TypeResolutions {
         );
     }
 
-    public static TypeResolution isRepresentableExceptCountersSpatialDenseVectorAndAggregateMetricDouble(
+    public static TypeResolution isRepresentableExceptUnsortableTypes(
         Expression e,
         String operationName,
         ParamOrdinal paramOrd

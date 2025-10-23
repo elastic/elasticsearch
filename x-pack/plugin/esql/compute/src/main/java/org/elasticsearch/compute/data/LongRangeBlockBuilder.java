@@ -165,7 +165,7 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         );
 
         public LongRange(StreamInput in) throws IOException {
-            this(in.readOptionalLong(), in.readOptionalLong());
+            this(in.readLong(), in.readLong());
         }
 
         @Override

@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
@@ -369,7 +370,10 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
+            if (rangeType != RangeType.DATE) {
+                throw new UnsupportedOperationException("loading blocks is only supported for date fields");
+            }
+            if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
                 return new DateRangeDocValuesLoader(name());
             }
             throw new IllegalStateException("Cannot load blocks without doc values");

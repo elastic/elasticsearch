@@ -11,7 +11,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 
 /**
- * Block that stores aggregate_metric_double values.
+ * Block that stores long ranges.
  */
 public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock, ConstantNullBlock {
     @Override
@@ -30,7 +30,7 @@ public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock
      * Returns {@code true} if the given blocks are equal to each other, otherwise {@code false}.
      * Two blocks are considered equal if they have the same position count, and contain the same
      * values (including absent null values) in the same order. This definition ensures that the
-     * equals method works properly across different implementations of the AggregateMetricDoubleBlock interface.
+     * equals method works properly across different implementations of the LongRangeBlock interface.
      */
     static boolean equals(LongRangeBlock lhs, LongRangeBlock rhs) {
         if (lhs == rhs) {

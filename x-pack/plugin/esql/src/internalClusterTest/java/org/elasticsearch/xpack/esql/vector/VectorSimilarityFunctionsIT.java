@@ -153,6 +153,27 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testSimilarityWithOneDimVector() {
+        final float oneDimFloat = randomFloat();
+        final float[] randomVector = randomVectorArray(1);
+        var query = String.format(Locale.ROOT, """
+                ROW left_vector = to_dense_vector(%s)
+                | EVAL similarity = %s(left_vector, %f)
+                | KEEP left_vector, similarity
+            """, Arrays.toString(randomVector), functionName, oneDimFloat);
+        try (var resp = run(query)) {
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            valuesList.forEach(values -> {
+                float[] left = new float[] { (float) values.get(0) };
+                Double similarity = (Double) values.get(1);
+                assertNotNull(similarity);
+                float expectedSimilarity = similarityFunction.calculateSimilarity(left, new float[] { oneDimFloat });
+                assertEquals(expectedSimilarity, similarity, 0.0001);
+            });
+        }
+    }
+
     private static float[] asFloatArray(List<Number> randomVector) {
         float[] result = new float[randomVector.size()];
         for (int i = 0; i < randomVector.size(); i++) {

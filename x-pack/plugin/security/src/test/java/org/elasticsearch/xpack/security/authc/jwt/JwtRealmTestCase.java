@@ -339,7 +339,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final UserRoleMapper userRoleMapper = buildRoleMapper(authzRealmNames.isEmpty() ? jwtIssuer.principals : Map.of());
 
         // If authz names is not set, register the users here in the JWT authc realm.
-        final JwtRealm jwtRealm = new JwtRealm(authcConfig, sslService, userRoleMapper);
+        final JwtRealm jwtRealm = new JwtRealm(authcConfig, sslService, userRoleMapper, null);
         allRealms.add(jwtRealm);
 
         // If authz names is set, register the users here in one of the authz realms.

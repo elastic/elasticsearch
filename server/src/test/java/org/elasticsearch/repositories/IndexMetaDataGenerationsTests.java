@@ -91,12 +91,12 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         Map<SnapshotId, Map<IndexId, String>> lookup = Map.of(snapshotId, Map.of(indexId, uniqueIdentifier));
 
         IndexMetaDataGenerations generations = new IndexMetaDataGenerations(lookup, Map.of(uniqueIdentifier, blobId));
-        assertEquals(indexUUID, generations.convertBlobIdToIndexUUID(blobId));
+        assertEquals(indexUUID, generations.getIndexUUIDFromBlobId(blobId));
     }
 
     public void testConvertBlobIdToIndexUUIDReturnsNullWhenBlobIdIsNotFound() {
         IndexMetaDataGenerations generations = new IndexMetaDataGenerations(Map.of(), Map.of());
-        assertNull(generations.convertBlobIdToIndexUUID(randomAlphanumericOfLength(randomIntBetween(5, 10))));
+        assertNull(generations.getIndexUUIDFromBlobId(randomAlphanumericOfLength(randomIntBetween(5, 10))));
     }
 
     private String generateUUID() {

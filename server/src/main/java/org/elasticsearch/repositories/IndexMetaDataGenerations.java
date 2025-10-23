@@ -79,21 +79,6 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Returns the index metadata identifier associated with the given blob UUID.
-     * <p>
-     * This method provides a reverse lookup from a blob UUID to its corresponding index metadata identifier.
-     * If the specified blob UUID is not present, this method returns {@code null}.
-     * </p>
-     *
-     * @param blobUuid the UUID of the blob whose index metadata identifier is to be retrieved
-     * @return the index metadata identifier associated with the given blob UUID, or {@code null} if not found
-     */
-    @Nullable
-    public String getIndexMetadataIdentifierByBlobUuid(String blobUuid) {
-        return blobUuidToIndexMetadataMap.get(blobUuid);
-    }
-
-    /**
      * Get the blob id by {@link SnapshotId} and {@link IndexId} and fall back to the value of {@link SnapshotId#getUUID()} if none is
      * known to enable backwards compatibility with versions older than
      * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} which used the snapshot uuid as index metadata
@@ -215,7 +200,7 @@ public final class IndexMetaDataGenerations {
      * @return identifier string
      */
     public static String buildUniqueIdentifier(IndexMetadata indexMetaData) {
-        // If modifying this identifier, then also extend the convertBlobIdToIndexUUID function below
+        // If modifying this identifier, then also extend the getIndexUUIDFromBlobId function below
         return indexMetaData.getIndexUUID()
             + "-"
             + indexMetaData.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)
@@ -236,7 +221,7 @@ public final class IndexMetaDataGenerations {
      * @param blobId The blob ID
      */
     @Nullable
-    public String convertBlobIdToIndexUUID(String blobId) {
+    public String getIndexUUIDFromBlobId(String blobId) {
         // Find the unique identifier for this blobId
         String uniqueIdentifier = blobUuidToIndexMetadataMap.get(blobId);
         if (uniqueIdentifier == null) {
@@ -244,7 +229,7 @@ public final class IndexMetaDataGenerations {
         }
 
         // The uniqueIdentifier is built in {@code buildUniqueIdentifier}, and is prefixed with indexUUID
-        // The indexUUID is either a random UUID of length 22, or _na_
+        // The indexUUID is either a UUID of length 22, or _na_
         boolean na = uniqueIdentifier.startsWith(ClusterState.UNKNOWN_UUID + "-");
         if (na) {
             return ClusterState.UNKNOWN_UUID;

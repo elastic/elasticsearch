@@ -138,7 +138,7 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
             - Generates A indices
             - Generates M snapshots including these indices
             - Deletes a subset B of indices
-            - Recreates the B indices with the same name
+            - Recreates the B indices with the same name but a different shard count
             - Generates N subsequent snapshots
             - Deletes a random subset of snapshots within one request
 
@@ -168,7 +168,7 @@ public class BlobStoreRepositoryShardCountComputedOncePerIndexTests extends ESSi
             - Generates A indices
             - Generates M snapshots including these indices
             - Deletes a subset B of indices
-            - Recreates the B indices with the same name
+            - Recreates the B indices with the same name but a different shard count
             - Generates N subsequent snapshots
             - Deletes a random subset of snapshots within one request
 

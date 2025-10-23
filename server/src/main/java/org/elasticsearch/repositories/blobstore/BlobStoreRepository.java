@@ -1293,7 +1293,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         // index UUID; the shard count is going to be the same for all metadata with the same index UUID, so it is
                         // unnecessary to read multiple metadata blobs corresponding to the same index UUID.
                         // NB if the index metadata blob is in the pre-7.9.0 format then this will return null
-                        String indexUUID = originalRepositoryData.indexMetaDataGenerations().convertBlobIdToIndexUUID(blobId);
+                        String indexUUID = originalRepositoryData.indexMetaDataGenerations().getIndexUUIDFromBlobId(blobId);
 
                         // Without an index UUID, we don't know if we've encountered this index before and must read it's IndexMetadata
                         // from heap. If this is a new index UUID, with a possibly higher shard count, then we also need to read

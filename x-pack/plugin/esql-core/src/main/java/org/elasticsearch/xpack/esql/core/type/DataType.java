@@ -976,7 +976,7 @@ public enum DataType implements Writeable {
         }
     }
 
-    private static class DataTypesTransportVersions {
+    public static class DataTypesTransportVersions {
 
         public static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
 

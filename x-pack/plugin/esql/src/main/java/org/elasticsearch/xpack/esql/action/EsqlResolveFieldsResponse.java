@@ -17,9 +17,11 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 
 public class EsqlResolveFieldsResponse extends ActionResponse {
-    public static final TransportVersion RESOLVE_FIELDS_RESPONSE_CREATED_TV = TransportVersion.fromName(
+    private static final TransportVersion RESOLVE_FIELDS_RESPONSE_CREATED_TV = TransportVersion.fromName(
         "esql_resolve_fields_response_created"
     );
+
+    public static final TransportVersion RESOLVE_FIELDS_RESPONSE_USED_TV = TransportVersion.fromName("esql_resolve_fields_response_used");
 
     private final FieldCapabilitiesResponse caps;
     private final TransportVersion minTransportVersion;

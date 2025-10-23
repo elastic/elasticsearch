@@ -27,7 +27,9 @@ import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldFunctionAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -87,6 +90,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistanc
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -247,6 +251,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource cartesianMultipolygonsNoDocValues; // cartesian_shape field tests but has no doc values
     private TestDataSource countriesBbox;       // geo_shape field tests
     private TestDataSource countriesBboxWeb;    // cartesian_shape field tests
+    private TestDataSource mappingAllTypes;
 
     private final Configuration config;
     private PlannerSettings plannerSettings;
@@ -380,6 +385,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             enrichResolution
         );
         this.plannerSettings = TEST_PLANNER_SETTINGS;
+        this.mappingAllTypes = makeTestDataSource("types", "mapping-all-types.json", functionRegistry, enrichResolution);
     }
 
     TestDataSource makeTestDataSource(
@@ -8659,6 +8665,123 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
         Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
+    }
+
+    /**
+     * Expceted
+     * ProjectExec[[dense_vector{f}#27, s{r}#4]]
+     * \_EvalExec[[$$dense_vector$replaced$28{t}#28 AS s#4]]
+     *   \_LimitExec[1000[INTEGER],null]
+     *     \_ExchangeExec[[],false]
+     *       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Limit[1000[INTEGER],false]
+     * \_EsRelation[types][$$dense_vector$replaced$28{t}#28, !alias_integer, b..]]]
+     */
+    public void testSimilarityFunctionPushdownNoSort() {
+        String query = """
+            from test
+            | eval s = v_dot_product(dense_vector, [0.1, 0.2, 0.3])
+            | keep dense_vector, s
+            """;
+
+        var plan = physicalPlan(query, mappingAllTypes);
+
+        // ProjectExec[[dense_vector{f}#27, s{r}#4]]
+        var project = as(plan, ProjectExec.class);
+
+        // EvalExec[[$$dense_vector$replaced$28{t}#28 AS s#4]]
+        var eval = as(project.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("s"));
+
+        // Checks replaced field function attribute
+        FieldFunctionAttribute fieldFunctionAttribute = (FieldFunctionAttribute) alias.child();
+        assertThat(fieldFunctionAttribute.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldFunctionAttribute.name(), startsWith("$$dense_vector$replaced"));
+        var function = as(fieldFunctionAttribute.getFunction(), VectorSimilarityFunction.class);
+        MappedFieldType.BlockLoaderFunction<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> blockLoaderFunction = function
+            .getBlockLoaderFunction();
+        assertThat(blockLoaderFunction.name(), equalTo(DenseVectorFieldMapper.SIMILARITY_FUNCTION_NAME));
+        assertThat(blockLoaderFunction.config().similarityFunction(), is(function.getSimilarityFunction()));
+        assertThat(blockLoaderFunction.config().vector(), equalTo(new float[] { 0.1f, 0.2f, 0.3f }));
+
+        // LimitExec[1000[INTEGER],null]
+        var limit = as(eval.child(), LimitExec.class);
+        assertThat(as(limit.limit(), Literal.class).value(), is(1000));
+
+        // ExchangeExec[[],false]
+        var exchange = as(limit.child(), ExchangeExec.class);
+
+        // FragmentExec containing Limit -> EsRelation
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fragmentLimit = as(fragment.fragment(), Limit.class);
+        assertThat(fragmentLimit.limit().fold(FoldContext.small()), equalTo(1000));
+        var relation = as(fragmentLimit.child(), EsRelation.class);
+        assertTrue(relation.outputSet().contains(fieldFunctionAttribute));
+    }
+
+    /**
+     * Expcets
+     * ProjectExec[[s{r}#4]]
+     * \_TopNExec[[Order[s{r}#4,DESC,FIRST]],1000[INTEGER],null]
+     *   \_ExchangeExec[[],false]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * TopN[[Order[s{r}#4,DESC,FIRST]],1000[INTEGER]]
+     * \_Eval[[$$dense_vector$replaced$28{t}#28 AS s#4]]
+     *   \_EsRelation[types][$$dense_vector$replaced$28{t}#28, !alias_integer, b..]]]
+     */
+    public void testSimilarityFunctionPushdown() {
+        String query = """
+            from test
+            | eval s = v_dot_product(dense_vector, [0.1, 0.2, 0.3])
+            | sort s desc
+            | keep s
+            """;
+
+        var plan = physicalPlan(query, mappingAllTypes);
+
+        // ProjectExec[[s{r}#4]]
+        var project = as(plan, ProjectExec.class);
+
+        // TopNExec[[Order[s{r}#4,DESC,FIRST]],1000[INTEGER],null]
+        var topN = as(project.child(), TopNExec.class);
+        assertThat(as(topN.limit(), Literal.class).value(), is(1000));
+
+        // ExchangeExec[[],false]
+        var exchange = as(topN.child(), ExchangeExec.class);
+
+        // FragmentExec containing TopN -> Eval -> EsRelation
+        var fragment = as(exchange.child(), FragmentExec.class);
+
+        // TopN[[Order[s{r}#4,DESC,FIRST]],1000[INTEGER]]
+        var fragmentTopN = as(fragment.fragment(), TopN.class);
+        assertThat(fragmentTopN.limit().fold(FoldContext.small()), equalTo(1000));
+        assertThat(fragmentTopN.order().size(), is(1));
+        var order = as(fragmentTopN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(Expressions.name(order.child()), equalTo("s"));
+
+        // Eval[[$$dense_vector$replaced$28{t}#28 AS s#4]]
+        var eval = as(fragmentTopN.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().get(0), Alias.class);
+
+        // Checks replaced field function attribute
+        FieldFunctionAttribute fieldFunctionAttribute = (FieldFunctionAttribute) alias.child();
+        assertThat(fieldFunctionAttribute.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldFunctionAttribute.name(), startsWith("$$dense_vector$replaced"));
+        var function = as(fieldFunctionAttribute.getFunction(), VectorSimilarityFunction.class);
+        MappedFieldType.BlockLoaderFunction<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> blockLoaderFunction = function
+            .getBlockLoaderFunction();
+        assertThat(blockLoaderFunction.name(), equalTo(DenseVectorFieldMapper.SIMILARITY_FUNCTION_NAME));
+        assertThat(blockLoaderFunction.config().similarityFunction(), is(function.getSimilarityFunction()));
+        assertThat(blockLoaderFunction.config().vector(), equalTo(new float[] { 0.1f, 0.2f, 0.3f }));
+
+        // EsRelation[types]
+        var relation = as(eval.child(), EsRelation.class);
+        assertTrue(relation.outputSet().contains(fieldFunctionAttribute));
     }
 
     @Override

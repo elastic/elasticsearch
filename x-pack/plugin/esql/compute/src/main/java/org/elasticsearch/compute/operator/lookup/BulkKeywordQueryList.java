@@ -24,9 +24,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.IntFunction;
 
 public class BulkKeywordQueryList {
@@ -39,8 +36,9 @@ public class BulkKeywordQueryList {
     private final String fieldName;
     private final IntFunction<Object> blockValueReader;
 
-    private final Map<LeafReaderContext, TermsEnum> termsEnumCache = new HashMap<>();
-    private final Map<LeafReaderContext, PostingsEnum> postingsCache = new HashMap<>();
+    private TermsEnum[] termsEnumCache = null;
+    private PostingsEnum[] postingsCache = null;
+    private final BytesRef scratch = new BytesRef();
 
     public BulkKeywordQueryList(
         MappedFieldType rightFieldType,
@@ -79,28 +77,19 @@ public class BulkKeywordQueryList {
                 return 0; // Skip multi-value positions and null positions
             }
             final int firstValueIndex = block.getFirstValueIndex(position);
-            BytesRef termBytes = block.getBytesRef(firstValueIndex, new BytesRef());
+            BytesRef termBytes = block.getBytesRef(firstValueIndex, scratch);
             int totalMatches = 0;
             for (LeafReaderContext leafContext : indexReader.leaves()) {
-                TermsEnum termsEnum = termsEnumCache.computeIfAbsent(leafContext, ctx -> {
-                    try {
-                        Terms terms = ctx.reader().terms(fieldName);
-                        return terms != null ? terms.iterator() : null;
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-
+                int leafOrd = leafContext.ord;
+                TermsEnum termsEnum = termsEnumCache[leafOrd];
                 if (termsEnum.seekExact(termBytes) == false) {
                     continue; // Term doesn't exist in this segment
                 }
-                PostingsEnum postings = postingsCache.computeIfAbsent(leafContext, ctx -> {
-                    try {
-                        return termsEnum.postings(null, 0);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
+                PostingsEnum postings = postingsCache[leafOrd];
+                if (postings == null) {
+                    postings = termsEnum.postings(null, 0);
+                    postingsCache[leafOrd] = postings;
+                }
 
                 // Reset the postings to the current term (reuse the cached PostingsEnum)
                 postings = termsEnum.postings(postings, 0);
@@ -129,5 +118,24 @@ public class BulkKeywordQueryList {
 
     public int getPositionCount() {
         return block.getPositionCount();
+    }
+
+    /**
+     * Initialize caches for the given index reader. This should be called once
+     * before the first processQuery call for a given index reader.
+     */
+    public void initializeCaches(IndexReader indexReader) throws IOException {
+        if (termsEnumCache == null) {
+            int numLeaves = indexReader.leaves().size();
+            termsEnumCache = new TermsEnum[numLeaves];
+            postingsCache = new PostingsEnum[numLeaves];
+
+            // Pre-populate caches with TermsEnum for each leaf
+            for (int i = 0; i < numLeaves; i++) {
+                LeafReaderContext leafContext = indexReader.leaves().get(i);
+                Terms terms = leafContext.reader().terms(fieldName);
+                termsEnumCache[i] = terms.iterator();
+            }
+        }
     }
 }

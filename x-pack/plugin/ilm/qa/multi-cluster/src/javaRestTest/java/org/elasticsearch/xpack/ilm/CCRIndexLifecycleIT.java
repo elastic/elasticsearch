@@ -99,6 +99,7 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
     public static TemporaryFolder repoDir = new TemporaryFolder();
 
     public static ElasticsearchCluster leaderCluster = ElasticsearchCluster.local()
+        .name("leader")
         .module("x-pack-ilm")
         .module("x-pack-ccr")
         .module("searchable-snapshots")
@@ -106,13 +107,12 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
         .setting("path.repo", () -> repoDir.getRoot().getAbsolutePath())
         .setting("xpack.ccr.enabled", "true")
         .setting("xpack.security.enabled", "false")
-        .setting("xpack.watcher.enabled", "false")
-        .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("indices.lifecycle.poll_interval", "1000ms")
         .build();
 
     public static ElasticsearchCluster followerCluster = ElasticsearchCluster.local()
+        .name("follower")
         .module("x-pack-ilm")
         .module("x-pack-ccr")
         .module("searchable-snapshots")
@@ -120,8 +120,6 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
         .setting("path.repo", () -> repoDir.getRoot().getAbsolutePath())
         .setting("xpack.ccr.enabled", "true")
         .setting("xpack.security.enabled", "false")
-        .setting("xpack.watcher.enabled", "false")
-        .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("indices.lifecycle.poll_interval", "1000ms")
         .setting("cluster.remote.leader_cluster.seeds", () -> "\"" + leaderCluster.getTransportEndpoints() + "\"")

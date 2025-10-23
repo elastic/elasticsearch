@@ -34,8 +34,6 @@ public abstract class IlmESRestTestCase extends ESRestTestCase {
         .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .setting("xpack.security.enabled", "false")
-        .setting("xpack.watcher.enabled", "false")
-        .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("indices.lifecycle.poll_interval", "1000ms")
         .setting("logger.org.elasticsearch.xpack.core.ilm", "TRACE")

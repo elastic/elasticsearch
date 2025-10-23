@@ -29,7 +29,6 @@ public class IndexLifecycleRestIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-ilm")
-        .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .user(USER, PASSWORD)

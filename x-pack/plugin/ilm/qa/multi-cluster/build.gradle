@@ -18,7 +18,7 @@ dependencies {
   clusterModules project(':modules:data-streams')
 }
 
-if (buildParams.inFipsJvm) {
-// Security is explicitly disabled for follow-cluster and leader-cluster, do not run these in FIPS mode
-  tasks.named("javaRestTest").configure { enabled = false }
+tasks.named("javaRestTest") {
+  // Security is explicitly disabled for follow-cluster and leader-cluster, do not run these in FIPS mode
+  buildParams.withFipsEnabledOnly(it)
 }

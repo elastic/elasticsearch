@@ -69,7 +69,15 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec, 0);
+        return new Lucene99HnswVectorsWriter(
+            state,
+            maxConn,
+            beamWidth,
+            flatVectorsFormat.fieldsWriter(state),
+            numMergeWorkers,
+            mergeExec,
+            0
+        );
     }
 
     @Override

@@ -1507,6 +1507,11 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
+         * Network direction function.
+         */
+        NETWORK_DIRECTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
         */
         TEMPORAL_AMOUNT_M,
@@ -1549,6 +1554,10 @@ public class EsqlCapabilities {
          */
         LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
 
+        /**
+         * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
+         */
+        FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
         /**
          * Support for the TRANGE function
          */

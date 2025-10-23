@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -183,17 +183,12 @@ public class MaxTests extends AbstractAggregationTestCase {
                     );
                 }),
                 new TestCaseSupplier(List.of(DataType.AGGREGATE_METRIC_DOUBLE), () -> {
-                    var value = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomNonNegativeInt()
-                    );
+                    var value = new AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomNonNegativeInt());
                     return new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.AGGREGATE_METRIC_DOUBLE, "field")),
                         standardAggregatorName("Max", DataType.AGGREGATE_METRIC_DOUBLE),
                         DataType.DOUBLE,
-                        equalTo(value.max())
+                        equalTo(value.getMax())
                     );
 
                 })
@@ -217,10 +212,7 @@ public class MaxTests extends AbstractAggregationTestCase {
             if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
                 expected = fieldTypedData.multiRowData()
                     .stream()
-                    .map(
-                        v -> (Comparable<
-                            ? super Comparable<?>>) ((Object) ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).max())
-                    )
+                    .map(v -> (Comparable<? super Comparable<?>>) ((Object) ((AggregateMetricDoubleLiteral) v).getMax()))
                     .max(Comparator.naturalOrder())
                     .orElse(null);
             } else {

@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -297,15 +296,7 @@ public final class BlockUtils {
                 yield new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from composite blocks");
-            case AGGREGATE_METRIC_DOUBLE -> {
-                AggregateMetricDoubleBlock aggBlock = (AggregateMetricDoubleBlock) block;
-                yield new AggregateMetricDoubleLiteral(
-                    aggBlock.minBlock().getDouble(offset),
-                    aggBlock.maxBlock().getDouble(offset),
-                    aggBlock.sumBlock().getDouble(offset),
-                    aggBlock.countBlock().getInt(offset)
-                );
-            }
+            case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlock) block).getAggregateMetricDoubleLiteral(offset);
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }

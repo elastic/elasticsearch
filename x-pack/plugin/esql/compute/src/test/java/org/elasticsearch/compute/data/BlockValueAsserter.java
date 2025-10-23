@@ -109,12 +109,11 @@ public class BlockValueAsserter {
         List<Object> expectedRowValues
     ) {
         for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-            AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral expectedValue =
-                (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) expectedRowValues.get(valueIndex);
-            assertThat(block.minBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.min())));
-            assertThat(block.maxBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.max())));
-            assertThat(block.sumBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.sum())));
-            assertThat(block.countBlock().getInt(firstValueIndex + valueIndex), is(equalTo(expectedValue.count())));
+            AggregateMetricDoubleLiteral expectedValue = (AggregateMetricDoubleLiteral) expectedRowValues.get(valueIndex);
+            assertThat(block.minBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.getMin())));
+            assertThat(block.maxBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.getMax())));
+            assertThat(block.sumBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.getSum())));
+            assertThat(block.countBlock().getInt(firstValueIndex + valueIndex), is(equalTo(expectedValue.getCount())));
         }
     }
 }

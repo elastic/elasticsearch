@@ -270,7 +270,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, ts_command_v0]
       reason: "Support for casting aggregate metric double implicitly when present in aggregations"
 
   - do:
@@ -380,6 +380,34 @@ setup:
   - match: {columns.0.name: "max"}
   - match: {columns.0.type: "double"}
   - match: {values.0.0: 803685.0}
+
+  - do:
+      esql.query:
+        body:
+          query: |
+            TS test-*
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
+            | WHERE k8s.pod.uid == "947e4ced-1786-4e53-9e0c-5c447e959507"
+            | STATS max(k8s.pod.network.rx), min(k8s.pod.network.rx), sum(k8s.pod.network.rx), count(k8s.pod.network.rx), avg(k8s.pod.network.rx)
+            | LIMIT 100
+
+  - length: {values: 1}
+  - length: {values.0: 5}
+  - match: {columns.0.name: "max(k8s.pod.network.rx)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(k8s.pod.network.rx)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(k8s.pod.network.rx)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(k8s.pod.network.rx)"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "avg(k8s.pod.network.rx)"}
+  - match: {columns.4.type: "double"}
+  - match: {values.0.0: 800479.0}
+  - match: {values.0.1: 800479.0}
+  - match: {values.0.2: 800479.0}
+  - match: {values.0.3: 1}
+  - match: {values.0.4: 800479.0}
 
 ---
 "Over time functions from downsampled and non-downsampled indices simultaneously, no grouping":

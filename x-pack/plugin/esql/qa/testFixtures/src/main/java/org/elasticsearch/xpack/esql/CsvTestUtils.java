@@ -15,13 +15,8 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.*;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
-import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -493,10 +488,7 @@ public final class CsvTestUtils {
         GEOHASH(x -> x == null ? null : Geohash.longEncode(x), Long.class),
         GEOTILE(x -> x == null ? null : GeoTileUtils.longEncode(x), Long.class),
         GEOHEX(x -> x == null ? null : H3.stringToH3(x), Long.class),
-        AGGREGATE_METRIC_DOUBLE(
-            x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
-            AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
-        ),
+        AGGREGATE_METRIC_DOUBLE(x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x), AggregateMetricDoubleLiteral.class),
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 

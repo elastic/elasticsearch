@@ -436,32 +436,11 @@ public class BlockFactory {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }
 
-    public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
-        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
-        int positions
-    ) {
+    public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(AggregateMetricDoubleLiteral value, int positions) {
         try (AggregateMetricDoubleBlockBuilder builder = newAggregateMetricDoubleBlockBuilder(positions)) {
+            // TODO: make ConstantAggregateMetricDoubleBlock
             for (int i = 0; i < positions; i++) {
-                if (value.min() != null) {
-                    builder.min().appendDouble(value.min());
-                } else {
-                    builder.min().appendNull();
-                }
-                if (value.max() != null) {
-                    builder.max().appendDouble(value.max());
-                } else {
-                    builder.max().appendNull();
-                }
-                if (value.sum() != null) {
-                    builder.sum().appendDouble(value.sum());
-                } else {
-                    builder.sum().appendNull();
-                }
-                if (value.count() != null) {
-                    builder.count().appendInt(value.count());
-                } else {
-                    builder.count().appendNull();
-                }
+                builder.appendLiteral(value);
             }
             return builder.build();
         }

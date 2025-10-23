@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.es93;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
@@ -19,9 +20,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
 
 import java.io.IOException;
-
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import java.util.concurrent.ExecutorService;
 
 public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFormat {
 
@@ -31,20 +30,36 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
     private final FlatVectorsFormat flatVectorsFormat;
 
     public ES93HnswScalarQuantizedVectorsFormat() {
-        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, false, null, 7, false, false);
+        super(NAME);
+        this.flatVectorsFormat = new ES93ScalarQuantizedVectorsFormat(
+            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
+            false,
+            false
+        );
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
         int maxConn,
         int beamWidth,
+        Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding,
         boolean useBFloat16,
-        Float confidenceInterval,
-        int bits,
-        boolean compress,
         boolean useDirectIO
     ) {
         super(NAME, maxConn, beamWidth);
-        this.flatVectorsFormat = new ES93ScalarQuantizedVectorsFormat(useBFloat16, confidenceInterval, bits, compress, useDirectIO);
+        this.flatVectorsFormat = new ES93ScalarQuantizedVectorsFormat(encoding, useBFloat16, useDirectIO);
+    }
+
+    public ES93HnswScalarQuantizedVectorsFormat(
+        int maxConn,
+        int beamWidth,
+        Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding,
+        boolean useBFloat16,
+        boolean useDirectIO,
+        int numMergeWorkers,
+        ExecutorService mergeExec
+    ) {
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
+        this.flatVectorsFormat = new ES93ScalarQuantizedVectorsFormat(encoding, useBFloat16, useDirectIO);
     }
 
     @Override

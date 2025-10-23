@@ -9,95 +9,74 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
-import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
+import org.apache.lucene.store.Directory;
+import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
-import static org.hamcrest.Matchers.closeTo;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 
-public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends ES93HnswScalarQuantizedVectorsFormatTests {
+public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsFormatTestCase {
+
     @Override
-    boolean useBFloat16() {
-        return true;
+    protected KnnVectorsFormat createFormat() {
+        return new ES93HnswScalarQuantizedVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
+            true,
+            random().nextBoolean()
+        );
     }
 
     @Override
-    protected VectorEncoding randomVectorEncoding() {
-        return VectorEncoding.FLOAT32;
+    protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
+        return new ES93HnswScalarQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
+            true,
+            random().nextBoolean()
+        );
     }
 
     @Override
-    public void testEmptyByteVectorData() throws Exception {
-        // no bytes
+    protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
+        return new ES93HnswScalarQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
+            true,
+            random().nextBoolean(),
+            numMergeWorkers,
+            service
+        );
     }
 
-    @Override
-    public void testMergingWithDifferentByteKnnFields() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testByteVectorScorerIteration() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testSortedIndexBytes() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testMismatchedFields() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testRandomBytes() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testWriterRamEstimate() throws Exception {
-        // estimate is different due to bfloat16
-    }
-
-    @Override
-    public void testRandom() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testRandom);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testRandomWithUpdatesAndGraph() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testRandomWithUpdatesAndGraph);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testSparseVectors() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testSparseVectors);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testVectorValuesReportCorrectDocs() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testVectorValuesReportCorrectDocs);
-        assertFloatsWithinBounds(err);
-    }
-
-    private static final Pattern FLOAT_ASSERTION_FAILURE = Pattern.compile(".*expected:<([0-9.-]+)> but was:<([0-9.-]+)>");
-
-    private static void assertFloatsWithinBounds(AssertionError error) {
-        Matcher m = FLOAT_ASSERTION_FAILURE.matcher(error.getMessage());
-        if (m.matches() == false) {
-            throw error;    // nothing to do with us, just rethrow
+    public void testSimpleOffHeapSize() throws IOException {
+        float[] vector = randomVector(random().nextInt(12, 500));
+        try (Directory dir = newDirectory()) {
+            testSimpleOffHeapSize(
+                dir,
+                newIndexWriterConfig(),
+                vector,
+                allOf(
+                    aMapWithSize(3),
+                    hasEntry("vec", (long) vector.length * BFloat16.BYTES),
+                    hasEntry("vex", 1L),
+                    hasEntry(equalTo("veq"), greaterThan(0L))
+                )
+            );
         }
-
-        // numbers just need to be in the same vicinity
-        double expected = Double.parseDouble(m.group(1));
-        double actual = Double.parseDouble(m.group(2));
-        double allowedError = expected * 0.01;  // within 1%
-        assertThat(error.getMessage(), actual, closeTo(expected, allowedError));
     }
 }

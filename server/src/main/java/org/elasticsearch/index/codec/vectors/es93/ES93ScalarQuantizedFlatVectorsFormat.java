@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -37,16 +38,16 @@ public class ES93ScalarQuantizedFlatVectorsFormat extends KnnVectorsFormat {
     private final FlatVectorsFormat format;
 
     public ES93ScalarQuantizedFlatVectorsFormat() {
-        this(false, null, 7, false);
+        this(false, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT);
     }
 
     public ES93ScalarQuantizedFlatVectorsFormat(boolean useBFloat16) {
-        this(useBFloat16, null, 7, false);
+        this(useBFloat16, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT);
     }
 
-    public ES93ScalarQuantizedFlatVectorsFormat(boolean useBFloat16, Float confidenceInterval, int bits, boolean compress) {
+    public ES93ScalarQuantizedFlatVectorsFormat(boolean useBFloat16, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding) {
         super(NAME);
-        this.format = new ES93ScalarQuantizedVectorsFormat(useBFloat16, confidenceInterval, bits, compress, false);
+        this.format = new ES93ScalarQuantizedVectorsFormat(encoding, useBFloat16, false);
     }
 
     @Override

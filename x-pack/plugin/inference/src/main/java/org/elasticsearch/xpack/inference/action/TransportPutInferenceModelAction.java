@@ -299,11 +299,11 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             .append(inferenceId)
             .append("] could not be created because the inference_id is already ");
         if (nonEmptyIndices.isEmpty() == false) {
-            errorString.append("being used in mappings for indices: ").append(nonEmptyIndices).append(" ");
+            errorString.append("being used in mappings for indices: ").append(nonEmptyIndices);
         }
         if (pipelinesUsingInferenceId.isEmpty() == false) {
             if (nonEmptyIndices.isEmpty() == false) {
-                errorString.append("and ");
+                errorString.append(" and ");
             }
             errorString.append("referenced by pipelines: ").append(pipelinesUsingInferenceId);
         }

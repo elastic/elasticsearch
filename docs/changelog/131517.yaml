@@ -1,5 +1,0 @@
-pr: 131517
-summary: Refresh potential lost connections at query start for field caps
-area: Search
-type: enhancement
-issues: []

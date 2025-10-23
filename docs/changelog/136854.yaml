@@ -1,0 +1,5 @@
+pr: 136854
+summary: Do not attempt to canonicalize `InnerAggregate`
+area: SQL
+type: bug
+issues: []

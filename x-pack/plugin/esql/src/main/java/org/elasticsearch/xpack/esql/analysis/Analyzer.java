@@ -247,12 +247,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
-            return resolveIndex(
-                plan,
-                plan.indexMode().equals(IndexMode.LOOKUP)
-                    ? context.lookupResolution().get(plan.indexPattern().indexPattern())
-                    : context.indexResolution()
-            );
+            IndexResolution indexResolution = plan.indexMode().equals(IndexMode.LOOKUP)
+                ? context.lookupResolution().get(plan.indexPattern().indexPattern())
+                : context.indexResolution().get(plan.indexPattern());
+            return resolveIndex(plan, indexResolution);
         }
 
         private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
@@ -270,6 +268,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.telemetryLabel()
                     );
             }
+            // assert indexResolution.matches(plan.indexPattern().indexPattern()) : "Expected index resolution to match the index pattern";
             IndexPattern table = plan.indexPattern();
             if (indexResolution.matches(table.indexPattern()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
@@ -537,7 +536,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (plan instanceof Insist i) {
-                return resolveInsist(i, childrenOutput, context.indexResolution());
+                return resolveInsist(i, childrenOutput, context);
             }
 
             if (plan instanceof Fuse fuse) {
@@ -958,15 +957,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, AnalyzerContext context) {
             List<Attribute> list = new ArrayList<>();
+            List<IndexResolution> resolutions = collectIndexResolutions(insist, context);
             for (Attribute a : insist.insistedAttributes()) {
-                list.add(resolveInsistAttribute(a, childrenOutput, indexResolution));
+                list.add(resolveInsistAttribute(a, childrenOutput, resolutions));
             }
             return insist.withAttributes(list);
         }
 
-        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+        private List<IndexResolution> collectIndexResolutions(LogicalPlan plan, AnalyzerContext context) {
+            List<IndexResolution> resolutions = new ArrayList<>();
+            plan.forEachDown(EsRelation.class, e -> {
+                var resolution = context.indexResolution().get(new IndexPattern(e.source(), e.indexPattern()));
+                if (resolution != null) {
+                    resolutions.add(resolution);
+                }
+            });
+            return resolutions;
+        }
+
+        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, List<IndexResolution> indices) {
             Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
             // Field isn't mapped anywhere.
             if (resolvedCol instanceof UnresolvedAttribute) {
@@ -974,7 +985,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             // Field is partially unmapped.
-            if (resolvedCol instanceof FieldAttribute fa && indexResolution.get().isPartiallyUnmappedField(fa.name())) {
+            // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
+            if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
                 return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
             }
 
@@ -1847,18 +1859,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            List<FieldAttribute> unionFieldAttributes = new ArrayList<>();
+            List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
             return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, unionFieldAttributes));
         }
 
-        private LogicalPlan doRule(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
+        private LogicalPlan doRule(LogicalPlan plan, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {
             Holder<Integer> alreadyAddedUnionFieldAttributes = new Holder<>(unionFieldAttributes.size());
             // Collect field attributes from previous runs
             if (plan instanceof EsRelation rel) {
                 unionFieldAttributes.clear();
                 for (Attribute attr : rel.output()) {
                     if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField && fa.synthetic()) {
-                        unionFieldAttributes.add(fa);
+                        unionFieldAttributes.add(fa.ignoreId());
                     }
                 }
             }
@@ -1877,7 +1889,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes);
+            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList());
         }
 
         /**
@@ -1907,7 +1919,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
         }
 
-        private Expression resolveConvertFunction(ConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+        private Expression resolveConvertFunction(ConvertFunction convert, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
@@ -1978,7 +1990,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private Expression createIfDoesNotAlreadyExist(
             FieldAttribute fa,
             MultiTypeEsField resolvedField,
-            List<FieldAttribute> unionFieldAttributes
+            List<Attribute.IdIgnoringWrapper> unionFieldAttributes
         ) {
             // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
             // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
@@ -1992,13 +2004,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedField,
                 true
             );
-            int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
+            var nonSemanticUnionFieldAttribute = unionFieldAttribute.ignoreId();
+
+            int existingIndex = unionFieldAttributes.indexOf(nonSemanticUnionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
-                return unionFieldAttributes.get(existingIndex);
+                return unionFieldAttributes.get(existingIndex).inner();
             } else {
-                unionFieldAttributes.add(unionFieldAttribute);
-                return unionFieldAttribute;
+                unionFieldAttributes.add(nonSemanticUnionFieldAttribute);
+                return nonSemanticUnionFieldAttribute.inner();
             }
         }
 

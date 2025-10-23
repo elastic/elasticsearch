@@ -9327,7 +9327,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var rightRelation = as(rightFilter.child(), EsRelation.class);
     }
 
-
     /**
      * Expected:
      * EsqlProject

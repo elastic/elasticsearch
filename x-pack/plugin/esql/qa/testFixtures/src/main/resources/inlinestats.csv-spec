@@ -4274,3 +4274,15 @@ c:long
 100
 100
 ;
+
+rowInlineStatsKeepDropCountStar
+required_capability: inline_stats_with_no_columns
+
+row a = 1
+| drop a
+| inline stats c = count(*)
+;
+
+c:long
+1
+;

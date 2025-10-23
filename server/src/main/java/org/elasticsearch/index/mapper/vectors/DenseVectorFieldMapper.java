@@ -1966,7 +1966,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (elementType == ElementType.BIT) {
                 return new ES815HnswBitVectorsFormat(m, efConstruction);
             }
-            return new Lucene99HnswVectorsFormat(m, efConstruction, 1, null);
+            return new Lucene99HnswVectorsFormat(m, efConstruction, 1, null, 0);
         }
 
         @Override

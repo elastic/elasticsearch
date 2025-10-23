@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.1.6 [elasticsearch-9.1.6-release-notes]
-```{applies_to}
-stack: ga 9.1.6
-```
 
 ### Features and enhancements [elasticsearch-9.1.6-features-enhancements]
 
@@ -70,6 +67,7 @@ Transform:
 
 Vector Search:
 * Cardinality Aggregator Throws `UnsupportedOperationException` When Field Type is Vector [#135994](https://github.com/elastic/elasticsearch/pull/135994)
+
 
 
 ## 9.2.0 [elasticsearch-9.2.0-release-notes]
@@ -130,6 +128,7 @@ POST vectors/_search{
   }
 }
 ```
+
 `num_candidates` can be used for tuning approximate nature of the search.
 Or, more granular control can be provided by setting `visit_percentage` directly.
 ::::
@@ -159,7 +158,6 @@ Queries containing LOOKUP JOIN now can be preformed on cross-cluster indices, fo
 ```yaml
 FROM logs-*, remote:logs-* | LOOKUP JOIN clients on ip | SORT timestamp | LIMIT 100
 ```
-
 ::::
 
 ::::{dropdown} New lucene 10.3.0 release
@@ -542,6 +540,8 @@ Vector Search:
 * Cardinality Aggregator Throws `UnsupportedOperationException` When Field Type is Vector [#135994](https://github.com/elastic/elasticsearch/pull/135994)
 * Fix _inference_fields handling on old indices [#136312](https://github.com/elastic/elasticsearch/pull/136312) (issue: [#136130](https://github.com/elastic/elasticsearch/issues/136130))
 * Have top level knn searches tracked in query stats [#132548](https://github.com/elastic/elasticsearch/pull/132548)
+
+
 
 ## 9.0.8 [elasticsearch-9.0.8-release-notes]
 

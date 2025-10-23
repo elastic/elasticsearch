@@ -41,6 +41,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
@@ -165,13 +166,13 @@ public class AsyncDirectIOIndexInput extends IndexInput {
 
         // align to prefetch buffer
         final long absPos = pos + offset;
-        long alignedPos = absPos - absPos % prefetcher.prefetchBytesSize;
+        long alignedPos = absPos - absPos % blockSize;
 
         // check if our current buffer already contains the requested range
-        if (alignedPos == filePos) {
+        if (alignedPos >= filePos && alignedPos < filePos + buffer.capacity()) {
             // The current buffer contains bytes of this request.
             // Adjust the position and length accordingly to skip the current buffer.
-            alignedPos = filePos + prefetcher.prefetchBytesSize;
+            alignedPos = filePos + buffer.capacity();
             length -= alignedPos - absPos;
         } else {
             // Add to the total length the bytes added by the alignment
@@ -214,7 +215,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
 
     private void seekInternal(long pos) throws IOException {
         final long absPos = pos + offset;
-        final long alignedPos = absPos - (absPos % prefetcher.prefetchBytesSize);
+        final long alignedPos = absPos - (absPos % blockSize);
         filePos = alignedPos - buffer.capacity();
 
         final int delta = (int) (absPos - alignedPos);
@@ -446,10 +447,11 @@ public class AsyncDirectIOIndexInput extends IndexInput {
          * @param length the length to prefetch, must be non-negative.
          */
         void prefetch(long pos, long length) {
+            assert pos % blockSize == 0 : "prefetch pos [" + pos + "] must be aligned to block size [" + blockSize + "]";
             // first determine how many slots we need given the length
-            int numSlots = (int) ((length + prefetchBytesSize - 1) / prefetchBytesSize);
-            while (numSlots > 0) {
-                if (this.posToSlot.get(pos) == null) {
+            while (length > 0) {
+                Map.Entry<Long, Integer> floor = this.posToSlot.floorEntry(pos);
+                if (floor == null || floor.getKey() + prefetchBytesSize <= pos) {
                     // check if there are any slots available. If not we will reuse the one with the
                     // lower file pointer.
                     if (slots.isEmpty()) {
@@ -468,9 +470,12 @@ public class AsyncDirectIOIndexInput extends IndexInput {
                     posToSlot.put(pos, slot);
                     prefetchPos[slot] = pos;
                     startPrefetch(pos, slot);
+                    length -= prefetchBytesSize;
+                    pos += prefetchBytesSize;
+                } else {
+                    length -= floor.getKey() + prefetchBytesSize - pos;
+                    pos = floor.getKey() + prefetchBytesSize;
                 }
-                pos += prefetchBytesSize;
-                numSlots--;
             }
         }
 

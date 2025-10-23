@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -54,6 +55,8 @@ import java.util.function.Consumer;
 public class JwkSetLoader implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(JwkSetLoader.class);
+
+    private static final double URL_RELOAD_JITTER_PCT = 0.01; // 1% jitter
 
     private final AtomicReference<ListenableFuture<Void>> reloadFutureRef = new AtomicReference<>();
     private final RealmConfig realmConfig;
@@ -319,7 +322,7 @@ public class JwkSetLoader implements Releasable {
         void reload() {
             doLoad(ActionListener.wrap(res -> {
                 logger.debug("Successfully reloaded PKC JWK set from HTTPS URI [{}]", jwkSetPathUri);
-                scheduleReload(calculateNextUrlReload(reloadIntervalMin, reloadIntervalMax, res.expires()));
+                scheduleReload(calculateNextUrlReload(reloadIntervalMin, reloadIntervalMax, res.expires(), URL_RELOAD_JITTER_PCT));
                 listener.accept(res.content());
             }, e -> {
                 logger.warn("Failed to reload PKC JWK set from HTTPS URI [" + jwkSetPathUri + "]", e);
@@ -355,7 +358,7 @@ public class JwkSetLoader implements Releasable {
         }
     }
 
-    static TimeValue calculateNextUrlReload(TimeValue minVal, TimeValue maxVal, Instant targetTime) {
+    static TimeValue calculateNextUrlReload(TimeValue minVal, TimeValue maxVal, Instant targetTime, double maxJitterPct) {
         if (targetTime == null) {
             return minVal;
         }
@@ -367,8 +370,15 @@ public class JwkSetLoader implements Releasable {
         } else if (target.compareTo(max) > 0) {
             return maxVal;
         } else {
-            return TimeValue.timeValueSeconds(target.toSeconds());
+            Duration jitter = jitterSeconds(target, maxJitterPct);
+            return TimeValue.timeValueSeconds(target.toSeconds() + jitter.toSeconds()); // target +/- max-jitter
         }
+    }
+
+    static Duration jitterSeconds(Duration duration, double maxJitterPct) {
+        long maxJitter = (long) (duration.toSeconds() * maxJitterPct);
+        long jitter = Randomness.get().nextLong(-maxJitter, maxJitter + 1);
+        return Duration.ofSeconds(jitter);
     }
 
     static class FileChangeWatcher implements FileChangesListener {

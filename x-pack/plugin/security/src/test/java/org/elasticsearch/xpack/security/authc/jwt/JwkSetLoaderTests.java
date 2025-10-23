@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -41,8 +42,10 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -116,15 +119,35 @@ public class JwkSetLoaderTests extends ESTestCase {
     public void testCalculateNextUrlReload() {
         final TimeValue min = TimeValue.timeValueMinutes(5);
         final TimeValue max = TimeValue.timeValueMinutes(60);
-        assertThat(JwkSetLoader.calculateNextUrlReload(min, max, null), is(min));
-        assertThat(JwkSetLoader.calculateNextUrlReload(min, max, Instant.now().minusSeconds(100)), is(min));
-        assertThat(JwkSetLoader.calculateNextUrlReload(min, max, Instant.now()), is(min));
-        assertThat(JwkSetLoader.calculateNextUrlReload(min, max, Instant.now().plusSeconds(min.seconds() - 10)), is(min));
-        assertThat(JwkSetLoader.calculateNextUrlReload(min, max, Instant.now().plusSeconds(max.seconds() + 1000)), is(max));
+        assertThat(calculateNextUrlReload(min, max, null), is(min));
+        assertThat(calculateNextUrlReload(min, max, Instant.now().minusSeconds(100)), is(min));
+        assertThat(calculateNextUrlReload(min, max, Instant.now()), is(min));
+        assertThat(calculateNextUrlReload(min, max, Instant.now().plusSeconds(min.seconds() - 10)), is(min));
+        assertThat(calculateNextUrlReload(min, max, Instant.now().plusSeconds(max.seconds() + 1000)), is(max));
         assertThat(
-            JwkSetLoader.calculateNextUrlReload(min, max, Instant.now().plusSeconds(min.seconds() + 10)).seconds(),
+            calculateNextUrlReload(min, max, Instant.now().plusSeconds(min.seconds() + 10)).seconds(),
             both(greaterThan(305L)).and(lessThan(315L))
         ); // 5s10s +/- 5s
+    }
+
+    private static TimeValue calculateNextUrlReload(TimeValue min, TimeValue max, Instant lastModifiedTime) {
+        return JwkSetLoader.calculateNextUrlReload(min, max, lastModifiedTime, 0);
+    }
+
+    public void testCalculateNextUrlReloadWithJitter() {
+        for (int i = 0; i < 100; i++) {
+            assertThat(
+                JwkSetLoader.calculateNextUrlReload(TimeValue.timeValueSeconds(100), TimeValue.timeValueSeconds(100), null, 0.1).seconds(),
+                both(greaterThanOrEqualTo(90L)).and(lessThanOrEqualTo(110L))
+            ); // 100s +/- 10s
+        }
+    }
+
+    public void testJitterSeconds() {
+        for (int i = 0; i < 100; i++) {
+            long jitter = JwkSetLoader.jitterSeconds(Duration.ofSeconds(100), 0.1).toSeconds();
+            assertThat(jitter, both(greaterThanOrEqualTo(-10L)).and(lessThanOrEqualTo(10L)));
+        }
     }
 
     public void testFileChangeWatcher() throws IOException {

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -90,14 +92,14 @@ public class VerifierTests extends ESTestCase {
     private Analyzer k8s;
     {
         // Load Time Series mappings for these tests
-        var mappingK8s = EsqlTestUtils.loadMapping("k8s-mappings.json");
+        Map<String, EsField> mappingK8s = EsqlTestUtils.loadMapping("k8s-mappings.json");
         EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
         IndexResolution getIndexResult = IndexResolution.valid(k8sIndex);
         k8s = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                Map.of(new IndexPattern(Source.EMPTY, "k8s"), getIndexResult),
                 defaultLookupResolution(),
                 new EnrichResolution(),
                 emptyInferenceResolution()

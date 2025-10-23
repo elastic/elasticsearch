@@ -213,6 +213,7 @@ public class IngestLoadProbeTests extends ESTestCase {
         var manageableQueueSize = maxThreads * (maxManageableQueuedWork.millis() / averageTaskExecutionTime.millis());
         statsPerExecutor.clear();
         queueSize = between(0, (int) manageableQueueSize);
+        clusterSettings.applySettings(Settings.builder().put(MAX_MANAGEABLE_QUEUED_WORK.getKey(), ZERO).build());
         // before updating the setting, we request extra threads for all the queued work
         statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, averageTaskExecutionTime.nanos(), queueSize, queueSize, maxThreads));
         statsPerExecutor.put(

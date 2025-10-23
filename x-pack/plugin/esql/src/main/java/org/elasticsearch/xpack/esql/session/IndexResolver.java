@@ -49,9 +49,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -145,7 +143,11 @@ public class IndexResolver {
     /**
      * Information for resolving a field.
      * @param caps {@link FieldCapabilitiesResponse} from all indices involved in the query
-     * @param minTransportVersion the minimum {@link TransportVersion} of any node that <strong>might</strong> receive the request
+     * @param minTransportVersion The minimum {@link TransportVersion} of any node that <strong>might</strong> receive the request.
+     *                            More precisely, it's the minimum transport version of ALL nodes in ALL the clusters that the query
+     *                            is targeting. It doesn't matter if the node is a data node or an ML node or a unicorn, it's transport
+     *                            version counts. BUT if the query doesn't dispatch to that cluster AT ALL, we don't count the versions
+     *                            of any nodes in that cluster.
      * @param currentBuildIsSnapshot is the current build a snapshot? Note: This is always {@code Build.current().isSnapshot()} in
      *                               production but tests need more control
      * @param useAggregateMetricDoubleWhenNotSupported does the query itself force us to use {@code aggregate_metric_double} fields
@@ -171,11 +173,16 @@ public class IndexResolver {
          * Which is appropriate because those fields are not supported on *almost* all versions that
          * don't return the transport version in the response.
          * <p>
-         *     "Recently" above means that there are versions of Elasticsearch that we're wire
-         *     compatible that with that don't support the field. These fields use
+         *     "Very, very old" above means that there are versions of Elasticsearch that we're wire
+         *     compatible that with that don't support sending the version back. That's anything
+         *     from {@code 8.19.FIRST} to {@code 9.2.0}. "Recently" means any field types we
+         *     added support for after the initial release of ESQL. These fields use
          *     {@link SupportedVersion#supportedOn} rather than {@link SupportedVersion#SUPPORTED_ON_ALL_NODES}.
-         *     We maintain wire compatibility with the entire line of a major release.
-         *     Thus, "recently" could mean "a few years".
+         *     Except for DATE_NANOS. For DATE_NANOS we got lucky/made a mistake. It wasn't widely
+         *     used before ESQL added support for it and we weren't careful about enabling it. So
+         *     queries on mixed version clusters that touch DATE_NANOS will fail. All the types
+         *     added after that, like DENSE_VECTOR, will gracefully disable themselves when talking
+         *     to older nodes.
          * </p>
          * <p>
          *     Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere

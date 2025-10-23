@@ -163,10 +163,18 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String id = (String) n.getKey();
             Map<?, ?> nodeInfo = (Map<?, ?>) n.getValue();
             String nodeName = (String) extractValue(nodeInfo, "name");
-            TransportVersion transportVersion = TransportVersion.fromId((Integer) extractValue(nodeInfo, "transport_version"));
+
+            /*
+             * Figuring out is a node is a snapshot is kind of tricky. The main version
+             * doesn't include -SNAPSHOT. But ${VERSION}-SNAPSHOT is in the node info
+             * *somewhere*. So we do this silly toString here.
+             */
             String version = (String) extractValue(nodeInfo, "version");
             boolean snapshot = nodeInfo.toString().contains(version + "-SNAPSHOT");
+
+            TransportVersion transportVersion = TransportVersion.fromId((Integer) extractValue(nodeInfo, "transport_version"));
             List<?> roles = (List<?>) nodeInfo.get("roles");
+
             nodeToInfo.put(
                 nodeName,
                 new NodeInfo(cluster, id, snapshot, transportVersion, roles.stream().map(Object::toString).collect(Collectors.toSet()))
@@ -187,8 +195,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
+    /**
+     * Make sure the test doesn't run on snapshot builds. Release builds only.
+     * <p>
+     *     {@link Build#isSnapshot()} checks if the version under test is a snapshot.
+     *     But! This run test runs against many versions and if *any* are snapshots
+     *     then this will fail. So we check the versions of each node in the cluster too.
+     * </p>
+     */
     @Before
-    public void onlyOnSnapshot() throws IOException {
+    public void skipSnapshots() throws IOException {
         assumeFalse("Only supported on production builds", Build.current().isSnapshot());
         for (NodeInfo n : allNodeToInfo().values()) {
             assumeFalse("Only supported on production builds", n.snapshot());
@@ -457,12 +473,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
+                /*
+                 * We need both AGGREGATE_METRIC_DOUBLE_CREATED and RESOLVE_FIELDS_RESPONSE_CREATED_TV
+                 * but RESOLVE_FIELDS_RESPONSE_CREATED_TV came last so it's enough to check just it.
+                 */
                 if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) == false) {
                     yield nullValue();
                 }
                 yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
             }
             case DENSE_VECTOR -> {
+                /*
+                 * We need both DENSE_VECTOR_CREATED and RESOLVE_FIELDS_RESPONSE_CREATED_TV
+                 * but RESOLVE_FIELDS_RESPONSE_CREATED_TV came last so it's enough to check just it.
+                 */
                 if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) == false) {
                     yield nullValue();
                 }
@@ -549,6 +573,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case HALF_FLOAT, SCALED_FLOAT, FLOAT -> equalTo("double");
             case NULL -> equalTo("keyword");
             case AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> {
+                /*
+                 * We need both <type_name>_CREATED and RESOLVE_FIELDS_RESPONSE_CREATED_TV
+                 * but RESOLVE_FIELDS_RESPONSE_CREATED_TV came last so it's enough to check just it.
+                 */
                 if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) == false) {
                     yield equalTo("unsupported");
                 }

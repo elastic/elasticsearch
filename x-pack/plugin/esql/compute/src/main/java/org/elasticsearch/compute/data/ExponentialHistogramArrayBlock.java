@@ -13,7 +13,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
 import java.util.List;

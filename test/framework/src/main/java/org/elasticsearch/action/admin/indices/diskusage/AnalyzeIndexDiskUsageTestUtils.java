@@ -26,19 +26,6 @@ public class AnalyzeIndexDiskUsageTestUtils {
 
     @Nullable
     public static IndexDiskUsageStats.PerFieldDiskUsage getPerFieldDiskUsage(
-        final AnalyzeIndexDiskUsageResponse diskUsageResponse,
-        final String indexName,
-        final String fieldName
-    ) {
-        var indexDiskUsageStats = getIndexStats(diskUsageResponse, indexName);
-        if (indexDiskUsageStats != null) {
-            return getPerFieldDiskUsage(indexDiskUsageStats, fieldName);
-        }
-        return null;
-    }
-
-    @Nullable
-    public static IndexDiskUsageStats.PerFieldDiskUsage getPerFieldDiskUsage(
         final IndexDiskUsageStats indexDiskUsageStats,
         final String fieldName
     ) {

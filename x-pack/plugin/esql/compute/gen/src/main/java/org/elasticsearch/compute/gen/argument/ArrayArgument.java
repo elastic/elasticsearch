@@ -26,13 +26,13 @@ import static org.elasticsearch.compute.gen.Types.RELEASABLES;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
-public record ArrayArgument(TypeName componentType, String name) implements Argument {
+public record ArrayArgument(TypeName type, String name) implements Argument {
     @Override
     public TypeName dataType(boolean blockStyle) {
         if (blockStyle) {
-            return ArrayTypeName.of(blockType(componentType));
+            return ArrayTypeName.of(blockType(type));
         }
-        return ArrayTypeName.of(vectorType(componentType));
+        return ArrayTypeName.of(vectorType(type));
     }
 
     @Override
@@ -76,7 +76,7 @@ public record ArrayArgument(TypeName componentType, String name) implements Argu
 
     @Override
     public void evalToBlock(MethodSpec.Builder builder) {
-        TypeName blockType = blockType(componentType);
+        TypeName blockType = blockType(type);
         builder.addStatement("$T[] $LBlocks = new $T[$L.length]", blockType, name, blockType, name);
         builder.beginControlFlow("try ($T $LRelease = $T.wrap($LBlocks))", RELEASABLE, name, RELEASABLES, name);
         builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
@@ -92,20 +92,21 @@ public record ArrayArgument(TypeName componentType, String name) implements Argu
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
-        TypeName vectorType = vectorType(componentType);
+    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
+        assert invokeBlockEval != null && invokeBlockEval.length == 1;
+        TypeName vectorType = vectorType(type);
         builder.addStatement("$T[] $LVectors = new $T[$L.length]", vectorType, name, vectorType, name);
         builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
         builder.addStatement("$LVectors[i] = $LBlocks[i].asVector()", name, name);
-        builder.beginControlFlow("if ($LVectors[i] == null)", name).addStatement(invokeBlockEval).endControlFlow();
+        builder.beginControlFlow("if ($LVectors[i] == null)", name).addStatement(invokeBlockEval[0]).endControlFlow();
         builder.endControlFlow();
     }
 
     @Override
     public void createScratch(MethodSpec.Builder builder) {
-        builder.addStatement("$T[] $LValues = new $T[$L.length]", componentType, name, componentType, name);
-        if (componentType.equals(BYTES_REF)) {
-            builder.addStatement("$T[] $LScratch = new $T[$L.length]", componentType, name, componentType, name);
+        builder.addStatement("$T[] $LValues = new $T[$L.length]", type, name, type, name);
+        if (isBytesRef()) {
+            builder.addStatement("$T[] $LScratch = new $T[$L.length]", type, name, type, name);
             builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", name);
             builder.addStatement("$LScratch[i] = new $T()", name, BYTES_REF);
             builder.endControlFlow();
@@ -135,10 +136,10 @@ public record ArrayArgument(TypeName componentType, String name) implements Argu
         } else {
             lookupVar = "p";
         }
-        if (componentType.equals(BYTES_REF)) {
+        if (isBytesRef()) {
             builder.addStatement("$LValues[i] = $L[i].getBytesRef($L, $LScratch[i])", name, paramName(blockStyle), lookupVar, name);
         } else {
-            builder.addStatement("$LValues[i] = $L[i].$L($L)", name, paramName(blockStyle), getMethod(componentType), lookupVar);
+            builder.addStatement("$LValues[i] = $L[i].$L($L)", name, paramName(blockStyle), getMethod(type), lookupVar);
         }
         builder.endControlFlow();
     }

@@ -91,8 +91,8 @@ public class IndexResolver {
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
-        boolean supportsAggregateMetricDouble,
-        boolean supportsDenseVector,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
         ActionListener<IndexResolution> listener
     ) {
         ActionListener<Versioned<IndexResolution>> ignoreVersion = listener.delegateFailureAndWrap(
@@ -104,8 +104,8 @@ public class IndexResolver {
             fieldNames,
             requestFilter,
             includeAllDimensions,
-            supportsAggregateMetricDouble,
-            supportsDenseVector,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported,
             ignoreVersion
         );
     }
@@ -119,8 +119,8 @@ public class IndexResolver {
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
-        boolean supportsAggregateMetricDouble,
-        boolean supportsDenseVector,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         client.execute(
@@ -131,8 +131,8 @@ public class IndexResolver {
                     response.caps(),
                     response.minTransportVersion(),
                     Build.current().isSnapshot(),
-                    supportsAggregateMetricDouble,
-                    supportsDenseVector
+                    useAggregateMetricDoubleWhenNotSupported,
+                    useDenseVectorWhenNotSupported
                 );
                 LOGGER.debug("minimum transport version {} {}", response.minTransportVersion(), info.effectiveMinTransportVersion());
                 l.onResponse(new Versioned<>(mergedMappings(indexWildcard, info), info.effectiveMinTransportVersion()));

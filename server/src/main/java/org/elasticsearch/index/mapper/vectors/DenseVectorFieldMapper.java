@@ -100,6 +100,7 @@ import java.nio.ByteOrder;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -107,6 +108,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -789,14 +791,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return VectorData.fromBytes(vector);
         }
 
-        VectorData parseHexEncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
-            throws IOException {
-            byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
+        VectorData parseStringValue(
+            String s,
+            IntBooleanConsumer dimChecker,
+            VectorSimilarity similarity,
+            Function<String, byte[]> decoder
+        ) {
+            byte[] decodedVector = decoder.apply(s);
             dimChecker.accept(decodedVector.length, true);
             VectorData vectorData = VectorData.fromBytes(decodedVector);
             double squaredMagnitude = computeSquaredMagnitude(vectorData);
             checkVectorMagnitude(similarity, errorElementsAppender(decodedVector), (float) squaredMagnitude);
             return vectorData;
+        }
+
+        VectorData parseHexEncodedVector(String s, IntBooleanConsumer dimChecker, VectorSimilarity similarity) {
+            return parseStringValue(s, dimChecker, similarity, str -> HexFormat.of().parseHex(str));
+        }
+
+        VectorData parseBase64EncodedVector(String s, IntBooleanConsumer dimChecker, VectorSimilarity similarity) {
+            return parseStringValue(s, dimChecker, similarity, str -> Base64.getDecoder().decode(str));
         }
 
         @Override
@@ -809,7 +823,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentParser.Token token = context.parser().currentToken();
             return switch (token) {
                 case START_ARRAY -> parseVectorArray(context, dims, dimChecker, similarity);
-                case VALUE_STRING -> parseHexEncodedVector(context, dimChecker, similarity);
+                case VALUE_STRING -> {
+                    String s = context.parser().text();
+                    if (s.length() == dims * 2) {
+                        yield parseHexEncodedVector(s, dimChecker, similarity);
+                    } else {
+                        yield parseBase64EncodedVector(s, dimChecker, similarity);
+                    }
+                }
                 default -> throw new ParsingException(
                     context.parser().getTokenLocation(),
                     format("Unsupported type [%s] for provided value [%s]", token, context.parser().text())
@@ -827,6 +848,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return ByteBuffer.wrap(new byte[numBytes]);
         }
 
+        static boolean isMaybeHexString(String s) {
+            int len = s.length();
+            if (len % 2 != 0) {
+                return false;
+            }
+            for (int i = 0; i < len; i++) {
+                char c = s.charAt(i);
+                boolean isHexChar = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+                if (isHexChar == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         @Override
         public int parseDimensionCount(DocumentParserContext context) throws IOException {
             XContentParser.Token currentToken = context.parser().currentToken();
@@ -839,7 +875,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     yield index;
                 }
                 case VALUE_STRING -> {
-                    byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
+                    String v = context.parser().text();
+                    final byte[] decodedVector;
+                    if (isMaybeHexString(v)) {
+                        decodedVector = HexFormat.of().parseHex(v);
+                    } else {
+                        decodedVector = Base64.getDecoder().decode(v);
+                    }
                     yield decodedVector.length;
                 }
                 default -> throw new ParsingException(
@@ -966,23 +1008,54 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void parseKnnVectorAndIndex(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
-            int index = 0;
-            float[] vector = new float[fieldMapper.fieldType().dims];
-            float squaredMagnitude = 0;
-            for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
-                fieldMapper.checkDimensionExceeded(index, context);
-                ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
+        public int parseDimensionCount(DocumentParserContext context) throws IOException {
+            XContentParser.Token currentToken = context.parser().currentToken();
+            return switch (currentToken) {
+                case START_ARRAY -> {
+                    int index = 0;
+                    for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
+                        index++;
+                    }
+                    yield index;
+                }
+                case VALUE_STRING -> {
+                    byte[] decodedVectorBytes = Base64.getDecoder().decode(context.parser().text());
+                    if (decodedVectorBytes.length % Float.BYTES != 0) {
+                        throw new IllegalArgumentException(
+                            "Base64 decoded vector byte length ["
+                                + decodedVectorBytes.length
+                                + "] is not a multiple of ["
+                                + Float.BYTES
+                                + "]"
+                        );
+                    }
+                    yield decodedVectorBytes.length / Float.BYTES;
+                }
+                default -> throw new ParsingException(
+                    context.parser().getTokenLocation(),
+                    format("Unsupported type [%s] for provided value [%s]", currentToken, context.parser().text())
+                );
+            };
+        }
 
-                float value = context.parser().floatValue(true);
-                vector[index++] = value;
-                squaredMagnitude += value * value;
-            }
-            fieldMapper.checkDimensionMatches(index, context);
-            checkVectorBounds(vector);
-            checkVectorMagnitude(fieldMapper.fieldType().similarity, errorElementsAppender(vector), squaredMagnitude);
-            if (fieldMapper.fieldType().isNormalized() && isNotUnitVector(squaredMagnitude)) {
-                float length = (float) Math.sqrt(squaredMagnitude);
+        @Override
+        public void parseKnnVectorAndIndex(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
+            var vandm = parseFloatVectorInput(context, fieldMapper.fieldType().dims, (i, end) -> {
+                if (end) {
+                    fieldMapper.checkDimensionMatches(i, context);
+                } else {
+                    fieldMapper.checkDimensionExceeded(i, context);
+                }
+            });
+            checkVectorBounds(vandm.vectorData.asFloatVector());
+            checkVectorMagnitude(
+                fieldMapper.fieldType().similarity,
+                errorElementsAppender(vandm.vectorData().floatVector()),
+                vandm.squaredMagnitude
+            );
+            float[] vector = vandm.vectorData.asFloatVector();
+            if (fieldMapper.fieldType().isNormalized() && isNotUnitVector(vandm.squaredMagnitude)) {
+                float length = (float) Math.sqrt(vandm.squaredMagnitude);
                 for (int i = 0; i < vector.length; i++) {
                     vector[i] /= length;
                 }
@@ -1005,22 +1078,70 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IntBooleanConsumer dimChecker,
             VectorSimilarity similarity
         ) throws IOException {
+            var v = parseFloatVectorInput(context, dims, (i, end) -> {
+                if (end) {
+                    dimChecker.accept(i, true);
+                } else {
+                    dimChecker.accept(i, false);
+                }
+            });
+            checkVectorBounds(v.vectorData.asFloatVector());
+            checkVectorMagnitude(similarity, errorElementsAppender(v.vectorData.asFloatVector()), v.squaredMagnitude);
+            return v.vectorData;
+        }
+
+        VectorDataAndMagnitude parseFloatVectorInput(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker)
+            throws IOException {
+            XContentParser.Token token = context.parser().currentToken();
+            return switch (token) {
+                case START_ARRAY -> parseVectorArray(context, dimChecker, dims);
+                case VALUE_STRING -> parseBase64EncodedVector(context, dimChecker, dims);
+                default -> throw new ParsingException(
+                    context.parser().getTokenLocation(),
+                    format("Unsupported type [%s] for provided value [%s]", token, context.parser().text())
+                );
+            };
+        }
+
+        VectorDataAndMagnitude parseVectorArray(DocumentParserContext context, IntBooleanConsumer dimChecker, int dims) throws IOException {
             int index = 0;
-            float squaredMagnitude = 0;
             float[] vector = new float[dims];
-            for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
+            float squaredMagnitude = 0;
+            for (XContentParser.Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser()
+                .nextToken()) {
                 dimChecker.accept(index, false);
                 ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
                 float value = context.parser().floatValue(true);
-                vector[index] = value;
+                vector[index++] = value;
                 squaredMagnitude += value * value;
-                index++;
             }
             dimChecker.accept(index, true);
-            checkVectorBounds(vector);
-            checkVectorMagnitude(similarity, errorElementsAppender(vector), squaredMagnitude);
-            return VectorData.fromFloats(vector);
+            return new VectorDataAndMagnitude(VectorData.fromFloats(vector), squaredMagnitude);
         }
+
+        VectorDataAndMagnitude parseBase64EncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, int dims)
+            throws IOException {
+            ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getDecoder().decode(context.parser().text())).order(ByteOrder.LITTLE_ENDIAN);
+            if (byteBuffer.remaining() != dims * Float.BYTES) {
+                throw new IllegalArgumentException(
+                    "Base64 decoded vector byte length ["
+                        + byteBuffer.remaining()
+                        + "] does not match the expected length of ["
+                        + (dims * Float.BYTES)
+                        + "] for dimension count ["
+                        + dims
+                        + "]"
+                );
+            }
+            float[] decodedVector = new float[dims];
+            byteBuffer.asFloatBuffer().get(decodedVector);
+            dimChecker.accept(decodedVector.length, true);
+            VectorData vectorData = VectorData.fromFloats(decodedVector);
+            float squaredMagnitude = (float) computeSquaredMagnitude(vectorData);
+            return new VectorDataAndMagnitude(vectorData, squaredMagnitude);
+        }
+
+        record VectorDataAndMagnitude(VectorData vectorData, float squaredMagnitude) {}
 
         @Override
         public int getNumBytes(int dimensions) {
@@ -1093,9 +1214,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        VectorData parseHexEncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
-            throws IOException {
-            byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
+        VectorData parseStringValue(
+            String s,
+            IntBooleanConsumer dimChecker,
+            VectorSimilarity similarity,
+            Function<String, byte[]> decoder
+        ) {
+            byte[] decodedVector = decoder.apply(s);
             dimChecker.accept(decodedVector.length * Byte.SIZE, true);
             return VectorData.fromBytes(decodedVector);
         }

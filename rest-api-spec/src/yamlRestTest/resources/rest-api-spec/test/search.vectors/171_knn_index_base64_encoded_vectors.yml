@@ -1,0 +1,80 @@
+setup:
+  - requires:
+      cluster_features: "mapper.base64_dense_vectors"
+      reason: 'base64 encoding for vectors feature required'
+
+  - do:
+      indices.create:
+        index: knn_base64_vector_index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              my_vector_byte:
+                type: dense_vector
+                dims: 3
+                index : true
+                similarity : l2_norm
+                element_type: byte
+              my_vector_float:
+                type: dense_vector
+                dims: 3
+                index: true
+                element_type: float
+                similarity : l2_norm
+
+  # [0.8837743, 0.6310808, 0.7800066] - is encoded as 'CD9iP4OOIT+Drkc/'
+  # [-128, 127, 10] - is encoded as 'gH8K'
+  - do:
+      index:
+        index: knn_base64_vector_index
+        id: "1"
+        body:
+          my_vector_float: "CD9iP4OOIT+Drkc/"
+          my_vector_byte: "gH8K"
+
+
+  # [0.27721548, 0.9202792 , 0.46455473] - is encoded as 'MO+NPmuXaz8e2u0+'
+  # [0, 1, 0] - is encoded as 'AAEA'
+  - do:
+      index:
+        index: knn_hex_vector_index
+        id: "2"
+        body:
+          my_vector_float: "MO+NPmuXaz8e2u0+"
+          my_vector_byte: "AAEA"
+
+  - do:
+      index:
+        index: knn_hex_vector_index
+        id: "3"
+        body:
+          my_vector_float: [0.2509804, -0.039215684, -0.11764706]
+          my_vector_byte: [64, -10, -30]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Fail to index hex-encoded vector on float field":
+
+  # [-128, 127, 10] - is encoded as '807f0a'
+  - do:
+      catch: bad_request
+      index:
+        index: knn_base64_vector_index
+        id: "5"
+        body:
+          my_vector_float: "807f0a"
+
+---
+"Knn retrieve base64 encoded vectors" :
+  - do:
+      get:
+        index: knn_base64_vector_index
+        id: "1"
+        _source_exclude_vectors: false
+
+  - match: { _source.my_vector_float: [0.8837743, 0.6310808, 0.7800066] }

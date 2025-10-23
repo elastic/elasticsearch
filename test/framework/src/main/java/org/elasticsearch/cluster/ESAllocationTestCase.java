@@ -53,6 +53,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -141,8 +142,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
+        return createAllocationService(settings, gatewayAllocator, clusterInfoService, snapshotsInfoService, Collections.emptyList());
+    }
+
+    public static MockAllocationService createAllocationService(
+        Settings settings,
+        GatewayAllocator gatewayAllocator,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService,
+        List<ClusterPlugin> clusterPlugins
+    ) {
         return new MockAllocationService(
-            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
+            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings), clusterPlugins),
             gatewayAllocator,
             createShardsAllocator(settings),
             clusterInfoService,
@@ -151,8 +162,16 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return randomAllocationDeciders(settings, clusterSettings, Collections.emptyList());
+    }
+
+    public static AllocationDeciders randomAllocationDeciders(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        List<ClusterPlugin> clusterPlugins
+    ) {
         List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList())
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, clusterPlugins)
         );
         Collections.shuffle(deciders, random());
         return new AllocationDeciders(deciders);

@@ -45,7 +45,7 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
         var verifier = manager.verifier();
 
         assertThat(signature.algorithm(), equalToIgnoringCase(keyConfig.getKeys().getFirst().v2().getSigAlgName()));
-        assertEquals(signature.certificates()[0], keyConfig.getKeys().getFirst().v2());
+        assertEquals(signature.leafCertificate(), keyConfig.getKeys().getFirst().v2());
         assertTrue(verifier.verify(signature, testHeaders));
     }
 

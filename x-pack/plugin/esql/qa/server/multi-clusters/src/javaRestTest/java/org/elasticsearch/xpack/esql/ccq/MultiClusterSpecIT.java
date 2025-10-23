@@ -118,6 +118,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Lookup join after LIMIT is not supported in CCS yet
         "LookupJoinAfterLimitAndRemoteEnrich",
         "LookupJoinExpressionAfterLimitAndRemoteEnrich",
+        "LookupJoinWithSemanticFilterDeduplicationComplex",
         // Lookup join after FORK is not support in CCS yet
         "ForkBeforeLookupJoin"
     );

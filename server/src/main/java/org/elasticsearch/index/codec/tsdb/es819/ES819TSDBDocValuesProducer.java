@@ -414,7 +414,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return (int) BitUtil.VH_LE_INT.get(uncompressedDocLengths, idx * Integer.BYTES);
         }
 
-        static final BytesRef EMPTY_BYTES_REF = new BytesRef();
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
             // docNumber because these are dense and could be indices from a DISI
             long blockId = docNumber < limitDocNumForBlock ? lastBlockId : getBlockContainingDoc(docRanges, lastBlockId, docNumber, numBlocks);

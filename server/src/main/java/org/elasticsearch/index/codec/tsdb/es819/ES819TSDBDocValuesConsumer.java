@@ -14,7 +14,6 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.FieldInfo;
@@ -31,7 +30,6 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -512,75 +510,51 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
     }
 
-    static final int MIN_BLOCK_BYTES = 256 * 1024;
-    static final int START_BLOCK_DOCS = 1024; // likely needs to grow
-
     private class CompressedBinaryBlockWriter implements Closeable {
+        static final int MIN_BLOCK_BYTES = 256 * 1024;
+        static final int START_BLOCK_DOCS = 1024; // likely needs to grow
+
         final LZ4.FastCompressionHashTable ht = new LZ4.FastCompressionHashTable();
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
         int numDocsInCurrentBlock = 0;
-        byte[] docLengths = new byte[START_BLOCK_DOCS * Integer.BYTES]; // really want ints, but need 0 copy way to convert to ByteBuffer
+
+        // really want ints, but need zero-copy way to convert to ByteBuffer
+        byte[] docLengths = new byte[START_BLOCK_DOCS * Integer.BYTES];
         byte[] block = BytesRef.EMPTY_BYTES;
         int totalChunks = 0;
         long maxPointer = 0;
-        final long blockAddressesStart;
-
-        int maxDocInBlock = -1;
         int maxNumDocsInAnyBlock = 0;
 
-        final IndexOutput tempBinaryOffsets;
-        final IndexOutput tempDocRanges;
+        final OffsetsAccumulatorUnknownLength blockAddressAcc;
+        final OffsetsAccumulatorUnknownLength blockDocRangeAcc;
 
         CompressedBinaryBlockWriter() throws IOException {
-            {
-                boolean success = false;
-                try {
-                    tempBinaryOffsets = EndiannessReverserUtil.createTempOutput(
-                        state.directory,
-                        state.segmentInfo.name,
-                        "binary_pointers",
-                        state.context
-                    );
-                    CodecUtil.writeHeader(
-                        tempBinaryOffsets,
-                        ES819TSDBDocValuesFormat.META_CODEC + "FilePointers",
-                        ES819TSDBDocValuesFormat.VERSION_CURRENT
-                    );
-                    blockAddressesStart = data.getFilePointer();
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        IOUtils.closeWhileHandlingException(this); // self-close because constructor caller can't
-                    }
-                }
-            }
+            long blockAddressesStart = data.getFilePointer();
+            blockAddressAcc = new OffsetsAccumulatorUnknownLength(
+                state.directory,
+                state.context,
+                data,
+                "block_addresses",
+                blockAddressesStart
+            );
 
-            {
-                boolean success = false;
-                try {
-                    tempDocRanges = EndiannessReverserUtil.createTempOutput(
-                        state.directory,
-                        state.segmentInfo.name,
-                        "doc_ranges",
-                        state.context
-                    );
-                    CodecUtil.writeHeader(
-                        tempDocRanges,
-                        ES819TSDBDocValuesFormat.META_CODEC + "DocRanges",
-                        ES819TSDBDocValuesFormat.VERSION_CURRENT
-                    );
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        IOUtils.closeWhileHandlingException(this); // self-close because constructor caller can't
-                    }
-                }
+            try {
+                blockDocRangeAcc = new OffsetsAccumulatorUnknownLength(
+                    state.directory,
+                    state.context,
+                    data,
+                    "block_doc_ranges",
+                    0
+                );
+            } catch (IOException e) {
+                blockAddressAcc.close();
+                throw e;
             }
         }
 
         /**
-         * Confusingly we do not use doc. This is because docId may not be dense.
+         * _docId is unused. This is because docId may not be dense.
          * But we can guarantee that the lookup value is dense on the range of inserted values.
          */
         void addDoc(int _docId, BytesRef v) throws IOException {
@@ -590,7 +564,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             block = ArrayUtil.grow(block, uncompressedBlockLength + v.length);
             System.arraycopy(v.bytes, v.offset, block, uncompressedBlockLength, v.length);
             uncompressedBlockLength += v.length;
-            maxDocInBlock++;
             numDocsInCurrentBlock++;
 
 //            int totalUncompressedSize = uncompressedBlockLength + numDocsInCurrentBlock * Integer.BYTES;
@@ -615,13 +588,13 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 LZ4.compress(docLengths, 0, numDocsInCurrentBlock * Integer.BYTES, output, ht);
                 LZ4.compress(block, 0, uncompressedBlockLength, output, ht);
 
-                tempDocRanges.writeVInt(numDocsInCurrentBlock);
+                blockDocRangeAcc.addDoc(numDocsInCurrentBlock);
                 numDocsInCurrentBlock = 0;
 
                 uncompressedBlockLength = 0;
                 maxPointer = data.getFilePointer();
                 long blockLenBytes = maxPointer - thisBlockStartPointer;
-                tempBinaryOffsets.writeVLong(blockLenBytes);
+                blockAddressAcc.addDoc(blockLenBytes);
             }
         }
 
@@ -630,120 +603,31 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 return;
             }
 
-            long startDMW = data.getFilePointer();
-            meta.writeLong(startDMW); // this is where the block pointer data will start
+            long dataAddressesStart = data.getFilePointer();
 
-            meta.writeVInt(totalChunks); // numCompressedChunks
+            meta.writeLong(dataAddressesStart);
+            meta.writeVInt(totalChunks);
             meta.writeVInt(maxUncompressedBlockLength);
             meta.writeVInt(maxNumDocsInAnyBlock);
             meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
 
-            {
-                CodecUtil.writeFooter(tempBinaryOffsets);
-                IOUtils.close(tempBinaryOffsets);
-                // write the compressed block offsets info to the meta file by reading from temp file
-                try (
-                    ChecksumIndexInput filePointersIn = EndiannessReverserUtil.openChecksumInput(
-                        state.directory,
-                        tempBinaryOffsets.getName(),
-                        IOContext.READONCE
-                    )
-                ) {
-                    CodecUtil.checkHeader(
-                        filePointersIn,
-                        ES819TSDBDocValuesFormat.META_CODEC + "FilePointers",
-                        ES819TSDBDocValuesFormat.VERSION_CURRENT,
-                        ES819TSDBDocValuesFormat.VERSION_CURRENT
-                    );
-                    Throwable priorE = null;
-                    try {
-                        final DirectMonotonicWriter filePointers = DirectMonotonicWriter.getInstance(
-                            meta,
-                            data,
-                            totalChunks + 1,
-                            ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
-                        );
-                        long fp = blockAddressesStart;
-                        filePointers.add(fp);
-                        for (int i = 0; i < totalChunks; ++i) {
-                            fp += filePointersIn.readVLong();
-                            filePointers.add(fp);
-                        }
-                        if (maxPointer < fp) {
-                            throw new CorruptIndexException(
-                                "File pointers don't add up (" + fp + " vs expected " + maxPointer + ")",
-                                filePointersIn
-                            );
-                        }
-                        filePointers.finish();
-                    } catch (Throwable e) {
-                        priorE = e;
-                    } finally {
-                        CodecUtil.checkFooter(filePointersIn, priorE);
-                    }
-                }
-            }
+            blockAddressAcc.build(meta, data);
+            long dataDocRangeStart = data.getFilePointer();
+            long addressesLength = dataDocRangeStart - dataAddressesStart;
+            meta.writeLong(addressesLength);
 
-            // Write the length of the block point block in the data
-            meta.writeLong(data.getFilePointer() - startDMW);
-
-            long startDocRanges = data.getFilePointer();
-            meta.writeLong(startDocRanges);
-            {
-                CodecUtil.writeFooter(tempDocRanges);
-                IOUtils.close(tempDocRanges);
-                try (
-                    ChecksumIndexInput docRangesIn = EndiannessReverserUtil.openChecksumInput(
-                        state.directory,
-                        tempDocRanges.getName(),
-                        IOContext.READONCE
-                    )
-                ) {
-                    CodecUtil.checkHeader(
-                        docRangesIn,
-                        ES819TSDBDocValuesFormat.META_CODEC + "DocRanges",
-                        ES819TSDBDocValuesFormat.VERSION_CURRENT,
-                        ES819TSDBDocValuesFormat.VERSION_CURRENT
-                    );
-                    Throwable priorE = null;
-                    try {
-                        final DirectMonotonicWriter docRanges = DirectMonotonicWriter.getInstance(
-                            meta,
-                            data,
-                            totalChunks + 1,
-                            ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
-                        );
-
-                        long docOffset = 0;
-                        docRanges.add(docOffset);
-                        for (int i = 0; i < totalChunks; ++i) {
-                            docOffset += docRangesIn.readVLong();
-                            docRanges.add(docOffset);
-                        }
-                        docRanges.finish();
-                    } catch (Throwable e) {
-                        priorE = e;
-                    } finally {
-                        CodecUtil.checkFooter(docRangesIn, priorE);
-                    }
-                }
-            }
-
-            long lenDocRanges = data.getFilePointer() - startDocRanges;
-            meta.writeLong(lenDocRanges);
+            meta.writeLong(dataDocRangeStart);
+            blockDocRangeAcc.build(meta, data);
+            long docRangesLen = data.getFilePointer() - dataAddressesStart;
+            meta.writeLong(docRangesLen);
         }
 
         @Override
         public void close() throws IOException {
-            if (tempBinaryOffsets != null) {
-                IOUtils.close(tempBinaryOffsets, () -> state.directory.deleteFile(tempBinaryOffsets.getName()));
-            }
-            if (tempDocRanges != null) {
-                IOUtils.close(tempDocRanges, () -> state.directory.deleteFile(tempDocRanges.getName()));
-            }
+            blockDocRangeAcc.close();
+            blockAddressAcc.close();
         }
     }
-    // END: Copied fom LUCENE-9211
 
     @Override
     public void addSortedField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {

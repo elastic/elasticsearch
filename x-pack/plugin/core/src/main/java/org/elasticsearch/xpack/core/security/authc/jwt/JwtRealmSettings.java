@@ -158,7 +158,18 @@ public class JwtRealmSettings {
         final Set<Setting.AffixSetting<?>> set = new HashSet<>(RealmSettings.getStandardSettings(TYPE));
         set.add(TOKEN_TYPE);
         // JWT Issuer settings
-        set.addAll(List.of(ALLOWED_ISSUER, ALLOWED_SIGNATURE_ALGORITHMS, ALLOWED_CLOCK_SKEW, PKC_JWKSET_PATH));
+        set.addAll(
+            List.of(
+                ALLOWED_ISSUER,
+                ALLOWED_SIGNATURE_ALGORITHMS,
+                ALLOWED_CLOCK_SKEW,
+                PKC_JWKSET_PATH,
+                PKC_JWKSET_RELOAD_ENABLED,
+                PKC_JWKSET_RELOAD_FILE_INTERVAL,
+                PKC_JWKSET_RELOAD_URL_INTERVAL_MIN,
+                PKC_JWKSET_RELOAD_URL_INTERVAL_MAX
+            )
+        );
         // JWT Audience settings
         set.addAll(List.of(ALLOWED_AUDIENCES));
         // JWT End-user settings
@@ -264,7 +275,7 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<TimeValue> PKC_JWKSET_RELOAD_URL_INTERVAL_MIN = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "pkc_jwkset_reload_url_interval_min",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), TimeValue.timeValueMinutes(5), Setting.Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.timeValueHours(1), TimeValue.timeValueMinutes(5), Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<TimeValue> PKC_JWKSET_RELOAD_URL_INTERVAL_MAX = Setting.affixKeySetting(

@@ -19,7 +19,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -121,16 +120,10 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         String dataStreamName = "metrics-foo";
 
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .downsampling(
+            .downsamplingRounds(
                 List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(0),
-                        new DownsampleConfig(new DateHistogramInterval("5m"))
-                    ),
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueSeconds(10),
-                        new DownsampleConfig(new DateHistogramInterval("10m"))
-                    )
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
                 )
             )
             .buildTemplate();
@@ -411,16 +404,10 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
 
         public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
-            .downsampling(
+            .downsamplingRounds(
                 List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(0),
-                        new DownsampleConfig(new DateHistogramInterval("5m"))
-                    ),
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueSeconds(10),
-                        new DownsampleConfig(new DateHistogramInterval("10m"))
-                    )
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
                 )
             )
             .buildTemplate();

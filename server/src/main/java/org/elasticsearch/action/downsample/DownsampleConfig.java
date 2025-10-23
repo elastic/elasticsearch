@@ -144,25 +144,28 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
      * - The target interval needs to be a multiple of the source interval
      * throws an IllegalArgumentException to signal that the target interval is not acceptable
      */
-    public static void validateSourceAndTargetIntervals(DownsampleConfig source, DownsampleConfig target) {
-        long sourceMillis = source.fixedInterval.estimateMillis();
-        long targetMillis = target.fixedInterval.estimateMillis();
+    public static void validateSourceAndTargetIntervals(
+        DateHistogramInterval sourceFxedInterval,
+        DateHistogramInterval targetFixedInterval
+    ) {
+        long sourceMillis = sourceFxedInterval.estimateMillis();
+        long targetMillis = targetFixedInterval.estimateMillis();
         if (sourceMillis >= targetMillis) {
             // Downsampling interval must be greater than source interval
             throw new IllegalArgumentException(
                 "Downsampling interval ["
-                    + target.fixedInterval
+                    + targetFixedInterval
                     + "] must be greater than the source index interval ["
-                    + source.fixedInterval
+                    + sourceFxedInterval
                     + "]."
             );
         } else if (targetMillis % sourceMillis != 0) {
             // Downsampling interval must be a multiple of the source interval
             throw new IllegalArgumentException(
                 "Downsampling interval ["
-                    + target.fixedInterval
+                    + targetFixedInterval
                     + "] must be a multiple of the source index interval ["
-                    + source.fixedInterval
+                    + sourceFxedInterval
                     + "]."
             );
         }

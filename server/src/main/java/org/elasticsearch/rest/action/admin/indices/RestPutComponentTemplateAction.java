@@ -32,10 +32,12 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
     public static final String SUPPORTS_FAILURE_STORE_LIFECYCLE = "data_stream_options.failure_store.lifecycle";
     public static final String SUPPORTS_FAILURE_STORE = "data_stream_options.failure_store";
     private static final String COMPONENT_TEMPLATE_TRACKING_INFO = "component_template_tracking_info";
+    static final String SUPPORTS_DOWNSAMPLING_METHOD = "dlm.downsampling_method";
     private static final Set<String> CAPABILITIES = Set.of(
         SUPPORTS_FAILURE_STORE,
         SUPPORTS_FAILURE_STORE_LIFECYCLE,
-        COMPONENT_TEMPLATE_TRACKING_INFO
+        COMPONENT_TEMPLATE_TRACKING_INFO,
+        SUPPORTS_DOWNSAMPLING_METHOD
     );
 
     @Override

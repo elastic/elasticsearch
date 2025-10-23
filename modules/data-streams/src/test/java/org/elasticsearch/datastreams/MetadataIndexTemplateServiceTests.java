@@ -9,7 +9,6 @@
 
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -151,14 +151,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.createDataLifecycleTemplate(
                 true,
                 randomRetention(),
-                randomDownsampling()
+                randomDownsampling(),
+                ResettableValue.create(DataStreamLifecycleFixtures.randomSamplingMethod())
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             // Defaults to true
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
-            assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle.downsamplingRounds().get()));
         }
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
         // Enabled is always true unless it's explicitly set to false
@@ -166,31 +167,34 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.createDataLifecycleTemplate(
                 false,
                 randomPositiveTimeValue(),
-                randomRounds()
+                randomRounds(),
+                DataStreamLifecycleFixtures.randomSamplingMethod()
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DATA_DEFAULT);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
-            assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle.downsamplingRounds().get()));
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
         {
             DataStreamLifecycle.Template lifecycle1 = DataStreamLifecycle.createDataLifecycleTemplate(
                 false,
                 randomPositiveTimeValue(),
-                randomRounds()
+                randomRounds(),
+                DataStreamLifecycleFixtures.randomSamplingMethod()
             );
             DataStreamLifecycle.Template lifecycle2 = DataStreamLifecycle.createDataLifecycleTemplate(
                 true,
                 randomPositiveTimeValue(),
-                randomRounds()
+                randomRounds(),
+                DataStreamLifecycleFixtures.randomSamplingMethod()
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(lifecycle2.enabled()));
             assertThat(result.dataRetention(), equalTo(lifecycle2.dataRetention().get()));
-            assertThat(result.downsampling(), equalTo(lifecycle2.downsampling().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle2.downsamplingRounds().get()));
         }
     }
 
@@ -255,7 +259,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
         var previous = new DataStreamLifecycle.DownsamplingRound(
             TimeValue.timeValueDays(randomIntBetween(1, 365)),
-            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+            new DateHistogramInterval(randomIntBetween(1, 24) + "h")
         );
         rounds.add(previous);
         for (int i = 0; i < count; i++) {
@@ -268,9 +272,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
-        );
+        var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
     }
 

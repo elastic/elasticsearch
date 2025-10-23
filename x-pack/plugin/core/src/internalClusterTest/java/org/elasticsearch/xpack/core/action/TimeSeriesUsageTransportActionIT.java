@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -164,7 +163,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     timeSeriesDataStreamCount.incrementAndGet();
                     if (downsamplingConfiguredBy == DownsampledBy.DLM) {
                         dlmDownsampledDataStreamCount.incrementAndGet();
-                        updateRounds(lifecycle.downsampling().size(), dlmRoundsCount, dlmRoundsSum, dlmRoundsMin, dlmRoundsMax);
+                        updateRounds(lifecycle.downsamplingRounds().size(), dlmRoundsCount, dlmRoundsSum, dlmRoundsMin, dlmRoundsMax);
                     } else if (downsamplingConfiguredBy == DownsampledBy.ILM) {
                         ilmDownsampledDataStreamCount.incrementAndGet();
                     }
@@ -410,7 +409,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         }
         var builder = DataStreamLifecycle.dataLifecycleBuilder();
         if (isDownsampled) {
-            builder.downsampling(randomDownsamplingRounds());
+            builder.downsamplingRounds(randomDownsamplingRounds());
         }
         return builder.build();
     }
@@ -471,12 +470,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         int minutes = 5;
         int days = 1;
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
-            rounds.add(
-                new DataStreamLifecycle.DownsamplingRound(
-                    TimeValue.timeValueDays(days),
-                    new DownsampleConfig(new DateHistogramInterval(minutes + "m"))
-                )
-            );
+            rounds.add(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(days), new DateHistogramInterval(minutes + "m")));
             minutes *= randomIntBetween(2, 5);
             days += randomIntBetween(1, 5);
         }

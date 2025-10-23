@@ -38,6 +38,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ESIntegTestCase.client;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.frequently;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.junit.Assert.assertTrue;
@@ -146,7 +147,8 @@ public class DataStreamLifecycleFixtures {
         return DataStreamLifecycle.createDataLifecycleTemplate(
             frequently(),
             randomResettable(ESTestCase::randomTimeValue),
-            randomResettable(DataStreamLifecycleFixtures::randomDownsamplingRounds)
+            randomResettable(DataStreamLifecycleFixtures::randomDownsamplingRounds),
+            randomResettable(DataStreamLifecycleFixtures::randomSamplingMethod)
         );
     }
 
@@ -164,7 +166,7 @@ public class DataStreamLifecycleFixtures {
         List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
         var previous = new DataStreamLifecycle.DownsamplingRound(
             TimeValue.timeValueDays(randomIntBetween(1, 365)),
-            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+            new DateHistogramInterval(randomIntBetween(1, 24) + "h")
         );
         rounds.add(previous);
         for (int i = 0; i < count; i++) {
@@ -177,9 +179,16 @@ public class DataStreamLifecycleFixtures {
 
     private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
-        );
+        var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
+    }
+
+    public static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        return switch (between(0, 2)) {
+            case 0 -> null;
+            case 1 -> DownsampleConfig.SamplingMethod.AGGREGATE;
+            case 2 -> DownsampleConfig.SamplingMethod.LAST_VALUE;
+            default -> throw new IllegalStateException("Unknown randomisation path");
+        };
     }
 }

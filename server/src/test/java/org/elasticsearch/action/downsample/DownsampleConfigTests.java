@@ -49,7 +49,7 @@ public class DownsampleConfigTests extends AbstractXContentSerializingTestCase<D
         return new DownsampleConfig(randomInterval(), randomSamplingMethod());
     }
 
-    private static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+    public static DownsampleConfig.SamplingMethod randomSamplingMethod() {
         return switch (between(0, 2)) {
             case 0 -> null;
             case 1 -> DownsampleConfig.SamplingMethod.AGGREGATE;

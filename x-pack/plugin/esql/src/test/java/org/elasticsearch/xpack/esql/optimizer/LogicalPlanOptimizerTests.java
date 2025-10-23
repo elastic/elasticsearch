@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
@@ -163,10 +164,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.ignoreIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
@@ -211,6 +214,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
     public void testEvalWithScoreImplicitLimit() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = plan("""
             FROM test
             | EVAL s = SCORE(MATCH(last_name, "high"))
@@ -224,6 +229,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEvalWithScoreExplicitLimit() {
+        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
+
         var plan = plan("""
             FROM test
             | EVAL s = SCORE(MATCH(last_name, "high"))
@@ -1269,7 +1276,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var eval = as(keep.child(), Eval.class);
         assertThat(
             eval.fields(),
-            contains(
+            containsIgnoringIds(
                 new Alias(
                     EMPTY,
                     "y",
@@ -1289,7 +1296,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var keep = as(plan, Project.class);
         var dissect = as(keep.child(), Dissect.class);
-        assertThat(dissect.extractedFields(), contains(referenceAttribute("y", DataType.KEYWORD)));
+        assertThat(dissect.extractedFields(), containsIgnoringIds(referenceAttribute("y", DataType.KEYWORD)));
     }
 
     public void testPushDownGrokPastProject() {
@@ -1302,7 +1309,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var keep = as(plan, Project.class);
         var grok = as(keep.child(), Grok.class);
-        assertThat(grok.extractedFields(), contains(referenceAttribute("y", DataType.KEYWORD)));
+        assertThat(grok.extractedFields(), containsIgnoringIds(referenceAttribute("y", DataType.KEYWORD)));
     }
 
     public void testPushDownFilterPastProjectUsingEval() {
@@ -2736,7 +2743,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(keep.child(), TopN.class);
         assertThat(
             topN.order(),
-            contains(
+            containsIgnoringIds(
                 new Order(
                     EMPTY,
                     new ReferenceAttribute(EMPTY, null, "e", INTEGER, Nullability.TRUE, null, false),
@@ -2779,7 +2786,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(project.child(), TopN.class);
         assertThat(
             topN.order(),
-            contains(
+            containsIgnoringIds(
                 new Order(
                     EMPTY,
                     new ReferenceAttribute(EMPTY, null, "e", INTEGER, Nullability.TRUE, null, false),
@@ -2821,7 +2828,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(keep.child(), TopN.class);
         assertThat(
             topN.order(),
-            contains(
+            containsIgnoringIds(
                 new Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
@@ -2844,7 +2851,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(project.child(), TopN.class);
         assertThat(
             topN.order(),
-            contains(
+            containsIgnoringIds(
                 new Order(
                     EMPTY,
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
@@ -6424,7 +6431,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var localRelation = as(limit.child(), LocalRelation.class);
         assertThat(
             localRelation.output(),
-            contains(
+            containsIgnoringIds(
                 new ReferenceAttribute(EMPTY, "salary", INTEGER),
                 new ReferenceAttribute(EMPTY, "emp_no", INTEGER),
                 new ReferenceAttribute(EMPTY, "gender", KEYWORD)
@@ -6717,7 +6724,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     private void assertSemanticMatching(String expected, String provided) {
         BinaryComparison bc = extractPlannedBinaryComparison(provided);
         LogicalPlan exp = analyzerTypes.analyze(parser.createStatement("FROM types | WHERE " + expected));
-        assertSemanticMatching(bc, extractPlannedBinaryComparison(exp));
+        // Exp is created separately, so the IDs will be different - ignore them for the comparison.
+        assertSemanticMatching((BinaryComparison) ignoreIds(bc), (EsqlBinaryComparison) ignoreIds(extractPlannedBinaryComparison(exp)));
     }
 
     private static void assertSemanticMatching(Expression fieldAttributeExp, Expression unresolvedAttributeExp) {
@@ -9261,4 +9269,57 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // Verify the right side of join is EsRelation with LOOKUP
         as(join.right(), EsRelation.class);
     }
+
+    /**
+     * Project[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11 AS language_name#4, gender{f}#12, hire_date{f}#17, job{f}#1
+     * 8, job.raw{f}#19, languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, language_code{f}#21]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Filter[NOT(language_code{f}#21 >= 50[INTEGER])]
+     *     \_Join[LEFT,[first_name{f}#11],[language_name{f}#22],null]
+     *       |_Filter[first_name{f}#11 == [KEYWORD]]
+     *       | \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *       \_Filter[language_code{f}#21 &lt; 50[INTEGER]]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#21, language_name{f}#22]
+     */
+    public void LookupJoinSemanticFilterDeupPushdown() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename first_name as language_name
+            | lookup join languages_lookup on language_name
+            | where NOT language_code >= 50 OR language_name == ""
+            | where language_code < 50
+            | where language_name == ""
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+
+        // Verify the top-level filter is NOT(language_code >= 50)
+        var not = as(filter.condition(), Not.class);
+        var gte = as(not.field(), GreaterThanOrEqual.class);
+        assertThat(Expressions.name(gte.left()), equalTo("language_code"));
+        assertThat(gte.right().fold(FoldContext.small()), equalTo(50));
+
+        // Verify the join structure
+        var join = as(filter.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+
+        // Verify left side has filter for language_name == ""
+        var leftFilter = as(join.left(), Filter.class);
+        var leftEquals = as(leftFilter.condition(), Equals.class);
+        assertThat(Expressions.name(leftEquals.left()), equalTo("first_name"));
+        assertThat(leftEquals.right().fold(FoldContext.small()), equalTo(new BytesRef("")));
+
+        var leftRelation = as(leftFilter.child(), EsRelation.class);
+
+        // Verify right side has filter for language_code < 50
+        var rightFilter = as(join.right(), Filter.class);
+        var rightLt = as(rightFilter.condition(), LessThan.class);
+        assertThat(Expressions.name(rightLt.left()), equalTo("language_code"));
+        assertThat(rightLt.right().fold(FoldContext.small()), equalTo(50));
+
+        var rightRelation = as(rightFilter.child(), EsRelation.class);
+    }
+
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Map;
@@ -27,7 +28,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
     public MutableAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
-        IndexResolution indexResolution,
+        Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,

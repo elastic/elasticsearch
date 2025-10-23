@@ -15,31 +15,41 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-
-import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import org.junit.ClassRule;
 
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // as default timeout seems not enough on the jenkins VMs
 public class IndexLifecycleRestIT extends ESClientYamlSuiteTestCase {
 
-    private static final String USER = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username"));
-    private static final String PASS = Objects.requireNonNull(System.getProperty("tests.rest.cluster.password"));
+    static final String USER = "user";
+    static final String PASSWORD = "x-pack-test-password";
 
-    public IndexLifecycleRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("x-pack-ilm")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASSWORD)
+        .build();
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }
 
+    public IndexLifecycleRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        String token = basicAuthHeaderValue(USER, new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

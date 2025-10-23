@@ -462,9 +462,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testUsesFileBasedRecoveryIfOperationsBasedRecoveryWouldBeUnreasonable
   issue: https://github.com/elastic/elasticsearch/issues/135737
-- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
-  method: testFetchDenseVector {pref=null mode=time_series}
-  issue: https://github.com/elastic/elasticsearch/issues/135762
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055

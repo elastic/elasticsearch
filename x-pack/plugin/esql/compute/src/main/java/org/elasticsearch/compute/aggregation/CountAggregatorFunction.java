@@ -78,6 +78,10 @@ public class CountAggregatorFunction implements AggregatorFunction {
     }
 
     private int blockIndex() {
+        // In case of countAll, block index is irrelevant.
+        // Page.positionCount should be used instead,
+        // because the page could have zero blocks
+        // (drop all columns scenario)
         return countAll ? -1 : channels.get(0);
     }
 
@@ -104,7 +108,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
                 if (mask.getBoolean(0) == false) {
                     return;
                 }
-                count = countAll ? block.getPositionCount() : block.getTotalValueCount();
+                count = block.getTotalValueCount();
             } else {
                 count = countMasked(block, mask);
             }

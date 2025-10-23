@@ -248,7 +248,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         return NestedAggregatorTests.MOCK_OBJECT_MAPPERS;
     }
 
-    public void testErrorOnReverseNestedInReverseNestedWithPath() throws IOException {
+    public void testErrorOnInvalidReverseNestedWithPath() throws IOException {
         AggregationBuilder aggregationBuilder = nested("n1", NESTED_OBJECT).subAggregation(
             nested("n2", NESTED_OBJECT + ".child").subAggregation(
                 reverseNested("r1").path(NESTED_OBJECT).subAggregation(reverseNested("r2").path(NESTED_OBJECT + ".child"))

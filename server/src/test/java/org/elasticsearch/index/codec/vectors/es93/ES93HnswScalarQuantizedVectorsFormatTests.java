@@ -33,7 +33,7 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            false,
+            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
             random().nextBoolean()
         );
     }
@@ -44,7 +44,7 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             maxConn,
             beamWidth,
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            false,
+            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
             random().nextBoolean()
         );
     }
@@ -55,7 +55,7 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             maxConn,
             beamWidth,
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            false,
+            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
             random().nextBoolean(),
             numMergeWorkers,
             service

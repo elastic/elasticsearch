@@ -33,7 +33,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         super(NAME);
         this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            false,
+            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
             false
         );
     }
@@ -42,24 +42,24 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int maxConn,
         int beamWidth,
         Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding,
-        boolean useBFloat16,
+        ES93GenericFlatVectorsFormat.ElementType elementType,
         boolean useDirectIO
     ) {
         super(NAME, maxConn, beamWidth);
-        this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(encoding, useBFloat16, useDirectIO);
+        this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(encoding, elementType, useDirectIO);
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
         int maxConn,
         int beamWidth,
         Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding,
-        boolean useBFloat16,
+        ES93GenericFlatVectorsFormat.ElementType elementType,
         boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
-        this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(encoding, useBFloat16, useDirectIO);
+        this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(encoding, elementType, useDirectIO);
     }
 
     @Override

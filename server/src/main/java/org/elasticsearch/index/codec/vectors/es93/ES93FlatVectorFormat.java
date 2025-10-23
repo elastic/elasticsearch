@@ -44,9 +44,10 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         format = new ES93GenericFlatVectorsFormat();
     }
 
-    public ES93FlatVectorFormat(boolean useBFloat16) {
+    public ES93FlatVectorFormat(ES93GenericFlatVectorsFormat.ElementType elementType) {
         super(NAME);
-        format = new ES93GenericFlatVectorsFormat(useBFloat16, false);
+        assert elementType != ES93GenericFlatVectorsFormat.ElementType.BIT : "ES815BitFlatVectorFormat should be used for bits";
+        format = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 
     @Override

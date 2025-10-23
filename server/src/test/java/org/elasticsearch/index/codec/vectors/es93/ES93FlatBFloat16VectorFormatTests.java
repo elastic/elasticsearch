@@ -41,7 +41,7 @@ public class ES93FlatBFloat16VectorFormatTests extends BaseBFloat16KnnVectorsFor
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(true));
+        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16));
     }
 
     public void testSearchWithVisitedLimit() {

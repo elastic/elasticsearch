@@ -42,7 +42,7 @@ public class ES93ScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93ScalarQuantizedVectorsFormat(false));
+        return TestUtil.alwaysKnnVectorsFormat(new ES93ScalarQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD));
     }
 
     public void testSearchWithVisitedLimit() {

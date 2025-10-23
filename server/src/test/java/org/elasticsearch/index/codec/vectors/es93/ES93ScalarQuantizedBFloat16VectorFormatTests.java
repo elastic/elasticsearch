@@ -46,7 +46,7 @@ public class ES93ScalarQuantizedBFloat16VectorFormatTests extends BaseBFloat16Kn
 
     @Override
     public void setUp() throws Exception {
-        format = new ES93ScalarQuantizedVectorsFormat(true);
+        format = new ES93ScalarQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16);
         super.setUp();
     }
 

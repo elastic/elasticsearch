@@ -37,12 +37,13 @@ public class ES93ScalarQuantizedFlatVectorsFormat extends FlatVectorsFormat {
 
     public ES93ScalarQuantizedFlatVectorsFormat(
         Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding,
-        boolean useBFloat16,
+        ES93GenericFlatVectorsFormat.ElementType elementType,
         boolean useDirectIO
     ) {
         super(NAME);
+        assert elementType != ES93GenericFlatVectorsFormat.ElementType.BIT : "BIT should not be used with scalar quantization";
         this.encoding = encoding;
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(useBFloat16, useDirectIO);
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
     @Override

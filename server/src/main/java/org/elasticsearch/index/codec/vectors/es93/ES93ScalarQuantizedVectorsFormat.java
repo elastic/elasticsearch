@@ -38,16 +38,19 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
     private final FlatVectorsFormat format;
 
     public ES93ScalarQuantizedVectorsFormat() {
-        this(false, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT);
+        this(ES93GenericFlatVectorsFormat.ElementType.STANDARD, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT);
     }
 
-    public ES93ScalarQuantizedVectorsFormat(boolean useBFloat16) {
-        this(useBFloat16, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT);
+    public ES93ScalarQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType elementType) {
+        this(elementType, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT);
     }
 
-    public ES93ScalarQuantizedVectorsFormat(boolean useBFloat16, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding) {
+    public ES93ScalarQuantizedVectorsFormat(
+        ES93GenericFlatVectorsFormat.ElementType elementType,
+        Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding
+    ) {
         super(NAME);
-        this.format = new ES93ScalarQuantizedFlatVectorsFormat(encoding, useBFloat16, false);
+        this.format = new ES93ScalarQuantizedFlatVectorsFormat(encoding, elementType, false);
     }
 
     @Override

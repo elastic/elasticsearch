@@ -411,6 +411,9 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         // We synchronize to ensure we only have one scheduledPeriodicRun at a time.
         synchronized (this) {
             if (scheduledPeriodicRun != null) {
+                // Technically speaking, there's a chance that the scheduled run is already running, in which case cancelling it here does
+                // nothing. That means that we might end up with two periodic runs scheduled close together. However, that's unlikely to
+                // happen and relatively harmless if it does, as we only end up running the downloader more often than strictly necessary.
                 final boolean cancelSuccessful = scheduledPeriodicRun.cancel();
                 logger.debug("Cancelled scheduled run: [{}]", cancelSuccessful);
             }
@@ -463,9 +466,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     }
 
     /**
-     * Waits for any current run to finish, then runs the downloader on the last seen cluster state.
-     * {@link #queuedRuns} protects against multiple concurrent runs and ensures that if a run is requested while this method is running,
-     * then another run will be scheduled to run as soon as this method finishes.
+     * Runs the downloader on the latest cluster state. {@link #queuedRuns} protects against multiple concurrent runs and ensures that
+     * if a run is requested while this method is running, then another run will be scheduled to run as soon as this method finishes.
      */
     private void runOnDemand() {
         if (isCancelled() || isCompleted()) {

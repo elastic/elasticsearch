@@ -81,8 +81,7 @@ public final class ExponentialHistogramBackedHistogramAggregator extends Abstrac
                 if (values.advanceExact(doc)) {
                     ExponentialHistogram histo = values.histogramValue();
                     forEachBucketCenter(histo, (center, count) -> {
-                        double clampedCenter = Math.clamp(center, histo.min(), histo.max());
-                        double key = Math.floor((clampedCenter - offset) / interval);
+                        double key = Math.floor((center - offset) / interval);
                         if (hardBounds == null || hardBounds.contain(key * interval)) {
                             long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
                             if (bucketOrd < 0) { // already seen
@@ -110,6 +109,7 @@ public final class ExponentialHistogramBackedHistogramAggregator extends Abstrac
         BucketIterator negIt = histo.negativeBuckets().iterator();
         while (negIt.hasNext()) {
             double center = -ExponentialScaleUtils.getPointOfLeastRelativeError(negIt.peekIndex(), negIt.scale());
+            center = Math.clamp(center, histo.min(), histo.max());
             consumer.accept(center, negIt.peekCount());
             negIt.advance();
         }
@@ -119,6 +119,7 @@ public final class ExponentialHistogramBackedHistogramAggregator extends Abstrac
         BucketIterator posIt = histo.positiveBuckets().iterator();
         while (posIt.hasNext()) {
             double center = ExponentialScaleUtils.getPointOfLeastRelativeError(posIt.peekIndex(), posIt.scale());
+            center = Math.clamp(center, histo.min(), histo.max());
             consumer.accept(center, posIt.peekCount());
             posIt.advance();
         }

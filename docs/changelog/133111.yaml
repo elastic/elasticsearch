@@ -1,5 +1,0 @@
-pr: 133111
-summary: Return 429 instead of 500 for timeout handlers
-area: Network
-type: enhancement
-issues: []

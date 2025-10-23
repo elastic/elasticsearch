@@ -1006,7 +1006,7 @@ public final class DateFieldMapper extends FieldMapper {
                     name(),
                     resolution.numericType(),
                     resolution.getDefaultToScriptFieldFactory(),
-                    indexType.hasPoints()
+                    indexType
                 );
             }
 

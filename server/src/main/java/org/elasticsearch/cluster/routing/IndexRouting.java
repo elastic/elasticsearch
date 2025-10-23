@@ -147,7 +147,6 @@ public abstract class IndexRouting {
         return Math.floorMod(hash, numberOfShards);
     }
 
-
     /**
      * Convert a hash generated from an {@code (id, routing}) pair into a
      * shard id using the old routingNumShards mechanism.

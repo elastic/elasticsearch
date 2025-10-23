@@ -248,7 +248,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
             EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
-            EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+            EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
+            EsqlFlags.ESQL_LOOKUP_JOIN_MULTIVALUE_WARNINGS
         );
     }
 

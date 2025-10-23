@@ -65,6 +65,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private final AliasFilter aliasFilter;
     private final LucenePushdownPredicates lucenePushdownPredicates;
     private BulkKeywordQueryList bulkKeywordQueryList = null;
+    private final EsqlFlags flags;
 
     private ExpressionQueryList(
         List<QueryList> queryLists,
@@ -76,10 +77,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         this.queryLists = new ArrayList<>(queryLists);
         this.context = context;
         this.aliasFilter = aliasFilter;
-        this.lucenePushdownPredicates = LucenePushdownPredicates.from(
-            SearchContextStats.from(List.of(context)),
-            new EsqlFlags(clusterService.getClusterSettings())
-        );
+        this.flags = new EsqlFlags(clusterService.getClusterSettings());
+        this.lucenePushdownPredicates = LucenePushdownPredicates.from(SearchContextStats.from(List.of(context)), flags);
         buildPreJoinFilter(rightPreJoinPlan, clusterService);
     }
 
@@ -145,7 +144,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     @Override
     public BulkKeywordQueryList getBulkQueryList() {
         return bulkKeywordQueryList;
-    };
+    }
 
     private void buildJoinOnForExpressionJoin(
         Expression joinOnConditions,
@@ -267,6 +266,9 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 // so here we reuse the existing logic from field based join to build a termQueryList for Equals
                 if (binaryComparison instanceof Equals) {
                     QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, block, dataType);
+                    if (flags.lookupJoinMultivalueWarnings()) {
+                        termQueryForEquals = termQueryForEquals.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+                    }
                     queryLists.add(termQueryForEquals);
                 } else {
                     queryLists.add(

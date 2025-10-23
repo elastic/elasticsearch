@@ -48,12 +48,25 @@ public class EsqlFlags {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> ESQL_LOOKUP_JOIN_MULTIVALUE_WARNINGS = Setting.boolSetting(
+        "esql.lookup_join.multivalue_warnings.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // this is only used for testing purposes right now
-    public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(ESQL_STRING_LIKE_ON_INDEX, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
+    public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
+        ESQL_STRING_LIKE_ON_INDEX,
+        ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
+        ESQL_LOOKUP_JOIN_MULTIVALUE_WARNINGS
+    );
 
     private final boolean stringLikeOnIndex;
 
     private final int roundToPushdownThreshold;
+
+    private final boolean lookupJoinMultivalueWarnings;
 
     /**
      * Constructor for tests.
@@ -61,6 +74,7 @@ public class EsqlFlags {
     public EsqlFlags(boolean stringLikeOnIndex) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY);
+        this.lookupJoinMultivalueWarnings = ESQL_LOOKUP_JOIN_MULTIVALUE_WARNINGS.getDefault(Settings.EMPTY);
     }
 
     /**
@@ -69,6 +83,7 @@ public class EsqlFlags {
     public EsqlFlags(int roundToPushdownThreshold) {
         this.stringLikeOnIndex = ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY);
         this.roundToPushdownThreshold = roundToPushdownThreshold;
+        this.lookupJoinMultivalueWarnings = ESQL_LOOKUP_JOIN_MULTIVALUE_WARNINGS.getDefault(Settings.EMPTY);
     }
 
     /**
@@ -77,11 +92,14 @@ public class EsqlFlags {
     public EsqlFlags(boolean stringLikeOnIndex, int roundToPushdownThreshold) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
+        this.lookupJoinMultivalueWarnings = ESQL_LOOKUP_JOIN_MULTIVALUE_WARNINGS.getDefault(Settings.EMPTY);
+
     }
 
     public EsqlFlags(ClusterSettings settings) {
         this.stringLikeOnIndex = settings.get(ESQL_STRING_LIKE_ON_INDEX);
         this.roundToPushdownThreshold = settings.get(ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
+        this.lookupJoinMultivalueWarnings = settings.get(ESQL_LOOKUP_JOIN_MULTIVALUE_WARNINGS);
     }
 
     public boolean stringLikeOnIndex() {
@@ -90,5 +108,9 @@ public class EsqlFlags {
 
     public int roundToPushdownThreshold() {
         return roundToPushdownThreshold;
+    }
+
+    public boolean lookupJoinMultivalueWarnings() {
+        return lookupJoinMultivalueWarnings;
     }
 }

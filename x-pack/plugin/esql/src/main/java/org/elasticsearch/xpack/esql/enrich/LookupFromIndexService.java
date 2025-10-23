@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -115,6 +116,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         if (request.joinOnConditions == null) {
             // this is a field based join
             List<QueryList> queryLists = new ArrayList<>();
+            EsqlFlags flags = new EsqlFlags(clusterService.getClusterSettings());
             for (int i = 0; i < request.matchFields.size(); i++) {
                 MatchConfig matchField = request.matchFields.get(i);
                 QueryList q = termQueryList(
@@ -124,6 +126,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                     request.inputPage.getBlock(matchField.channel()),
                     matchField.type()
                 );
+                if (flags.lookupJoinMultivalueWarnings()) {
+                    q = q.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+                }
                 queryLists.add(q);
             }
             if (queryLists.size() == 1 && lookupNodePlan instanceof FilterExec == false) {

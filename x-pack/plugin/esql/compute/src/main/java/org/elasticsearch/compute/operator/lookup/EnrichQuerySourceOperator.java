@@ -200,7 +200,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         queryPosition++;
         BulkKeywordQueryList bulkQueryList = queryList.getBulkQueryList();
         int totalMatches = 0;
-        while (queryPosition < queryList.getPositionCount() && totalMatches < maxPageSize) {
+        while (queryPosition < queryList.getPositionCount()) {
             int matches = bulkQueryList.processQuery(queryPosition, indexReader, docsBuilder, segmentsBuilder, positionsBuilder);
             totalMatches += matches;
             queryPosition++;

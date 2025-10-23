@@ -128,6 +128,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
 
+    public static final String SIMILARITY_FUNCTION_NAME = "similarity";
+
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
     }
@@ -2686,15 +2688,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (indexed) {
-                if (blContext.blockLoaderValueFunction() != null) {
-                    return new BlockDocValuesReader.DenseVectorValueBlockLoader(
-                        name(),
-                        dims,
-                        this,
-                        (DenseVectorBlockLoaderValueFunction) blContext.blockLoaderValueFunction()
-                    );
+                BlockLoaderFunction<?> blockLoaderFunction = blContext.blockLoaderFunction();
+                if (blockLoaderFunction == null) {
+                    return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims, this);
                 }
-                return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims, this);
+                if (SIMILARITY_FUNCTION_NAME.equals(blockLoaderFunction.name()) == false) {
+                    throw new UnsupportedOperationException("Unknown block loader function: " + blockLoaderFunction.name());
+                }
+
+                return new BlockDocValuesReader.DenseVectorSimilarityFunctionBlockLoader(
+                    name(),
+                    this,
+                    (VectorSimilarityFunctionConfig) blockLoaderFunction.config()
+                );
             }
 
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
@@ -3149,38 +3155,32 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * A specialized BlockLoaderValueFunction that calculates similarity between an indexed vector and the query vector. As
      * vectors can be indexed either as float[] or byte[] we need to handle both cases to route similarity correctly
      */
-    public static class DenseVectorBlockLoaderValueFunction
-        implements
-            MappedFieldType.BlockLoaderValueFunction<float[], BlockLoader.DoubleBuilder> {
+    public static class VectorSimilarityFunctionConfig {
 
         private final SimilarityFunction similarityFunction;
         private final float[] vector;
         private byte[] vectorAsBytes;
 
-        public DenseVectorBlockLoaderValueFunction(SimilarityFunction similarityFunction, float[] vector) {
+        public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, float[] vector) {
             this.similarityFunction = similarityFunction;
             this.vector = vector;
         }
 
-        public BlockLoader.DoubleBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-            return factory.doubles(expectedCount);
-        }
-
-        public void applyFunctionAndAdd(float[] value, BlockLoader.DoubleBuilder builder) throws IOException {
-            builder.appendDouble(similarityFunction.calculateSimilarity(value, vector));
-        }
-
-        public void applyFunctionAndAdd(byte[] value, BlockLoader.DoubleBuilder builder) throws IOException {
+        public byte[] vectorAsBytes() {
             if (vectorAsBytes == null) {
                 vectorAsBytes = new byte[vector.length];
                 for (int i = 0; i < vector.length; i++) {
                     vectorAsBytes[i] = (byte) vector[i];
                 }
             }
-            builder.appendDouble(similarityFunction.calculateSimilarity(value, vectorAsBytes));
+            return vectorAsBytes;
         }
 
-        public SimilarityFunction getSimilarityFunction() {
+        public float[] vector() {
+            return vector;
+        }
+
+        public SimilarityFunction similarityFunction() {
             return similarityFunction;
         }
     }

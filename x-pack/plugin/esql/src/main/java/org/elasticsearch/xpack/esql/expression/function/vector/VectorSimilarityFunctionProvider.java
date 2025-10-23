@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalar
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderFunction;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderFunctionProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,17 +43,17 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 /**
  * Base class for vector similarity functions, which compute a similarity score between two dense vectors
  */
-public abstract class VectorSimilarityFunction extends BinaryScalarFunction
+public abstract class VectorSimilarityFunctionProvider extends BinaryScalarFunction
     implements
         EvaluatorMapper,
         VectorFunction,
-        BlockLoaderFunction {
+        BlockLoaderFunctionProvider<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> {
 
-    protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
+    protected VectorSimilarityFunctionProvider(Source source, Expression left, Expression right) {
         super(source, left, right);
     }
 
-    protected VectorSimilarityFunction(StreamInput in) throws IOException {
+    protected VectorSimilarityFunctionProvider(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -201,7 +201,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     }
 
     @Override
-    public MappedFieldType.BlockLoaderValueFunction<?, ?> getBlockLoaderValueFunction() {
+    public MappedFieldType.BlockLoaderFunction<DenseVectorFieldMapper.VectorSimilarityFunctionConfig> getBlockLoaderFunction() {
         Literal literal = (Literal) (left() instanceof Literal ? left() : right());
         @SuppressWarnings("unchecked")
         List<Number> numberList = (List<Number>) literal.value();
@@ -210,7 +210,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
             vector[i] = numberList.get(i).floatValue();
         }
 
-        return new DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction(getSimilarityFunction(), vector);
+        return new MappedFieldType.BlockLoaderFunction<>(DenseVectorFieldMapper.SIMILARITY_FUNCTION_NAME,
+            new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vector));
     }
 
     interface VectorValueProvider extends Releasable {

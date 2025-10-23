@@ -67,7 +67,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
-import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunctionProvider;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -2471,7 +2471,7 @@ public class AnalyzerTests extends ESTestCase {
         var eval = as(limit.child(), Eval.class);
         var alias = as(eval.fields().get(0), Alias.class);
         assertEquals("similarity", alias.name());
-        var similarity = as(alias.child(), VectorSimilarityFunction.class);
+        var similarity = as(alias.child(), VectorSimilarityFunctionProvider.class);
         var left = as(similarity.left(), FieldAttribute.class);
         assertThat(List.of("float_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
         var right = as(similarity.right(), ToDenseVector.class);
@@ -2511,7 +2511,7 @@ public class AnalyzerTests extends ESTestCase {
         var eval = as(limit.child(), Eval.class);
         var alias = as(eval.fields().get(0), Alias.class);
         assertEquals("similarity", alias.name());
-        var similarity = as(alias.child(), VectorSimilarityFunction.class);
+        var similarity = as(alias.child(), VectorSimilarityFunctionProvider.class);
         var left = as(similarity.left(), FieldAttribute.class);
         assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
         var right = as(similarity.right(), ReferenceAttribute.class);

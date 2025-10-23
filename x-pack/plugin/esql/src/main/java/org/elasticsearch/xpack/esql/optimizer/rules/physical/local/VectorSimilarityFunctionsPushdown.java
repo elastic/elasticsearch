@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldFunctionAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunctionProvider;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -66,7 +66,7 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
         });
 
         // Subtract usages inside similarity functions
-        plan.forEachExpression(VectorSimilarityFunction.class, similarityFunction -> {
+        plan.forEachExpression(VectorSimilarityFunctionProvider.class, similarityFunction -> {
             if (similarityFunction.left() instanceof FieldAttribute fieldAttr && fieldAttr instanceof FieldFunctionAttribute == false) {
                 assert nonFunctionUsages.containsKey(fieldAttr) : "Expected field attribute to be retrieved from plan references";
                 nonFunctionUsages.computeIfPresent(fieldAttr, (k, v) -> v - 1);
@@ -85,7 +85,7 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
                                                                        Map<Attribute, Attribute> replacements) {
 
         // Replaces vector similarity functions with field transformations where one side is a literal for FieldFunctionAttributes
-        EvalExec resultEval = (EvalExec) eval.transformExpressionsDown(VectorSimilarityFunction.class, similarityFunction -> {
+        EvalExec resultEval = (EvalExec) eval.transformExpressionsDown(VectorSimilarityFunctionProvider.class, similarityFunction -> {
             if (similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) {
                 return replaceFieldsForFieldTransformations(similarityFunction, replacements);
             }
@@ -96,7 +96,7 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
     }
 
     private static Expression replaceFieldsForFieldTransformations(
-        VectorSimilarityFunction similarityFunction,
+        VectorSimilarityFunctionProvider similarityFunction,
         Map<Attribute, Attribute> replacements
     ) {
         // Only replace if exactly one side is a literal and the other a field attribute

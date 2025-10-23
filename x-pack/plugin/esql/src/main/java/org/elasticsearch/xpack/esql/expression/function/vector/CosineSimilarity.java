@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
-public class CosineSimilarity extends VectorSimilarityFunction {
+public class CosineSimilarity extends VectorSimilarityFunctionProvider {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

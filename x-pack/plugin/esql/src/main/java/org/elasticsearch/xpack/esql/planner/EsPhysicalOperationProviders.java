@@ -72,7 +72,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderFunction;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderFunctionProvider;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
@@ -194,10 +194,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
 
-        MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction = null;
+        MappedFieldType.BlockLoaderFunction<?> blockLoaderValueFunction = null;
         if (attr instanceof FieldFunctionAttribute fieldFunctionAttr
-            && fieldFunctionAttr.getFunction() instanceof BlockLoaderFunction blockLoaderFunction) {
-            blockLoaderValueFunction = blockLoaderFunction.getBlockLoaderValueFunction();
+            && fieldFunctionAttr.getFunction() instanceof BlockLoaderFunctionProvider<?> blockLoaderFunctionProvider) {
+            blockLoaderValueFunction = blockLoaderFunctionProvider.getBlockLoaderFunction();
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         String fieldName = getFieldName(attr);
@@ -489,7 +489,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             String name,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction
+            MappedFieldType.BlockLoaderFunction<?> blockLoaderFunction
         ) {
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
@@ -536,8 +536,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 }
 
                 @Override
-                public MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction() {
-                    return blockLoaderValueFunction;
+                public MappedFieldType.BlockLoaderFunction<?> blockLoaderFunction() {
+                    return blockLoaderFunction;
                 }
             });
             if (loader == null) {

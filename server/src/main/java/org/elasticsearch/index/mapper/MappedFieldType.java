@@ -705,27 +705,14 @@ public abstract class MappedFieldType {
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
 
         @Nullable
-        default BlockLoaderValueFunction<?, ?> blockLoaderValueFunction() {
+        default BlockLoaderFunction<?> blockLoaderFunction() {
             return null;
         }
     }
 
     /**
      * Function that can be used to transform values loaded by a {@link BlockLoader}. Will be part of the {@link BlockLoaderContext}
-     * @param <T> the type of the value loaded by the BlockLoader before being transformed
-     * @param <B> the type of BlockLoader.Builder used to store the transformed values
      */
-    public interface BlockLoaderValueFunction<T, B extends BlockLoader.Builder> {
-        /**
-         * Creates a builder for the BlockLoader that will load the values transformed by this function.
-         */
-        B builder(BlockLoader.BlockFactory factory, int expectedCount);
-
-        /**
-         * Applies the function to the value passed as parameter, and adds it to the builder that
-         * was returned by {@link #builder(BlockLoader.BlockFactory, int)}.
-         */
-        void applyFunctionAndAdd(T value, B builder) throws IOException;
-    }
+    public record BlockLoaderFunction<T>(String name, T config) {}
 
 }

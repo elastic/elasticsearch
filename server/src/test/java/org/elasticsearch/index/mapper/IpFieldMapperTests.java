@@ -234,7 +234,7 @@ public class IpFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+                containsString("Field [time_series_dimension] requires that [doc_values] is true")
             );
         }
         {
@@ -244,17 +244,7 @@ public class IpFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
-            })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+                containsString("Field [time_series_dimension] requires that [doc_values] is true")
             );
         }
     }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.nvidia.request;
+package org.elasticsearch.xpack.inference.services.nvidia.request.completion;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
@@ -43,7 +43,8 @@ public class NvidiaChatCompletionRequest implements Request {
         HttpPost httpPost = new HttpPost(model.getServiceSettings().uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new NvidiaChatCompletionRequestEntity(chatInput, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new NvidiaChatCompletionRequestEntity(chatInput, model.getServiceSettings().modelId()))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

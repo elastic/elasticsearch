@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Represents a Nvidia chat completion model for inference.
@@ -109,11 +108,6 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
     @Override
     public RateLimitSettings rateLimitSettings() {
         return getServiceSettings().rateLimitSettings();
-    }
-
-    @Override
-    public int rateLimitGroupingHash() {
-        return Objects.hash(getServiceSettings().modelId(), getServiceSettings().uri(), getSecretSettings().apiKey());
     }
 
     /**

@@ -23,10 +23,11 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
@@ -41,7 +42,8 @@ import org.elasticsearch.xpack.inference.services.nvidia.action.NvidiaActionCrea
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.nvidia.request.completion.NvidiaChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -54,7 +56,6 @@ import java.util.Set;
 
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
-import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -68,7 +69,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
  * NvidiaService is an inference service for Nvidia models, supporting text embedding and chat completion tasks.
  * It extends SenderService to handle HTTP requests and responses for Nvidia models.
  */
-public class NvidiaService extends SenderService {
+public class NvidiaService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "nvidia";
     private static final String SERVICE_NAME = "Nvidia";
     /**
@@ -77,9 +78,14 @@ public class NvidiaService extends SenderService {
      * unknown how the model is deployed
      */
     static final int EMBEDDING_MAX_BATCH_SIZE = 20;
-    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
+        TaskType.TEXT_EMBEDDING,
+        TaskType.COMPLETION,
+        TaskType.CHAT_COMPLETION,
+        TaskType.RERANK
+    );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new NvidiaChatCompletionResponseHandler(
-        "nvidia chat completion",
+        "Nvidia chat completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
@@ -114,8 +120,9 @@ public class NvidiaService extends SenderService {
         switch (model) {
             case NvidiaChatCompletionModel nvidiaChatCompletionModel -> nvidiaChatCompletionModel.accept(actionCreator)
                 .execute(inputs, timeout, listener);
-            case NvidiaEmbeddingsModel nvidiaEmbeddingsModel -> nvidiaEmbeddingsModel.accept(actionCreator, taskSettings)
+            case NvidiaEmbeddingsModel nvidiaEmbeddingsModel -> nvidiaEmbeddingsModel.accept(actionCreator)
                 .execute(inputs, timeout, listener);
+            case NvidiaRerankModel nvidiaRerankModel -> nvidiaRerankModel.accept(actionCreator).execute(inputs, timeout, listener);
             default -> listener.onFailure(createInvalidModelException(model));
         }
     }
@@ -144,12 +151,27 @@ public class NvidiaService extends SenderService {
         Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        switch (taskType) {
-            case CHAT_COMPLETION, COMPLETION:
-                return new NvidiaChatCompletionModel(inferenceId, taskType, NAME, serviceSettings, secretSettings, context);
-            default:
-                throw createInvalidTaskTypeException(inferenceId, NAME, taskType, context);
-        }
+        return switch (taskType) {
+            case CHAT_COMPLETION, COMPLETION -> new NvidiaChatCompletionModel(
+                inferenceId,
+                taskType,
+                NAME,
+                serviceSettings,
+                secretSettings,
+                context
+            );
+            case TEXT_EMBEDDING -> new NvidiaEmbeddingsModel(
+                inferenceId,
+                taskType,
+                NAME,
+                serviceSettings,
+                chunkingSettings,
+                secretSettings,
+                context
+            );
+            case RERANK -> new NvidiaRerankModel(inferenceId, taskType, NAME, serviceSettings, secretSettings, context);
+            default -> throw createInvalidTaskTypeException(inferenceId, NAME, taskType, context);
+        };
     }
 
     @Override
@@ -213,7 +235,7 @@ public class NvidiaService extends SenderService {
 
     @Override
     public void parseRequestConfig(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         Map<String, Object> config,
         ActionListener<Model> parsedModelListener
@@ -230,7 +252,7 @@ public class NvidiaService extends SenderService {
             }
 
             NvidiaModel model = createModel(
-                modelId,
+                inferenceId,
                 taskType,
                 serviceSettingsMap,
                 chunkingSettings,
@@ -250,7 +272,7 @@ public class NvidiaService extends SenderService {
 
     @Override
     public Model parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
@@ -264,7 +286,7 @@ public class NvidiaService extends SenderService {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, chunkingSettings, secretSettingsMap);
+        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, chunkingSettings, secretSettingsMap);
     }
 
     private NvidiaModel createModelFromPersistent(
@@ -285,7 +307,7 @@ public class NvidiaService extends SenderService {
     }
 
     @Override
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
@@ -294,7 +316,7 @@ public class NvidiaService extends SenderService {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, chunkingSettings, null);
+        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, chunkingSettings, null);
     }
 
     @Override
@@ -306,6 +328,12 @@ public class NvidiaService extends SenderService {
     public boolean hideFromConfigurationApi() {
         // The Nvidia service is very configurable so we're going to hide it from being exposed in the service API.
         return true;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // As Nvidia does not publish the max input length for their reranking models, we use a conservative default.
+        return CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 
     /**

@@ -110,6 +110,8 @@ import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddin
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
@@ -314,6 +316,16 @@ public class InferenceNamedWriteablesProvider {
                 NvidiaChatCompletionServiceSettings.NAME,
                 NvidiaChatCompletionServiceSettings::new
             )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                NvidiaEmbeddingsServiceSettings.NAME,
+                NvidiaEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, NvidiaRerankServiceSettings.NAME, NvidiaRerankServiceSettings::new)
         );
         // no task settings for Nvidia
     }

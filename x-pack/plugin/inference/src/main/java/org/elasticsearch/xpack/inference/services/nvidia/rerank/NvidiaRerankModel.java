@@ -5,9 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
+package org.elasticsearch.xpack.inference.services.nvidia.rerank;
 
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -25,7 +24,7 @@ import java.util.Map;
  * Represents an Nvidia embeddings model for inference.
  * This class extends the NvidiaModel and provides specific configurations and settings for embeddings tasks.
  */
-public class NvidiaEmbeddingsModel extends NvidiaModel {
+public class NvidiaRerankModel extends NvidiaModel {
 
     /**
      * Constructor for creating a NvidiaEmbeddingsModel with specified parameters.
@@ -34,16 +33,14 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to embeddings
-     * @param chunkingSettings the chunking settings for processing input data
      * @param secrets the secret settings for the model, such as API keys or tokens
      * @param context the context for parsing configuration settings
      */
-    public NvidiaEmbeddingsModel(
+    public NvidiaRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -51,8 +48,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
             inferenceEntityId,
             taskType,
             service,
-            NvidiaEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            chunkingSettings,
+            NvidiaRerankServiceSettings.fromMap(serviceSettings, context),
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -63,7 +59,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
      * @param model the base NvidiaEmbeddingsModel to copy properties from
      * @param serviceSettings the settings for the inference service, specific to embeddings
      */
-    public NvidiaEmbeddingsModel(NvidiaEmbeddingsModel model, NvidiaEmbeddingsServiceSettings serviceSettings) {
+    public NvidiaRerankModel(NvidiaRerankModel model, NvidiaRerankServiceSettings serviceSettings) {
         super(model, serviceSettings);
     }
 
@@ -74,26 +70,24 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to embeddings
-     * @param chunkingSettings the chunking settings for processing input data
      * @param secrets the secret settings for the model, such as API keys or tokens
      */
-    public NvidiaEmbeddingsModel(
+    public NvidiaRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        NvidiaEmbeddingsServiceSettings serviceSettings,
-        ChunkingSettings chunkingSettings,
+        NvidiaRerankServiceSettings serviceSettings,
         SecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),
             new ModelSecrets(secrets)
         );
     }
 
     @Override
-    public NvidiaEmbeddingsServiceSettings getServiceSettings() {
-        return (NvidiaEmbeddingsServiceSettings) super.getServiceSettings();
+    public NvidiaRerankServiceSettings getServiceSettings() {
+        return (NvidiaRerankServiceSettings) super.getServiceSettings();
     }
 
     /**

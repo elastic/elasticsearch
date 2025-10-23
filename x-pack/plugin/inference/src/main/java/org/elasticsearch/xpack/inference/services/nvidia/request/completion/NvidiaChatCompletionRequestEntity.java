@@ -5,14 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.nvidia.request;
+package org.elasticsearch.xpack.inference.services.nvidia.request.completion;
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
-import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,18 +22,18 @@ import java.util.Objects;
  */
 public class NvidiaChatCompletionRequestEntity implements ToXContentObject {
 
-    private final NvidiaChatCompletionModel model;
+    private final String modelId;
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
 
-    public NvidiaChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, NvidiaChatCompletionModel model) {
+    public NvidiaChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, String modelId) {
         this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(unifiedChatInput);
-        this.model = Objects.requireNonNull(model);
+        this.modelId = Objects.requireNonNull(modelId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(model.getServiceSettings().modelId(), params));
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(modelId, params));
         builder.endObject();
         return builder;
     }

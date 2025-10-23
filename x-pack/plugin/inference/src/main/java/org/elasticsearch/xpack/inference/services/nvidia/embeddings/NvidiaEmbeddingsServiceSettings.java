@@ -7,22 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
+import org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -30,35 +25,25 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 /**
  * Settings for the Nvidia embeddings service.
  * This class encapsulates the configuration settings required to use Nvidia for generating embeddings.
  */
-public class NvidiaEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
-    public static final String NAME = "Nvidia_embeddings_service_settings";
+public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
+    public static final String NAME = "nvidia_embeddings_service_settings";
 
-    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
-    // There is no default rate limit for Nvidia, so we set a reasonable default of 3000 requests per minute
-    protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
-
-    private final String modelId;
-    private final Integer dimensions;
     private final SimilarityMeasure similarity;
     private final Integer maxInputTokens;
-    private final Boolean dimensionsSetByUser;
-    private final RateLimitSettings rateLimitSettings;
 
     /**
      * Creates a new instance of NvidiaEmbeddingsServiceSettings from a map of settings.
@@ -72,8 +57,7 @@ public class NvidiaEmbeddingsServiceSettings extends FilteredXContentObject impl
         ValidationException validationException = new ValidationException();
 
         var model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = extractUri(map, URL, validationException);
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var uri = extractOptionalUri(map, URL, validationException);
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var maxInputTokens = extractOptionalPositiveInteger(
             map,
@@ -81,19 +65,6 @@ public class NvidiaEmbeddingsServiceSettings extends FilteredXContentObject impl
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        var dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
-        if (context == ConfigurationParseContext.REQUEST) {
-            if (dimensionsSetByUser != null) {
-                validationException.addValidationError(
-                    ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
-                );
-            }
-            dimensionsSetByUser = dimensions != null;
-        } else if (context == ConfigurationParseContext.PERSISTENT && dimensionsSetByUser == null) {
-            validationException.addValidationError(
-                ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
-            );
-        }
 
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, NvidiaService.NAME, context);
 
@@ -101,15 +72,7 @@ public class NvidiaEmbeddingsServiceSettings extends FilteredXContentObject impl
             throw validationException;
         }
 
-        return new NvidiaEmbeddingsServiceSettings(
-            model,
-            uri,
-            dimensions,
-            similarity,
-            maxInputTokens,
-            dimensionsSetByUser,
-            rateLimitSettings
-        );
+        return new NvidiaEmbeddingsServiceSettings(model, uri, similarity, maxInputTokens, rateLimitSettings);
     }
 
     /**
@@ -119,12 +82,9 @@ public class NvidiaEmbeddingsServiceSettings extends FilteredXContentObject impl
      * @throws IOException if an I/O error occurs during reading
      */
     public NvidiaEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        this.modelId = in.readString();
-        this.dimensions = in.readOptionalVInt();
+        super(in);
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.maxInputTokens = in.readOptionalVInt();
-        this.dimensionsSetByUser = in.readBoolean();
-        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     /**
@@ -132,27 +92,20 @@ public class NvidiaEmbeddingsServiceSettings extends FilteredXContentObject impl
      *
      * @param modelId the identifier for the model
      * @param uri the URI of the Nvidia service
-     * @param dimensions the number of dimensions for the embeddings, can be null
      * @param similarity the similarity measure to use, can be null
      * @param maxInputTokens the maximum number of input tokens, can be null
-     * @param dimensionsSetByUser whether the dimensions were set by the user
      * @param rateLimitSettings the rate limit settings for the service, can be null
      */
     public NvidiaEmbeddingsServiceSettings(
         String modelId,
-        URI uri,
-        @Nullable Integer dimensions,
+        @Nullable URI uri,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
-        Boolean dimensionsSetByUser,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this.modelId = modelId;
-        this.dimensions = dimensions;
+        super(modelId, uri, rateLimitSettings);
         this.similarity = similarity;
         this.maxInputTokens = maxInputTokens;
-        this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     /**
@@ -160,53 +113,23 @@ public class NvidiaEmbeddingsServiceSettings extends FilteredXContentObject impl
      *
      * @param modelId the identifier for the model
      * @param url the URL of the Nvidia service
-     * @param dimensions the number of dimensions for the embeddings, can be null
      * @param similarity the similarity measure to use, can be null
      * @param maxInputTokens the maximum number of input tokens, can be null
-     * @param dimensionsSetByUser whether the dimensions were set by the user
      * @param rateLimitSettings the rate limit settings for the service, can be null
      */
     public NvidiaEmbeddingsServiceSettings(
         String modelId,
-        String url,
-        @Nullable Integer dimensions,
+        @Nullable String url,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
-        Boolean dimensionsSetByUser,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this(modelId, createUri(url), dimensions, similarity, maxInputTokens, dimensionsSetByUser, rateLimitSettings);
+        this(modelId, createOptionalUri(url), similarity, maxInputTokens, rateLimitSettings);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        assert false : "should never be called when supportsVersion is used";
-        return NvidiaUtils.ML_INFERENCE_NVIDIA_ADDED;
-    }
-
-    @Override
-    public boolean supportsVersion(TransportVersion version) {
-        return NvidiaUtils.supportsNvidia(version);
-    }
-
-    @Override
-    public String modelId() {
-        return this.modelId;
-    }
-
-    @Override
-    public Integer dimensions() {
-        return this.dimensions;
-    }
-
-    @Override
-    public Boolean dimensionsSetByUser() {
-        return dimensionsSetByUser;
     }
 
     @Override
@@ -239,40 +162,20 @@ public class NvidiaEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
-        out.writeString(uri.toString());
-        out.writeOptionalVInt(dimensions);
+        super.writeTo(out);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(maxInputTokens);
-        out.writeBoolean(dimensionsSetByUser);
-        rateLimitSettings.writeTo(out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        toXContentFragmentOfExposedFields(builder, params);
-        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
-        builder.endObject();
-        return builder;
     }
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MODEL_ID, modelId);
-        builder.field(URL, uri.toString());
-
-        if (dimensions != null) {
-            builder.field(DIMENSIONS, dimensions);
-        }
+        super.toXContentFragmentOfExposedFields(builder, params);
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
-        rateLimitSettings.toXContent(builder, params);
-
         return builder;
     }
 
@@ -283,16 +186,14 @@ public class NvidiaEmbeddingsServiceSettings extends FilteredXContentObject impl
         NvidiaEmbeddingsServiceSettings that = (NvidiaEmbeddingsServiceSettings) o;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(uri, that.uri)
-            && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(similarity, that.similarity)
-            && Objects.equals(dimensionsSetByUser, that.dimensionsSetByUser)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, dimensions, maxInputTokens, similarity, dimensionsSetByUser, rateLimitSettings);
+        return Objects.hash(modelId, uri, maxInputTokens, similarity, rateLimitSettings);
     }
 
 }

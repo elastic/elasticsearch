@@ -15,18 +15,22 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsResponseHandler;
-import org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.nvidia.request.completion.NvidiaChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.nvidia.request.embeddings.NvidiaEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
+import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankResponseHandler;
+import org.elasticsearch.xpack.inference.services.nvidia.response.NvidiaRankedResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
@@ -43,13 +47,19 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
     private static final String USER_ROLE = "user";
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new NvidiaEmbeddingsResponseHandler(
-        "nvidia text embedding",
+        "Nvidia text embedding",
         OpenAiEmbeddingsResponseEntity::fromResponse
     );
 
-    private static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
-        "nvidia completion",
+    private static final ResponseHandler COMPLETION_HANDLER = new NvidiaCompletionResponseHandler(
+        "Nvidia completion",
         OpenAiChatCompletionResponseEntity::fromResponse
+    );
+
+    private static final ResponseHandler RERANK_HANDLER = new NvidiaRerankResponseHandler(
+        "Nvidia rerank",
+        (request, response) -> NvidiaRankedResponseEntity.fromResponse(response),
+        false
     );
 
     private final Sender sender;
@@ -67,21 +77,20 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(NvidiaEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = NvidiaEmbeddingsModel.of(model, taskSettings);
+    public ExecutableAction create(NvidiaEmbeddingsModel model) {
         var manager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
-            overriddenModel,
+            model,
             EMBEDDINGS_HANDLER,
             embeddingsInput -> new NvidiaEmbeddingsRequest(
                 serviceComponents.truncator(),
-                truncate(embeddingsInput.getStringInputs(), overriddenModel.getServiceSettings().maxInputTokens()),
-                overriddenModel
+                truncate(embeddingsInput.getStringInputs(), model.getServiceSettings().maxInputTokens()),
+                model
             ),
             EmbeddingsInput.class
         );
 
-        var errorMessage = buildErrorMessage(TaskType.TEXT_EMBEDDING, overriddenModel.getInferenceEntityId());
+        var errorMessage = buildErrorMessage(TaskType.TEXT_EMBEDDING, model.getInferenceEntityId());
         return new SenderExecutableAction(sender, manager, errorMessage);
     }
 
@@ -97,6 +106,19 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
 
         var errorMessage = buildErrorMessage(TaskType.COMPLETION, model.getInferenceEntityId());
         return new SingleInputSenderExecutableAction(sender, manager, errorMessage, COMPLETION_ERROR_PREFIX);
+    }
+
+    @Override
+    public ExecutableAction create(NvidiaRerankModel model) {
+        var manager = new GenericRequestManager<>(
+            serviceComponents.threadPool(),
+            model,
+            RERANK_HANDLER,
+            inputs -> new NvidiaRerankRequest(inputs.getQuery(), inputs.getChunks(), model),
+            QueryAndDocsInputs.class
+        );
+        var errorMessage = buildErrorMessage(TaskType.RERANK, model.getInferenceEntityId());
+        return new SenderExecutableAction(sender, manager, errorMessage);
     }
 
     /**

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.nvidia.completion;
+package org.elasticsearch.xpack.inference.services.nvidia.rerank;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,21 +28,21 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
- * Represents the settings for an Nvidia chat completion service.
- * This class encapsulates the model ID, URI, and rate limit settings for the Nvidia chat completion service.
+ * Represents the settings for an Nvidia rerank service.
+ * This class encapsulates the model ID, URI, and rate limit settings for the Nvidia rerank service.
  */
-public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
-    public static final String NAME = "nvidia_chat_completion_service_settings";
+public class NvidiaRerankServiceSettings extends NvidiaServiceSettings {
+    public static final String NAME = "nvidia_rerank_service_settings";
 
     /**
-     * Creates a new instance of NvidiaChatCompletionServiceSettings from a map of settings.
+     * Creates a new instance of NvidiaRerankServiceSettings from a map of settings.
      *
      * @param map the map containing the service settings
      * @param context the context for parsing configuration settings
-     * @return a new instance of NvidiaChatCompletionServiceSettings
+     * @return a new instance of NvidiaRerankServiceSettings
      * @throws ValidationException if required fields are missing or invalid
      */
-    public static NvidiaChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+    public static NvidiaRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         var model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -59,39 +59,39 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
             throw validationException;
         }
 
-        return new NvidiaChatCompletionServiceSettings(model, uri, rateLimitSettings);
+        return new NvidiaRerankServiceSettings(model, uri, rateLimitSettings);
     }
 
     /**
-     * Constructs a new NvidiaChatCompletionServiceSettings from a StreamInput.
+     * Constructs a new NvidiaRerankServiceSettings from a StreamInput.
      *
      * @param in the StreamInput to read from
      * @throws IOException if an I/O error occurs during reading
      */
-    public NvidiaChatCompletionServiceSettings(StreamInput in) throws IOException {
+    public NvidiaRerankServiceSettings(StreamInput in) throws IOException {
         super(in);
     }
 
     /**
-     * Constructs a new NvidiaChatCompletionServiceSettings with the specified model ID, URI, and rate limit settings.
+     * Constructs a new NvidiaRerankServiceSettings with the specified model ID, URI, and rate limit settings.
      *
      * @param modelId the ID of the model
      * @param uri the URI of the service
      * @param rateLimitSettings the rate limit settings for the service
      */
-    public NvidiaChatCompletionServiceSettings(String modelId, @Nullable URI uri, @Nullable RateLimitSettings rateLimitSettings) {
+    public NvidiaRerankServiceSettings(String modelId, @Nullable URI uri, @Nullable RateLimitSettings rateLimitSettings) {
         super(modelId, uri, rateLimitSettings);
     }
 
     /**
-     * Constructs a new NvidiaChatCompletionServiceSettings with the specified model ID and URL.
+     * Constructs a new NvidiaRerankServiceSettings with the specified model ID and URL.
      * The rate limit settings will be set to the default value.
      *
      * @param modelId the ID of the model
      * @param url the URL of the service
      * @param rateLimitSettings the rate limit settings for the service, can be null
      */
-    public NvidiaChatCompletionServiceSettings(String modelId, @Nullable String url, @Nullable RateLimitSettings rateLimitSettings) {
+    public NvidiaRerankServiceSettings(String modelId, @Nullable String url, @Nullable RateLimitSettings rateLimitSettings) {
         this(modelId, createOptionalUri(url), rateLimitSettings);
     }
 
@@ -104,7 +104,7 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        NvidiaChatCompletionServiceSettings that = (NvidiaChatCompletionServiceSettings) o;
+        NvidiaRerankServiceSettings that = (NvidiaRerankServiceSettings) o;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(uri, that.uri)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);

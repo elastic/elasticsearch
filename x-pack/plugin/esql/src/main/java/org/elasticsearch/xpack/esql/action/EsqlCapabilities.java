@@ -1532,6 +1532,11 @@ public class EsqlCapabilities {
         GROK_MULTI_PATTERN,
 
         /**
+         * Fix pruning of columns when shadowed in INLINE STATS
+         */
+        INLINE_STATS_PRUNE_COLUMN_FIX(INLINESTATS.enabled),
+
+        /**
          * Fix double release in inline stats when LocalRelation is reused
          */
         INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled),
@@ -1558,6 +1563,11 @@ public class EsqlCapabilities {
          * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
          */
         FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
+
+        /**
+         * Support for the TRANGE function
+         */
+        FN_TRANGE,
 
         /**
          * https://github.com/elastic/elasticsearch/issues/136851

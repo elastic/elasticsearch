@@ -1,6 +1,6 @@
 version: 9.2.0
-released: false
-generated: 2025-10-21T19:34:33.426960938Z
+released: true
+generated: 2025-10-23T12:04:27.512550340Z
 changelogs:
   - pr: 74274
     summary: Introduce new rescorer based on script
@@ -98,7 +98,7 @@ changelogs:
       title: Add remote index support to LOOKUP JOIN
       body: |-
         Queries containing LOOKUP JOIN now can be preformed on cross-cluster indices, for example:
-        
+
         ```yaml
         FROM logs-*, remote:logs-* | LOOKUP JOIN clients on ip | SORT timestamp | LIMIT 100
         ```
@@ -1272,7 +1272,7 @@ changelogs:
           - all other restrictions that exist for `dense_vector` fields still apply
 
         To utilize the format, its just like any other:
-        
+
         ```yaml
         PUT vectors
          {
@@ -1285,7 +1285,7 @@ changelogs:
         ```
 
          Querying is just like any other field.
-        
+
         ```yaml
         POST vectors/_search{
           "query": {
@@ -1297,7 +1297,7 @@ changelogs:
           }
         }
         ```
-        
+
         `num_candidates` can be used for tuning approximate nature of the search.
         Or, more granular control can be provided by setting `visit_percentage` directly.
       pr: 135299

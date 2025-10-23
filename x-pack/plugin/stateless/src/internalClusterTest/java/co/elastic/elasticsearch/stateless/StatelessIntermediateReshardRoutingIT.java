@@ -27,15 +27,16 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportRequest;
@@ -45,6 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -82,8 +84,6 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessInte
         String isolatedSearchNode = startSearchNode();
         ensureStableCluster(4);
 
-        Index index = resolveIndex(indexName);
-
         // Isolate the search node from getting cluster state updates by blocking publication
         MockTransportService isolatedTransportService = MockTransportService.getInstance(isolatedSearchNode);
         isolatedTransportService.addRequestHandlingBehavior(
@@ -96,13 +96,114 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessInte
             }
         );
 
-        int multiple = 2;
         CyclicBarrier handoffTransitionBlock = new CyclicBarrier(2);
         CountDownLatch blockSplit = new CountDownLatch(1);
 
         // Intercept on the index node where target shard will send the state transition request
         // Since search nodes can't hold shards, the target shard will be on indexNode
         MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+        holdAtHandoff(indexTransportService, handoffTransitionBlock, blockSplit);
+
+        int docsToIndex = randomIntBetween(50, 100);
+
+        // Reshard the index to two shards - send to master node (starts async)
+        client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+        try {
+            // Wait for all target shards to arrive at handoff point (blocked)
+            handoffTransitionBlock.await();
+
+            // Send an index request to the isolated search node (which doesn't know about the reshard)
+            indexDocsToIsolatedNode(isolatedSearchNode, docsToIndex, indexName);
+
+            // Unblock reshard
+            blockSplit.countDown();
+        } finally {
+            indexTransportService.clearAllRules();
+            isolatedTransportService.clearAllRules();
+        }
+
+        publishTrivialClusterStateUpdate();
+
+        // Wait for reshard to complete
+        finishReshardAndAssert(indexName, initialDocs, docsToIndex);
+    }
+
+    public void testIndexRoutingWhenCoordinatorStaleReshardState() throws Exception {
+        // Create master and index nodes
+        String masterNode = startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        // Create an index with one shard
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        // Index some initial documents
+        int initialDocs = randomIntBetween(10, 20);
+        indexDocs(indexName, initialDocs);
+        flush(indexName);
+
+        // Create a search node to act as the isolated coordinator
+        // Search nodes cannot hold index shards, so target shard will be on indexNode
+        String isolatedSearchNode = startSearchNode();
+        ensureStableCluster(4);
+
+        // Isolate the search node from getting cluster state updates by blocking publication
+        MockTransportService isolatedTransportService = MockTransportService.getInstance(isolatedSearchNode);
+
+        CyclicBarrier handoffTransitionBlock = new CyclicBarrier(2);
+        CountDownLatch blockSplit = new CountDownLatch(1);
+
+        // Intercept on the index node where target shard will send the state transition request
+        // Since search nodes can't hold shards, the target shard will be on indexNode
+        MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+        holdAtHandoff(indexTransportService, handoffTransitionBlock, blockSplit);
+
+        int docsToIndex = randomIntBetween(50, 100);
+        // Reshard the index to two shards - send to master node (starts async)
+        client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+
+        waitForClusterState(isolatedSearchNode, clusterState -> {
+            IndexReshardingMetadata reshardingMetadata = clusterState.projectState().metadata().index(indexName).getReshardingMetadata();
+            return reshardingMetadata != null
+                && reshardingMetadata.getSplit().getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.CLONE;
+        }).actionGet();
+
+        isolatedTransportService.addRequestHandlingBehavior(
+            PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                // Block cluster state updates by sending an error response
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+                logger.info("Blocking cluster state publication on isolated search node");
+                channel.sendResponse(new IllegalStateException("cluster state updates blocked"));
+            }
+        );
+
+        try {
+            // Wait for all target shards to arrive at handoff point (blocked)
+            handoffTransitionBlock.await();
+
+            indexDocsToIsolatedNode(isolatedSearchNode, docsToIndex, indexName);
+
+            // Unblock reshard
+            blockSplit.countDown();
+        } finally {
+            indexTransportService.clearAllRules();
+            isolatedTransportService.clearAllRules();
+        }
+
+        publishTrivialClusterStateUpdate();
+
+        finishReshardAndAssert(indexName, initialDocs, docsToIndex);
+    }
+
+    private static void holdAtHandoff(
+        MockTransportService indexTransportService,
+        CyclicBarrier handoffTransitionBlock,
+        CountDownLatch blockSplit
+    ) {
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             try {
                 if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
@@ -124,41 +225,28 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessInte
                 throw new RuntimeException(e);
             }
         });
+    }
 
-        int docsToIndex = randomIntBetween(50, 100);
-        try {
-            // Reshard the index to two shards - send to master node (starts async)
-            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet();
-
-            // Wait for all target shards to arrive at handoff point (blocked)
-            handoffTransitionBlock.await();
-
-            // Send an index request to the isolated search node (which doesn't know about the reshard)
-            BulkRequestBuilder bulkRequestBuilder = client(isolatedSearchNode).prepareBulk();
-            for (int i = 0; i < docsToIndex; i++) {
-                bulkRequestBuilder.add(new IndexRequest(indexName).source("field", randomAlphaOfLength(10)));
-            }
-            BulkResponse response = bulkRequestBuilder.get();
-            try {
-                assertNoFailures(response);
-            } catch (AssertionError e) {
-                for (BulkItemResponse itemResponse : response) {
-                    if (itemResponse.isFailed()) {
-                        logger.error("Failed bulk item", ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause()));
-                    }
-                }
-                throw e;
-            }
-
-            // Unblock reshard
-            blockSplit.countDown();
-        } finally {
-            indexTransportService.clearAllRules();
-            isolatedTransportService.clearAllRules();
+    private void indexDocsToIsolatedNode(String isolatedSearchNode, int docsToIndex, String indexName) {
+        // Send an index request to the isolated search node (which doesn't know about the reshard)
+        BulkRequestBuilder bulkRequestBuilder = client(isolatedSearchNode).prepareBulk();
+        for (int i = 0; i < docsToIndex; i++) {
+            bulkRequestBuilder.add(new IndexRequest(indexName).source("field", randomAlphaOfLength(10)));
         }
+        BulkResponse response = bulkRequestBuilder.get();
+        try {
+            assertNoFailures(response);
+        } catch (AssertionError e) {
+            for (BulkItemResponse itemResponse : response) {
+                if (itemResponse.isFailed()) {
+                    logger.error("Failed bulk item", ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause()));
+                }
+            }
+            throw e;
+        }
+    }
 
-        publishTrivialClusterStateUpdate();
-
+    private void finishReshardAndAssert(String indexName, int initialDocs, int docsToIndex) {
         // Wait for reshard to complete
         awaitClusterState(clusterState -> clusterState.projectState().metadata().index(indexName).getReshardingMetadata() == null);
 
@@ -196,5 +284,9 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessInte
                     fail(e);
                 }
             });
+    }
+
+    private PlainActionFuture<ClusterState> waitForClusterState(String node, Predicate<ClusterState> predicate) {
+        return StatelessReshardIT.waitForClusterState(logger, internalCluster().clusterService(node), predicate);
     }
 }

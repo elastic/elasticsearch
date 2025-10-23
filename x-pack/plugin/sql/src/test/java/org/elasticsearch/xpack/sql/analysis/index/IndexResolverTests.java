@@ -600,7 +600,7 @@ public class IndexResolverTests extends ESTestCase {
         return IndexResolver.mergedMappings(
             SqlDataTypeRegistry.INSTANCE,
             indexPattern,
-            new FieldCapabilitiesResponse(indexNames, fieldCaps)
+            FieldCapabilitiesResponse.builder().withIndices(indexNames).withFields(fieldCaps).build()
         );
     }
 
@@ -612,7 +612,7 @@ public class IndexResolverTests extends ESTestCase {
         return IndexResolver.separateMappings(
             SqlDataTypeRegistry.INSTANCE,
             javaRegex,
-            new FieldCapabilitiesResponse(indexNames, fieldCaps),
+            FieldCapabilitiesResponse.builder().withIndices(indexNames).withFields(fieldCaps).build(),
             null
         );
     }

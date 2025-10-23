@@ -9,7 +9,9 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,12 +21,15 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
@@ -35,34 +40,41 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
 
+    private static final TransportVersion RESOLVED_FIELDS_CAPS = TransportVersion.fromName("resolved_fields_caps");
+
     private final String[] indices;
+    private final ResolvedIndexExpressions resolvedLocally;
+    private final transient Map<String, ResolvedIndexExpressions> resolvedRemotely;
     private final Map<String, Map<String, FieldCapabilities>> fields;
     private final List<FieldCapabilitiesFailure> failures;
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
 
-    public FieldCapabilitiesResponse(
-        String[] indices,
-        Map<String, Map<String, FieldCapabilities>> fields,
-        List<FieldCapabilitiesFailure> failures
-    ) {
-        this(indices, fields, Collections.emptyList(), failures);
+    public static FieldCapabilitiesResponse empty() {
+        return new FieldCapabilitiesResponse(
+            Strings.EMPTY_ARRAY,
+            null,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
     }
 
-    public FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> fields) {
-        this(indices, fields, Collections.emptyList(), Collections.emptyList());
-    }
-
-    public FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
-        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures);
+    public static FieldCapabilitiesResponse.Builder builder() {
+        return new FieldCapabilitiesResponse.Builder();
     }
 
     private FieldCapabilitiesResponse(
         String[] indices,
+        ResolvedIndexExpressions resolvedLocally,
+        Map<String, ResolvedIndexExpressions> resolvedRemotely,
         Map<String, Map<String, FieldCapabilities>> fields,
         List<FieldCapabilitiesIndexResponse> indexResponses,
         List<FieldCapabilitiesFailure> failures
     ) {
         this.fields = Objects.requireNonNull(fields);
+        this.resolvedLocally = resolvedLocally;
+        this.resolvedRemotely = Objects.requireNonNull(resolvedRemotely);
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.indices = indices;
         this.failures = failures;
@@ -73,6 +85,14 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         this.fields = in.readMap(FieldCapabilitiesResponse::readField);
         this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
         this.failures = in.readCollectionAsList(FieldCapabilitiesFailure::new);
+        if (in.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
+            this.resolvedLocally = in.readOptionalWriteable(ResolvedIndexExpressions::new);
+        } else {
+            this.resolvedLocally = null;
+        }
+        // when receiving a response we expect the resolved remotely to be empty.
+        // It's only non-empty on the coordinating node if the FC requests targets remotes.
+        this.resolvedRemotely = Collections.emptyMap();
     }
 
     /**
@@ -116,6 +136,20 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     }
 
     /**
+     * Locally resolved index expressions
+     */
+    public ResolvedIndexExpressions getResolvedLocally() {
+        return resolvedLocally;
+    }
+
+    /**
+     * Remotely resolved index expressions, non-empty only in the FC coordinator
+     */
+    public Map<String, ResolvedIndexExpressions> getResolvedRemotely() {
+        return resolvedRemotely;
+    }
+
+    /**
      *
      * Get the field capabilities per type for the provided {@code field}.
      */
@@ -144,6 +178,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         out.writeMap(fields, FieldCapabilitiesResponse::writeField);
         FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
         out.writeCollection(failures);
+        if (out.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
+            out.writeOptionalWriteable(resolvedLocally);
+        }
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
@@ -182,6 +219,8 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
         return Arrays.equals(indices, that.indices)
+            && Objects.equals(resolvedLocally, that.resolvedLocally)
+            && Objects.equals(resolvedRemotely, that.resolvedRemotely)
             && Objects.equals(fields, that.fields)
             && Objects.equals(indexResponses, that.indexResponses)
             && Objects.equals(failures, that.failures);
@@ -189,7 +228,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(fields, indexResponses, failures);
+        int result = Objects.hash(resolvedLocally, resolvedRemotely, fields, indexResponses, failures);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }
@@ -201,4 +240,58 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         }
         return Strings.toString(this);
     }
+
+    public static class Builder {
+        private String[] indices = Strings.EMPTY_ARRAY;
+        private ResolvedIndexExpressions resolvedLocally;
+        private Map<String, ResolvedIndexExpressions> resolvedRemotely = Collections.emptyMap();
+        private Map<String, Map<String, FieldCapabilities>> fields = Collections.emptyMap();
+        private List<FieldCapabilitiesIndexResponse> indexResponses = Collections.emptyList();
+        private List<FieldCapabilitiesFailure> failures = Collections.emptyList();
+
+        private Builder() {}
+
+        public Builder withIndices(String[] indices) {
+            this.indices = indices;
+            return this;
+        }
+
+        public Builder withResolved(ResolvedIndexExpressions resolvedLocally, Map<String, ResolvedIndexExpressions> resolvedRemotely) {
+            this.resolvedLocally = resolvedLocally;
+            this.resolvedRemotely = resolvedRemotely;
+            return this;
+        }
+
+        public Builder withResolvedRemotelyBuilder(Map<String, ResolvedIndexExpressions.Builder> resolvedRemotelyBuilder) {
+            this.resolvedRemotely = resolvedRemotelyBuilder.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
+            return this;
+        }
+
+        public Builder withResolvedLocally(ResolvedIndexExpressions resolvedLocally) {
+            this.resolvedLocally = resolvedLocally;
+            return this;
+        }
+
+        public Builder withFields(Map<String, Map<String, FieldCapabilities>> fields) {
+            this.fields = fields;
+            return this;
+        }
+
+        public Builder withIndexResponses(Collection<FieldCapabilitiesIndexResponse> indexResponses) {
+            this.indexResponses = new ArrayList<>(indexResponses);
+            return this;
+        }
+
+        public Builder withFailures(List<FieldCapabilitiesFailure> failures) {
+            this.failures = failures;
+            return this;
+        }
+
+        public FieldCapabilitiesResponse build() {
+            return new FieldCapabilitiesResponse(indices, resolvedLocally, resolvedRemotely, fields, indexResponses, failures);
+        }
+    }
+
 }

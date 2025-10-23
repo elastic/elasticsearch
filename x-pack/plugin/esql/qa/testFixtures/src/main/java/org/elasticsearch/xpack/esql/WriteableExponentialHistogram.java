@@ -130,6 +130,7 @@ public class WriteableExponentialHistogram extends AbstractExponentialHistogram 
         while (iterator.hasNext()) {
             out.writeLong(iterator.peekIndex());
             out.writeLong(iterator.peekCount());
+            iterator.advance();
         }
     }
 

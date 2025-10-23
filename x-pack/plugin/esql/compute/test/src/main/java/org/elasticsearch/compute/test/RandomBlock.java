@@ -90,6 +90,12 @@ public record RandomBlock(List<List<Object>> values, Block block) {
         List<List<Object>> values = new ArrayList<>();
         Block.MvOrdering mvOrdering = Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
         if (elementType == ElementType.EXPONENTIAL_HISTOGRAM) {
+            // histograms do not support multi-values
+            // TODO(b/133393) remove this when we support multi-values in exponential histogram blocks
+            minValuesPerPosition = Math.min(1, minValuesPerPosition);
+            maxValuesPerPosition = Math.min(1, maxValuesPerPosition);
+            minDupsPerPosition = 0;
+            maxDupsPerPosition = 0;
             mvOrdering = Block.MvOrdering.UNORDERED; // histograms do not support ordering
         }
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {

@@ -184,7 +184,8 @@ public abstract class TransportBroadcastReplicationAction<
         Request request,
         ShardId shardId,
         ProjectMetadata project,
-        ActionListener<ShardResponse> shardActionListener) {
+        ActionListener<ShardResponse> shardActionListener
+    ) {
         assert Transports.assertNotTransportThread("may hit all the shards");
         ShardRequest shardRequest = newShardRequest(request, shardId, project);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());

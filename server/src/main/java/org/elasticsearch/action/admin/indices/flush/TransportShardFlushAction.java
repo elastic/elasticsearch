@@ -12,7 +12,6 @@ package org.elasticsearch.action.admin.indices.flush;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -37,6 +37,8 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +121,41 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         ShardId targetShard = new ShardId(request.shardId().getIndex(), targetShardId);
         requestsByShard.put(targetShard, new ShardFlushRequest(request.getRequest(), targetShard, shardCountSummary));
         return requestsByShard;
+    }
+
+    protected Tuple<ReplicationResponse, Exception> combineSplitResponses(
+        ShardFlushRequest originalRequest,
+        Map<ShardId, ShardFlushRequest> splitRequests,
+        Map<ShardId, Tuple<ReplicationResponse, Exception>> responses
+    ) {
+        int failed = 0;
+        int successful = 0;
+        int total = 0;
+        List<ReplicationResponse.ShardInfo.Failure> failures = new ArrayList<>();
+
+        // Case 1: Both source and target shards return a response: Add up total, successful, failures
+        // Case 2: Both source and target shards return an exception : return exception
+        // Case 3: One shards returns a response, the other returns an exception : return exception
+        for (Map.Entry<ShardId, Tuple<ReplicationResponse, Exception>> entry : responses.entrySet()) {
+            ShardId shardId = entry.getKey();
+            Tuple<ReplicationResponse, Exception> value = entry.getValue();
+            Exception exception = value.v2();
+            if (exception != null) {
+                return new Tuple<>(null, exception);
+            } else {
+                ReplicationResponse response = value.v1();
+                failed += response.getShardInfo().getFailed();
+                successful += response.getShardInfo().getSuccessful();
+                total += response.getShardInfo().getTotal();
+                Collections.addAll(failures, response.getShardInfo().getFailures());
+            }
+        }
+        ReplicationResponse.ShardInfo.Failure[] failureArray = failures.toArray(new ReplicationResponse.ShardInfo.Failure[0]);
+        assert failureArray.length == failed;
+        ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(total, successful, failureArray);
+        ReplicationResponse response = new ReplicationResponse();
+        response.setShardInfo(shardInfo);
+        return new Tuple<>(response, null);
     }
 
     @Override

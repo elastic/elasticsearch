@@ -98,10 +98,11 @@ changelogs:
       title: Add remote index support to LOOKUP JOIN
       body: |-
         Queries containing LOOKUP JOIN now can be preformed on cross-cluster indices, for example:
-        [source,yaml]
-        ----------------------------
+        
+        ```yaml
         FROM logs-*, remote:logs-* | LOOKUP JOIN clients on ip | SORT timestamp | LIMIT 100
-        ----------------------------
+        ```
+
       pr: 129013
   - pr: 129090
     summary: Enable force inference endpoint deleting for invalid models and after stopping model deployment fails
@@ -1271,8 +1272,8 @@ changelogs:
           - all other restrictions that exist for `dense_vector` fields still apply
 
         To utilize the format, its just like any other:
-        [source,yaml]
-        ----------------------------
+        
+        ```yaml
         PUT vectors
          {
            "mappings": {
@@ -1281,10 +1282,11 @@ changelogs:
              }
            }
          }
-        ----------------------------
+        ```
+
          Querying is just like any other field.
-        [source,yaml]
-        ----------------------------
+        
+        ```yaml
         POST vectors/_search{
           "query": {
             "knn": {
@@ -1294,7 +1296,8 @@ changelogs:
             }
           }
         }
-        ----------------------------
+        ```
+        
         `num_candidates` can be used for tuning approximate nature of the search.
         Or, more granular control can be provided by setting `visit_percentage` directly.
       pr: 135299

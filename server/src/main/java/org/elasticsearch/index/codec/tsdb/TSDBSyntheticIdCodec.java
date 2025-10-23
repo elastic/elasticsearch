@@ -126,7 +126,7 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
                     final var attributes = new HashMap<>(fieldInfo.attributes());
 
                     // Assert that PerFieldPostingsFormat are not written to field infos on disk
-                    assert attributes.containsKey(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY) == false;
+                    assert attributes.containsKey(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY) == false;
                     assert attributes.containsKey(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY) == false;
 
                     // Inject attributes so that PerFieldPostingsFormat maps the synthetic _id field to the TSDBSyntheticIdPostingsFormat

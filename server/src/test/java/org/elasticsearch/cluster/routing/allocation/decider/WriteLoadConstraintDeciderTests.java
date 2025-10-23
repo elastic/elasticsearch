@@ -25,8 +25,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -236,18 +234,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 testHarness.routingAllocation
             ).type()
         );
-    }
-
-    private void assertDecisionMatches(String description, Decision decision, Decision.Type type, String explanationPattern) {
-        assertEquals(description, type, decision.type());
-        if (explanationPattern == null) {
-            assertNull(decision.getExplanation());
-        } else {
-            assertTrue(
-                Strings.format("Expected: \"%s\", got \"%s\"", explanationPattern, decision.getExplanation()),
-                Regex.simpleMatch(explanationPattern, decision.getExplanation())
-            );
-        }
     }
 
     /**

@@ -53,8 +53,8 @@ Current restrictions:
   - all other restrictions that exist for `dense_vector` fields still apply
 
 To utilize the format, its just like any other:
-[source,yaml]
-----------------------------
+
+```yaml
 PUT vectors
  {
    "mappings": {
@@ -63,10 +63,11 @@ PUT vectors
      }
    }
  }
-----------------------------
+```
+
  Querying is just like any other field.
-[source,yaml]
-----------------------------
+
+```yaml
 POST vectors/_search{
   "query": {
     "knn": {
@@ -76,7 +77,7 @@ POST vectors/_search{
     }
   }
 }
-----------------------------
+```
 `num_candidates` can be used for tuning approximate nature of the search.
 Or, more granular control can be provided by setting `visit_percentage` directly.
 ::::
@@ -102,10 +103,11 @@ for a variety of use cases.
 
 ::::{dropdown} Add remote index support to LOOKUP JOIN
 Queries containing LOOKUP JOIN now can be preformed on cross-cluster indices, for example:
-[source,yaml]
-----------------------------
+
+```yaml
 FROM logs-*, remote:logs-* | LOOKUP JOIN clients on ip | SORT timestamp | LIMIT 100
-----------------------------
+```
+
 ::::
 
 ::::{dropdown} New lucene 10.3.0 release

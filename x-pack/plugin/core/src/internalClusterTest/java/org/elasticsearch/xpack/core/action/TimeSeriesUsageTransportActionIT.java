@@ -163,7 +163,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     timeSeriesDataStreamCount.incrementAndGet();
                     if (downsamplingConfiguredBy == DownsampledBy.DLM) {
                         dlmDownsampledDataStreamCount.incrementAndGet();
-                        updateRounds(lifecycle.downsampling().size(), dlmRoundsCount, dlmRoundsSum, dlmRoundsMin, dlmRoundsMax);
+                        updateRounds(lifecycle.downsamplingRounds().size(), dlmRoundsCount, dlmRoundsSum, dlmRoundsMin, dlmRoundsMax);
                     } else if (downsamplingConfiguredBy == DownsampledBy.ILM) {
                         ilmDownsampledDataStreamCount.incrementAndGet();
                     }
@@ -409,7 +409,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         }
         var builder = DataStreamLifecycle.dataLifecycleBuilder();
         if (isDownsampled) {
-            builder.downsampling(randomDownsamplingRounds());
+            builder.downsamplingRounds(randomDownsamplingRounds());
         }
         return builder.build();
     }

@@ -157,7 +157,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             // Defaults to true
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
-            assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle.downsamplingRounds().get()));
         }
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
         // Enabled is always true unless it's explicitly set to false
@@ -171,7 +171,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
-            assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle.downsamplingRounds().get()));
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
         {
@@ -189,7 +189,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(lifecycle2.enabled()));
             assertThat(result.dataRetention(), equalTo(lifecycle2.dataRetention().get()));
-            assertThat(result.downsampling(), equalTo(lifecycle2.downsampling().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle2.downsamplingRounds().get()));
         }
     }
 

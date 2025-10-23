@@ -145,14 +145,14 @@ public class PutDataStreamLifecycleAction {
             String[] names,
             @Nullable TimeValue dataRetention,
             @Nullable Boolean enabled,
-            @Nullable List<DataStreamLifecycle.DownsamplingRound> downsampling
+            @Nullable List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds
         ) {
             super(masterNodeTimeout, ackTimeout);
             this.names = names;
             this.lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(dataRetention)
                 .enabled(enabled == null || enabled)
-                .downsampling(downsampling)
+                .downsamplingRounds(downsamplingRounds)
                 .build();
         }
 

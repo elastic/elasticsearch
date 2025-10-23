@@ -51,7 +51,9 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends DownsamplingInteg
 
         final String dataStreamName = "metrics-foo";
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .downsampling(List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
+            .downsamplingRounds(
+                List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")))
+            )
             .buildTemplate();
         setupTSDBDataStreamAndIngestDocs(
             dataStreamName,

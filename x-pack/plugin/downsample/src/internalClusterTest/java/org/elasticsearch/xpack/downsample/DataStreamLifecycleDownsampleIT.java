@@ -42,7 +42,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         String dataStreamName = "metrics-foo";
 
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .downsampling(
+            .downsamplingRounds(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
                     new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
@@ -108,7 +108,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         String dataStreamName = "metrics-bar";
 
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .downsampling(
+            .downsamplingRounds(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
                     // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
@@ -169,7 +169,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         String dataStreamName = "metrics-baz";
 
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .downsampling(
+            .downsamplingRounds(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
                     // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
@@ -226,7 +226,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         // the different interval should yield a different downsample index name so we expect the data stream lifecycle to get the previous
         // `10s` interval downsample index, downsample it to `20m` and replace it in the data stream instead of the `10s` one.
         DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .downsampling(
+            .downsamplingRounds(
                 List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(10), new DateHistogramInterval("20m")))
             )
             .build();

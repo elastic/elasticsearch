@@ -143,7 +143,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     @Nullable
     private final TimeValue dataRetention;
     @Nullable
-    private final List<DownsamplingRound> downsampling;
+    private final List<DownsamplingRound> downsamplingRounds;
 
     /**
      * This constructor is visible for testing, please use {@link DataStreamLifecycle#createDataLifecycle(Boolean, TimeValue, List)} or
@@ -153,16 +153,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         LifecycleType lifecycleType,
         @Nullable Boolean enabled,
         @Nullable TimeValue dataRetention,
-        @Nullable List<DownsamplingRound> downsampling
+        @Nullable List<DownsamplingRound> downsamplingRounds
     ) {
         this.lifecycleType = lifecycleType;
         this.enabled = enabled == null || enabled;
         this.dataRetention = dataRetention;
-        if (lifecycleType == LifecycleType.FAILURES && downsampling != null) {
+        if (lifecycleType == LifecycleType.FAILURES && downsamplingRounds != null) {
             throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
         }
-        DownsamplingRound.validateRounds(downsampling);
-        this.downsampling = downsampling;
+        DownsamplingRound.validateRounds(downsamplingRounds);
+        this.downsamplingRounds = downsamplingRounds;
     }
 
     /**
@@ -308,8 +308,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * not configured then it returns null.
      */
     @Nullable
-    public List<DownsamplingRound> downsampling() {
-        return downsampling;
+    public List<DownsamplingRound> downsamplingRounds() {
+        return downsamplingRounds;
     }
 
     @Override
@@ -320,13 +320,13 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         final DataStreamLifecycle that = (DataStreamLifecycle) o;
         return lifecycleType == that.lifecycleType
             && Objects.equals(dataRetention, that.dataRetention)
-            && Objects.equals(downsampling, that.downsampling)
+            && Objects.equals(downsamplingRounds, that.downsamplingRounds)
             && enabled == that.enabled;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(lifecycleType, enabled, dataRetention, downsampling);
+        return Objects.hash(lifecycleType, enabled, dataRetention, downsamplingRounds);
     }
 
     @Override
@@ -341,9 +341,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
         if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
             if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                out.writeOptionalCollection(downsampling);
+                out.writeOptionalCollection(downsamplingRounds);
             } else {
-                writeLegacyOptionalValue(downsampling, out, StreamOutput::writeCollection);
+                writeLegacyOptionalValue(downsamplingRounds, out, StreamOutput::writeCollection);
             }
             out.writeBoolean(enabled());
         }
@@ -364,13 +364,13 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
         if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
             if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                downsampling = in.readOptionalCollectionAsList(DownsamplingRound::read);
+                downsamplingRounds = in.readOptionalCollectionAsList(DownsamplingRound::read);
             } else {
-                downsampling = readLegacyOptionalValue(in, is -> is.readCollectionAsList(DownsamplingRound::read));
+                downsamplingRounds = readLegacyOptionalValue(in, is -> is.readCollectionAsList(DownsamplingRound::read));
             }
             enabled = in.readBoolean();
         } else {
-            downsampling = null;
+            downsamplingRounds = null;
             enabled = true;
         }
         lifecycleType = in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? LifecycleType.read(in) : LifecycleType.DATA;
@@ -426,8 +426,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             + enabled
             + ", dataRetention="
             + dataRetention
-            + ", downsampling="
-            + downsampling
+            + ", downsamplingRounds="
+            + downsamplingRounds
             + '}';
     }
 
@@ -466,8 +466,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
         }
 
-        if (downsampling != null) {
-            builder.field(DOWNSAMPLING_FIELD.getPreferredName(), downsampling);
+        if (downsamplingRounds != null) {
+            builder.field(DOWNSAMPLING_FIELD.getPreferredName(), downsamplingRounds);
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
@@ -667,7 +667,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         LifecycleType lifecycleType,
         boolean enabled,
         ResettableValue<TimeValue> dataRetention,
-        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsamplingRounds
     ) implements ToXContentObject, Writeable {
 
         Template(
@@ -680,11 +680,11 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public Template {
-            if (lifecycleType == LifecycleType.FAILURES && downsampling.get() != null) {
+            if (lifecycleType == LifecycleType.FAILURES && downsamplingRounds.get() != null) {
                 throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
             }
-            if (downsampling.isDefined() && downsampling.get() != null) {
-                DownsamplingRound.validateRounds(downsampling.get());
+            if (downsamplingRounds.isDefined() && downsamplingRounds.get() != null) {
+                DownsamplingRound.validateRounds(downsamplingRounds.get());
             }
         }
 
@@ -736,9 +736,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
             if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
                 if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                    ResettableValue.write(out, downsampling, StreamOutput::writeCollection);
+                    ResettableValue.write(out, downsamplingRounds, StreamOutput::writeCollection);
                 } else {
-                    writeLegacyValue(out, downsampling, StreamOutput::writeCollection);
+                    writeLegacyValue(out, downsamplingRounds, StreamOutput::writeCollection);
                 }
                 out.writeBoolean(enabled);
             }
@@ -839,7 +839,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             builder.startObject();
             builder.field(ENABLED_FIELD.getPreferredName(), enabled);
             dataRetention.toXContent(builder, params, DATA_RETENTION_FIELD.getPreferredName(), TimeValue::getStringRep);
-            downsampling.toXContent(builder, params, DOWNSAMPLING_FIELD.getPreferredName());
+            downsamplingRounds.toXContent(builder, params, DOWNSAMPLING_FIELD.getPreferredName());
             if (rolloverConfiguration != null) {
                 builder.field(ROLLOVER_FIELD.getPreferredName());
                 rolloverConfiguration.evaluateAndConvertToXContent(
@@ -853,7 +853,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public DataStreamLifecycle toDataStreamLifecycle() {
-            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention.get(), downsampling.get());
+            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention.get(), downsamplingRounds.get());
         }
     }
 
@@ -890,7 +890,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         @Nullable
         private TimeValue dataRetention = null;
         @Nullable
-        private List<DownsamplingRound> downsampling = null;
+        private List<DownsamplingRound> downsamplingRounds = null;
 
         private Builder(LifecycleType lifecycleType) {
             this.lifecycleType = lifecycleType;
@@ -900,21 +900,21 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             lifecycleType = template.lifecycleType();
             enabled = template.enabled();
             dataRetention = template.dataRetention().get();
-            downsampling = template.downsampling().get();
+            downsamplingRounds = template.downsamplingRounds().get();
         }
 
         private Builder(DataStreamLifecycle lifecycle) {
             lifecycleType = lifecycle.lifecycleType;
             enabled = lifecycle.enabled();
             dataRetention = lifecycle.dataRetention();
-            downsampling = lifecycle.downsampling();
+            downsamplingRounds = lifecycle.downsamplingRounds();
         }
 
         public Builder composeTemplate(DataStreamLifecycle.Template template) {
             assert lifecycleType == template.lifecycleType() : "Trying to compose templates with different lifecycle types";
             enabled(template.enabled());
             dataRetention(template.dataRetention());
-            downsampling(template.downsampling());
+            downsamplingRounds(template.downsamplingRounds());
             return this;
         }
 
@@ -935,24 +935,24 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return this;
         }
 
-        public Builder downsampling(ResettableValue<List<DownsamplingRound>> downsampling) {
+        public Builder downsamplingRounds(ResettableValue<List<DownsamplingRound>> downsampling) {
             if (downsampling.isDefined()) {
-                this.downsampling = downsampling.get();
+                this.downsamplingRounds = downsampling.get();
             }
             return this;
         }
 
-        public Builder downsampling(@Nullable List<DownsamplingRound> downsampling) {
-            this.downsampling = downsampling;
+        public Builder downsamplingRounds(@Nullable List<DownsamplingRound> downsampling) {
+            this.downsamplingRounds = downsampling;
             return this;
         }
 
         public DataStreamLifecycle build() {
-            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention, downsampling);
+            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention, downsamplingRounds);
         }
 
         public Template buildTemplate() {
-            return new Template(lifecycleType, enabled, dataRetention, downsampling);
+            return new Template(lifecycleType, enabled, dataRetention, downsamplingRounds);
         }
     }
 

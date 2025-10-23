@@ -1103,7 +1103,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         DataStreamLifecycle.Template lifecycle45d = DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(TimeValue.timeValueDays(45))
-            .downsampling(List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(30), new DateHistogramInterval("3h"))))
+            .downsamplingRounds(
+                List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(30), new DateHistogramInterval("3h")))
+            )
             .buildTemplate();
         String ct45d = "ct_45d";
         project = addComponentTemplate(service, project, ct45d, lifecycle45d);
@@ -1159,7 +1161,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             lifecycle30d,
             DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(lifecycle30d.dataRetention())
-                .downsampling(lifecycle45d.downsampling())
+                .downsamplingRounds(lifecycle45d.downsamplingRounds())
                 .buildTemplate()
         );
 
@@ -1181,7 +1183,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             project,
             List.of(ctEmptyLifecycle, ct45d),
             lifecycleNullRetention,
-            DataStreamLifecycle.dataLifecycleBuilder().downsampling(lifecycle45d.downsampling()).buildTemplate()
+            DataStreamLifecycle.dataLifecycleBuilder().downsamplingRounds(lifecycle45d.downsamplingRounds()).buildTemplate()
         );
 
         // Component A: "lifecycle": {"retention": "30d"}
@@ -1195,7 +1197,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle.dataLifecycleBuilder().enabled(false).buildTemplate(),
             DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(lifecycle45d.dataRetention())
-                .downsampling(lifecycle45d.downsampling())
+                .downsamplingRounds(lifecycle45d.downsamplingRounds())
                 .enabled(false)
                 .buildTemplate()
         );

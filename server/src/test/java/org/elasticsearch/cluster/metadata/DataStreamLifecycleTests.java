@@ -74,6 +74,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                 } else {
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.FAILURES;
                     downsamplingRounds = null;
+                    downsamplingMethod = null;
                 }
             }
             case 1 -> {

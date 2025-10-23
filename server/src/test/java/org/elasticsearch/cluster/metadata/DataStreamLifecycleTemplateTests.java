@@ -54,6 +54,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
                     : DataStreamLifecycle.LifecycleType.DATA;
                 if (lifecycleTarget == DataStreamLifecycle.LifecycleType.FAILURES) {
                     downsamplingRounds = ResettableValue.undefined();
+                    downsamplingMethod = ResettableValue.undefined();
                 }
             }
             case 1 -> enabled = enabled == false;

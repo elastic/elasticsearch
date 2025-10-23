@@ -32,6 +32,8 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         AUTO
     }
 
+    private final boolean isGpuSupported = GPUSupport.isSupported(true);
+
     /**
      * Setting to control whether to use GPU for vectors indexing.
      * Currently only applicable for index_options.type: hnsw.
@@ -60,7 +62,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
-        return (indexSettings, indexOptions) -> {
+        return (indexSettings, indexOptions, similarity) -> {
             if (GPU_FORMAT.isEnabled()) {
                 GpuMode gpuMode = indexSettings.getValue(VECTORS_INDEXING_USE_GPU_SETTING);
                 if (gpuMode == GpuMode.TRUE) {
@@ -69,15 +71,15 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                             "[index.vectors.indexing.use_gpu] doesn't support [index_options.type] of [" + indexOptions.getType() + "]."
                         );
                     }
-                    if (GPUSupport.isSupported(true) == false) {
+                    if (isGpuSupported == false) {
                         throw new IllegalArgumentException(
                             "[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node."
                         );
                     }
-                    return getVectorsFormat(indexOptions);
+                    return getVectorsFormat(indexOptions, similarity);
                 }
-                if (gpuMode == GpuMode.AUTO && vectorIndexTypeSupported(indexOptions.getType()) && GPUSupport.isSupported(false)) {
-                    return getVectorsFormat(indexOptions);
+                if (gpuMode == GpuMode.AUTO && vectorIndexTypeSupported(indexOptions.getType()) && isGpuSupported) {
+                    return getVectorsFormat(indexOptions, similarity);
                 }
             }
             return null;
@@ -88,7 +90,10 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         return type == DenseVectorFieldMapper.VectorIndexType.HNSW || type == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW;
     }
 
-    private static KnnVectorsFormat getVectorsFormat(DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions) {
+    private static KnnVectorsFormat getVectorsFormat(
+        DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions,
+        DenseVectorFieldMapper.VectorSimilarity similarity
+    ) {
         if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.HNSW) {
             DenseVectorFieldMapper.HnswIndexOptions hnswIndexOptions = (DenseVectorFieldMapper.HnswIndexOptions) indexOptions;
             int efConstruction = hnswIndexOptions.efConstruction();
@@ -97,6 +102,17 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
             }
             return new ES92GpuHnswVectorsFormat(hnswIndexOptions.m(), efConstruction);
         } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
+            if (similarity == DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT) {
+                throw new IllegalArgumentException(
+                    "GPU vector indexing does not support ["
+                        + similarity
+                        + "] similarity for [int8_hnsw] index type. "
+                        + "Instead, consider using ["
+                        + DenseVectorFieldMapper.VectorSimilarity.COSINE
+                        + "] or "
+                        + " [hnsw] index type."
+                );
+            }
             DenseVectorFieldMapper.Int8HnswIndexOptions int8HnswIndexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) indexOptions;
             int efConstruction = int8HnswIndexOptions.efConstruction();
             if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {

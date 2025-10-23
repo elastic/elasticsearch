@@ -335,7 +335,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizedProjectsResolver = mock(AuthorizedProjectsResolver.class);
         doAnswer(invocation -> {
             ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
-            callback.onResponse(TargetProjects.NOT_CROSS_PROJECT);
+            callback.onResponse(TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
             return null;
         }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
         crossProjectModeDecider = mock(CrossProjectModeDecider.class);

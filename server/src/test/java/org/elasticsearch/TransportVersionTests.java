@@ -400,7 +400,7 @@ public class TransportVersionTests extends ESTestCase {
             is(
                 "Unknown transport version [to_child_lock_join_query]. "
                     + "Did you mean [to_child_block_join_query]? "
-                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+                    + "If this is a new transport version, run './gradlew generateTransportVersion'."
             )
         );
 
@@ -409,7 +409,7 @@ public class TransportVersionTests extends ESTestCase {
             ise.getMessage(),
             is(
                 "Unknown transport version [brand_new_version_unrelated_to_others]. "
-                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+                    + "If this is a new transport version, run './gradlew generateTransportVersion'."
             )
         );
     }

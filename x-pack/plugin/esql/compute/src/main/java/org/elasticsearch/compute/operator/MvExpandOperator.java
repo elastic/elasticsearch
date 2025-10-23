@@ -292,7 +292,7 @@ public class MvExpandOperator implements Operator {
             pagesReceived = in.readVInt();
             pagesEmitted = in.readVInt();
             noops = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 rowsReceived = in.readVLong();
                 rowsEmitted = in.readVLong();
             } else {
@@ -306,7 +306,7 @@ public class MvExpandOperator implements Operator {
             out.writeVInt(pagesReceived);
             out.writeVInt(pagesEmitted);
             out.writeVInt(noops);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 out.writeVLong(rowsReceived);
                 out.writeVLong(rowsEmitted);
             }

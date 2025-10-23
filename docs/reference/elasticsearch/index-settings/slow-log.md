@@ -209,6 +209,7 @@ If you aren’t sure how to start investigating traffic issues, consider enablin
       "index.search.slowlog.threshold.query.warn": "30s"
     }
     ```
+    % TEST[setup:my_index]
 
 * Enable for indexing requests:
 
@@ -219,6 +220,7 @@ If you aren’t sure how to start investigating traffic issues, consider enablin
       "index.indexing.slowlog.threshold.index.warn": "30s"
     }
     ```
+    % TEST[setup:my_index]
 
 
 Slow log thresholds being met does not guarantee cluster performance issues. In the event that symptoms are noticed, slow logs can provide helpful data to diagnose upstream traffic patterns or sources to resolve client-side issues. For example, you can use data included in `X-Opaque-ID`, the `_source` request body, or `user.*` fields to identify the source of your issue. This is similar to troubleshooting [live expensive tasks](docs-content://troubleshoot/elasticsearch/task-queue-backlog.md).

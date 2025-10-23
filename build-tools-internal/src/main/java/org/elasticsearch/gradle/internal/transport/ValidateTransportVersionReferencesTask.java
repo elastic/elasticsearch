@@ -59,7 +59,7 @@ public abstract class ValidateTransportVersionReferencesTask extends PrecommitTa
                         + "\") was used at "
                         + tvReference.location()
                         + ", but lacks a transport version definition. "
-                        + "If this is a new transport version, run './gradle generateTransportVersion'."
+                        + "If this is a new transport version, run './gradlew generateTransportVersion'."
                 );
             }
         }

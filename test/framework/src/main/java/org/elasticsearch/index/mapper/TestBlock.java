@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -56,8 +57,12 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.BytesRefBuilder bytesRefsFromDocValues(int expectedCount) {
                 class BytesRefsFromDocValuesBuilder extends TestBlock.Builder implements BlockLoader.BytesRefBuilder {
+
+                    private static final int SINGLE_DOC = 1;
+
                     private BytesRefsFromDocValuesBuilder() {
-                        super(1);
+                        // this is hard coded bc bytesRefsFromDocValues() is currently only used for singe-doc multi-valued fields
+                        super(SINGLE_DOC);
                     }
 
                     @Override
@@ -70,6 +75,7 @@ public class TestBlock implements BlockLoader.Block {
                     public TestBlock build() {
                         TestBlock result = super.build();
                         List<?> r;
+                        // we have a single, multi-valued document, so extract all those values into a list
                         if (result.values.get(0) instanceof List<?> l) {
                             r = l;
                         } else {

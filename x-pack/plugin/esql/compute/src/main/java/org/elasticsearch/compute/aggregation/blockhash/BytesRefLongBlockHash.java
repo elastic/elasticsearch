@@ -167,11 +167,9 @@ final class BytesRefLongBlockHash extends BlockHash {
                     dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
                     bytes = null; // transfer ownership to dict
                     k1 = new OrdinalBytesRefBlock(ordinals.build(), dict);
+                    dict = null;  // transfer ownership to k1
                 } finally {
-                    Releasables.closeExpectNoException(bytes);
-                    if (k1 == null && dict != null) {
-                        Releasables.closeExpectNoException(dict);
-                    }
+                    Releasables.closeExpectNoException(bytes, dict);
                 }
                 k2 = longs.build();
             } finally {

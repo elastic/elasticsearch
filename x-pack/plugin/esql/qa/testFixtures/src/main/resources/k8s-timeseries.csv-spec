@@ -670,6 +670,54 @@ sd:double | var:double | sd_squared:double | cluster:keyword | time_bucket:datet
 3.406999  | 11.607639  | 11.607639         | prod            | 2024-05-10T00:09:00.000Z
 0.0       | 0.0        | 0.0               | prod            | 2024-05-10T00:10:00.000Z
 
-
-
 ;
+
+Max of Rate with Bucket
+required_capability: ts_command_v0
+
+TS k8s
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;
+
+Max of Rate with Bucket, rename _tsid
+required_capability: ts_command_v0
+
+TS k8s METADATA _tsid
+| RENAME _tsid AS newTsid
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;
+
+Max of Rate with Bucket, drop _tsid
+required_capability: ts_command_v0
+
+TS k8s METADATA _tsid
+| DROP _tsid
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;
+
+
+Rename timestamp when aggs don't require timestamp
+required_capability: ts_command_v0
+
+TS k8s 
+| RENAME @timestamp AS newTs 
+| STATS mx = max(max_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)
+;
+
+mx:integer | tbucket:datetime
+1716       | 2024-05-10T00:00:00.000Z
+;
+
+

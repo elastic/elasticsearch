@@ -64,10 +64,7 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
             DEFAULT_RERANK_ENDPOINT_ID_V1,
             DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID
         );
-        var models = PreconfiguredEndpointModelAdapter.getModels(
-            endpointIds,
-            EIS_COMPONENTS
-        );
+        var models = PreconfiguredEndpointModelAdapter.getModels(endpointIds, EIS_COMPONENTS);
 
         assertThat(models, hasSize(endpointIds.size()));
         assertThat(
@@ -127,11 +124,7 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
 
     public void testGetModelsWithValidAndInvalidIds() {
         var models = PreconfiguredEndpointModelAdapter.getModels(
-            Set.of(
-                DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
-                "some-invalid-id",
-                DEFAULT_ELSER_ENDPOINT_ID_V2
-            ),
+            Set.of(DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1, "some-invalid-id", DEFAULT_ELSER_ENDPOINT_ID_V2),
             EIS_COMPONENTS
         );
 
@@ -168,9 +161,6 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
     }
 
     public void testGetModelsWithOnlyInvalidId() {
-        assertThat(PreconfiguredEndpointModelAdapter.getModels(
-            Collections.singleton("nonexistent-id"),
-            EIS_COMPONENTS
-        ), is(List.of()));
+        assertThat(PreconfiguredEndpointModelAdapter.getModels(Collections.singleton("nonexistent-id"), EIS_COMPONENTS), is(List.of()));
     }
 }

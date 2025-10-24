@@ -38,11 +38,7 @@ public class ModelStoreResponseTests extends AbstractBWCWireSerializationTestCas
             assertTrue(failedResponse.failed());
         }
         {
-            var failedResponse = new ModelStoreResponse(
-                "model_2",
-                RestStatus.OK,
-                new IllegalStateException("Test failure")
-            );
+            var failedResponse = new ModelStoreResponse("model_2", RestStatus.OK, new IllegalStateException("Test failure"));
             assertTrue(failedResponse.failed());
         }
     }
@@ -70,12 +66,11 @@ public class ModelStoreResponseTests extends AbstractBWCWireSerializationTestCas
                 String newInferenceId = instance.inferenceId() + "_mutated";
                 yield new ModelStoreResponse(newInferenceId, instance.status(), instance.failureCause());
             }
-            case 1 ->
-                new ModelStoreResponse(
-                    instance.inferenceId(),
-                    randomValueOtherThan(instance.status(), () -> randomFrom(RestStatus.values())),
-                    instance.failureCause()
-                );
+            case 1 -> new ModelStoreResponse(
+                instance.inferenceId(),
+                randomValueOtherThan(instance.status(), () -> randomFrom(RestStatus.values())),
+                instance.failureCause()
+            );
             case 2 -> {
                 Exception newFailureCause = instance.failureCause() == null ? new IllegalStateException("Mutated exception") : null;
                 yield new ModelStoreResponse(instance.inferenceId(), instance.status(), newFailureCause);

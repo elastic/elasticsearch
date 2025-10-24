@@ -534,16 +534,19 @@ public class AuthorizationService {
                         .addListener(
                             wrapPreservingContext(
                                 new AuthorizationResultListener<>(
-                                    result -> handleIndexActionAuthorizationResult(
-                                        result,
-                                        requestInfo,
-                                        requestId,
-                                        authzInfo,
-                                        authzEngine,
-                                        resolvedIndicesAsyncSupplier,
-                                        projectMetadata,
-                                        l
-                                    ),
+                                    result -> {
+                                        setIndexResolutionException(authzInfo, request, authentication, action);
+                                        handleIndexActionAuthorizationResult(
+                                            result,
+                                            requestInfo,
+                                            requestId,
+                                            authzInfo,
+                                            authzEngine,
+                                            resolvedIndicesAsyncSupplier,
+                                            projectMetadata,
+                                            l
+                                        );
+                                    },
                                     l::onFailure,
                                     requestInfo,
                                     requestId,
@@ -712,28 +715,35 @@ public class AuthorizationService {
                 )
             );
         } else {
-            if (request instanceof IndicesRequest.Replaceable replaceable) {
-                var indexExpressions = replaceable.getResolvedIndexExpressions();
-                if (indexExpressions != null) {
-                    indexExpressions.expressions().forEach(resolved -> {
-                        if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                            resolved.localExpressions()
-                                .setException(
-                                    actionDenied(
-                                        authentication,
-                                        authzInfo,
-                                        action,
-                                        request,
-                                        IndexAuthorizationResult.getFailureDescription(List.of(resolved.original()), restrictedIndices),
-                                        null
-                                    )
-                                );
-                        }
-                    });
-                }
-            }
-
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
+        }
+    }
+
+    private void setIndexResolutionException(
+        AuthorizationInfo authzInfo,
+        TransportRequest request,
+        Authentication authentication,
+        String action
+    ) {
+        if (request instanceof IndicesRequest.Replaceable replaceable) {
+            var indexExpressions = replaceable.getResolvedIndexExpressions();
+            if (indexExpressions != null) {
+                indexExpressions.expressions().forEach(resolved -> {
+                    if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
+                        resolved.localExpressions()
+                            .setException(
+                                actionDenied(
+                                    authentication,
+                                    authzInfo,
+                                    action,
+                                    request,
+                                    IndexAuthorizationResult.getFailureDescription(List.of(resolved.original()), restrictedIndices),
+                                    null
+                                )
+                            );
+                    }
+                });
+            }
         }
     }
 

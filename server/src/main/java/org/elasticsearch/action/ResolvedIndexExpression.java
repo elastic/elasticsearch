@@ -48,7 +48,7 @@ import java.util.Set;
  */
 public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, Set<String> remoteExpressions)
     implements
-        Writeable {
+    Writeable {
 
     public ResolvedIndexExpression(StreamInput in) throws IOException {
         this(in.readString(), new LocalExpressions(in), in.readCollectionAsImmutableSet(StreamInput::readString));
@@ -77,8 +77,6 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
 
     /**
      * Represents local (non-remote) resolution results, including expanded indices, and a {@link LocalIndexResolutionResult}.
-     *
-     * @param indices represents the resolved concrete indices backing the expression
      */
     public static final class LocalExpressions implements Writeable {
         private final Set<String> indices;
@@ -86,6 +84,9 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
         @Nullable
         private ElasticsearchException exception;
 
+        /**
+         * @param indices represents the resolved concrete indices backing the expression
+         */
         public LocalExpressions(
             Set<String> indices,
             LocalIndexResolutionResult localIndexResolutionResult,

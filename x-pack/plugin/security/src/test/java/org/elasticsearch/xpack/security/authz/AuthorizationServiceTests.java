@@ -3869,20 +3869,30 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
 
-        mockMetadataWithIndex("available-index");
+        final var metadataBuilder = ProjectMetadata.builder(projectId).put(createIndexMetadata("accessible-index"), true);
+        if (randomBoolean()) {
+            metadataBuilder.put(createIndexMetadata("not-accessible-index"), true);
+        }
+
+        mockClusterState(metadataBuilder.build());
+
         var authentication = createAuthentication(new User("user", "partial-access-role"));
         roleMap.put(
             "partial-access-role",
             new RoleDescriptor(
                 "partial-access-role",
                 null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("available-index").privileges("read").build() },
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("accessible-index").privileges("read").build() },
                 null
             )
         );
-        final var request = new SearchRequest("available-index", "not-available-index").indicesOptions(
-            IndicesOptions.fromOptions(true, false, true, false)
-        );
+        var requestAccessibleIndex = randomBoolean();
+
+        var request = requestAccessibleIndex
+            ? new SearchRequest("accessible-index", "not-accessible-index")
+            : new SearchRequest("not-accessible-index");
+
+        request.indicesOptions(IndicesOptions.fromOptions(true, false, true, false));
         AuditUtil.getOrGenerateRequestId(threadContext);
         authorize(authentication, TransportSearchAction.TYPE.name(), request);
 
@@ -3890,17 +3900,22 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(authorizationInfo.asMap()).thenReturn(Map.of("user.info", new String[] { "partial-access-role" }));
 
         final var expressions = request.getResolvedIndexExpressions().expressions();
-        assertThat(expressions, hasSize(2));
-        assertThat(expressions.getFirst(), equalTo(resolvedIndexExpression("available-index", Set.of("available-index"), SUCCESS)));
+        if (requestAccessibleIndex) {
+            assertThat(expressions, hasSize(2));
+            assertThat(expressions.getFirst(), equalTo(resolvedIndexExpression("accessible-index", Set.of("accessible-index"), SUCCESS)));
+        } else {
+            assertThat(expressions, hasSize(1));
+        }
 
-        assertThat(expressions.get(1).original(), equalTo("not-available-index"));
-        assertThat(expressions.get(1).localExpressions().indices(), empty());
-        assertThat(expressions.get(1).localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
+        var notAccessibleIndexExpression = requestAccessibleIndex ? expressions.get(1) : expressions.getFirst();
+        assertThat(notAccessibleIndexExpression.original(), equalTo("not-accessible-index"));
+        assertThat(notAccessibleIndexExpression.localExpressions().indices(), empty());
+        assertThat(notAccessibleIndexExpression.localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
         assertThat(
-            expressions.get(1).localExpressions().exception().getMessage(),
+            notAccessibleIndexExpression.localExpressions().exception().getMessage(),
             equalTo(
                 "action [indices:data/read/search] is unauthorized for user [user]"
-                    + " with effective roles [partial-access-role] on indices [not-available-index], "
+                    + " with effective roles [partial-access-role] on indices [not-accessible-index], "
                     + "this action is granted by the index privileges [read,all]"
             )
         );

@@ -1462,6 +1462,10 @@ public class EsqlCapabilities {
         TS_COMMAND_V0(),
 
         /**
+         * Custom error for renamed timestamp
+         */
+        TS_RENAME_TIMESTAMP_ERROR_MESSAGE,
+        /**
          * Add support for counter doubles, ints, and longs in first_ and last_over_time
          */
         FIRST_LAST_OVER_TIME_COUNTER_SUPPORT,
@@ -1531,6 +1535,11 @@ public class EsqlCapabilities {
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,
+
+        /**
+         * Optional options argument for DATE_PARSE
+         */
+        DATE_PARSE_OPTIONS,
 
         /**
          * Allow multiple patterns for GROK command

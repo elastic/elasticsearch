@@ -531,8 +531,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             valuesSumSubFieldName(fieldName),
             NumericUtils.doubleToSortableLong(sum)
         );
-        NumericDocValuesField minField = new NumericDocValuesField(valuesMinSubFieldName(fieldName), NumericUtils.doubleToSortableLong(min));
-        NumericDocValuesField maxField = new NumericDocValuesField(valuesMaxSubFieldName(fieldName), NumericUtils.doubleToSortableLong(max));
+        NumericDocValuesField minField = null;
+        if (Double.isNaN(min) == false) {
+            minField = new NumericDocValuesField(valuesMinSubFieldName(fieldName), NumericUtils.doubleToSortableLong(min));
+        }
+        NumericDocValuesField maxField = null;
+        if (Double.isNaN(max) == false) {
+            maxField = new NumericDocValuesField(valuesMaxSubFieldName(fieldName), NumericUtils.doubleToSortableLong(max));
+        }
         HistogramDocValueFields docValues = new HistogramDocValueFields(
             histoField,
             zeroThresholdField,

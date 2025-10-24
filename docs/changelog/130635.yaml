@@ -1,5 +1,0 @@
-pr: 130635
-summary: "Add low-level optimized Neon, AVX2, and AVX 512 float32 vector operations"
-area: Vector Search
-type: enhancement
-issues: []

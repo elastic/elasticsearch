@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
 import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
 
-public class UnsupportedAttributeTests extends AbstractAttributeTestCase<UnsupportedAttribute> {
+public class UnsupportedAttributeTests extends AbstractNamedExpressionSerializationTests<UnsupportedAttribute> {
     @Override
-    protected UnsupportedAttribute create() {
+    protected UnsupportedAttribute createTestInstance() {
         return randomUnsupportedAttribute();
     }
 
@@ -28,19 +29,30 @@ public class UnsupportedAttributeTests extends AbstractAttributeTestCase<Unsuppo
     }
 
     @Override
-    protected UnsupportedAttribute mutate(UnsupportedAttribute instance) {
+    protected UnsupportedAttribute mutateInstance(UnsupportedAttribute instance) {
         Source source = instance.source();
         String qualifier = instance.qualifier();
         String name = instance.name();
         UnsupportedEsField field = instance.field();
         String customMessage = instance.hasCustomMessage() ? instance.unresolvedMessage() : null;
-        switch (between(0, 3)) {
+        NameId id = instance.id();
+        switch (between(0, 4)) {
             case 0 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
             case 1 -> name = randomAlphaOfLength(name.length() + 1);
             case 2 -> field = randomValueOtherThan(field, () -> UnsupportedEsFieldTests.randomUnsupportedEsField(4));
             case 3 -> customMessage = randomValueOtherThan(customMessage, () -> randomBoolean() ? null : randomAlphaOfLength(9));
-            default -> throw new IllegalArgumentException();
+            case 4 -> id = new NameId();
         }
-        return new UnsupportedAttribute(source, qualifier, name, field, customMessage, new NameId());
+        return new UnsupportedAttribute(source, qualifier, name, field, customMessage, id);
+    }
+
+    @Override
+    protected UnsupportedAttribute mutateNameId(UnsupportedAttribute instance) {
+        return (UnsupportedAttribute) instance.withId(new NameId());
+    }
+
+    @Override
+    protected boolean equalityIgnoresId() {
+        return false;
     }
 }

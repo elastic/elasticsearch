@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
@@ -40,7 +41,6 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapReflectionUtils;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -63,6 +63,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Security;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -202,6 +203,8 @@ class Elasticsearch {
         IfConfig.logIfNecessary();
 
         ensureInitialized(
+            // See https://github.com/elastic/elasticsearch/issues/136268
+            TermsEnum.class,
             // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
             ReleaseVersions.class,
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
@@ -215,9 +218,7 @@ class Elasticsearch {
             // RequestHandlerRegistry and MethodHandlers classes do nontrivial static initialization which should always succeed but load
             // it now (before SM) to be sure
             RequestHandlerRegistry.class,
-            MethodHandlers.class,
-            // Ensure member access and reflection lookup are as expected
-            OffHeapReflectionUtils.class
+            MethodHandlers.class
         );
 
         // load the plugin Java modules and layers now for use in entitlements
@@ -247,28 +248,36 @@ class Elasticsearch {
         pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
         var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers(), APM_AGENT_PACKAGE_NAME);
-        Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
-            .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
+        Map<String, Collection<Path>> pluginSourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+            .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), bundle -> List.of(bundle.getDir())));
         EntitlementBootstrap.bootstrap(
             serverPolicyPatch,
             pluginPolicies,
             scopeResolver::resolveClassToScope,
             nodeEnv.settings()::getValues,
             nodeEnv.dataDirs(),
+            nodeEnv.sharedDataDir(),
             nodeEnv.repoDirs(),
             nodeEnv.configDir(),
             nodeEnv.libDir(),
             nodeEnv.modulesDir(),
             nodeEnv.pluginsDir(),
-            sourcePaths,
+            pluginSourcePaths,
             nodeEnv.logsDir(),
             nodeEnv.tmpDir(),
             args.pidFile(),
             Set.of(EntitlementSelfTester.class.getPackage())
         );
-        EntitlementSelfTester.entitlementSelfTest();
+        entitlementSelfTest();
 
         bootstrap.setPluginsLoader(pluginsLoader);
+    }
+
+    /**
+     * @throws IllegalStateException if entitlements aren't functioning properly.
+     */
+    static void entitlementSelfTest() {
+        EntitlementSelfTester.entitlementSelfTest();
     }
 
     private static void logSystemInfo() {
@@ -365,7 +374,7 @@ class Elasticsearch {
     private static void ensureInitialized(Class<?>... classes) {
         for (final var clazz : classes) {
             try {
-                MethodHandles.lookup().ensureInitialized(clazz);
+                MethodHandles.publicLookup().ensureInitialized(clazz);
             } catch (IllegalAccessException unexpected) {
                 throw new AssertionError(unexpected);
             }

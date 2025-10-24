@@ -21,12 +21,13 @@ import java.util.Objects;
  * A pattern is emerging in how external providers provide error responses.
  *
  * At a minimum, these return:
+ * <pre><code>
  * {
  *     "error: {
  *         "message": "(error message)"
  *     }
  * }
- *
+ * </code></pre>
  * Others may return additional information such as error codes specific to the service.
  *
  * This currently covers error handling for Azure AI Studio, however this pattern

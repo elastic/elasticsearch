@@ -1,6 +1,0 @@
-pr: 125143
-summary: "ES|QL Support for ST_GEOHASH, ST_GEOTILE and ST_GEOHEX"
-area: "ES|QL"
-type: enhancement
-issues:
- - 123903

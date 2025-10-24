@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class SpaceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SpaceEvaluator.class);
+
   private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
@@ -54,22 +57,30 @@ public final class SpaceEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += number.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, IntBlock numberBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (numberBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (numberBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (numberBlock.getValueCount(p) != 1) {
-          if (numberBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        int number = numberBlock.getInt(numberBlock.getFirstValueIndex(p));
         try {
-          result.appendBytesRef(Space.process(this.scratch, numberBlock.getInt(numberBlock.getFirstValueIndex(p))));
+          result.appendBytesRef(Space.process(this.scratch, number));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -82,8 +93,9 @@ public final class SpaceEvaluator implements EvalOperator.ExpressionEvaluator {
   public BytesRefBlock eval(int positionCount, IntVector numberVector) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        int number = numberVector.getInt(p);
         try {
-          result.appendBytesRef(Space.process(this.scratch, numberVector.getInt(p)));
+          result.appendBytesRef(Space.process(this.scratch, number));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

@@ -36,12 +36,18 @@ public interface SamlServiceProvider {
         public final String name;
         public final String email;
         public final String roles;
+        public final Set<String> allowedExtensions;
 
-        public AttributeNames(String principal, String name, String email, String roles) {
+        public AttributeNames(String principal, String name, String email, String roles, Set<String> allowedExtensions) {
             this.principal = principal;
             this.name = name;
             this.email = email;
             this.roles = roles;
+            this.allowedExtensions = allowedExtensions == null ? Set.of() : Set.copyOf(allowedExtensions);
+        }
+
+        public boolean isAllowedExtension(String attributeName) {
+            return this.allowedExtensions.contains(attributeName);
         }
     }
 

@@ -18,6 +18,62 @@ Unlike the other `multi-bucket` aggregations, you can use the `composite` aggreg
 
 The composite buckets are built from the combinations of the values extracted/created for each document and each combination is considered as a composite bucket.
 
+<!--
+```console
+PUT /sales
+{
+  "mappings": {
+    "properties": {
+      "product": {
+          "type": "keyword"
+      },
+      "timestamp": {
+          "type": "date"
+      },
+      "price": {
+          "type": "long"
+      },
+      "shop": {
+          "type": "keyword"
+      },
+      "location": {
+          "type": "geo_point"
+      },
+      "nested": {
+          "type": "nested",
+          "properties": {
+            "product": {
+                "type": "keyword"
+            },
+            "timestamp": {
+                "type": "date"
+            },
+            "price": {
+                "type": "long"
+            },
+            "shop": {
+                "type": "keyword"
+            }
+          }
+       }
+    }
+  }
+}
+POST /sales/_bulk?refresh
+{"index":{"_id":0}}
+{"product": "mad max", "price": "20", "timestamp": "2017-05-09T14:35"}
+{"index":{"_id":1}}
+{"product": "mad max", "price": "25", "timestamp": "2017-05-09T12:35"}
+{"index":{"_id":2}}
+{"product": "rocky", "price": "10", "timestamp": "2017-05-08T09:10"}
+{"index":{"_id":3}}
+{"product": "mad max", "price": "27", "timestamp": "2017-05-10T07:07"}
+{"index":{"_id":4}}
+{"product": "apocalypse now", "price": "10", "timestamp": "2017-05-11T08:35"}
+```
+% TESTSETUP
+-->
+
 For example, consider the following document:
 
 ```js
@@ -26,6 +82,7 @@ For example, consider the following document:
   "number": [23, 65, 76]
 }
 ```
+% NOTCONSOLE
 
 Using `keyword` and `number` as source fields for the aggregation results in the following composite buckets:
 
@@ -37,6 +94,7 @@ Using `keyword` and `number` as source fields for the aggregation results in the
 { "keyword": "bar", "number": 65 }
 { "keyword": "bar", "number": 76 }
 ```
+% NOTCONSOLE
 
 ## Value sources [_value_sources]
 
@@ -310,6 +368,7 @@ Instead of a single bucket starting at midnight, the above request groups the do
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ::::{note}
 The start `offset` of each bucket is calculated after `time_zone` adjustments have been made.
@@ -513,6 +572,7 @@ GET /_search
   }
 }
 ```
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 ... returns:
 
@@ -545,6 +605,7 @@ GET /_search
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\.//]
 
 To get the next set of buckets, resend the same aggregation with the `after` parameter set to the `after_key` value returned in the response. For example, this request uses the `after_key` value provided in the previous response:
 
@@ -709,6 +770,7 @@ GET /_search
   }
 }
 ```
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 ... returns:
 
@@ -767,7 +829,7 @@ GET /_search
   }
 }
 ```
-
+% TESTRESPONSE[s/\.\.\.//]
 
 ## Pipeline aggregations [search-aggregations-bucket-composite-aggregation-pipeline-aggregations]
 

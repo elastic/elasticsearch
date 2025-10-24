@@ -50,6 +50,7 @@ PUT my-index-000001/_doc/1?refresh
   "my_field": "quick brown fox jump lazy dog"
 }
 ```
+% TEST[continued]
 
 The most efficient way of querying to serve a search-as-you-type use case is usually a [`multi_match`](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md) query of type [`bool_prefix`](/reference/query-languages/query-dsl/query-dsl-match-bool-prefix-query.md) that targets the root `search_as_you_type` field and its shingle subfields. This can match the query terms in any order, but will score documents higher if they contain the terms in order in a shingle subfield.
 
@@ -76,6 +77,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Adding "my_field._index_prefix" to the `matched_fields` allows to highlight "my_field" also based on matches from "my_field._index_prefix" field.
 
@@ -114,6 +116,9 @@ GET my-index-000001/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 44/"took" : $body.took/]
+% TESTRESPONSE[s/"max_score" : 0.8630463/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 0.8630463/"_score" : $body.hits.hits.0._score/]
 
 To search for documents that strictly match the query terms in order, or to search using other properties of phrase queries, use a [`match_phrase_prefix` query](/reference/query-languages/query-dsl/query-dsl-match-query-phrase-prefix.md) on the root field. A [`match_phrase` query](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) can also be used if the last term should be matched exactly, and not as a prefix. Using phrase queries may be less efficient than using the `match_bool_prefix` query.
 
@@ -127,6 +132,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 ## Parameters specific to the `search_as_you_type` field [specific-params]
 
@@ -180,11 +186,6 @@ When making a [`prefix`](/reference/query-languages/query-dsl/query-dsl-prefix-q
 The analyzer of the `._index_prefix` subfield slightly modifies the shingle-building behavior to also index prefixes of the terms at the end of the field’s value that normally would not be produced as shingles. For example, if the value `quick brown fox` is indexed into a `search_as_you_type` field with `max_shingle_size` of 3, prefixes for `brown fox` and `fox` are also indexed into the `._index_prefix` subfield even though they do not appear as terms in the `._3gram` subfield. This allows for completion of all the terms in the field’s input.
 
 ### Synthetic `_source` [search-as-you-type-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 `search_as_you_type` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 

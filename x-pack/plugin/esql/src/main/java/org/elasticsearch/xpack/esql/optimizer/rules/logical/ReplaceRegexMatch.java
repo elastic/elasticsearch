@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -43,7 +42,7 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
         } else {
             String match = pattern.exactMatch();
             if (match != null) {
-                Literal literal = new Literal(regexMatch.source(), match, DataType.KEYWORD);
+                Literal literal = Literal.keyword(regexMatch.source(), match);
                 e = regexToEquals(regexMatch, literal);
             }
         }

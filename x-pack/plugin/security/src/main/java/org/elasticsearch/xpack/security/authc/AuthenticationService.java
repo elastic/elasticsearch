@@ -92,6 +92,7 @@ public class AuthenticationService {
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         OperatorPrivilegesService operatorPrivilegesService,
+        PluggableAuthenticatorChain pluggableAuthenticatorChain,
         MeterRegistry meterRegistry
     ) {
         this.realms = realms;
@@ -108,11 +109,13 @@ public class AuthenticationService {
         }
 
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
+
         this.authenticatorChain = new AuthenticatorChain(
             settings,
             operatorPrivilegesService,
             anonymousUser,
             new AuthenticationContextSerializer(),
+            pluggableAuthenticatorChain,
             new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
             new OAuth2TokenAuthenticator(tokenService, meterRegistry),
             new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),

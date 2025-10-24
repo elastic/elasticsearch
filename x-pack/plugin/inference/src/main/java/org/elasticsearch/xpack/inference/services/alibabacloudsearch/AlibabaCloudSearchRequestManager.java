@@ -18,7 +18,7 @@ abstract class AlibabaCloudSearchRequestManager extends BaseRequestManager {
         super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
     }
 
-    record RateLimitGrouping(int apiKeyHash) {
+    record RateLimitGrouping(int serviceSettingsHash) {
         public static RateLimitGrouping of(AlibabaCloudSearchModel model) {
             Objects.requireNonNull(model);
 

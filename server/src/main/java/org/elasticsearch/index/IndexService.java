@@ -49,6 +49,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -170,6 +172,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final MapperMetrics mapperMetrics;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
     private final IndexingStatsSettings indexingStatsSettings;
+    private final SearchStatsSettings searchStatsSettings;
+    private final MergeMetrics mergeMetrics;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -207,7 +211,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Engine.IndexCommitListener indexCommitListener,
         MapperMetrics mapperMetrics,
         QueryRewriteInterceptor queryRewriteInterceptor,
-        IndexingStatsSettings indexingStatsSettings
+        IndexingStatsSettings indexingStatsSettings,
+        SearchStatsSettings searchStatsSettings,
+        MergeMetrics mergeMetrics
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -240,7 +246,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperMetrics
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
-            boolean sourceOnly = Boolean.parseBoolean(indexSettings.getSettings().get("index.source_only"));
+            boolean sourceOnly = indexSettings.getSettings().getAsBoolean("index.source_only", false);
             if (indexSettings.getIndexSortConfig().hasIndexSort() && sourceOnly == false) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
                 // The sort order is validated right after the merge of the mapping later in the process.
@@ -293,6 +299,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
         this.indexingStatsSettings = indexingStatsSettings;
+        this.searchStatsSettings = searchStatsSettings;
+        this.mergeMetrics = mergeMetrics;
         updateFsyncTaskIfNecessary();
     }
 
@@ -583,7 +591,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 System::nanoTime,
                 indexCommitListener,
                 mapperMetrics,
-                indexingStatsSettings
+                indexingStatsSettings,
+                searchStatsSettings,
+                mergeMetrics
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -814,6 +824,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             mappingLookup,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
             indexSettings,
+            null,
+            clusterAlias,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
                 indexSettings.getIndex().getUUID()
@@ -823,6 +835,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             valuesSourceRegistry,
             allowExpensiveQueries,
             scriptService,
+            null,
             null,
             null,
             null,

@@ -1,0 +1,5 @@
+pr: 135597
+summary: Track `shardStarted` events for simulation in `DesiredBalanceComputer`
+area: Allocation
+type: enhancement
+issues: []

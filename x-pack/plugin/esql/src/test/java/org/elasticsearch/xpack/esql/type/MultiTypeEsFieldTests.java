@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.type;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,8 +27,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.Before;
 
@@ -45,18 +41,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 
 /**
  * This test was originally based on the tests for sub-classes of EsField, like InvalidMappedFieldTests.
- * However, it has a few important differences:
- * <ul>
- *     <li>It is not in the esql.core module, but in the esql module, in order to have access to the sub-classes of AbstractConvertFunction,
- *     like ToString, which are important conversion Expressions used in the union-types feature.</li>
- *     <li>It extends AbstractNamedWriteableTestCase instead of AbstractEsFieldTypeTests,
- *     in order to wrap the StreamInput with a PlanStreamInput, since Expression is not yet fully supported in the new
- *     serialization approach (NamedWritable).</li>
- * </ul>
- * These differences can be minimized once Expression is fully supported in the new serialization approach, and the esql and esql.core
- * modules are merged, or at least the relevant classes are moved.
+ * However, it needs access to the sub-classes of AbstractConvertFunction, like ToString, which are important conversion Expressions
+ * used in the union-types feature.
  */
-public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField> {
+public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsField> {
 
     private Configuration config;
 
@@ -66,13 +54,19 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
     }
 
     @Override
+    protected Configuration config() {
+        return config;
+    }
+
+    @Override
     protected MultiTypeEsField createTestInstance() {
         String name = randomAlphaOfLength(4);
         boolean toString = randomBoolean();
         DataType dataType = randomFrom(types());
         DataType toType = toString ? DataType.KEYWORD : dataType;
         Map<String, Expression> indexToConvertExpressions = randomConvertExpressions(name, toString, dataType);
-        return new MultiTypeEsField(name, toType, false, indexToConvertExpressions);
+        EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
+        return new MultiTypeEsField(name, toType, false, indexToConvertExpressions, tsType);
     }
 
     @Override
@@ -80,13 +74,15 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
         String name = instance.getName();
         DataType dataType = instance.getDataType();
         Map<String, Expression> indexToConvertExpressions = instance.getIndexToConversionExpressions();
-        switch (between(0, 2)) {
+        EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
+        switch (between(0, 3)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> dataType = randomValueOtherThan(dataType, () -> randomFrom(DataType.types()));
             case 2 -> indexToConvertExpressions = mutateConvertExpressions(name, dataType, indexToConvertExpressions);
+            case 3 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             default -> throw new IllegalArgumentException();
         }
-        return new MultiTypeEsField(name, dataType, false, indexToConvertExpressions);
+        return new MultiTypeEsField(name, dataType, false, indexToConvertExpressions, tsType);
     }
 
     @Override
@@ -94,14 +90,6 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ExpressionWritables.allExpressions());
         entries.addAll(ExpressionWritables.unaryScalars());
         return new NamedWriteableRegistry(entries);
-    }
-
-    @Override
-    protected final MultiTypeEsField copyInstance(MultiTypeEsField instance, TransportVersion version) throws IOException {
-        return copyInstance(instance, getNamedWriteableRegistry(), (out, v) -> v.writeTo(new PlanStreamOutput(out, config)), in -> {
-            PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
-            return EsField.readFrom(pin);
-        }, version);
     }
 
     private static Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {
@@ -169,6 +157,6 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
     }
 
     private static FieldAttribute fieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true));
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 }

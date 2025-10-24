@@ -1,6 +1,7 @@
 * [`MV_APPEND`](../../functions-operators/mv-functions.md#esql-mv_append)
 * [`MV_AVG`](../../functions-operators/mv-functions.md#esql-mv_avg)
 * [`MV_CONCAT`](../../functions-operators/mv-functions.md#esql-mv_concat)
+* [`MV_CONTAINS`](../../functions-operators/mv-functions.md#esql-mv_contains) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`MV_COUNT`](../../functions-operators/mv-functions.md#esql-mv_count)
 * [`MV_DEDUPE`](../../functions-operators/mv-functions.md#esql-mv_dedupe)
 * [`MV_FIRST`](../../functions-operators/mv-functions.md#esql-mv_first)

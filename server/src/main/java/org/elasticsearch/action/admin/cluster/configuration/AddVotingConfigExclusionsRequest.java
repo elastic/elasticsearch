@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -78,12 +77,6 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
     public AddVotingConfigExclusionsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            final String[] legacyNodeDescriptions = in.readStringArray();
-            if (legacyNodeDescriptions.length > 0) {
-                throw new IllegalArgumentException("legacy [node_name] field was deprecated and must be empty");
-            }
-        }
         nodeIds = in.readStringArray();
         nodeNames = in.readStringArray();
         timeout = in.readTimeValue();
@@ -191,9 +184,6 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         out.writeStringArray(nodeIds);
         out.writeStringArray(nodeNames);
         out.writeTimeValue(timeout);

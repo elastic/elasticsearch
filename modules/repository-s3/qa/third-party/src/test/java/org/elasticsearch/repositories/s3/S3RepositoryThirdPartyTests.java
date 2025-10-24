@@ -18,6 +18,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -33,6 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
@@ -147,14 +149,15 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         // construct our own repo instance so we can inject a threadpool that allows to control the passage of time
         try (
             var repository = new S3Repository(
-                randomProjectIdOrDefault(),
+                ProjectId.DEFAULT,
                 node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata(),
                 xContentRegistry(),
                 node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),
                 ClusterServiceUtils.createClusterService(threadpool),
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings()),
-                S3RepositoriesMetrics.NOOP
+                S3RepositoriesMetrics.NOOP,
+                SnapshotMetrics.NOOP
             )
         ) {
             repository.start();

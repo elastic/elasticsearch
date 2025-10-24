@@ -2,3 +2,4 @@ org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension
 org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension
 org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension
 org.elasticsearch.xpack.inference.mock.TestStreamingCompletionServiceExtension
+org.elasticsearch.xpack.inference.mock.TestCompletionServiceExtension

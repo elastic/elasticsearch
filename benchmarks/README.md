@@ -152,11 +152,10 @@ exit
 Grab the async profiler from https://github.com/jvm-profiling-tools/async-profiler
 and run `prof async` like so:
 ```
-gradlew -p benchmarks/ run --args 'LongKeyedBucketOrdsBenchmark.multiBucket -prof "async:libPath=/home/nik9000/Downloads/async-profiler-3.0-29ee888-linux-x64/lib/libasyncProfiler.so;dir=/tmp/prof;output=flamegraph"'
+gradlew -p benchmarks/ run --args 'LongKeyedBucketOrdsBenchmark.multiBucket -prof "async:libPath=/home/nik9000/Downloads/async-profiler-4.0-linux-x64/lib/libasyncProfiler.so;dir=/tmp/prof;output=flamegraph"'
 ```
 
-Note: As of January 2025 the latest release of async profiler doesn't work
-      with our JDK but the nightly is fine.
+Note: As of July 2025 the 4.0 release of the async profiler works well.
 
 If you are on Mac, this'll warn you that you downloaded the shared library from
 the internet. You'll need to go to settings and allow it to run.

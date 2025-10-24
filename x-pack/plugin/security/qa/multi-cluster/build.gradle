@@ -10,6 +10,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.bc-upgrade-test'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:plugin:core')

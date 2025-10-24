@@ -9,12 +9,14 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -30,49 +32,58 @@ import java.util.Objects;
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
 public class FieldCapabilitiesResponse extends ActionResponse implements ChunkedToXContentObject {
+
+    private static final TransportVersion MIN_TRANSPORT_VERSION = TransportVersion.fromName("min_transport_version");
+
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
 
     private final String[] indices;
-    private final Map<String, Map<String, FieldCapabilities>> responseMap;
+    private final Map<String, Map<String, FieldCapabilities>> fields;
     private final List<FieldCapabilitiesFailure> failures;
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
+    private final TransportVersion minTransportVersion;
 
     public FieldCapabilitiesResponse(
         String[] indices,
-        Map<String, Map<String, FieldCapabilities>> responseMap,
+        Map<String, Map<String, FieldCapabilities>> fields,
         List<FieldCapabilitiesFailure> failures
     ) {
-        this(indices, responseMap, Collections.emptyList(), failures);
+        this(indices, fields, Collections.emptyList(), failures, null);
     }
 
-    public FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap) {
-        this(indices, responseMap, Collections.emptyList(), Collections.emptyList());
+    public FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> fields) {
+        this(indices, fields, Collections.emptyList(), Collections.emptyList(), null);
     }
 
     public FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
-        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures);
+        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures, null);
     }
 
     private FieldCapabilitiesResponse(
         String[] indices,
-        Map<String, Map<String, FieldCapabilities>> responseMap,
+        Map<String, Map<String, FieldCapabilities>> fields,
         List<FieldCapabilitiesIndexResponse> indexResponses,
-        List<FieldCapabilitiesFailure> failures
+        List<FieldCapabilitiesFailure> failures,
+        TransportVersion minTransportVersion
     ) {
-        this.responseMap = Objects.requireNonNull(responseMap);
+        this.fields = Objects.requireNonNull(fields);
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.indices = indices;
         this.failures = failures;
+        this.minTransportVersion = minTransportVersion;
     }
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
-        indices = in.readStringArray();
-        this.responseMap = in.readMap(FieldCapabilitiesResponse::readField);
+        this.indices = in.readStringArray();
+        this.fields = in.readMap(FieldCapabilitiesResponse::readField);
         this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
         this.failures = in.readCollectionAsList(FieldCapabilitiesFailure::new);
+        this.minTransportVersion = in.getTransportVersion().supports(MIN_TRANSPORT_VERSION)
+            ? in.readOptional(TransportVersion::readVersion)
+            : null;
     }
 
     /**
@@ -98,7 +109,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
      * Get the field capabilities map.
      */
     public Map<String, Map<String, FieldCapabilities>> get() {
-        return responseMap;
+        return fields;
     }
 
     /**
@@ -116,11 +127,18 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     }
 
     /**
-     *
      * Get the field capabilities per type for the provided {@code field}.
      */
     public Map<String, FieldCapabilities> getField(String field) {
-        return responseMap.get(field);
+        return fields.get(field);
+    }
+
+    /**
+     * @return the minTransportVersion across all clusters involved in resolution
+     */
+    @Nullable
+    public TransportVersion minTransportVersion() {
+        return minTransportVersion;
     }
 
     /**
@@ -141,9 +159,12 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
-        out.writeMap(responseMap, FieldCapabilitiesResponse::writeField);
+        out.writeMap(fields, FieldCapabilitiesResponse::writeField);
         FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
         out.writeCollection(failures);
+        if (out.getTransportVersion().supports(MIN_TRANSPORT_VERSION)) {
+            out.writeOptional((Writer<TransportVersion>) (o, v) -> TransportVersion.writeVersion(v, o), minTransportVersion);
+        }
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
@@ -160,7 +181,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
             Iterators.single(
                 (b, p) -> b.startObject().array(INDICES_FIELD.getPreferredName(), indices).startObject(FIELDS_FIELD.getPreferredName())
             ),
-            Iterators.map(responseMap.entrySet().iterator(), r -> (b, p) -> b.xContentValuesMap(r.getKey(), r.getValue())),
+            Iterators.map(fields.entrySet().iterator(), r -> (b, p) -> b.xContentValuesMap(r.getKey(), r.getValue())),
             this.failures.size() > 0
                 ? Iterators.concat(
                     Iterators.single(
@@ -182,23 +203,62 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
         return Arrays.equals(indices, that.indices)
-            && Objects.equals(responseMap, that.responseMap)
+            && Objects.equals(fields, that.fields)
             && Objects.equals(indexResponses, that.indexResponses)
-            && Objects.equals(failures, that.failures);
+            && Objects.equals(failures, that.failures)
+            && Objects.equals(minTransportVersion, that.minTransportVersion);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(responseMap, indexResponses, failures);
-        result = 31 * result + Arrays.hashCode(indices);
-        return result;
+        return Objects.hash(fields, indexResponses, failures, minTransportVersion) * 31 + Arrays.hashCode(indices);
     }
 
     @Override
     public String toString() {
-        if (indexResponses.size() > 0) {
-            return "FieldCapabilitiesResponse{unmerged}";
+        return indexResponses.isEmpty() ? Strings.toString(this) : "FieldCapabilitiesResponse{unmerged}";
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private String[] indices = Strings.EMPTY_ARRAY;
+        private Map<String, Map<String, FieldCapabilities>> fields = Collections.emptyMap();
+        private List<FieldCapabilitiesIndexResponse> indexResponses = Collections.emptyList();
+        private List<FieldCapabilitiesFailure> failures = Collections.emptyList();
+        private TransportVersion minTransportVersion = null;
+
+        private Builder() {}
+
+        public Builder withIndices(String[] indices) {
+            this.indices = indices;
+            return this;
         }
-        return Strings.toString(this);
+
+        public Builder withFields(Map<String, Map<String, FieldCapabilities>> fields) {
+            this.fields = fields;
+            return this;
+        }
+
+        public Builder withIndexResponses(List<FieldCapabilitiesIndexResponse> indexResponses) {
+            this.indexResponses = indexResponses;
+            return this;
+        }
+
+        public Builder withFailures(List<FieldCapabilitiesFailure> failures) {
+            this.failures = failures;
+            return this;
+        }
+
+        public Builder withMinTransportVersion(TransportVersion minTransportVersion) {
+            this.minTransportVersion = minTransportVersion;
+            return this;
+        }
+
+        public FieldCapabilitiesResponse build() {
+            return new FieldCapabilitiesResponse(indices, fields, indexResponses, failures, minTransportVersion);
+        }
     }
 }

@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import java.io.Closeable;
 
 public interface Sender extends Closeable {
-    void start();
+    void startSynchronously();
+
+    void startAsynchronously(ActionListener<Void> listener);
 
     void send(
         RequestManager requestCreator,
@@ -26,8 +28,6 @@ public interface Sender extends Closeable {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
-
-    void updateRateLimitDivisor(int rateLimitDivisor);
 
     void sendWithoutQueuing(
         Logger logger,

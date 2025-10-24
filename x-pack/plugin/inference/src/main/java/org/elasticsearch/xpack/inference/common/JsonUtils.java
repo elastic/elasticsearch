@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.common;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -23,7 +24,11 @@ public class JsonUtils {
     public static <T> String toJson(T value, String field) {
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.value(value);
+            if (value instanceof SecureString secureString) {
+                builder.value(secureString.toString());
+            } else {
+                builder.value(value);
+            }
             return Strings.toString(builder);
         } catch (Exception e) {
             throw new IllegalStateException(

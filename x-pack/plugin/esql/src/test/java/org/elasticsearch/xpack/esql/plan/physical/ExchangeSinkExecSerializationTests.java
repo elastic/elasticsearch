@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -78,8 +79,10 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1424046b - remove node-level plan #117422
          *  1040607b - remove EsIndex mapping serialization #119580
          *  1019093b - remove unused fields from FieldAttribute #127854
+         *  1026343b - added time series field type to EsField  #129649
+         *  1033593b - added qualifier back to FieldAttribute #132925
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1019093));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1033593));
     }
 
     /**
@@ -98,8 +101,10 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  2774190b - remove node-level plan #117422
          *  2007288b - remove EsIndex mapping serialization #119580
          *  1964273b - remove unused fields from FieldAttribute #127854
+         *  1971523b - added time series field type to EsField  #129649
+         *  1986023b - added qualifier back to FieldAttribute #132925
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1964273));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1986023));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -120,13 +125,15 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  47252409b - remove node-level plan #117422
          *  43927169b - remove EsIndex mapping serialization #119580
          *  43402881b - remove unused fields from FieldAttribute #127854
+         *  43665025b - added time series field type to EsField  #129649
+         *  43927169b - added qualifier back to FieldAttribute #132925
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43402881));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927169L));
     }
 
     /**
@@ -142,13 +149,15 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  9425804b - remove node-level plan #117422
          *  352b - remove EsIndex mapping serialization #119580
          *  350b - remove unused fields from FieldAttribute #127854
+         *  351b - added time series field type to EsField  #129649
+         *  352b - added qualifier back to FieldAttribute #132925
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(350), false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(352), false);
     }
 
     /**
@@ -204,7 +213,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
         try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput pso = new PlanStreamOutput(out, configuration())) {
             pso.writeNamedWriteable(exchangeSinkExec);
             assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expected));
-            try (PlanStreamInput psi = new PlanStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry(), configuration())) {
+            try (
+                PlanStreamInput psi = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    getNamedWriteableRegistry(),
+                    configuration(),
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 assertThat(psi.readNamedWriteable(PhysicalPlan.class), equalTo(exchangeSinkExec));
             }
         }

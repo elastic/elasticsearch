@@ -276,7 +276,6 @@ setup:
           data_stream.namespace: "namespace1"
 
  - do:
-      catch: bad_request
       index:
         index: logs-dataset0-namespace1
         body:
@@ -284,6 +283,7 @@ setup:
           data_stream.type: "metrics"
           data_stream.dataset: "dataset0"
           data_stream.namespace: "namespace1"
+ - match: { failure_store: used }
 
  - do:
       catch: bad_request

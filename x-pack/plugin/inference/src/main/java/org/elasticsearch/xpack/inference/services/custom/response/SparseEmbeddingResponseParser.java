@@ -11,9 +11,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 
 import java.io.IOException;
@@ -26,7 +26,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 
-public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<SparseEmbeddingResults> {
+public class SparseEmbeddingResponseParser extends BaseCustomResponseParser {
 
     public static final String NAME = "sparse_embedding_response_parser";
     public static final String SPARSE_EMBEDDING_TOKEN_PATH = "token_path";

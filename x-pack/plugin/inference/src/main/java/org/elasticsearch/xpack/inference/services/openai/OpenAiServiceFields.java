@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.openai;
 public class OpenAiServiceFields {
 
     public static final String USER = "user";
-
+    public static final String HEADERS = "headers";
     public static final String ORGANIZATION = "organization_id";
 
     /**

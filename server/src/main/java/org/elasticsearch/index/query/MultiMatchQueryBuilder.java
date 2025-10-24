@@ -823,6 +823,6 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

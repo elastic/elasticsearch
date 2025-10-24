@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -91,6 +92,8 @@ public class AuthenticatorChainTests extends ESTestCase {
         oAuth2TokenAuthenticator = mock(OAuth2TokenAuthenticator.class);
         apiKeyAuthenticator = mock(ApiKeyAuthenticator.class);
         realmsAuthenticator = mock(RealmsAuthenticator.class);
+        PluggableAuthenticatorChain pluggableAuthenticatorChain = new PluggableAuthenticatorChain(Collections.emptyList());
+
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
         final User user = new User(randomAlphaOfLength(8));
@@ -101,6 +104,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             operatorPrivilegesService,
             anonymousUser,
             authenticationContextSerializer,
+            pluggableAuthenticatorChain,
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
             apiKeyAuthenticator,
@@ -321,6 +325,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(apiKeyAuthenticator).authenticate(eq(context), anyActionListener());
+
         // 1. realms do not consume the token
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

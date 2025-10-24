@@ -19,8 +19,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -73,6 +73,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -86,6 +87,7 @@ import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -175,7 +177,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             threadPool.getThreadContext(),
             l -> getRemoteClusterClient().execute(
                 ClusterStateAction.REMOTE_TYPE,
-                new ClusterStateRequest(TimeValue.MAX_VALUE).clear().metadata(true).nodes(true),
+                new RemoteClusterStateRequest(TimeValue.MAX_VALUE).clear().metadata(true).nodes(true),
                 l.map(ClusterStateResponse::getState)
             )
         );
@@ -281,7 +283,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         var remoteClient = getRemoteClusterClient();
         ClusterStateResponse clusterState = executeRecoveryAction(
@@ -387,16 +389,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Runnable onCompletion
     ) {
         repositoryDataUpdateListener.onFailure(new UnsupportedOperationException("Unsupported for repository of type: " + TYPE));
-    }
-
-    @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        return throttledTime.count();
     }
 
     @Override
@@ -617,6 +609,16 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void awaitIdle() {}
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return new RepositoriesStats.SnapshotStats(throttledTime.count(), 0);
+    }
 
     private void updateMappings(
         RemoteClusterClient leaderClient,

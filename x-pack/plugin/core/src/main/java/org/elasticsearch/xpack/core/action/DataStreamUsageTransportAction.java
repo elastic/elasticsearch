@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -33,6 +34,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
 
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public DataStreamUsageTransportAction(
@@ -41,11 +43,13 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.DATA_STREAMS.name(), transportService, clusterService, threadPool, actionFilters);
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.globalRetentionSettings = globalRetentionSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -55,7 +59,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final Map<String, DataStream> dataStreams = state.metadata().getProject().dataStreams();
+        final Map<String, DataStream> dataStreams = projectResolver.getProjectMetadata(state).dataStreams();
         long backingIndicesCounter = 0;
         long failureStoreExplicitlyEnabledCounter = 0;
         long failureStoreEffectivelyEnabledCounter = 0;

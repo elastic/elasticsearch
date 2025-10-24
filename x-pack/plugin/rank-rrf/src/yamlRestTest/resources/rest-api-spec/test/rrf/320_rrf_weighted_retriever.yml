@@ -1,0 +1,139 @@
+setup:
+  - requires:
+      cluster_features: [ "rrf_retriever.weighted_support" ]
+      reason: "RRF retriever Weighted support"
+      test_runner_features: [ "contains", "close_to" ]
+  - do:
+      indices.create:
+        index: restaurants
+        body:
+          mappings:
+            properties:
+              name: { type: keyword }
+              description: { type: text }
+              city: { type: keyword }
+              region: { type: keyword }
+              vector: { type: dense_vector, dims: 3 }
+  - do:
+      index:
+        index: restaurants
+        id: "1"
+        body: { name: "Pizza Palace", description: "Best pizza in town", city: "Vienna", region: "Austria", vector: [10,22,77] }
+  - do:
+      index:
+        index: restaurants
+        id: "2"
+        body: { name: "Burger House", description: "Juicy burgers", city: "Graz", region: "Austria", vector: [15,25,70] }
+  - do:
+      index:
+        index: restaurants
+        id: "3"
+        body: { name: "Sushi World", description: "Fresh sushi", city: "Linz", region: "Austria", vector: [11,24,75] }
+  - do:
+      indices.refresh: { index: restaurants }
+
+---
+"Weighted RRF retriever returns correct results":
+  - do:
+      search:
+        index: restaurants
+        body:
+          retriever:
+            rrf:
+              retrievers:
+                - retriever:
+                    standard:
+                      query:
+                        multi_match:
+                          query: "Austria"
+                          fields: ["city", "region"]
+                  weight: 0.3
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          description: "pizza"
+                  weight: 0.7
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Weighted RRF retriever allows optional weight field":
+  - do:
+      search:
+        index: restaurants
+        body:
+          retriever:
+            rrf:
+              retrievers:
+                - standard:
+                    query:
+                      multi_match:
+                        query: "Austria"
+                        fields: ["city", "region"]
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          description: "pizza"
+                  weight: 0.7
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Weighted RRF retriever changes result order":
+  - do:
+      search:
+        index: restaurants
+        body:
+          retriever:
+            rrf:
+              retrievers:
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          description: "pizza"
+                  weight: 0.1
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          description: "burgers"
+                  weight: 0.9
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+  # Document 2: matches "burgers" with weight 0.9
+  # RRF score = 1/(60+1) * 0.9 = 0.01475
+  - close_to: {hits.hits.0._score: {value:  0.01475, error: 0.0001}}
+  # Document 1: matches "pizza" with weight 0.1
+  # RRF score = 1/(60+1) * 0.1 = 0.00164
+  - close_to: {hits.hits.1._score: {value:  0.00164, error: 0.0001}}
+
+---
+"Weighted RRF retriever errors on negative weight":
+  - do:
+      catch: bad_request
+      search:
+        index: restaurants
+        body:
+          retriever:
+            rrf:
+              retrievers:
+                - retriever:
+                    standard:
+                      query:
+                        multi_match:
+                          query: "Austria"
+                          fields: ["city", "region"]
+                  weight: -0.5
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          description: "pizza"
+                  weight: 0.7
+  - match: { error.type: "x_content_parse_exception" }
+  - contains: { error.caused_by.reason: "[weight] must be non-negative, found [-0.5]" }
+  

@@ -34,6 +34,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -182,6 +183,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                 internalCluster().clusterService(),
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 internalCluster().client(),
+                TEST_REQUEST_TIMEOUT,
                 stateStatusPlainActionFuture
             );
             stateStatusPlainActionFuture.actionGet();
@@ -207,7 +209,10 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                                 Template.builder()
                                     .settings(Settings.EMPTY)
                                     .mappings(mappings)
-                                    .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()))
+                                    .lifecycle(
+                                        DataStreamLifecycle.dataLifecycleBuilder()
+                                            .dataRetention(randomTimeValueGreaterThan(TimeValue.timeValueSeconds(10)))
+                                    )
                             )
                             .dataStreamTemplate(new DataStreamTemplate())
                             .build(),
@@ -237,6 +242,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
             ClusterService clusterService,
             ProjectResolver projectResolver,
             Client client,
+            TimeValue masterNodeTimeout,
             ActionListener<ResetFeatureStateStatus> listener
         ) {
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
@@ -254,11 +260,23 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                     DeleteDataStreamAction.INSTANCE,
                     request,
                     ActionListener.wrap(
-                        response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener),
+                        response -> SystemIndexPlugin.super.cleanUpFeature(
+                            clusterService,
+                            projectResolver,
+                            client,
+                            masterNodeTimeout,
+                            listener
+                        ),
                         e -> {
                             Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                             if (unwrapped instanceof ResourceNotFoundException) {
-                                SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                                SystemIndexPlugin.super.cleanUpFeature(
+                                    clusterService,
+                                    projectResolver,
+                                    client,
+                                    masterNodeTimeout,
+                                    listener
+                                );
                             } else {
                                 listener.onFailure(e);
                             }
@@ -268,7 +286,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
             } catch (Exception e) {
                 Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                 if (unwrapped instanceof ResourceNotFoundException) {
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, listener);
                 } else {
                     listener.onFailure(e);
                 }

@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -30,6 +31,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -39,13 +41,15 @@ import org.elasticsearch.search.internal.AliasFilter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.IntFunction;
 
 /**
  * Generates a list of Lucene queries based on the input block.
  */
-public abstract class QueryList {
+public abstract class QueryList implements LookupEnrichQueryGenerator {
     protected final SearchExecutionContext searchExecutionContext;
     protected final AliasFilter aliasFilter;
     protected final MappedFieldType field;
@@ -70,7 +74,8 @@ public abstract class QueryList {
     /**
      * Returns the number of positions in this query list
      */
-    int getPositionCount() {
+    @Override
+    public int getPositionCount() {
         return block.getPositionCount();
     }
 
@@ -83,7 +88,8 @@ public abstract class QueryList {
      */
     public abstract QueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage);
 
-    final Query getQuery(int position) {
+    @Override
+    public final Query getQuery(int position) {
         final int valueCount = block.getValueCount(position);
         if (onlySingleValueParams != null && valueCount != 1) {
             if (valueCount > 1) {
@@ -119,7 +125,7 @@ public abstract class QueryList {
      * Returns the query at the given position.
      */
     @Nullable
-    abstract Query doGetQuery(int position, int firstValueIndex, int valueCount);
+    public abstract Query doGetQuery(int position, int firstValueIndex, int valueCount);
 
     private Query wrapSingleValueQuery(Query query) {
         assert onlySingleValueParams != null : "Requested to wrap single value query without single value params";
@@ -149,17 +155,11 @@ public abstract class QueryList {
     }
 
     /**
-     * Returns a list of term queries for the given field and the input block
-     * using only the {@link ElementType} of the {@link Block} to determine the
-     * query.
+     * Returns a function that reads values from the given block. The function
+     * takes the offset of the value to read and returns the value as an {@link Object}.
      */
-    public static QueryList rawTermQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        Block block
-    ) {
-        IntFunction<Object> blockToJavaObject = switch (block.elementType()) {
+    public static IntFunction<Object> createBlockValueReader(Block block) {
+        return switch (block.elementType()) {
             case BOOLEAN -> {
                 BooleanBlock booleanBlock = (BooleanBlock) block;
                 yield booleanBlock::getBoolean;
@@ -190,7 +190,20 @@ public abstract class QueryList {
             case AGGREGATE_METRIC_DOUBLE -> throw new IllegalArgumentException("can't read values from [aggregate metric double] block");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
-        return new TermQueryList(field, searchExecutionContext, aliasFilter, block, null, blockToJavaObject);
+    }
+
+    /**
+     * Returns a list of term queries for the given field and the input block
+     * using only the {@link ElementType} of the {@link Block} to determine the
+     * query.
+     */
+    public static QueryList rawTermQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        Block block
+    ) {
+        return new TermQueryList(field, searchExecutionContext, aliasFilter, block, null, createBlockValueReader(block));
     }
 
     /**
@@ -239,6 +252,19 @@ public abstract class QueryList {
     }
 
     /**
+     * Returns a list of term queries for the given field and the input block of
+     * {@code date_nanos} field values.
+     */
+    public static QueryList dateNanosTermQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        LongBlock block
+    ) {
+        return new DateNanosQueryList(field, searchExecutionContext, aliasFilter, block, null);
+    }
+
+    /**
      * Returns a list of geo_shape queries for the given field and the input block.
      */
     public static QueryList geoShapeQueryList(
@@ -278,7 +304,7 @@ public abstract class QueryList {
         }
 
         @Override
-        Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+        public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
             return switch (valueCount) {
                 case 0 -> null;
                 case 1 -> field.termQuery(blockValueReader.apply(firstValueIndex), searchExecutionContext);
@@ -289,6 +315,75 @@ public abstract class QueryList {
                         terms.add(value);
                     }
                     yield field.termsQuery(terms, searchExecutionContext);
+                }
+            };
+        }
+    }
+
+    private static class DateNanosQueryList extends QueryList {
+        protected final IntFunction<Long> blockValueReader;
+        private final DateFieldMapper.DateFieldType dateFieldType;
+
+        private DateNanosQueryList(
+            MappedFieldType field,
+            SearchExecutionContext searchExecutionContext,
+            AliasFilter aliasFilter,
+            LongBlock block,
+            OnlySingleValueParams onlySingleValueParams
+        ) {
+            super(field, searchExecutionContext, aliasFilter, block, onlySingleValueParams);
+            if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
+                // TODO: do this validation earlier
+                throw new IllegalArgumentException(
+                    "DateNanosQueryList does not support range fields [" + rangeFieldType + "]: " + field.name()
+                );
+            }
+            this.blockValueReader = block::getLong;
+            if (field instanceof DateFieldMapper.DateFieldType dateFieldType) {
+                // Validate that the field is a date_nanos field
+                // TODO: Consider allowing date_nanos to match normal datetime fields
+                if (dateFieldType.resolution() != DateFieldMapper.Resolution.NANOSECONDS) {
+                    throw new IllegalArgumentException(
+                        "DateNanosQueryList only supports date_nanos fields, but got: " + field.typeName() + " for field: " + field.name()
+                    );
+                }
+                this.dateFieldType = dateFieldType;
+            } else {
+                throw new IllegalArgumentException(
+                    "DateNanosQueryList only supports date_nanos fields, but got: " + field.typeName() + " for field: " + field.name()
+                );
+            }
+        }
+
+        @Override
+        public DateNanosQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
+            return new DateNanosQueryList(
+                field,
+                searchExecutionContext,
+                aliasFilter,
+                (LongBlock) block,
+                new OnlySingleValueParams(warnings, multiValueWarningMessage)
+            );
+        }
+
+        @Override
+        public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+            return switch (valueCount) {
+                case 0 -> null;
+                case 1 -> dateFieldType.equalityQuery(blockValueReader.apply(firstValueIndex), searchExecutionContext);
+                default -> {
+                    // The following code is a slight simplification of the DateFieldMapper.termsQuery method
+                    final Set<Long> values = new HashSet<>(valueCount);
+                    BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                    for (int i = 0; i < valueCount; i++) {
+                        final Long value = blockValueReader.apply(firstValueIndex + i);
+                        if (values.contains(value)) {
+                            continue; // Skip duplicates
+                        }
+                        values.add(value);
+                        builder.add(dateFieldType.equalityQuery(value, searchExecutionContext), BooleanClause.Occur.SHOULD);
+                    }
+                    yield new ConstantScoreQuery(builder.build());
                 }
             };
         }
@@ -324,7 +419,7 @@ public abstract class QueryList {
         }
 
         @Override
-        Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+        public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
             return switch (valueCount) {
                 case 0 -> null;
                 case 1 -> shapeQuery.apply(firstValueIndex);
@@ -365,5 +460,5 @@ public abstract class QueryList {
         }
     }
 
-    protected record OnlySingleValueParams(Warnings warnings, String multiValueWarningMessage) {}
+    public record OnlySingleValueParams(Warnings warnings, String multiValueWarningMessage) {}
 }

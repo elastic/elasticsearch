@@ -93,6 +93,6 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
 
     @Override
     protected ClusterBlockException checkBlock(PutDataStreamOptionsAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

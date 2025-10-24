@@ -120,8 +120,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandlerTests extends EST
                 mock(),
                 mock(),
                 mockRequest(),
-                new HttpResult(mockHttpResponse(500), responseJson.getBytes(StandardCharsets.UTF_8)),
-                true
+                new HttpResult(mockHttpResponse(500), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -59,6 +60,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor auditor;
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteTransformAction(
@@ -67,7 +69,8 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         ThreadPool threadPool,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteTransformAction.NAME,
@@ -81,6 +84,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         this.transformConfigManager = transformServices.configManager();
         this.auditor = transformServices.auditor();
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -240,6 +244,6 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

@@ -179,11 +179,6 @@ This can lead to unexpected results with [range queries](/reference/query-langua
 
 ## Synthetic `_source` [numeric-synthetic-source]
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
-
 All numeric fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration. Synthetic `_source` cannot be used together with [`copy_to`](/reference/elasticsearch/mapping-reference/copy-to.md), or with [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) disabled.
 
 Synthetic source may sort numeric field values. For example:
@@ -213,6 +208,7 @@ PUT idx/_doc/1
   "long": [0, 0, -123466, 87612]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -221,6 +217,7 @@ Will become:
   "long": [-123466, 0, 0, 87612]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 Scaled floats will always apply their scaling factor so:
 
@@ -249,6 +246,7 @@ PUT idx/_doc/1
   "f": 123
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -257,5 +255,5 @@ Will become:
   "f": 100.0
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

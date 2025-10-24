@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
@@ -20,13 +21,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -136,9 +141,8 @@ public class RangeFieldMapper extends FieldMapper {
                 }
                 return new RangeFieldType(
                     fullName,
-                    index.getValue(),
+                    IndexType.points(index.get(), hasDocValues.get()),
                     store.getValue(),
-                    hasDocValues.getValue(),
                     DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue()),
                     coerce.getValue().value(),
                     meta.getValue()
@@ -147,9 +151,8 @@ public class RangeFieldMapper extends FieldMapper {
             if (type == RangeType.DATE) {
                 return new RangeFieldType(
                     fullName,
-                    index.getValue(),
+                    IndexType.points(index.get(), hasDocValues.get()),
                     store.getValue(),
-                    hasDocValues.getValue(),
                     Defaults.DATE_FORMATTER,
                     coerce.getValue().value(),
                     meta.getValue()
@@ -158,9 +161,8 @@ public class RangeFieldMapper extends FieldMapper {
             return new RangeFieldType(
                 fullName,
                 type,
-                index.getValue(),
+                IndexType.points(index.get(), hasDocValues.get()),
                 store.getValue(),
-                hasDocValues.getValue(),
                 coerce.getValue().value(),
                 meta.getValue()
             );
@@ -179,16 +181,8 @@ public class RangeFieldMapper extends FieldMapper {
         protected final DateMathParser dateMathParser;
         protected final boolean coerce;
 
-        public RangeFieldType(
-            String name,
-            RangeType type,
-            boolean indexed,
-            boolean stored,
-            boolean hasDocValues,
-            boolean coerce,
-            Map<String, String> meta
-        ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        public RangeFieldType(String name, RangeType type, IndexType indexType, boolean stored, boolean coerce, Map<String, String> meta) {
+            super(name, indexType, stored, meta);
             assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
@@ -197,19 +191,18 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public RangeFieldType(String name, RangeType type) {
-            this(name, type, true, false, true, false, Collections.emptyMap());
+            this(name, type, IndexType.points(true, true), false, false, Collections.emptyMap());
         }
 
         public RangeFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             DateFormatter formatter,
             boolean coerce,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexType, stored, meta);
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
@@ -217,7 +210,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {
-            this(name, true, false, true, formatter, false, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, formatter, false, Collections.emptyMap());
         }
 
         public RangeType rangeType() {
@@ -227,7 +220,27 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
+            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE) {
+                @Override
+                public BinaryIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+                    return new BinaryIndexFieldData(name(), CoreValuesSourceType.RANGE) {
+                        @Override
+                        public SortField sortField(
+                            @Nullable Object missingValue,
+                            MultiValueMode sortMode,
+                            XFieldComparatorSource.Nested nested,
+                            boolean reverse
+                        ) {
+                            throw new IllegalArgumentException("Sorting by range field [" + name() + "] is not supported");
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         @Override

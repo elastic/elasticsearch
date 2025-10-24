@@ -31,6 +31,7 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -42,7 +43,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -351,7 +351,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }));
         var ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     @Override
@@ -431,7 +431,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         if (randomBoolean()) {
             return randomDouble();
         }
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/70585", true);
         return randomDoubleBetween(0L, Long.MAX_VALUE, true);
     }
 
@@ -508,5 +507,17 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         public List<SyntheticSourceInvalidExample> invalidExample() {
             return List.of();
         }
+    }
+
+    @Override
+    protected Object[] getThreeEncodedSampleValues() {
+        return Arrays.stream(super.getThreeEncodedSampleValues())
+            .map(v -> UnsignedLongFieldMapper.sortableSignedLongToUnsigned((Long) v))
+            .toArray();
+    }
+
+    @Override
+    protected boolean supportsBulkLongBlockReading() {
+        return true;
     }
 }

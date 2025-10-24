@@ -244,6 +244,13 @@ public class XPackLicenseStateTests extends ESTestCase {
         lastUsed = licenseState.getLastUsed();
         assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
         assertThat(lastUsed.get(usage), equalTo(200L));
+
+        // updates to the last used timestamp only happen if the time has increased
+        currentTime.set(199);
+        goldFeature.check(licenseState);
+        lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
+        assertThat(lastUsed.get(usage), equalTo(200L));
     }
 
     public void testLastUsedMomentaryFeatureWithSameNameDifferentFamily() {

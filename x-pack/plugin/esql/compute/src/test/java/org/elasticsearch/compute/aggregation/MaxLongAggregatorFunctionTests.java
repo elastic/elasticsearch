@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 
@@ -36,8 +37,8 @@ public class MaxLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        long max = input.stream().flatMapToLong(b -> allLongs(b)).max().getAsLong();
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        long max = input.stream().flatMapToLong(p -> allLongs(p.getBlock(0))).max().getAsLong();
         assertThat(((LongBlock) result).getLong(0), equalTo(max));
     }
 }

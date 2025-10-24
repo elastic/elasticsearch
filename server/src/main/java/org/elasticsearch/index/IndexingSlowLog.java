@@ -35,29 +35,29 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     public static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING = Setting.timeSetting(
         INDEX_INDEXING_SLOWLOG_PREFIX + ".threshold.index.warn",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING = Setting.timeSetting(
         INDEX_INDEXING_SLOWLOG_PREFIX + ".threshold.index.info",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING = Setting.timeSetting(
         INDEX_INDEXING_SLOWLOG_PREFIX + ".threshold.index.debug",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING = Setting.timeSetting(
         INDEX_INDEXING_SLOWLOG_PREFIX + ".threshold.index.trace",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );

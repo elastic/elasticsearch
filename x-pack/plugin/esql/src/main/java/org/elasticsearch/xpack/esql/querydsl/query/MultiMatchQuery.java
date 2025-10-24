@@ -114,4 +114,9 @@ public class MultiMatchQuery extends Query {
     public boolean scorable() {
         return true;
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

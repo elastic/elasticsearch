@@ -21,6 +21,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
@@ -85,12 +87,13 @@ public abstract class ElasticsearchInternalModel extends Model {
     }
 
     public ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
-        Model model,
+        ElasticsearchInternalModel esModel,
         ActionListener<Boolean> listener
     ) {
         return new ActionListener<>() {
             @Override
             public void onResponse(CreateTrainedModelAssignmentAction.Response response) {
+                esModel.updateServiceSettings(response.getTrainedModelAssignment());
                 listener.onResponse(Boolean.TRUE);
             }
 
@@ -98,7 +101,7 @@ public abstract class ElasticsearchInternalModel extends Model {
             public void onFailure(Exception e) {
                 var cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof ResourceNotFoundException) {
-                    listener.onFailure(new ResourceNotFoundException(modelNotFoundErrorMessage(internalServiceSettings.modelId())));
+                    listener.onFailure(new ResourceNotFoundException(modelNotFoundErrorMessage(esModel.internalServiceSettings.modelId())));
                     return;
                 } else if (cause instanceof ElasticsearchStatusException statusException) {
                     if (statusException.status() == RestStatus.CONFLICT
@@ -128,8 +131,18 @@ public abstract class ElasticsearchInternalModel extends Model {
         return (ElasticsearchInternalServiceSettings) super.getServiceSettings();
     }
 
-    public void updateNumAllocations(Integer numAllocations) {
-        this.internalServiceSettings.setNumAllocations(numAllocations);
+    public void updateServiceSettings(AssignmentStats assignmentStats) {
+        this.internalServiceSettings.setAllocations(
+            assignmentStats.getNumberOfAllocations(),
+            assignmentStats.getAdaptiveAllocationsSettings()
+        );
+    }
+
+    private void updateServiceSettings(TrainedModelAssignment trainedModelAssignment) {
+        this.internalServiceSettings.setAllocations(
+            this.internalServiceSettings.getNumAllocations(),
+            trainedModelAssignment.getAdaptiveAllocationsSettings()
+        );
     }
 
     @Override

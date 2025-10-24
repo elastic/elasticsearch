@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -94,11 +95,16 @@ public class DataGenerationTests extends ESTestCase {
                 return testChildFieldGenerator;
             }
 
+            private static final FieldType[] SUPPORTED_FIELD_TYPES = Arrays.asList(FieldType.values())
+                .stream()
+                .filter(fieldType -> fieldType != FieldType.PASSTHROUGH)
+                .toArray(FieldType[]::new);
+
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(
                     () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
-                        FieldType.values()[generatedFields++ % FieldType.values().length].toString()
+                        SUPPORTED_FIELD_TYPES[generatedFields++ % SUPPORTED_FIELD_TYPES.length].toString()
                     )
                 );
 

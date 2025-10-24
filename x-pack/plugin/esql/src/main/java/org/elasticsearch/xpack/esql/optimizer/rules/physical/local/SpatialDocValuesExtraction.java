@@ -97,15 +97,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                     }
                 }
                 if (changedAggregates) {
-                    exec = new AggregateExec(
-                        agg.source(),
-                        agg.child(),
-                        agg.groupings(),
-                        orderedAggregates,
-                        agg.getMode(),
-                        agg.intermediateAttributes(),
-                        agg.estimatedRowSize()
-                    );
+                    exec = agg.withAggregates(orderedAggregates);
                 }
             }
             if (exec instanceof EvalExec evalExec) {

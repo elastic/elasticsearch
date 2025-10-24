@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.logical;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NotEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator v;
@@ -48,21 +51,29 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += v.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BooleanBlock eval(int positionCount, BooleanBlock vBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (vBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (vBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (vBlock.getValueCount(p) != 1) {
-          if (vBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBoolean(Not.process(vBlock.getBoolean(vBlock.getFirstValueIndex(p))));
+        boolean v = vBlock.getBoolean(vBlock.getFirstValueIndex(p));
+        result.appendBoolean(Not.process(v));
       }
       return result.build();
     }
@@ -71,7 +82,8 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   public BooleanVector eval(int positionCount, BooleanVector vVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, Not.process(vVector.getBoolean(p)));
+        boolean v = vVector.getBoolean(p);
+        result.appendBoolean(p, Not.process(v));
       }
       return result.build();
     }

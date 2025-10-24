@@ -50,17 +50,8 @@ public class CountDistinctFloatAggregator {
         current.merge(groupId, inValue, 0);
     }
 
-    public static void combineStates(
-        HllStates.GroupingState current,
-        int currentGroupId,
-        HllStates.GroupingState state,
-        int statePosition
-    ) {
-        current.merge(currentGroupId, state.hll, statePosition);
-    }
-
-    public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
+    public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        try (LongBlock.Builder builder = ctx.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 long count = state.cardinality(group);

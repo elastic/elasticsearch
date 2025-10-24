@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS;
 
 public class RemoteClusterCredentialsManager {
     private static final Logger logger = LogManager.getLogger(RemoteClusterCredentialsManager.class);

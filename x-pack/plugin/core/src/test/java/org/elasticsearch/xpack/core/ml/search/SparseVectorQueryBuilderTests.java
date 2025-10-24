@@ -30,9 +30,12 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -121,7 +124,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     @Override
     protected Object simulateMethod(Method method, Object[] args) {
         CoordinatedInferenceAction.Request request = (CoordinatedInferenceAction.Request) args[1];
-        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API, request.getInferenceTimeout());
+        assertNull(request.getInferenceTimeout());
         assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
         assertEquals(CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL, request.getRequestModelType());
 

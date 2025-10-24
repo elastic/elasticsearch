@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -71,6 +73,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 public final class SearchPhaseController {
+
+    private static final Logger logger = LogManager.getLogger(SearchPhaseController.class);
 
     private final BiFunction<
         Supplier<Boolean>,
@@ -153,17 +157,22 @@ public final class SearchPhaseController {
             return topDocs;
         }
         final TopDocs mergedTopDocs;
-        if (topDocs instanceof TopFieldGroups firstTopDocs) {
-            final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
-            TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
-            mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
-        } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
-            final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
-            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
-        } else {
-            final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
-            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+        try {
+            if (topDocs instanceof TopFieldGroups firstTopDocs) {
+                final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
+                TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
+                mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
+            } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
+                TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
+                final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
+                mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
+            } else {
+                final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
+                mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+            }
+        } catch (IllegalArgumentException e) {
+            logger.debug("Failed to merge top docs: ", e);
+            throw e;
         }
         return mergedTopDocs;
     }
@@ -478,7 +487,8 @@ public final class SearchPhaseController {
                 numReducePhases,
                 0,
                 0,
-                true
+                true,
+                null
             );
         }
         final List<QuerySearchResult> nonNullResults = new ArrayList<>();
@@ -507,6 +517,7 @@ public final class SearchPhaseController {
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
+        Long timeRangeFilterFromMillis = null;
         DocValueFormat[] sortValueFormats = null;
         for (QuerySearchResult result : nonNullResults) {
             from = result.from();
@@ -514,6 +525,16 @@ public final class SearchPhaseController {
             size = Math.max(result.size(), size);
             if (result.sortValueFormats() != null) {
                 sortValueFormats = result.sortValueFormats();
+            }
+
+            if (result.getTimeRangeFilterFromMillis() != null) {
+                if (timeRangeFilterFromMillis == null) {
+                    timeRangeFilterFromMillis = result.getTimeRangeFilterFromMillis();
+                } else {
+                    // all shards should hold the same value, besides edge cases like different mappings
+                    // for event.ingested and @timestamp across indices being searched
+                    timeRangeFilterFromMillis = Math.min(result.getTimeRangeFilterFromMillis(), timeRangeFilterFromMillis);
+                }
             }
 
             if (hasSuggest) {
@@ -570,7 +591,8 @@ public final class SearchPhaseController {
             numReducePhases,
             size,
             from,
-            false
+            false,
+            timeRangeFilterFromMillis
         );
     }
 
@@ -653,7 +675,8 @@ public final class SearchPhaseController {
         // the offset into the merged top hits
         int from,
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
-        boolean isEmptyResult
+        boolean isEmptyResult,
+        Long timeRangeFilterFromMillis
     ) {
 
         public ReducedQueryPhase {
@@ -674,7 +697,8 @@ public final class SearchPhaseController {
                 timedOut,
                 terminatedEarly,
                 buildSearchProfileResults(fetchResults),
-                numReducePhases
+                numReducePhases,
+                timeRangeFilterFromMillis
             );
         }
 

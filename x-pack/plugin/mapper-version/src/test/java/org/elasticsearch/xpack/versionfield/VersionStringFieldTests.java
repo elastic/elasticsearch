@@ -216,6 +216,35 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
                 assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
             }
         );
+
+        assertResponse(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", ".*").caseInsensitive(true)),
+            response -> {
+                assertEquals(5, response.getHits().getTotalHits().value());
+            }
+        );
+
+        assertResponse(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "2\\.1\\.0").caseInsensitive(false)),
+            response -> {
+                assertEquals(1, response.getHits().getTotalHits().value());
+            }
+        );
+
+        assertResponse(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "2\\.1\\.1").caseInsensitive(false)),
+            response -> {
+                assertEquals(0, response.getHits().getTotalHits().value());
+            }
+        );
+
+        // empty regex should not match anything
+        assertResponse(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "").caseInsensitive(false)),
+            response -> {
+                assertEquals(0, response.getHits().getTotalHits().value());
+            }
+        );
     }
 
     public void testFuzzyQuery() throws Exception {

@@ -63,7 +63,7 @@ public class TransportGetDataStreamSettingsAction extends TransportLocalProjectM
 
     @Override
     protected ClusterBlockException checkBlock(GetDataStreamSettingsAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

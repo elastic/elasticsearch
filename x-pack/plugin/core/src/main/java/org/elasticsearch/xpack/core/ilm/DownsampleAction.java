@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +35,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -44,6 +48,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class DownsampleAction implements LifecycleAction {
 
     private static final Logger logger = LogManager.getLogger(DownsampleAction.class);
+    public static final TransportVersion ILM_FORCE_MERGE_IN_DOWNSAMPLING = TransportVersion.fromName("ilm_downsample_force_merge");
 
     public static final String NAME = "downsample";
     public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
@@ -51,11 +56,16 @@ public class DownsampleAction implements LifecycleAction {
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
     public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(DownsampleConfig.FIXED_INTERVAL);
+    private static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
     private static final ParseField WAIT_TIMEOUT_FIELD = new ParseField("wait_timeout");
+    static final String BWC_CLEANUP_TARGET_INDEX_NAME = "cleanup-target-index";
+    private static final BiFunction<String, LifecycleExecutionState, String> DOWNSAMPLED_INDEX_NAME_SUPPLIER = (
+        indexName,
+        lifecycleState) -> lifecycleState.downsampleIndexName();
 
     private static final ConstructingObjectParser<DownsampleAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new DownsampleAction((DateHistogramInterval) a[0], (TimeValue) a[1])
+        a -> new DownsampleAction((DateHistogramInterval) a[0], (TimeValue) a[1], (Boolean) a[2])
     );
 
     static {
@@ -71,21 +81,24 @@ public class DownsampleAction implements LifecycleAction {
             WAIT_TIMEOUT_FIELD,
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_INDEX);
     }
 
     private final DateHistogramInterval fixedInterval;
     private final TimeValue waitTimeout;
+    private final Boolean forceMergeIndex;
 
     public static DownsampleAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public DownsampleAction(final DateHistogramInterval fixedInterval, final TimeValue waitTimeout) {
+    public DownsampleAction(final DateHistogramInterval fixedInterval, final TimeValue waitTimeout, Boolean forceMergeIndex) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL_FIELD.getPreferredName() + "] is required.");
         }
         this.fixedInterval = fixedInterval;
         this.waitTimeout = waitTimeout == null ? DEFAULT_WAIT_TIMEOUT : waitTimeout;
+        this.forceMergeIndex = forceMergeIndex;
     }
 
     public DownsampleAction(StreamInput in) throws IOException {
@@ -93,7 +106,8 @@ public class DownsampleAction implements LifecycleAction {
             new DateHistogramInterval(in),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
                 ? TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName())
-                : DEFAULT_WAIT_TIMEOUT
+                : DEFAULT_WAIT_TIMEOUT,
+            in.getTransportVersion().supports(ILM_FORCE_MERGE_IN_DOWNSAMPLING) ? in.readOptionalBoolean() : null
         );
     }
 
@@ -105,6 +119,9 @@ public class DownsampleAction implements LifecycleAction {
         } else {
             out.writeString(DEFAULT_WAIT_TIMEOUT.getStringRep());
         }
+        if (out.getTransportVersion().supports(ILM_FORCE_MERGE_IN_DOWNSAMPLING)) {
+            out.writeOptionalBoolean(forceMergeIndex);
+        }
     }
 
     @Override
@@ -112,6 +129,9 @@ public class DownsampleAction implements LifecycleAction {
         builder.startObject();
         builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval.toString());
         builder.field(WAIT_TIMEOUT_FIELD.getPreferredName(), waitTimeout.getStringRep());
+        if (forceMergeIndex != null) {
+            builder.field(FORCE_MERGE_INDEX.getPreferredName(), forceMergeIndex);
+        }
         builder.endObject();
         return builder;
     }
@@ -129,6 +149,10 @@ public class DownsampleAction implements LifecycleAction {
         return waitTimeout;
     }
 
+    public Boolean forceMergeIndex() {
+        return forceMergeIndex;
+    }
+
     @Override
     public boolean isSafeAction() {
         return false;
@@ -141,10 +165,12 @@ public class DownsampleAction implements LifecycleAction {
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
-        StepKey cleanupDownsampleIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
+        StepKey cleanupDownsampleIndexKey = new StepKey(phase, NAME, BWC_CLEANUP_TARGET_INDEX_NAME);
         StepKey generateDownsampleIndexNameKey = new StepKey(phase, NAME, DownsamplePrepareLifeCycleStateStep.NAME);
         StepKey downsampleKey = new StepKey(phase, NAME, DownsampleStep.NAME);
         StepKey waitForDownsampleIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
+        StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
+        StepKey waitForSegmentCountKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey copyIndexLifecycleKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
@@ -229,24 +255,30 @@ public class DownsampleAction implements LifecycleAction {
         ClusterStateWaitUntilThresholdStep downsampleAllocatedStep = new ClusterStateWaitUntilThresholdStep(
             new WaitForIndexColorStep(
                 waitForDownsampleIndexKey,
-                copyMetadataKey,
+                isForceMergeEnabled() ? forceMergeKey : copyMetadataKey,
                 ClusterHealthStatus.YELLOW,
-                (indexName, lifecycleState) -> lifecycleState.downsampleIndexName()
+                DOWNSAMPLED_INDEX_NAME_SUPPLIER
             ),
             cleanupDownsampleIndexKey
         );
+        ForceMergeStep forceMergeStep = null;
+        SegmentCountStep segmentCountStep = null;
+        if (isForceMergeEnabled()) {
+            forceMergeStep = new ForceMergeStep(forceMergeKey, waitForSegmentCountKey, client, 1, DOWNSAMPLED_INDEX_NAME_SUPPLIER);
+            segmentCountStep = new SegmentCountStep(waitForSegmentCountKey, copyMetadataKey, client, 1, DOWNSAMPLED_INDEX_NAME_SUPPLIER);
+        }
 
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
             copyIndexLifecycleKey,
-            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
+            DOWNSAMPLED_INDEX_NAME_SUPPLIER,
             nextStepKey
         );
 
         CopySettingsStep copyLifecycleSettingsStep = new CopySettingsStep(
             copyIndexLifecycleKey,
             dataStreamCheckBranchingKey,
-            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
+            DOWNSAMPLED_INDEX_NAME_SUPPLIER,
             LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()
         );
 
@@ -268,7 +300,7 @@ public class DownsampleAction implements LifecycleAction {
         ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(
             replaceDataStreamIndexKey,
             deleteIndexKey,
-            (sourceIndexName, lifecycleState) -> lifecycleState.downsampleIndexName()
+            DOWNSAMPLED_INDEX_NAME_SUPPLIER
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, nextStepKey, client);
 
@@ -276,11 +308,11 @@ public class DownsampleAction implements LifecycleAction {
             swapAliasesKey,
             nextStepKey,
             client,
-            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
+            DOWNSAMPLED_INDEX_NAME_SUPPLIER,
             false
         );
 
-        return List.of(
+        return Stream.of(
             isTimeSeriesIndexBranchingStep,
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
@@ -290,13 +322,19 @@ public class DownsampleAction implements LifecycleAction {
             generateDownsampleIndexNameStep,
             downsampleStep,
             downsampleAllocatedStep,
+            forceMergeStep,
+            segmentCountStep,
             copyExecutionStateStep,
             copyLifecycleSettingsStep,
             isDataStreamBranchingStep,
             replaceDataStreamBackingIndex,
             deleteSourceIndexStep,
             swapAliasesAndDeleteSourceIndexStep
-        );
+        ).filter(Objects::nonNull).toList();
+    }
+
+    private boolean isForceMergeEnabled() {
+        return forceMergeIndex == null || forceMergeIndex;
     }
 
     @Override
@@ -305,12 +343,14 @@ public class DownsampleAction implements LifecycleAction {
         if (o == null || getClass() != o.getClass()) return false;
 
         DownsampleAction that = (DownsampleAction) o;
-        return Objects.equals(this.fixedInterval, that.fixedInterval);
+        return Objects.equals(this.fixedInterval, that.fixedInterval)
+            && Objects.equals(this.waitTimeout, that.waitTimeout)
+            && Objects.equals(this.forceMergeIndex, that.forceMergeIndex);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fixedInterval);
+        return Objects.hash(fixedInterval, waitTimeout, forceMergeIndex);
     }
 
     @Override

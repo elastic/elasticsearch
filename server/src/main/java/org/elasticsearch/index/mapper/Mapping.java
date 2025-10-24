@@ -124,6 +124,24 @@ public final class Mapping implements ToXContentFragment {
         return new Mapping(rootObjectMapper, metadataMappers, meta);
     }
 
+    /**
+     * Returns a {@link SourceLoader.SyntheticVectorsLoader} that loads synthetic vector values
+     * from a source document, optionally applying a {@link SourceFilter}.
+     * <p>
+     * The {@code filter}, if provided, can be used to limit which fields from the mapping
+     * are considered when computing synthetic vectors. This allows for performance
+     * optimizations or targeted vector extraction.
+     * </p>
+     *
+     * @param filter an optional {@link SourceFilter} to restrict the fields considered during loading;
+     *               may be {@code null} to indicate no filtering
+     * @return a {@link SourceLoader.SyntheticVectorsLoader} for extracting synthetic vectors,
+     *         potentially using the provided filter
+     */
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(@Nullable SourceFilter filter) {
+        return root.syntheticVectorsLoader(filter);
+    }
+
     private boolean isSourceSynthetic() {
         SourceFieldMapper sfm = (SourceFieldMapper) metadataMappersByName.get(SourceFieldMapper.NAME);
         return sfm != null && sfm.isSynthetic();
@@ -132,6 +150,14 @@ public final class Mapping implements ToXContentFragment {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
         var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).collect(Collectors.toList());
         return root.syntheticFieldLoader(filter, mappers, false);
+    }
+
+    public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+        IgnoredSourceFieldMapper isfm = (IgnoredSourceFieldMapper) metadataMappersByName.get(IgnoredSourceFieldMapper.NAME);
+        if (isfm == null) {
+            return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+        }
+        return isfm.ignoredSourceFormat();
     }
 
     /**

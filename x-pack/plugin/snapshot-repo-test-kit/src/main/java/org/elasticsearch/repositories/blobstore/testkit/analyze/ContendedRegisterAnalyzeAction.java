@@ -156,6 +156,8 @@ class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedReg
         };
 
         if (request.getInitialRead() > request.getRequestCount()) {
+            // This is just the initial read, so we can use getRegister() despite its weaker read-after-write semantics: all subsequent
+            // operations of this action use compareAndExchangeRegister() and do not rely on this value being accurate.
             blobContainer.getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, initialValueListener.delegateFailure((l, r) -> {
                 if (r.isPresent()) {
                     l.onResponse(r);

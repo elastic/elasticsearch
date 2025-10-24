@@ -752,6 +752,31 @@ host:keyword | semantic_text_field:text | language_name:keyword | language_code:
 "host1"      | live long and prosper    | English               | 1
 ;
 
+testFTFWithLookupJoin
+required_capability: match_operator_colon
+required_capability: match_phrase_function
+required_capability: kql_function
+required_capability: qstr_function
+required_capability: join_lookup_v12
+
+FROM sample_*,-sample__data_*
+| WHERE message : "Connected to 10.1.0.1"
+| WHERE MATCH_PHRASE(message, "Connected to 10.1.0.1")
+| WHERE KQL("message : Connected*")
+| WHERE QSTR("message : *")
+| EVAL @timestamp_millis = TO_DATETIME(@timestamp)
+| EVAL client_ip = TO_IP(client_ip)
+| LOOKUP JOIN sample__data_ts_nanos_lookup ON client_ip
+| STATS BY @timestamp_millis, client_ip, @timestamp, event_duration, message
+| SORT event_duration
+;
+
+@timestamp_millis:date  |client_ip:ip   |@timestamp:date_nanos         |event_duration:long |message:keyword
+2023-10-23T13:55:01.543Z|172.21.3.15    |2023-10-23T13:51:54.732123456Z|725448              |Connection error     
+2023-10-23T13:55:01.543Z|172.21.3.15    |2023-10-23T13:55:01.543123456Z|1756467             |Connected to 10.1.0.1
+2023-10-23T13:55:01.543Z|172.21.3.15    |2023-10-23T13:53:55.832123456Z|5033755             |Connection error     
+2023-10-23T13:55:01.543Z|172.21.3.15    |2023-10-23T13:52:55.015123456Z|8268153             |Connection error     
+;
 
 testMatchInStatsNonPushable
 required_capability: match_operator_colon

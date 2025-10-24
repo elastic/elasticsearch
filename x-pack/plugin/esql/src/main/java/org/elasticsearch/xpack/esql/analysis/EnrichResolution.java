@@ -11,7 +11,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
-import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -26,11 +25,6 @@ public final class EnrichResolution {
 
     public ResolvedEnrichPolicy getResolvedPolicy(String policyName, Enrich.Mode mode) {
         return resolvedPolicies.get(new Key(policyName, mode));
-    }
-
-    public Collection<ResolvedEnrichPolicy> resolvedEnrichPolicies() {
-        return resolvedPolicies.values();
-
     }
 
     public String getError(String policyName, Enrich.Mode mode) {
@@ -51,7 +45,5 @@ public final class EnrichResolution {
         errors.putIfAbsent(new Key(policyName, mode), reason);
     }
 
-    private record Key(String policyName, Enrich.Mode mode) {
-
-    }
+    private record Key(String policyName, Enrich.Mode mode) {}
 }

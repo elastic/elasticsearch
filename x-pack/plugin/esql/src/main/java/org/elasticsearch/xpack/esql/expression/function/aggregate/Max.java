@@ -47,6 +47,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, MaxBooleanAggregatorFunctionSupplier::new),
         Map.entry(DataType.LONG, MaxLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.UNSIGNED_LONG, MaxLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, MaxLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, MaxLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.INTEGER, MaxIntAggregatorFunctionSupplier::new),
@@ -58,7 +59,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
         description = "The maximum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -86,7 +87,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                 "ip",
                 "keyword",
                 "text",
-                "long",
+                "unsigned_long",
                 "version" }
         ) Expression field
     ) {
@@ -128,7 +129,13 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
             dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
-            "representable except unsigned_long and spatial types"
+            "boolean",
+            "date",
+            "ip",
+            "string",
+            "version",
+            "aggregate_metric_double",
+            "numeric except counter types"
         );
     }
 
@@ -153,7 +160,11 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Max(source(), FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MAX));
+            return new Max(
+                source(),
+                FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MAX),
+                filter()
+            );
         }
         return field().foldable() ? new MvMax(source(), field()) : null;
     }

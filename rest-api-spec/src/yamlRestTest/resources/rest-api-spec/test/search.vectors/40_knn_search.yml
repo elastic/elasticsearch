@@ -605,6 +605,46 @@ setup:
   - match: { hits.hits.0._score: $knn_score0 }
   - match: { hits.hits.1._score: $knn_score1 }
   - match: { hits.hits.2._score: $knn_score2 }
+
+---
+"Dimensions are dynamically set":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              embedding:
+                type: dense_vector
+
+  - do:
+      index:
+        index: test_index
+        id: "0"
+        refresh: true
+        body:
+          embedding: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]
+
+  # wait and ensure that the mapping update is replicated
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.dims: 5 }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test_index
+        id: "0"
+        body:
+          embedding: [ 0.5, 111.3 ]
+
 ---
 "Updating dim to null is not allowed":
   - requires:
@@ -630,3 +670,36 @@ setup:
           properties:
             embedding:
               type: dense_vector
+
+
+---
+"Searching with no data dimensions specified":
+  - requires:
+      cluster_features: "search.vectors.no_dimensions_bugfix"
+      reason: "Search with no dimensions bugfix"
+
+  - do:
+      indices.create:
+        index: empty-test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index: true
+
+  - do:
+      search:
+        index: empty-test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 3
+            num_candidates: 3
+            rescore_vector:
+              oversample: 1.5
+            similarity: 0.1
+
+  - match: { hits.total.value: 0 }

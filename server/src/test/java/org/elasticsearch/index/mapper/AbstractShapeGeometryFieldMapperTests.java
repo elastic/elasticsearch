@@ -125,7 +125,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
                     for (int j : array) {
                         expected.add(visitor.apply(geometries.get(j + currentIndex)).get());
                     }
-                    try (var block = (TestBlock) loader.reader(leaf).read(TestBlock.factory(leafReader.numDocs()), TestBlock.docs(array))) {
+                    try (var block = (TestBlock) loader.reader(leaf).read(TestBlock.factory(), TestBlock.docs(array), 0, false)) {
                         for (int i = 0; i < block.size(); i++) {
                             intArrayResults.add(block.get(i));
                         }

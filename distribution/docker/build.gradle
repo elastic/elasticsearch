@@ -117,6 +117,7 @@ dependencies {
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
+  allPlugins project(path: ':x-pack:extras:plugins', configuration: 'allPlugins')
   filebeat_aarch64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   filebeat_fips_aarch64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
@@ -128,7 +129,7 @@ dependencies {
   metricbeat_fips_aarch64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_fips_x86_64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 
-  fips "org.bouncycastle:bc-fips:1.0.2.5"
+  fips "org.bouncycastle:bc-fips:1.0.2.6"
   fips "org.bouncycastle:bctls-fips:1.0.19"
 }
 
@@ -658,7 +659,7 @@ subprojects { Project subProject ->
       it.setCompression(Compression.GZIP)
       it.getArchiveBaseName().set("elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-image")
       it.getArchiveVersion().set("")
-      it.getArchiveClassifier().set(architecture == Architecture.AARCH64 ? 'aarch64' : '')
+      it.getArchiveClassifier().set(architecture.dockerClassifier)
       it.getDestinationDirectory().set(new File(project.parent.buildDir, 'distributions'))
       it.dependsOn(exportTask)
     }
@@ -667,6 +668,11 @@ subprojects { Project subProject ->
       dependsOn compressExportTask
     }
 
+    tasks.named('assemble').configure {
+      dependsOn exportTask
+    }
+
+    // deprecated here for backwards compatibility of DistroTestPlugin and DistributionDownloadPlugin
     artifacts.add('default', file(tarFile)) {
       type = 'tar'
       name = artifactName

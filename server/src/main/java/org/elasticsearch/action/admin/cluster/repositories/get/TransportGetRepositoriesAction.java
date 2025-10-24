@@ -11,11 +11,12 @@ package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -28,14 +29,15 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action for get repositories operation
  */
-public class TransportGetRepositoriesAction extends TransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
+public class TransportGetRepositoriesAction extends TransportMasterNodeReadProjectAction<GetRepositoriesRequest, GetRepositoriesResponse> {
 
     @Inject
     public TransportGetRepositoriesAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             GetRepositoriesAction.NAME,
@@ -44,24 +46,25 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             GetRepositoriesRequest::new,
+            projectResolver,
             GetRepositoriesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetRepositoriesRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    protected ClusterBlockException checkBlock(GetRepositoriesRequest request, ProjectState state) {
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
     protected void masterOperation(
         Task task,
         final GetRepositoriesRequest request,
-        ClusterState state,
+        ProjectState state,
         final ActionListener<GetRepositoriesResponse> listener
     ) {
-        final var result = ResolvedRepositories.resolve(state, request.repositories());
+        final var result = ResolvedRepositories.resolve(state.metadata(), request.repositories());
         if (result.hasMissingRepositories()) {
             listener.onFailure(new RepositoryMissingException(String.join(", ", result.missing())));
         } else {

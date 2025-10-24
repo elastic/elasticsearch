@@ -1,0 +1,5 @@
+pr: 133405
+summary: Fix wrong pruning of plans with no output columns
+area: ES|QL
+type: bug
+issues: []

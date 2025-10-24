@@ -138,7 +138,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.get());
-        final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.get());
+        final Parameter<Boolean> norms = Parameter.normsParam(m -> builder(m).norms.get(), true);
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.get());
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -362,7 +362,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private void checkForPositions() {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalArgumentException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
             }
         }
 

@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -22,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeohashFromFieldAndLiteralAndLiteralEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator in;
@@ -48,6 +52,13 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += in.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, BytesRefBlock inBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -72,7 +83,7 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
   @Override
   public String toString() {
-    return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
+    return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + "]";
   }
 
   @Override
@@ -97,10 +108,10 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
     private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    private final StGeohash.GeoHashBoundedGrid bounds;
+    private final Function<DriverContext, StGeohash.GeoHashBoundedGrid> bounds;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
-        StGeohash.GeoHashBoundedGrid bounds) {
+        Function<DriverContext, StGeohash.GeoHashBoundedGrid> bounds) {
       this.source = source;
       this.in = in;
       this.bounds = bounds;
@@ -108,12 +119,12 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
 
     @Override
     public StGeohashFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohashFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds, context);
+      return new StGeohashFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
+      return "StGeohashFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + "]";
     }
   }
 }

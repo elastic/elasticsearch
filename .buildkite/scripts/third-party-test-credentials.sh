@@ -48,6 +48,23 @@ if [[ "${USE_3RD_PARTY_GCS_CREDENTIALS:-}" == "true" ]]; then
   .buildkite/scripts/third-party-test-credentials.gcs.sh "$google_storage_service_account"
 fi
 
+if [[ "${USE_3RD_PARTY_MS_GRAPH_CREDENTIALS:-}" == "true" ]]; then
+  json=$(vault read -format=json secret/ci/elastic-elasticsearch/ms_graph_thirdparty_test_creds)
 
+  MS_GRAPH_TENANT_ID=$(echo "$json" | jq -r .data.tenant_id)
+  export ms_graph_tenant_id="$MS_GRAPH_TENANT_ID"
+
+  MS_GRAPH_CLIENT_ID=$(echo "$json" | jq -r .data.client_id)
+  export ms_graph_client_id="$MS_GRAPH_CLIENT_ID"
+
+  MS_GRAPH_CLIENT_SECRET=$(echo "$json" | jq -r .data.client_secret)
+  export ms_graph_client_secret="$MS_GRAPH_CLIENT_SECRET"
+
+  MS_GRAPH_USERNAME=$(echo "$json" | jq -r .data.username)
+  export ms_graph_username="$MS_GRAPH_USERNAME"
+
+  MS_GRAPH_GROUP_ID=$(echo "$json" | jq -r .data.group_id)
+  export ms_graph_group_id="$MS_GRAPH_GROUP_ID"
+fi
 
 unset json

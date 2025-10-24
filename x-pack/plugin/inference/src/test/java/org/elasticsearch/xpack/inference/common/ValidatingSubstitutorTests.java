@@ -37,20 +37,38 @@ public class ValidatingSubstitutorTests extends ESTestCase {
             var sub = new ValidatingSubstitutor(Map.of("some_key", "value", "key2", "value2"), "${", "}");
             var exception = expectThrows(IllegalStateException.class, () -> sub.replace("super:${key}", "setting"));
 
-            assertThat(exception.getMessage(), is("Found placeholder [${key}] in field [setting] after replacement call"));
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Found placeholder [${key}] in field [setting] after replacement call, "
+                        + "please check that all templates have a corresponding field definition."
+                )
+            );
         }
         // only reports the first placeholder pattern
         {
             var sub = new ValidatingSubstitutor(Map.of("some_key", "value", "some_key2", "value2"), "${", "}");
             var exception = expectThrows(IllegalStateException.class, () -> sub.replace("super, ${key}, ${key2}", "setting"));
 
-            assertThat(exception.getMessage(), is("Found placeholder [${key}] in field [setting] after replacement call"));
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Found placeholder [${key}] in field [setting] after replacement call, "
+                        + "please check that all templates have a corresponding field definition."
+                )
+            );
         }
         {
             var sub = new ValidatingSubstitutor(Map.of("some_key", "value", "key2", "value2"), "${", "}");
             var exception = expectThrows(IllegalStateException.class, () -> sub.replace("super:${     \\/\tkey\"}", "setting"));
 
-            assertThat(exception.getMessage(), is("Found placeholder [${     \\/\tkey\"}] in field [setting] after replacement call"));
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Found placeholder [${     \\/\tkey\"}] in field [setting] after replacement call,"
+                        + " please check that all templates have a corresponding field definition."
+                )
+            );
         }
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -72,5 +73,11 @@ public class RestPutPipelineAction extends BaseRestHandler {
             request,
             ActionListener.withRef(new RestToXContentListener<>(channel), content)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        // pipeline_tracking info: `{created,modified}_date` system properties defined within pipeline definition.
+        return Set.of("pipeline_tracking_info", "field_access_pattern.flexible");
     }
 }

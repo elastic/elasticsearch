@@ -34,11 +34,10 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.CloseUtils;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -48,18 +47,17 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -83,7 +81,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
-import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting index templates updates
@@ -143,6 +140,7 @@ public class MetadataIndexTemplateService {
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final InstantSource instantSource;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -174,9 +172,12 @@ public class MetadataIndexTemplateService {
         }
 
         public final ClusterState execute(ClusterState currentState) throws Exception {
-            ProjectMetadata metadata = currentState.metadata().getProject(projectId);
-            ProjectMetadata newMetadata = execute(metadata);
-            return metadata == newMetadata ? currentState : ClusterState.builder(currentState).putProjectMetadata(newMetadata).build();
+            ProjectMetadata currentProject = currentState.metadata().getProject(projectId);
+            ProjectMetadata newProject = execute(currentProject);
+            if (currentProject == newProject) {
+                return currentState;
+            }
+            return ClusterState.builder(currentState).metadata(currentState.metadata().withUpdatedProject(newProject)).build();
         }
 
         public abstract ProjectMetadata execute(ProjectMetadata currentProject) throws Exception;
@@ -187,7 +188,6 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    @Inject
     public MetadataIndexTemplateService(
         ClusterService clusterService,
         MetadataCreateIndexService metadataCreateIndexService,
@@ -198,6 +198,31 @@ public class MetadataIndexTemplateService {
         IndexSettingProviders indexSettingProviders,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
+        this(
+            clusterService,
+            metadataCreateIndexService,
+            indicesService,
+            indexScopedSettings,
+            xContentRegistry,
+            systemIndices,
+            indexSettingProviders,
+            globalRetentionSettings,
+            Instant::now
+        );
+    }
+
+    // constructor allowing for injection of InstantSource/time for testing
+    MetadataIndexTemplateService(
+        ClusterService clusterService,
+        MetadataCreateIndexService metadataCreateIndexService,
+        IndicesService indicesService,
+        IndexScopedSettings indexScopedSettings,
+        NamedXContentRegistry xContentRegistry,
+        SystemIndices systemIndices,
+        IndexSettingProviders indexSettingProviders,
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        InstantSource instantSource
+    ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
         this.indicesService = indicesService;
@@ -207,6 +232,7 @@ public class MetadataIndexTemplateService {
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.globalRetentionSettings = globalRetentionSettings;
+        this.instantSource = instantSource;
     }
 
     public void removeTemplates(
@@ -268,25 +294,26 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    // Public visible for testing
+    /**
+     * Add the given component template to the project. If {@code create} is true, we will fail if there exists a component template with
+     * the same name. If a component template with the same name exists, but the content is identical, no change will be made.
+     * This method will perform all necessary validation but assumes that the component template has already been normalized (see
+     * {@link #normalizeComponentTemplate(ComponentTemplate)}.
+     */
     public ProjectMetadata addComponentTemplate(
         final ProjectMetadata project,
         final boolean create,
         final String name,
         final ComponentTemplate template
-    ) throws Exception {
-        final ComponentTemplate existing = project.componentTemplates().get(name);
-        if (create && existing != null) {
-            throw new IllegalArgumentException("component template [" + name + "] already exists");
-        }
-
-        CompressedXContent mappings = template.template().mappings();
-        CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
-
-        // We may need to normalize index settings, so do that also
-        Settings finalSettings = template.template().settings();
-        if (finalSettings != null) {
-            finalSettings = Settings.builder().put(finalSettings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+    ) throws IOException {
+        final ComponentTemplate existingTemplate = project.componentTemplates().get(name);
+        if (existingTemplate != null) {
+            if (create) {
+                throw new IllegalArgumentException("component template [" + name + "] already exists");
+            }
+            if (template.contentEquals(existingTemplate)) {
+                return project;
+            }
         }
 
         // Collect all the composable (index) templates that use this component template, we'll use
@@ -299,9 +326,9 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         // if we're updating a component template, let's check if it's part of any V2 template that will yield the CT update invalid
-        if (create == false && finalSettings != null) {
+        if (create == false && template.template().settings() != null) {
             // if the CT is specifying the `index.hidden` setting it cannot be part of any global template
-            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(finalSettings)) {
+            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(template.template().settings())) {
                 List<String> globalTemplatesThatUseThisComponent = new ArrayList<>();
                 for (Map.Entry<String, ComposableIndexTemplate> entry : templatesUsingComponent.entrySet()) {
                     ComposableIndexTemplate templateV2 = entry.getValue();
@@ -325,44 +352,32 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
+        final Long now = instantSource.instant().toEpochMilli();
+        final Long createdDateMillis = existingTemplate == null ? now : existingTemplate.createdDateMillis().orElse(null);
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
-            finalTemplate,
+            template.template(),
             template.version(),
             template.metadata(),
-            template.deprecated()
+            template.deprecated(),
+            createdDateMillis,
+            now
         );
 
-        if (finalComponentTemplate.equals(existing)) {
-            return project;
-        }
+        // These two validation checks are only scoped to the component template itself (and don't depend on any other entities in the
+        // cluster state) and could thus be done in the transport action. However, since we're parsing mappings here, we shouldn't be doing
+        // it directly on the transport thread. Instead, we should fork to a different threadpool (management/generic).
+        validateTemplate(finalComponentTemplate.template().settings(), finalComponentTemplate.template().mappings(), indicesService);
+        validate(name, finalComponentTemplate.template(), List.of(), null);
 
-        validateTemplate(finalSettings, wrappedMappings, indicesService);
-        validate(name, finalComponentTemplate);
-
+        ProjectMetadata projectWithComponentTemplateAdded = ProjectMetadata.builder(project).put(name, finalComponentTemplate).build();
         // Validate all composable index templates that use this component template
-        if (templatesUsingComponent.size() > 0) {
-            ProjectMetadata tempProjectWithComponentTemplateAdded = ProjectMetadata.builder(project)
-                .put(name, finalComponentTemplate)
-                .build();
-            Exception validationFailure = null;
+        if (templatesUsingComponent.isEmpty() == false) {
+            IllegalArgumentException validationFailure = null;
             for (Map.Entry<String, ComposableIndexTemplate> entry : templatesUsingComponent.entrySet()) {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
-                    validateLifecycle(
-                        tempProjectWithComponentTemplateAdded,
-                        composableTemplateName,
-                        composableTemplate,
-                        globalRetentionSettings.get(false)
-                    );
-                    validateDataStreamOptions(
-                        tempProjectWithComponentTemplateAdded,
-                        composableTemplateName,
-                        composableTemplate,
-                        globalRetentionSettings.get(true)
-                    );
-                    validateIndexTemplateV2(tempProjectWithComponentTemplateAdded, composableTemplateName, composableTemplate);
+                    validateIndexTemplateV2(projectWithComponentTemplateAdded, composableTemplateName, composableTemplate);
                 } catch (Exception e) {
                     if (validationFailure == null) {
                         validationFailure = new IllegalArgumentException(
@@ -391,12 +406,52 @@ public class MetadataIndexTemplateService {
                 .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), false);
         }
 
-        logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
-        return ProjectMetadata.builder(project).put(name, finalComponentTemplate).build();
+        logger.info("{} component template [{}]", existingTemplate == null ? "adding" : "updating", name);
+        return projectWithComponentTemplateAdded;
     }
 
+    /**
+     * Normalize the given component template by trying to normalize settings and wrapping mappings if necessary. Returns the same instance
+     * if nothing needs to be done.
+     */
+    public ComponentTemplate normalizeComponentTemplate(final ComponentTemplate componentTemplate) throws IOException {
+        Template template = componentTemplate.template();
+        // Normalize the index settings if necessary
+        Settings prefixedSettings = null;
+        if (template.settings() != null) {
+            prefixedSettings = template.settings().maybeNormalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
+        }
+        // TODO: theoretically, we could avoid parsing the mappings once by combining this wrapping with the mapping validation later on,
+        // but that refactoring will be non-trivial as we currently don't seem to have methods available to merge already-parsed mappings;
+        // we only allow merging mappings from CompressedXContent.
+        CompressedXContent wrappedMappings = MetadataIndexTemplateService.wrapMappingsIfNecessary(template.mappings(), xContentRegistry);
+
+        // No need to build a new component template if we didn't change anything.
+        // We can check for reference equality since `maybeNormalizePrefix` and `wrapMappingsIfNecessary` return the same instance if
+        // nothing needs to be done.
+        if (prefixedSettings == template.settings() && wrappedMappings == template.mappings()) {
+            return componentTemplate;
+        }
+        return new ComponentTemplate(
+            Template.builder(template).settings(prefixedSettings).mappings(wrappedMappings).build(),
+            componentTemplate.version(),
+            componentTemplate.metadata(),
+            componentTemplate.deprecated(),
+            componentTemplate.createdDateMillis().orElse(null),
+            componentTemplate.modifiedDateMillis().orElse(null)
+        );
+    }
+
+    /**
+     * Mappings in templates don't have to include <code>_doc</code>, so update the mappings to include this single type if necessary
+     *
+     * @param mappings mappings from a template
+     * @param xContentRegistry the xcontent registry used for parsing
+     * @return a normalized form of the mapping provided
+     * @throws IOException if reading or writing the mapping encounters a problem
+     */
     @Nullable
-    private static CompressedXContent wrapMappingsIfNecessary(@Nullable CompressedXContent mappings, NamedXContentRegistry xContentRegistry)
+    public static CompressedXContent wrapMappingsIfNecessary(@Nullable CompressedXContent mappings, NamedXContentRegistry xContentRegistry)
         throws IOException {
         // Mappings in templates don't have to include _doc, so update
         // the mappings to include this single type if necessary
@@ -558,8 +613,22 @@ public class MetadataIndexTemplateService {
     }
 
     public static void validateV2TemplateRequest(ProjectMetadata metadata, String name, ComposableIndexTemplate template) {
+        validateV2TemplateRequest(metadata.componentTemplates(), name, template);
+    }
+
+    public static void validateV2TemplateRequest(
+        Map<String, ComponentTemplate> componentTemplates,
+        String name,
+        ComposableIndexTemplate template
+    ) {
+        if (template.createdDateMillis().isPresent()) {
+            throw new InvalidIndexTemplateException(name, "provided a template property which is managed by the system: created_date");
+        }
+        if (template.modifiedDateMillis().isPresent()) {
+            throw new InvalidIndexTemplateException(name, "provided a template property which is managed by the system: modified_date");
+        }
         if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
-            Settings mergedSettings = resolveSettings(template, metadata.componentTemplates());
+            Settings mergedSettings = resolveSettings(template, componentTemplates);
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {
                 throw new InvalidIndexTemplateException(
                     name,
@@ -568,7 +637,6 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
         final List<String> ignoreMissingComponentTemplates = (template.getIgnoreMissingComponentTemplates() == null
             ? List.of()
             : template.getIgnoreMissingComponentTemplates());
@@ -620,7 +688,7 @@ public class MetadataIndexTemplateService {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
 
-        Map<String, List<String>> overlaps = v2TemplateOverlaps(project, name, template, validateV2Overlaps);
+        Map<String, List<String>> overlaps = v2TemplateOverlaps(project.templatesV2(), name, template, validateV2Overlaps);
 
         overlaps = findConflictingV1Templates(project, name, template.indexPatterns());
         if (overlaps.size() > 0) {
@@ -638,11 +706,9 @@ public class MetadataIndexTemplateService {
             HeaderWarning.addWarning(warning);
         }
 
-        final ComposableIndexTemplate finalIndexTemplate;
-        Template innerTemplate = template.template();
-        if (innerTemplate == null) {
-            finalIndexTemplate = template;
-        } else {
+        final ComposableIndexTemplate.Builder finalIndexTemplateBuilder = template.toBuilder();
+        final Template innerTemplate = template.template();
+        if (innerTemplate != null) {
             // We may need to normalize index settings, so do that also
             Settings finalSettings = innerTemplate.settings();
             if (finalSettings != null) {
@@ -650,14 +716,25 @@ public class MetadataIndexTemplateService {
             }
             // If an inner template was specified, its mappings may need to be
             // adjusted (to add _doc) and it should be validated
-            CompressedXContent mappings = innerTemplate.mappings();
-            CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
+            final CompressedXContent mappings = innerTemplate.mappings();
+            final CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
             final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
-            finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
+            finalIndexTemplateBuilder.template(finalTemplate);
         }
 
-        if (finalIndexTemplate.equals(existing)) {
-            return project;
+        final long now = instantSource.millis();
+        final ComposableIndexTemplate finalIndexTemplate;
+        if (existing == null) {
+            finalIndexTemplate = finalIndexTemplateBuilder.createdDate(now).modifiedDate(now).build();
+        } else {
+            final ComposableIndexTemplate templateToCompareToExisting = finalIndexTemplateBuilder.createdDate(
+                existing.createdDateMillis().orElse(null)
+            ).modifiedDate(existing.modifiedDateMillis().orElse(null)).build();
+
+            if (templateToCompareToExisting.equals(existing)) {
+                return project;
+            }
+            finalIndexTemplate = finalIndexTemplateBuilder.modifiedDate(now).build();
         }
 
         validateIndexTemplateV2(project, name, finalIndexTemplate);
@@ -675,20 +752,20 @@ public class MetadataIndexTemplateService {
      * we throw an {@link IllegalArgumentException} with information about the conflicting templates.
      * <p>
      * This method doesn't check for conflicting overlaps with v1 templates.
-     * @param project the current project
+     * @param templatesV2 the templates to check overlap against
      * @param name the composable index template name
      * @param template the full composable index template object we check for overlaps
      * @param validate should we throw {@link IllegalArgumentException} if conflicts are found or just compute them
      * @return a map of v2 template names to their index patterns for v2 templates that would overlap with the given template
      */
     public static Map<String, List<String>> v2TemplateOverlaps(
-        final ProjectMetadata project,
+        Map<String, ComposableIndexTemplate> templatesV2,
         String name,
         final ComposableIndexTemplate template,
         boolean validate
     ) {
         Map<String, List<String>> overlaps = findConflictingV2Templates(
-            project,
+            templatesV2,
             name,
             template.indexPatterns(),
             true,
@@ -718,25 +795,33 @@ public class MetadataIndexTemplateService {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         var finalTemplate = indexTemplate.template();
-        final var now = Instant.now();
+        final var now = instantSource.instant();
 
-        final var combinedMappings = collectMappings(indexTemplate, projectMetadata.componentTemplates(), "tmp_idx");
-        final var combinedSettings = resolveSettings(indexTemplate, projectMetadata.componentTemplates());
-        // First apply settings sourced from index setting providers:
-        var finalSettings = Settings.builder();
+        final var componentTemplates = projectMetadata.componentTemplates();
+        final var combinedMappings = collectMappings(indexTemplate, componentTemplates, "tmp_idx");
+        final var combinedSettings = resolveSettings(indexTemplate, componentTemplates);
+        var additionalSettingsBuilder = Settings.builder();
         for (var provider : indexSettingProviders) {
-            var newAdditionalSettings = provider.getAdditionalIndexSettings(
+            Settings.Builder builder = Settings.builder();
+            provider.provideAdditionalSettings(
                 VALIDATE_INDEX_NAME,
                 indexTemplate.getDataStreamTemplate() != null ? VALIDATE_DATA_STREAM_NAME : null,
                 projectMetadata.retrieveIndexModeFromTemplate(indexTemplate),
                 projectMetadata,
                 now,
                 combinedSettings,
-                combinedMappings
+                combinedMappings,
+                IndexVersion.current(),
+                builder
             );
-            MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, finalSettings);
-            finalSettings.put(newAdditionalSettings);
+            var newAdditionalSettings = builder.build();
+            MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, additionalSettingsBuilder);
+            additionalSettingsBuilder.put(newAdditionalSettings);
         }
+        Settings additionalSettings = additionalSettingsBuilder.build();
+        var finalSettings = Settings.builder();
+        // First apply settings sourced from index setting providers:
+        finalSettings.put(additionalSettings);
         // Then apply setting from component templates:
         finalSettings.put(combinedSettings);
         // Then finally apply settings resolved from index template:
@@ -746,13 +831,13 @@ public class MetadataIndexTemplateService {
 
         var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 
-        validate(name, templateToValidate);
-        validateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
-        validateLifecycle(projectMetadata, name, templateToValidate, globalRetentionSettings.get(false));
-        validateDataStreamOptions(projectMetadata, name, templateToValidate, globalRetentionSettings.get(true));
+        validate(name, templateToValidate, additionalSettings);
+        maybeValidateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
+        validateLifecycle(componentTemplates, name, templateToValidate, globalRetentionSettings.get(false));
+        validateDataStreamOptions(componentTemplates, name, templateToValidate, globalRetentionSettings.get(true));
 
         if (templateToValidate.isDeprecated() == false) {
-            validateUseOfDeprecatedComponentTemplates(name, templateToValidate, projectMetadata.componentTemplates());
+            validateUseOfDeprecatedComponentTemplates(name, templateToValidate, componentTemplates);
             validateUseOfDeprecatedIngestPipelines(name, projectMetadata.custom(IngestMetadata.TYPE), combinedSettings);
             // TODO come up with a plan how to validate usage of deprecated ILM policies
             // we don't have access to the core/main plugin here so we can't use the IndexLifecycleMetadata type
@@ -820,12 +905,12 @@ public class MetadataIndexTemplateService {
 
     // Visible for testing
     static void validateLifecycle(
-        ProjectMetadata project,
+        Map<String, ComponentTemplate> componentTemplates,
         String indexTemplateName,
         ComposableIndexTemplate template,
         @Nullable DataStreamGlobalRetention globalRetention
     ) {
-        DataStreamLifecycle.Builder builder = resolveLifecycle(template, project.componentTemplates());
+        DataStreamLifecycle.Builder builder = resolveLifecycle(template, componentTemplates);
         if (builder != null) {
             if (template.getDataStreamTemplate() == null) {
                 throw new IllegalArgumentException(
@@ -845,12 +930,12 @@ public class MetadataIndexTemplateService {
 
     // Visible for testing
     static void validateDataStreamOptions(
-        ProjectMetadata projectMetadata,
+        Map<String, ComponentTemplate> componentTemplates,
         String indexTemplateName,
         ComposableIndexTemplate template,
         DataStreamGlobalRetention globalRetention
     ) {
-        DataStreamOptions.Builder dataStreamOptionsBuilder = resolveDataStreamOptions(template, projectMetadata.componentTemplates());
+        DataStreamOptions.Builder dataStreamOptionsBuilder = resolveDataStreamOptions(template, componentTemplates);
         if (dataStreamOptionsBuilder != null) {
             if (template.getDataStreamTemplate() == null) {
                 throw new IllegalArgumentException(
@@ -874,6 +959,46 @@ public class MetadataIndexTemplateService {
     }
 
     /**
+     * Maybe runs {@link #validateDataStreamsStillReferenced} if it looks like the new composite template could change data stream coverage.
+     */
+    private static void maybeValidateDataStreamsStillReferenced(
+        ProjectMetadata project,
+        String templateName,
+        ComposableIndexTemplate newTemplate
+    ) {
+        final ComposableIndexTemplate existingTemplate = project.templatesV2().get(templateName);
+        final Settings existingSettings = Optional.ofNullable(existingTemplate)
+            .map(ComposableIndexTemplate::template)
+            .map(Template::settings)
+            .orElse(Settings.EMPTY);
+        final Settings newSettings = Optional.ofNullable(newTemplate)
+            .map(ComposableIndexTemplate::template)
+            .map(Template::settings)
+            .orElse(Settings.EMPTY);
+        // We check whether anything relevant has changed that could affect data stream coverage and return early if not.
+        // These checks are based on the implementation of findV2Template and the data stream template check in this method.
+        // If we're adding a new template, we do the full check in case this template's priority changes coverage.
+        // Note that this method is also run for component templates, and that component templates can configure the
+        // `index.hidden` setting. In that case, we'd never take this shortcut as we're comparing a composite template
+        // with a composable template (i.e. we don't take component templates into account for the existing template).
+        if (existingTemplate != null
+            && Objects.equals(existingTemplate.indexPatterns(), newTemplate.indexPatterns())
+            && Objects.equals(existingSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN), newSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN))
+            && Objects.equals(existingTemplate.getDataStreamTemplate() != null, newTemplate.getDataStreamTemplate() != null)
+            && Objects.equals(existingTemplate.priorityOrZero(), newTemplate.priorityOrZero())) {
+            if (Assertions.ENABLED) {
+                try {
+                    validateDataStreamsStillReferenced(project, templateName, newTemplate);
+                } catch (IllegalArgumentException e) {
+                    assert false : "Data stream reference validation took a shortcut but the full check failed: " + e.getMessage();
+                }
+            }
+            return;
+        }
+        validateDataStreamsStillReferenced(project, templateName, newTemplate);
+    }
+
+    /**
      * Validate that by changing or adding {@code newTemplate}, there are
      * no unreferenced data streams. Note that this scenario is still possible
      * due to snapshot restores, but this validation is best-effort at template
@@ -884,25 +1009,23 @@ public class MetadataIndexTemplateService {
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
-        final Set<String> dataStreams = project.dataStreams()
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().isSystem() == false)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
-
-        Function<ProjectMetadata, Set<String>> findUnreferencedDataStreams = meta -> {
+        Function<Map<String, ComposableIndexTemplate>, Set<String>> findUnreferencedDataStreams = composableTemplates -> {
             final Set<String> unreferenced = new HashSet<>();
             // For each data stream that we have, see whether it's covered by a different
             // template (which is great), or whether it's now uncovered by any template
-            for (String dataStream : dataStreams) {
-                final String matchingTemplate = findV2Template(meta, dataStream, false);
+            for (var dataStreamEntry : project.dataStreams().entrySet()) {
+                // Exclude system data streams
+                if (dataStreamEntry.getValue().isSystem()) {
+                    continue;
+                }
+                final String dataStream = dataStreamEntry.getKey();
+                final String matchingTemplate = findV2Template(project, composableTemplates.entrySet(), dataStream, false, false);
                 if (matchingTemplate == null) {
                     unreferenced.add(dataStream);
                 } else {
                     // We found a template that still matches, great! Buuuuttt... check whether it
                     // is a data stream template, as it's only useful if it has a data stream definition
-                    if (meta.templatesV2().get(matchingTemplate).getDataStreamTemplate() == null) {
+                    if (composableTemplates.get(matchingTemplate).getDataStreamTemplate() == null) {
                         unreferenced.add(dataStream);
                     }
                 }
@@ -911,12 +1034,13 @@ public class MetadataIndexTemplateService {
         };
 
         // Find data streams that are currently unreferenced
-        final Set<String> currentlyUnreferenced = findUnreferencedDataStreams.apply(project);
+        final Set<String> currentlyUnreferenced = findUnreferencedDataStreams.apply(project.templatesV2());
 
-        // Generate a metadata as if the new template were actually in the cluster state
-        final ProjectMetadata updatedMetadata = ProjectMetadata.builder(project).put(templateName, newTemplate).build();
+        // Generate a map as if the new template were actually in the cluster state
+        final var updatedTemplatesMap = new HashMap<>(project.templatesV2());
+        updatedTemplatesMap.put(templateName, newTemplate);
         // Find the data streams that would be unreferenced now that the template is updated/added
-        final Set<String> newlyUnreferenced = findUnreferencedDataStreams.apply(updatedMetadata);
+        final Set<String> newlyUnreferenced = findUnreferencedDataStreams.apply(updatedTemplatesMap);
 
         // If we found any data streams that used to be covered, but will no longer be covered by
         // changing this template, then blow up with as much helpful information as we can muster
@@ -978,7 +1102,7 @@ public class MetadataIndexTemplateService {
         final String candidateName,
         final List<String> indexPatterns
     ) {
-        return findConflictingV2Templates(project, candidateName, indexPatterns, false, 0L);
+        return findConflictingV2Templates(project.templatesV2(), candidateName, indexPatterns, false, 0L);
     }
 
     /**
@@ -992,18 +1116,22 @@ public class MetadataIndexTemplateService {
      * index templates with the same priority).
      */
     static Map<String, List<String>> findConflictingV2Templates(
-        final ProjectMetadata project,
+        final Map<String, ComposableIndexTemplate> templatesV2,
         final String candidateName,
         final List<String> indexPatterns,
         boolean checkPriority,
         long priority
     ) {
-        Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
+        // No need to determinize the automaton, as it is only used to check for intersection with another automaton.
+        // Determinization is avoided because it can fail or become very costly due to state explosion.
+        Automaton v1automaton = Regex.simpleMatchToNonDeterminizedAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new TreeMap<>();
-        for (Map.Entry<String, ComposableIndexTemplate> entry : project.templatesV2().entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> entry : templatesV2.entrySet()) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
-            Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
+            // No need to determinize the automaton, as it is only used to check for intersection with another automaton.
+            // Determinization is avoided because it can fail or become very costly due to state explosion.
+            Automaton v2automaton = Regex.simpleMatchToNonDeterminizedAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
                 if (checkPriority == false || priority == template.priorityOrZero()) {
                     logger.debug(
@@ -1142,7 +1270,7 @@ public class MetadataIndexTemplateService {
                 return candidates.stream()
                     .noneMatch(
                         template -> templateNames.contains(template.v1()) == false
-                            && isGlobalAndHasIndexHiddenSetting(projectMetadata, template.v2(), template.v1()) == false
+                            && isGlobalAndHasIndexHiddenSetting(template.v2(), projectMetadata.componentTemplates()) == false
                     );
             })
             .map(DataStream::getName)
@@ -1430,7 +1558,7 @@ public class MetadataIndexTemplateService {
         // a restored index cluster state that modified a component template used by this global template such that it has this setting)
         // we will fail and the user will have to update the index template and remove this setting or update the corresponding component
         // template that contributes to the index template resolved settings
-        if (isGlobalAndHasIndexHiddenSetting(projectMetadata, winner, winnerName)) {
+        if (isGlobalAndHasIndexHiddenSetting(winner, projectMetadata.componentTemplates())) {
             throw new IllegalStateException(
                 "global index template ["
                     + winnerName
@@ -1502,12 +1630,11 @@ public class MetadataIndexTemplateService {
     // Checks if a global template specifies the `index.hidden` setting. This check is important because a global
     // template shouldn't specify the `index.hidden` setting, we leave it up to the caller to handle this situation.
     private static boolean isGlobalAndHasIndexHiddenSetting(
-        ProjectMetadata projectMetadata,
         ComposableIndexTemplate template,
-        String templateName
+        Map<String, ComponentTemplate> componentTemplates
     ) {
         return anyMatch(template.indexPatterns(), Regex::isMatchAllPattern)
-            && IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(projectMetadata, templateName));
+            && IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(template, componentTemplates));
     }
 
     /**
@@ -1877,10 +2004,8 @@ public class MetadataIndexTemplateService {
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices
     ) throws Exception {
-        final ProjectMetadata projectMetadataWithTemplate = ProjectMetadata.builder(project).put(templateName, template).build();
-
         final String temporaryIndexName = "validate-template-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
-        Settings resolvedSettings = resolveSettings(projectMetadataWithTemplate, templateName);
+        Settings resolvedSettings = resolveSettings(template, project.componentTemplates());
 
         // use the provided values, otherwise just pick valid dummy values
         int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(resolvedSettings);
@@ -1900,22 +2025,14 @@ public class MetadataIndexTemplateService {
             .build();
 
         // Validate index metadata (settings)
-        final ProjectMetadata projectMetadataWithIndex = ProjectMetadata.builder(projectMetadataWithTemplate)
-            .put(
-                IndexMetadata.builder(temporaryIndexName)
-                    // necessary to pass asserts in ClusterState constructor
-                    .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
-                    .settings(finalResolvedSettings)
-            )
-            .build();
-        final IndexMetadata tmpIndexMetadata = projectMetadataWithIndex.index(temporaryIndexName);
+        final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(finalResolvedSettings).build();
         indicesService.withTempIndexService(tmpIndexMetadata, tempIndexService -> {
             // Validate aliases
             MetadataCreateIndexService.resolveAndValidateAliases(
                 temporaryIndexName,
                 Collections.emptySet(),
-                MetadataIndexTemplateService.resolveAliases(projectMetadataWithIndex, templateName),
-                projectMetadataWithIndex,
+                MetadataIndexTemplateService.resolveAliases(project, template),
+                project,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 xContentRegistry,
@@ -1928,7 +2045,7 @@ public class MetadataIndexTemplateService {
             String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
             // Parse mappings to ensure they are valid after being composed
 
-            List<CompressedXContent> mappings = collectMappings(projectMetadataWithIndex, templateName, indexName);
+            List<CompressedXContent> mappings = collectMappings(template, project.componentTemplates(), indexName);
             try {
                 MapperService mapperService = tempIndexService.mapperService();
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE);
@@ -1943,67 +2060,48 @@ public class MetadataIndexTemplateService {
         });
     }
 
-    static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService) throws Exception {
+    public static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
+        throws IOException {
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
         if (settings == null) {
             settings = Settings.EMPTY;
         }
 
-        Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
-        try {
-            // use the provided values, otherwise just pick valid dummy values
-            int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
-            int dummyShards = settings.getAsInt(
-                IndexMetadata.SETTING_NUMBER_OF_SHARDS,
-                dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1
-            );
-            int shardReplicas = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
+        int dummyShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
+        int shardReplicas = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
 
-            // create index service for parsing and validating "mappings"
-            Settings dummySettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                .put(settings)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .build();
+        // create index service for parsing and validating "mappings"
+        Settings dummySettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(settings)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
 
-            final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(dummySettings).build();
-            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), false);
-            createdIndex = dummyIndexService.index();
+        final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(dummySettings).build();
 
+        indicesService.withTempIndexService(tmpIndexMetadata, dummyIndexService -> {
             if (mappings != null) {
                 dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.INDEX_TEMPLATE);
             }
-
-        } finally {
-            if (createdIndex != null) {
-                indicesService.removeIndex(
-                    createdIndex,
-                    NO_LONGER_ASSIGNED,
-                    " created for parsing template mapping",
-                    CloseUtils.NO_SHARDS_CREATED_EXECUTOR,
-                    ActionListener.noop()
-                );
-            }
-        }
+            return null;
+        });
     }
 
-    private void validate(String name, ComponentTemplate template) {
-        validate(name, template.template(), Collections.emptyList());
+    private void validate(String name, ComposableIndexTemplate template, @Nullable Settings systemProvided) {
+        validate(name, template.template(), template.indexPatterns(), systemProvided);
     }
 
-    private void validate(String name, ComposableIndexTemplate template) {
-        validate(name, template.template(), template.indexPatterns());
-    }
-
-    private void validate(String name, Template template, List<String> indexPatterns) {
+    private void validate(String name, Template template, List<String> indexPatterns, @Nullable Settings systemProvided) {
         Optional<Template> maybeTemplate = Optional.ofNullable(template);
         validate(
             name,
             maybeTemplate.map(Template::settings).orElse(Settings.EMPTY),
+            systemProvided,
             indexPatterns,
             maybeTemplate.map(Template::aliases).orElse(emptyMap()).values().stream().map(MetadataIndexTemplateService::toAlias).toList()
         );
@@ -2022,10 +2120,16 @@ public class MetadataIndexTemplateService {
     }
 
     private void validate(PutRequest putRequest) {
-        validate(putRequest.name, putRequest.settings, putRequest.indexPatterns, putRequest.aliases);
+        validate(putRequest.name, putRequest.settings, null, putRequest.indexPatterns, putRequest.aliases);
     }
 
-    private void validate(String name, @Nullable Settings settings, List<String> indexPatterns, List<Alias> aliases) {
+    private void validate(
+        String name,
+        @Nullable Settings settings,
+        @Nullable Settings systemProvided,
+        List<String> indexPatterns,
+        List<Alias> aliases
+    ) {
         List<String> validationErrors = new ArrayList<>();
         if (name.contains(" ")) {
             validationErrors.add("name must not contain a space");
@@ -2078,7 +2182,11 @@ public class MetadataIndexTemplateService {
                     validationErrors.add(t.getMessage());
                 }
             }
-            List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(settings, true);
+            List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(
+                settings,
+                systemProvided,
+                true
+            );
             validationErrors.addAll(indexSettingsValidation);
         }
 

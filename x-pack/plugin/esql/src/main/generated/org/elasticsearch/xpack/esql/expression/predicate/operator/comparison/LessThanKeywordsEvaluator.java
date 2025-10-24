@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class LessThanKeywordsEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LessThanKeywordsEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator lhs;
@@ -60,34 +63,44 @@ public final class LessThanKeywordsEvaluator implements EvalOperator.ExpressionE
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += lhs.baseRamBytesUsed();
+    baseRamBytesUsed += rhs.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BooleanBlock eval(int positionCount, BytesRefBlock lhsBlock, BytesRefBlock rhsBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef lhsScratch = new BytesRef();
       BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (lhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (lhsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (lhsBlock.getValueCount(p) != 1) {
-          if (lhsBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (rhsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (rhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (rhsBlock.getValueCount(p) != 1) {
-          if (rhsBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBoolean(LessThan.processKeywords(lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsBlock.getBytesRef(rhsBlock.getFirstValueIndex(p), rhsScratch)));
+        BytesRef lhs = lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch);
+        BytesRef rhs = rhsBlock.getBytesRef(rhsBlock.getFirstValueIndex(p), rhsScratch);
+        result.appendBoolean(LessThan.processKeywords(lhs, rhs));
       }
       return result.build();
     }
@@ -98,7 +111,9 @@ public final class LessThanKeywordsEvaluator implements EvalOperator.ExpressionE
       BytesRef lhsScratch = new BytesRef();
       BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, LessThan.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)));
+        BytesRef lhs = lhsVector.getBytesRef(p, lhsScratch);
+        BytesRef rhs = rhsVector.getBytesRef(p, rhsScratch);
+        result.appendBoolean(p, LessThan.processKeywords(lhs, rhs));
       }
       return result.build();
     }

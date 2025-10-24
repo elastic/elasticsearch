@@ -100,9 +100,16 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
         }
     }
 
+    protected void beforeUpgrade() {
+        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
+            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
+        }
+    }
+
     @Before
     public void maybeUpgrade() throws Exception {
         if (upgraded == false && requestedUpgradeStatus == UPGRADED) {
+            beforeUpgrade();
             try {
                 if (getOldClusterTestVersion().before(MINIMUM_WIRE_COMPATIBLE_VERSION)) {
                     // First upgrade to latest wire compatible version
@@ -134,7 +141,11 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
         return requestedUpgradeStatus == OLD;
     }
 
-    public static String getOldClusterVersion() {
+    /**
+     * The version of the "old" (initial) cluster. It is an opaque string, do not even think about parsing it for version
+     * comparison. Use (test) cluster features and {@link ParameterizedFullClusterRestartTestCase#oldClusterHasFeature} instead.
+     */
+    protected static String getOldClusterVersion() {
         return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 

@@ -55,12 +55,12 @@ To enable REST API compatibility for all requests received by {{es}} set the env
 
 ## REST API compatibility workflow [_rest_api_compatibility_workflow]
 
-To leverage REST API compatibility during an upgrade from the last 8.x to {{version}}:
+To leverage REST API compatibility during an upgrade from the last 8.x to {{version.stack}}:
 
 1. Upgrade your [{{es}} clients](https://www.elastic.co/guide/en/elasticsearch/client/index.html) to the latest 8.x version and enable REST API compatibility.
 2. Use the [Upgrade Assistant](docs-content://deploy-manage/upgrade/prepare-to-upgrade/upgrade-assistant.md) to review all critical issues and explore the deprecation logs. Some critical issues might be mitigated by REST API compatibility.
 3. Resolve all critical issues before proceeding with the upgrade.
-4. Upgrade Elasticsearch to {{version}}.
+4. Upgrade Elasticsearch to {{version.stack}}.
 5. Review the deprecation logs for entries with the category `compatible_api`. Review the workflow associated with the requests that relied on compatibility mode.
 6. Upgrade your {{es}} clients to 9.x and resolve compatibility issues manually where needed.
 

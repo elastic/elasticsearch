@@ -421,7 +421,7 @@ public class ValuesSourceConfig {
      */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
-        return alignesWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
+        return alignsWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
     }
 
     /**
@@ -430,10 +430,14 @@ public class ValuesSourceConfig {
      * is searchable and there aren't missing values or a script to confuse
      * the ordering.
      */
-    public boolean alignesWithSearchIndex() {
+    public boolean alignsWithSearchIndex() {
+        boolean hasDocValuesSkipper = fieldType() instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
         boolean isTimestampField = fieldContext() != null && DataStream.TIMESTAMP_FIELD_NAME.equals(fieldContext().field());
         boolean hasDocValuesSkipper = isTimestampField && ((DateFieldMapper.DateFieldType) fieldContext.fieldType()).hasDocValuesSkipper();
-        return script() == null && missing() == null && fieldType() != null && (fieldType().isIndexed() || hasDocValuesSkipper);
+        return script() == null
+            && missing() == null
+            && fieldType() != null
+            && (fieldType().indexType().supportsSortShortcuts() || hasDocValuesSkipper) || hasDocValuesSkipper);
     }
 
     /**

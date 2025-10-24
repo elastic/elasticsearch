@@ -179,6 +179,7 @@ public class TransportSimulateTemplateAction extends TransportLocalProjectMetada
             matchingTemplate,
             temporaryIndexName,
             projectWithTemplate,
+            null, // we never match a data stream
             isDslOnlyMode,
             xContentRegistry,
             indicesService,
@@ -200,6 +201,6 @@ public class TransportSimulateTemplateAction extends TransportLocalProjectMetada
 
     @Override
     protected ClusterBlockException checkBlock(SimulateTemplateAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

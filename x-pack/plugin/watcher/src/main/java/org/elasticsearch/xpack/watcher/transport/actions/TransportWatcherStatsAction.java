@@ -10,6 +10,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.injection.guice.Inject;
@@ -42,6 +43,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     private final ExecutionService executionService;
     private final TriggerService triggerService;
     private final WatcherLifeCycleService lifeCycleService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportWatcherStatsAction(
@@ -51,7 +53,8 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
         ActionFilters actionFilters,
         WatcherLifeCycleService lifeCycleService,
         ExecutionService executionService,
-        TriggerService triggerService
+        TriggerService triggerService,
+        ProjectResolver projectResolver
     ) {
         super(
             WatcherStatsAction.NAME,
@@ -64,6 +67,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
         this.lifeCycleService = lifeCycleService;
         this.executionService = executionService;
         this.triggerService = triggerService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -106,7 +110,8 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     }
 
     private WatcherMetadata getWatcherMetadata() {
-        WatcherMetadata watcherMetadata = clusterService.state().getMetadata().getProject().custom(WatcherMetadata.TYPE);
+
+        WatcherMetadata watcherMetadata = projectResolver.getProjectMetadata(clusterService.state()).custom(WatcherMetadata.TYPE);
         if (watcherMetadata == null) {
             watcherMetadata = new WatcherMetadata(false);
         }

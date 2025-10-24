@@ -648,6 +648,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

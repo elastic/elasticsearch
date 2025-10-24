@@ -1,0 +1,13 @@
+{
+    "properties": {
+        "millis": {
+            "type": "date_nanos"
+        },
+        "nanos": {
+            "type": "date"
+        },
+        "num": {
+            "type": "long"
+        }
+    }
+}

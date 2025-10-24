@@ -11,9 +11,11 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -46,11 +48,14 @@ import static org.hamcrest.Matchers.hasSize;
 public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
 
     private static TemporaryFolder repoDirectory = new TemporaryFolder();
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("path.repo", () -> getRepoPath())
-        .setting("xpack.security.enabled", "false")
+        .user(USER, PASS)
+        .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .build();
 
@@ -129,6 +134,11 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testSnapshotRestore() throws Exception {

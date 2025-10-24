@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class ByteLengthEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ByteLengthEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
@@ -51,22 +54,30 @@ public final class ByteLengthEvaluator implements EvalOperator.ExpressionEvaluat
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public IntBlock eval(int positionCount, BytesRefBlock valBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendInt(ByteLength.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+        BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
+        result.appendInt(ByteLength.process(val));
       }
       return result.build();
     }
@@ -76,7 +87,8 @@ public final class ByteLengthEvaluator implements EvalOperator.ExpressionEvaluat
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, ByteLength.process(valVector.getBytesRef(p, valScratch)));
+        BytesRef val = valVector.getBytesRef(p, valScratch);
+        result.appendInt(p, ByteLength.process(val));
       }
       return result.build();
     }

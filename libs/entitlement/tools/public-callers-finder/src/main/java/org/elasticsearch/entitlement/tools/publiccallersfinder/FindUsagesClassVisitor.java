@@ -31,18 +31,10 @@ class FindUsagesClassVisitor extends ClassVisitor {
 
     record MethodDescriptor(String className, String methodName, String methodDescriptor) {}
 
-    record EntryPoint(
-        String moduleName,
-        String source,
-        int line,
-        String className,
-        String methodName,
-        String methodDescriptor,
-        EnumSet<ExternalAccess> access
-    ) {}
+    record EntryPoint(String moduleName, String source, int line, MethodDescriptor method, EnumSet<ExternalAccess> access) {}
 
     interface CallerConsumer {
-        void accept(String source, int line, String className, String methodName, String methodDescriptor, EnumSet<ExternalAccess> access);
+        void accept(String source, int line, MethodDescriptor method, EnumSet<ExternalAccess> access);
     }
 
     private final Set<String> moduleExports;
@@ -126,7 +118,7 @@ class FindUsagesClassVisitor extends ClassVisitor {
                             (methodAccess & ACC_PUBLIC) != 0,
                             (methodAccess & ACC_PROTECTED) != 0
                         );
-                        callers.accept(source, line, className, methodName, methodDescriptor, externalAccess);
+                        callers.accept(source, line, new MethodDescriptor(className, methodName, methodDescriptor), externalAccess);
                     }
                 }
             }

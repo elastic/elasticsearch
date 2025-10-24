@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -54,7 +55,7 @@ import java.util.function.Consumer;
 /**
  * Dispatches child field-caps requests to old/new data nodes in the local cluster that have shards of the requesting indices.
  */
-final class RequestDispatcher {
+public final class RequestDispatcher {
     static final Logger LOGGER = LogManager.getLogger(RequestDispatcher.class);
 
     private final TransportService transportService;
@@ -74,7 +75,7 @@ final class RequestDispatcher {
     private final AtomicInteger executionRound = new AtomicInteger();
     private final Map<String, IndexSelector> indexSelectors;
 
-    RequestDispatcher(
+    public RequestDispatcher(
         ClusterService clusterService,
         TransportService transportService,
         ProjectResolver projectResolver,
@@ -105,7 +106,7 @@ final class RequestDispatcher {
         ProjectState project = projectResolver.getProjectState(clusterState);
 
         for (String index : indices) {
-            final List<ShardIterator> shardIts;
+            final List<SearchShardRouting> shardIts;
             try {
                 shardIts = clusterService.operationRouting().searchShards(project, new String[] { index }, null, null);
             } catch (Exception e) {
@@ -127,7 +128,7 @@ final class RequestDispatcher {
         }
     }
 
-    void execute() {
+    public void execute() {
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -270,7 +271,7 @@ final class RequestDispatcher {
 
         IndexSelector(
             String clusterAlias,
-            List<ShardIterator> shardIts,
+            List<SearchShardRouting> shardIts,
             QueryBuilder indexFilter,
             long nowInMillis,
             CoordinatorRewriteContextProvider coordinatorRewriteContextProvider

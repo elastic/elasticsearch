@@ -12,14 +12,24 @@ package org.elasticsearch.datageneration.datasource;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
 
 public class DefaultObjectGenerationHandler implements DataSourceHandler {
+
+    /**
+     * Field names will not be generated which start with `_reserved_`. Handlers can safely
+     * create field names starting with this prefix without the concern of randomly generated
+     * fields having the same name.
+     */
+    public static final String RESERVED_FIELD_NAME_PREFIX = "_reserved_";
+
     @Override
     public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
         return new DataSourceResponse.ChildFieldGenerator() {
@@ -49,20 +59,37 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
             @Override
             public String generateFieldName() {
-                return randomAlphaOfLengthBetween(1, 10);
+                while (true) {
+                    String fieldName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
+                    if (fieldName.isBlank()) {
+                        continue;
+                    }
+                    if (fieldName.indexOf('.') != -1) {
+                        continue;
+                    }
+                    if (fieldName.startsWith(RESERVED_FIELD_NAME_PREFIX)) {
+                        continue;
+                    }
+
+                    return fieldName;
+                }
             }
         };
     }
 
     // UNSIGNED_LONG is excluded because it is mapped as long
     // and values larger than long fail to parse.
-    private static final Set<FieldType> EXCLUDED_FROM_DYNAMIC_MAPPING = Set.of(FieldType.UNSIGNED_LONG);
+    private static final Set<FieldType> EXCLUDED_FROM_DYNAMIC_MAPPING = Set.of(FieldType.UNSIGNED_LONG, FieldType.PASSTHROUGH);
+    private static final Set<FieldType> ALLOWED_FIELD_TYPES = Arrays.stream(FieldType.values())
+        .filter(fieldType -> EXCLUDED_FROM_DYNAMIC_MAPPING.contains(fieldType) == false)
+        .collect(Collectors.toSet());
 
     @Override
     public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-        return new DataSourceResponse.FieldTypeGenerator(
-            () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(FieldType.values()).toString())
-        );
+        return new DataSourceResponse.FieldTypeGenerator(() -> {
+            var fieldType = ESTestCase.randomFrom(ALLOWED_FIELD_TYPES);
+            return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(fieldType.toString());
+        });
     }
 
     @Override

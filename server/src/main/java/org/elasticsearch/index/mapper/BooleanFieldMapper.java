@@ -26,6 +26,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBooleanIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BooleansBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.Script;
@@ -265,7 +267,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return indexType.hasTerms() || hasDocValues();
         }
 
         @Override
@@ -281,11 +283,14 @@ public class BooleanFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.getIndexSettings()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
                     if (value instanceof Boolean) {
@@ -347,12 +352,16 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BlockDocValuesReader.BooleansBlockLoader(name());
+                return new BooleansBlockLoader(name());
             }
 
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
-                return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
+                return new FallbackSyntheticSourceBlockLoader(
+                    fallbackSyntheticSourceBlockLoaderReader(),
+                    name(),
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                ) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
                         return factory.booleans(expectedCount);
@@ -360,8 +369,8 @@ public class BooleanFieldMapper extends FieldMapper {
                 };
             }
 
-            ValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
-            BlockSourceReader.LeafIteratorLookup lookup = isIndexed() || isStored()
+            var fetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings());
+            BlockSourceReader.LeafIteratorLookup lookup = indexType.hasTerms() || isStored()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup);
@@ -415,9 +424,7 @@ public class BooleanFieldMapper extends FieldMapper {
             }
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                // boolean fields are indexed, but not with points
-                boolean indexed = false;
-                return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new, indexed);
+                return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new, indexType);
             }
 
             if (operation == FielddataOperation.SCRIPT) {
@@ -427,7 +434,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 return new SourceValueFetcherSortedBooleanIndexFieldData.Builder(
                     name(),
                     CoreValuesSourceType.BOOLEAN,
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings()),
                     searchLookup,
                     BooleanDocValuesField::new
                 );
@@ -446,7 +453,7 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
             } else {
                 return SortedNumericDocValuesField.newSlowExactQuery(name(), docValueForSearch(value));
@@ -456,7 +463,7 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.termsQuery(values, context);
             } else {
                 Set<?> dedupe = new HashSet<>(values);
@@ -477,7 +484,7 @@ public class BooleanFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return new TermRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),

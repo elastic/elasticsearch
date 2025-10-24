@@ -54,14 +54,14 @@ public enum RangeType {
         @Override
         public InetAddress parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
             throws IOException {
-            InetAddress address = InetAddresses.forString(parser.text());
+            InetAddress address = InetAddresses.forString(parser.optimizedText().bytes());
             return included ? address : nextUp(address);
         }
 
         @Override
         public InetAddress parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
             throws IOException {
-            InetAddress address = InetAddresses.forString(parser.text());
+            InetAddress address = InetAddresses.forString(parser.optimizedText().bytes());
             return included ? address : nextDown(address);
         }
 

@@ -1,24 +1,25 @@
 {
-  "migration.get_feature_upgrade_status":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-feature-upgrade.html",
-      "description":"Find out whether system features need to be upgraded or not"
+  "migration.get_feature_upgrade_status": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-get-feature-upgrade-status",
+      "description": "Get feature migration information"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_migration/system_features",
-          "methods":[
+          "path": "/_migration/system_features",
+          "methods": [
             "GET"
           ]
         }
       ]
-    },
-    "params":{}
+    }
   }
 }

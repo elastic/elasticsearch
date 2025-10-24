@@ -43,6 +43,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[s/_search/_search?filter_path=hits.hits/]
 
 1. Indexing a document with `"true"`, which is interpreted as `true`.
 2. Searching for documents with a JSON `true`.
@@ -82,6 +83,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[s/_search/_search?filter_path=aggregations,hits.hits/]
 
 ## Parameters for `boolean` fields [boolean-params]
 
@@ -126,11 +128,6 @@ The following parameters are accepted by `boolean` fields:
 
 ## Synthetic `_source` [boolean-synthetic-source]
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
-
 `boolean` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 
 Synthetic source may sort `boolean` field values. For example:
@@ -160,6 +157,7 @@ PUT idx/_doc/1
   "bool": [true, false, true, false]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -168,5 +166,5 @@ Will become:
   "bool": [false, false, true, true]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

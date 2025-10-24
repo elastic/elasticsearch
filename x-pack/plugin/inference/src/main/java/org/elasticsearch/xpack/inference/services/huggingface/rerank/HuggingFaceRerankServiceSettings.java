@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.huggingface.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings.extractUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     implements
@@ -38,6 +37,10 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     public static final String URL = "url";
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
+
+    private static final TransportVersion ML_INFERENCE_HUGGING_FACE_RERANK_ADDED = TransportVersion.fromName(
+        "ml_inference_sagemaker_chat_completion"
+    );
 
     public static HuggingFaceRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -115,7 +118,13 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
+        assert false : "should never be called when supportsVersion is used";
+        return ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.supports(ML_INFERENCE_HUGGING_FACE_RERANK_ADDED);
     }
 
     @Override

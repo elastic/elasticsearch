@@ -1,10 +1,10 @@
 {
   "connector.update_service_type": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-service-type-api.html",
-      "description": "Updates the service type of the connector."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-service-type",
+      "description": "Update the connector service type"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

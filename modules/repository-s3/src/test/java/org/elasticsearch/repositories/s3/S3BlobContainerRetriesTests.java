@@ -21,6 +21,7 @@ import org.apache.http.conn.ConnectionPoolTimeoutException;
 import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
@@ -100,6 +101,7 @@ import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTIN
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.s3.S3ClientSettingsTests.DEFAULT_REGION_UNAVAILABLE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -133,7 +135,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             Mockito.mock(ResourceWatcherService.class),
-            () -> null
+            DEFAULT_REGION_UNAVAILABLE
         ) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
                 assertEquals("127.0.0.1", host);
@@ -239,7 +241,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repository", S3Repository.TYPE, repositorySettings.build());
 
         final S3BlobStore s3BlobStore = new S3BlobStore(
-            randomProjectIdOrDefault(),
+            ProjectId.DEFAULT,
             service,
             "bucket",
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
@@ -1322,7 +1324,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             ),
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             Mockito.mock(ResourceWatcherService.class),
-            () -> null
+            DEFAULT_REGION_UNAVAILABLE
         );
         service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();

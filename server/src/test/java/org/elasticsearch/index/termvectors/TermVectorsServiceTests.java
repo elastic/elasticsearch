@@ -30,6 +30,7 @@ import static java.lang.Math.abs;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -146,5 +147,50 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         while (phraseIterator.next() != null) {
             assertEquals(max, phraseIterator.docFreq());
         }
+    }
+
+    public void testArtificialDocWithNestedFields() throws IOException {
+        final XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("group")
+            .field("type", "text")
+            .endObject()
+            .startObject("user")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("first")
+            .field("type", "text")
+            .endObject()
+            .startObject("last")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        final Settings settings = Settings.builder().put("number_of_shards", 1).build();
+        createIndex("test", settings, mapping);
+        ensureGreen();
+
+        final TermVectorsRequest request = new TermVectorsRequest().doc(
+            jsonBuilder().startObject()
+                .field("group", "test")
+                .startArray("user")
+                .startObject()
+                .field("first", "John")
+                .field("last", "Smith")
+                .endObject()
+                .endArray()
+                .endObject()
+        ).termStatistics(true);
+
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        assertThat(shard, notNullValue());
+        final TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
+        assertThat(response.getFields(), containsInAnyOrder("group", "user.first", "user.last"));
     }
 }

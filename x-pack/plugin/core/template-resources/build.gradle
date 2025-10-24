@@ -1,5 +1,5 @@
-
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
 
 base {
   archivesName = 'x-pack-template-resources'

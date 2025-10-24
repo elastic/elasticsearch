@@ -46,6 +46,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
@@ -54,6 +55,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -196,17 +198,22 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         ComposableIndexTemplate indexTemplate
     ) {
         IndexMode indexMode = state.metadata().retrieveIndexModeFromTemplate(indexTemplate);
+        IndexVersion indexVersion = state.metadata().index(dataStream.getWriteIndex()).getCreationVersion();
         for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
-            Settings addlSettinsg = provider.getAdditionalIndexSettings(
+            Settings.Builder builder = Settings.builder();
+            provider.provideAdditionalSettings(
                 MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
                 dataStream.getName(),
                 indexMode,
                 state.metadata(),
                 Instant.now(),
                 settings,
-                List.of()
+                List.of(),
+                indexVersion,
+                builder
             );
-            var rawMode = addlSettinsg.get(IndexSettings.MODE.getKey());
+            Settings addlSettings = builder.build();
+            var rawMode = addlSettings.get(IndexSettings.MODE.getKey());
             if (rawMode != null) {
                 indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
             }
@@ -261,13 +268,17 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     Settings settings = dataStream.getEffectiveSettings(state.metadata());
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
                     if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
-                        indexMode = resolveMode(
-                            state,
-                            indexSettingProviders,
-                            dataStream,
-                            settings,
-                            dataStream.getEffectiveIndexTemplate(state.metadata())
-                        );
+                        try {
+                            indexMode = resolveMode(
+                                state,
+                                indexSettingProviders,
+                                dataStream,
+                                settings,
+                                dataStream.getEffectiveIndexTemplate(state.metadata())
+                            );
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 } else {
@@ -410,6 +421,6 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
 
     @Override
     protected ClusterBlockException checkBlock(GetDataStreamAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

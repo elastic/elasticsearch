@@ -32,7 +32,7 @@ public class InvalidRepositoryTests extends ESTestCase {
         assertThat(repository.getProjectId(), equalTo(projectId));
         final var expectedException = expectThrows(
             RepositoryException.class,
-            () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid"))
+            () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid"), false)
         );
         assertThat(expectedException.getMessage(), equalTo("[name] repository type [type] failed to create on current node"));
         assertThat(expectedException.getCause(), isA(RepositoryException.class));

@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ExplainLifecycleIT extends ESRestTestCase {
+public class ExplainLifecycleIT extends IlmESRestTestCase {
     private static final Logger logger = LogManager.getLogger(ExplainLifecycleIT.class);
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
     private static final String IS_AUTO_RETRYABLE_ERROR_FIELD = "is_auto_retryable_error";
@@ -207,6 +207,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             assertThat(explainIndexWithMissingPolicy.get("action"), is(nullValue()));
             assertThat(explainIndexWithMissingPolicy.get("step"), is(ErrorStep.NAME));
             assertThat(explainIndexWithMissingPolicy.get("age"), is(nullValue()));
+            assertThat(explainIndexWithMissingPolicy.get("age_in_millis"), is(nullValue()));
             assertThat(explainIndexWithMissingPolicy.get("failed_step"), is(nullValue()));
             Map<String, Object> stepInfo = (Map<String, Object>) explainIndexWithMissingPolicy.get("step_info");
             assertThat(stepInfo, is(notNullValue()));
@@ -343,6 +344,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         assertThat(explainIndexMap.get("step"), is("complete"));
         assertThat(explainIndexMap.get("phase_time_millis"), is(notNullValue()));
         assertThat(explainIndexMap.get("age"), is(notNullValue()));
+        assertThat(explainIndexMap.get("age_in_millis"), is(notNullValue()));
         assertThat(explainIndexMap.get("phase_execution"), is(notNullValue()));
         assertThat(explainIndexMap.get("failed_step"), is(nullValue()));
         assertThat(explainIndexMap.get("step_info"), is(nullValue()));

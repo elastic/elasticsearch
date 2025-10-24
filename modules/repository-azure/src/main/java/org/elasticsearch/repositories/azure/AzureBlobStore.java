@@ -49,8 +49,8 @@ import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -118,6 +118,8 @@ public class AzureBlobStore implements BlobStore {
     private static final long DEFAULT_READ_CHUNK_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB).getBytes();
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) ByteSizeValue.of(64, ByteSizeUnit.KB).getBytes();
 
+    @Nullable // for cluster level object store in MP
+    private final ProjectId projectId;
     private final AzureStorageService service;
     private final BigArrays bigArrays;
     private final RepositoryMetadata repositoryMetadata;
@@ -134,11 +136,13 @@ public class AzureBlobStore implements BlobStore {
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
 
     public AzureBlobStore(
+        @Nullable ProjectId projectId,
         RepositoryMetadata metadata,
         AzureStorageService service,
         BigArrays bigArrays,
         RepositoriesMetrics repositoriesMetrics
     ) {
+        this.projectId = projectId;
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;
@@ -356,7 +360,7 @@ public class AzureBlobStore implements BlobStore {
             totalSize = position + length;
         }
         BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container).getBlobAsyncClient(blob);
-        int maxReadRetries = service.getMaxReadRetries(clientName);
+        int maxReadRetries = service.getMaxReadRetries(projectId, clientName);
         try {
             return new AzureInputStream(
                 blobAsyncClient,
@@ -477,7 +481,7 @@ public class AzureBlobStore implements BlobStore {
         final OperationPurpose purpose,
         final String blobName,
         final long blobSize,
-        final CheckedBiFunction<Long, Long, InputStream, IOException> provider,
+        final BlobContainer.BlobMultiPartInputStreamProvider provider,
         final boolean failIfAlreadyExists
     ) throws IOException {
         try {
@@ -559,7 +563,7 @@ public class AzureBlobStore implements BlobStore {
         BlockBlobAsyncClient asyncClient,
         String blobName,
         MultiPart multiPart,
-        CheckedBiFunction<Long, Long, InputStream, IOException> provider
+        BlobContainer.BlobMultiPartInputStreamProvider provider
     ) {
         logger.debug(
             "{}: staging part [{}] of size [{}] from offset [{}]",
@@ -942,7 +946,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     private AzureBlobServiceClient getAzureBlobServiceClientClient(OperationPurpose purpose) {
-        return service.client(clientName, locationMode, purpose, requestMetricsHandler);
+        return service.client(projectId, clientName, locationMode, purpose, requestMetricsHandler);
     }
 
     @Override

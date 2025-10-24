@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -55,7 +56,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -144,7 +145,7 @@ public class EvalBenchmark {
     public String operation;
 
     private static Operator operator(String operation) {
-        return new EvalOperator(driverContext.blockFactory(), evaluator(operation));
+        return new EvalOperator(driverContext, evaluator(operation));
     }
 
     private static EvalOperator.ExpressionEvaluator evaluator(String operation) {
@@ -212,7 +213,7 @@ public class EvalBenchmark {
                 FieldAttribute timestamp = new FieldAttribute(
                     Source.EMPTY,
                     "timestamp",
-                    new EsField("timestamp", DataType.DATETIME, Map.of(), true)
+                    new EsField("timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
                 );
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
@@ -321,19 +322,35 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute longField() {
-        return new FieldAttribute(Source.EMPTY, "long", new EsField("long", DataType.LONG, Map.of(), true));
+        return new FieldAttribute(
+            Source.EMPTY,
+            "long",
+            new EsField("long", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
     }
 
     private static FieldAttribute doubleField() {
-        return new FieldAttribute(Source.EMPTY, "double", new EsField("double", DataType.DOUBLE, Map.of(), true));
+        return new FieldAttribute(
+            Source.EMPTY,
+            "double",
+            new EsField("double", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
     }
 
     private static FieldAttribute intField() {
-        return new FieldAttribute(Source.EMPTY, "int", new EsField("int", DataType.INTEGER, Map.of(), true));
+        return new FieldAttribute(
+            Source.EMPTY,
+            "int",
+            new EsField("int", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
     }
 
     private static FieldAttribute keywordField() {
-        return new FieldAttribute(Source.EMPTY, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true));
+        return new FieldAttribute(
+            Source.EMPTY,
+            "keyword",
+            new EsField("keyword", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
     }
 
     private static Configuration configuration() {
@@ -342,14 +359,16 @@ public class EvalBenchmark {
             Locale.ROOT,
             null,
             null,
-            null,
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
+            QueryPragmas.EMPTY,
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(Settings.EMPTY),
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
             null,
             false,
             Map.of(),
             0,
-            false
+            false,
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
         );
     }
 

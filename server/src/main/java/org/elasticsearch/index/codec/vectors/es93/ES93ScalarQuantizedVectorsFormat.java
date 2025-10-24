@@ -12,9 +12,13 @@ package org.elasticsearch.index.codec.vectors.es93;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsReader;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -35,7 +39,12 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES93ScalarQuantizedVectorsFormat";
 
-    private final FlatVectorsFormat format;
+    static final Lucene104ScalarQuantizedVectorScorer flatVectorScorer = new Lucene104ScalarQuantizedVectorScorer(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
+
+    private final Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding;
+    private final FlatVectorsFormat rawVectorFormat;
 
     public ES93ScalarQuantizedVectorsFormat() {
         this(ES93GenericFlatVectorsFormat.ElementType.STANDARD, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT);
@@ -50,17 +59,22 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
         Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding
     ) {
         super(NAME);
-        this.format = new ES93ScalarQuantizedFlatVectorsFormat(encoding, elementType, false);
+        assert elementType != ES93GenericFlatVectorsFormat.ElementType.BIT : "BIT should not be used with scalar quantization";
+        this.encoding = encoding;
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return format.fieldsWriter(state);
+        return new Lucene104ScalarQuantizedVectorsWriter(state, encoding, rawVectorFormat.fieldsWriter(state), flatVectorScorer) {
+        };
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES93FlatVectorsReader(format.fieldsReader(state));
+        return new ES93FlatVectorsReader(
+            new Lucene104ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
+        );
     }
 
     @Override
@@ -70,7 +84,16 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return NAME + "(name=" + NAME + ", innerFormat=" + format + ")";
+        return NAME
+            + "(name="
+            + NAME
+            + ", encoding="
+            + encoding
+            + ", flatVectorScorer="
+            + flatVectorScorer
+            + ", rawVectorFormat="
+            + rawVectorFormat
+            + ")";
     }
 
     public static class ES93FlatVectorsReader extends KnnVectorsReader {

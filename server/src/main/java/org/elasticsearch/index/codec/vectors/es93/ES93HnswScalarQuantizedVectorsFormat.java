@@ -11,8 +11,12 @@ package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsReader;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
@@ -26,16 +30,17 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
 
     static final String NAME = "ES93HnswScalarQuantizedVectorsFormat";
 
-    /** The format for storing, reading, merging vectors on disk */
-    private final FlatVectorsFormat flatVectorsFormat;
+    static final Lucene104ScalarQuantizedVectorScorer flatVectorScorer = new Lucene104ScalarQuantizedVectorScorer(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
+
+    private final Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding;
+    private final FlatVectorsFormat rawVectorFormat;
 
     public ES93HnswScalarQuantizedVectorsFormat() {
         super(NAME);
-        this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(
-            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
-            false
-        );
+        this.encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT;
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD, false);
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
@@ -46,7 +51,8 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         boolean useDirectIO
     ) {
         super(NAME, maxConn, beamWidth);
-        this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(encoding, elementType, useDirectIO);
+        this.encoding = encoding;
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
@@ -59,12 +65,13 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
-        this.flatVectorsFormat = new ES93ScalarQuantizedFlatVectorsFormat(encoding, elementType, useDirectIO);
+        this.encoding = encoding;
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
     @Override
     protected FlatVectorsFormat flatVectorsFormat() {
-        return flatVectorsFormat;
+        return rawVectorFormat;
     }
 
     @Override
@@ -73,7 +80,8 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
             state,
             maxConn,
             beamWidth,
-            flatVectorsFormat.fieldsWriter(state),
+            new Lucene104ScalarQuantizedVectorsWriter(state, encoding, rawVectorFormat.fieldsWriter(state), flatVectorScorer) {
+            },
             numMergeWorkers,
             mergeExec,
             0
@@ -82,6 +90,9 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+        return new Lucene99HnswVectorsReader(
+            state,
+            new Lucene104ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
+        );
     }
 }

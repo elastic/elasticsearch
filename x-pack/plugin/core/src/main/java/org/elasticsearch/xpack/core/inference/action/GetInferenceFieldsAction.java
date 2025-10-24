@@ -15,6 +15,7 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
@@ -35,20 +36,28 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
 
     public static class Request extends ActionRequest {
         private final List<String> indices;
+        private final List<String> fields;
+        private final String query;
 
-        public Request(List<String> indices) {
+        public Request(List<String> indices, List<String> fields, @Nullable String query) {
             this.indices = indices;
+            this.fields = fields;
+            this.query = query;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.indices = in.readCollectionAsList(StreamInput::readString);
+            this.fields = in.readCollectionAsList(StreamInput::readString);
+            this.query = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringCollection(indices);
+            out.writeStringCollection(fields);
+            out.writeOptionalString(query);
         }
 
         @Override
@@ -60,17 +69,27 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return Collections.unmodifiableList(indices);
         }
 
+        public List<String> getFields() {
+            return Collections.unmodifiableList(fields);
+        }
+
+        public String getQuery() {
+            return query;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(indices, request.indices);
+            return Objects.equals(indices, request.indices)
+                && Objects.equals(fields, request.fields)
+                && Objects.equals(query, request.query);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(indices);
+            return Objects.hash(indices, fields, query);
         }
     }
 

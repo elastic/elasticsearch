@@ -5,6 +5,11 @@ mapped_pages:
 
 # How DLS works [es-dls-overview]
 
+:::{important}
+This page pertains to a specific implementation of DLS for Elastic content connectors.
+Refer to [Controlling access at the document and field level](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}} DLS feature.
+:::
+
 Document level security (DLS) enables you to control access to content at the document level. Access to each document in an index can be managed independently, based on the identities (such as usernames, emails, groups etc.) that are allowed to view it.
 
 This feature works with the help of special access control documents that are indexed by a connector into a hidden Elasticsearch index, associated with the standard content index. If your content documents have access control fields that match the criteria defined in your access control documents, Elasticsearch will apply DLS to the documents synced by the connector.
@@ -76,7 +81,7 @@ These documents define the access control policy for the data indexed into Elast
     }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 In this example, the identity object specifies the identity of the user that this document pertains to. The `query` object then uses a template to list the parameters that form the access control policy for this identity. It also contains the query `source`, which will specify a query to fetch all content documents the identity has access to. The `_id` could be, for example, the email address or the username of a user. The exact content and structure of `identity` depends on the corresponding implementation.
 
@@ -98,7 +103,7 @@ Content documents contain the actual data from your 3rd party source. A specific
   ]
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 
 ### Access control sync vs content sync [es-dls-overview-sync-type-comparison]
@@ -147,7 +152,7 @@ One access control document:
     }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Let’s see which of the following example documents these permissions can access, and why.
 
@@ -161,7 +166,7 @@ Let’s see which of the following example documents these permissions can acces
   ]
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 The user `example username` will have access to this document as he’s part of the corresponding group and his username and email address are also explicitly part of `_allow_access_control`.
 
@@ -173,7 +178,7 @@ The user `example username` will have access to this document as he’s part of 
   ]
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 The user `example username` will also have access to this document as they are part of the `example group`.
 
@@ -185,7 +190,7 @@ The user `example username` will also have access to this document as they are p
   ]
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 The user `example username` won’t have access to this document because their email does not match `another.user@example.com`.
 
@@ -195,7 +200,7 @@ The user `example username` won’t have access to this document because their e
   "_allow_access_control": []
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 No one will have access to this document as the `_allow_access_control` field is empty.
 
@@ -231,7 +236,7 @@ GET .search-acl-filter-source1
     }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 ```js
 GET .search-acl-filter-source2
@@ -253,7 +258,7 @@ GET .search-acl-filter-source2
     }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 `.search-acl-filter-source1` and `.search-acl-filter-source2` define the access control identities for `source1` and `source2`.
 
@@ -303,7 +308,7 @@ POST /_security/api_key
   }
 }
 ```
-%  TEST[skip:TODO]
+% TEST[skip:TODO]
 
 
 #### Workflow guidance [es-dls-overview-multiple-connectors-workflow-guidance]
@@ -318,5 +323,5 @@ The API key can be invalidated using the [Invalidate API Key API](https://www.el
 ### Learn more [es-dls-overview-search-time-learn-more]
 
 * [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md)
-* [Elasticsearch Document Level Security^](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md)
+* [Elasticsearch Document Level Security](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md)
 

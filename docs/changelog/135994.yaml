@@ -1,6 +1,0 @@
-pr: 135994
-summary: Cardinality Aggregator Throws `UnsupportedOperationException` When Field
-  Type is Vector
-area: Vector Search
-type: bug
-issues: []

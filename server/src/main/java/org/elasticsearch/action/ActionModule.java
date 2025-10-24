@@ -58,8 +58,6 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
-import org.elasticsearch.action.admin.cluster.snapshots.features.SnapshottableFeaturesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportSnapshottableFeaturesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
@@ -131,14 +129,17 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.elasticsearch.action.admin.indices.sampling.DeleteSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.GetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.PutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestDeleteSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.RestGetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.RestPutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportDeleteSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportPutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
@@ -693,8 +694,8 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportUpdateSnapshotStatusAction.TYPE, TransportUpdateSnapshotStatusAction.class);
         actions.register(TransportRestoreSnapshotAction.TYPE, TransportRestoreSnapshotAction.class);
         actions.register(TransportSnapshotsStatusAction.TYPE, TransportSnapshotsStatusAction.class);
-        actions.register(SnapshottableFeaturesAction.INSTANCE, TransportSnapshottableFeaturesAction.class);
-        actions.register(ResetFeatureStateAction.INSTANCE, TransportResetFeatureStateAction.class);
+        actions.register(TransportSnapshottableFeaturesAction.TYPE, TransportSnapshottableFeaturesAction.class);
+        actions.register(TransportResetFeatureStateAction.TYPE, TransportResetFeatureStateAction.class);
         actions.register(TransportGetShardSnapshotAction.TYPE, TransportGetShardSnapshotAction.class);
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
@@ -833,6 +834,7 @@ public class ActionModule extends AbstractModule {
             actions.register(PutSampleConfigurationAction.INSTANCE, TransportPutSampleConfigurationAction.class);
             actions.register(GetSampleStatsAction.INSTANCE, TransportGetSampleStatsAction.class);
             actions.register(DeleteSampleConfigurationAction.INSTANCE, TransportDeleteSampleConfigurationAction.class);
+            actions.register(GetSampleConfigurationAction.INSTANCE, TransportGetSampleConfigurationAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -1068,6 +1070,7 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestPutSampleConfigurationAction());
             registerHandler.accept(new RestGetSampleStatsAction());
             registerHandler.accept(new RestDeleteSampleConfigurationAction());
+            registerHandler.accept(new RestGetSampleConfigurationAction());
         }
     }
 

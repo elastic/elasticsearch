@@ -19,12 +19,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
@@ -49,12 +49,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
-
     @Override
     protected Writeable.Reader<DataNodeRequest> instanceReader() {
-        return DataNodeRequest::new;
+        return in -> new DataNodeRequest(in, new SerializationTestUtils.TestNameIdMapper());
     }
 
     @Override
@@ -243,7 +243,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                 yield request;
             }
             case 7 -> {
-                var indices = randomValueOtherThan(in.indices(), () -> generateRandomStringArray(10, 10, false, false));
+                var indices = randomArrayOtherThan(in.indices(), () -> generateRandomStringArray(10, 10, false, false));
                 var request = new DataNodeRequest(
                     in.sessionId(),
                     in.configuration(),
@@ -302,9 +302,14 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     static Versioned<LogicalPlan> parse(String query) {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
         var analyzer = new Analyzer(
-            testAnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution(), emptyInferenceResolution()),
+            testAnalyzerContext(
+                TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(test),
+                emptyPolicyResolution(),
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
         TransportVersion minimumVersion = analyzer.context().minimumVersion();

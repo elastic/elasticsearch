@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -63,16 +65,16 @@ import java.util.Map;
  * becomes
  *
  * TS k8s
- * | STATS rate_$1=rate(request), VALUES(host) BY _tsid
- * | STATS max(rate_$1) BY host=`VALUES(host)`
+ * | STATS rate_$1=rate(request), DIMENSION_VALUES(host) BY _tsid
+ * | STATS max(rate_$1) BY host=`DIMENSION_VALUES(host)`
  *
  * TS k8s | STATS avg(rate(request)) BY host
  *
  * becomes
  *
  * TS k8s
- * | STATS rate_$1=rate(request), VALUES(host) BY _tsid
- * | STATS sum(rate_$1), count(rate_$1) BY host=`VALUES(host)`
+ * | STATS rate_$1=rate(request), DIMENSION_VALUES(host) BY _tsid
+ * | STATS sum(rate_$1), count(rate_$1) BY host=`DIMENSION_VALUES(host)`
  * | EVAL `avg(rate(request))` = `sum(rate_$1)` / `count(rate_$1)`
  * | KEEP `avg(rate(request))`, host
  *
@@ -82,8 +84,8 @@ import java.util.Map;
  *
  * TS k8s
  * | EVAL  `bucket(@timestamp, 1minute)`=datetrunc(@timestamp, 1minute)
- * | STATS rate_$1=rate(request), VALUES(host) BY _tsid,`bucket(@timestamp, 1minute)`
- * | STATS sum=sum(rate_$1), count(rate_$1) BY host=`VALUES(host)`, `bucket(@timestamp, 1minute)`
+ * | STATS rate_$1=rate(request), DIMENSION_VALUES(host) BY _tsid,`bucket(@timestamp, 1minute)`
+ * | STATS sum=sum(rate_$1), count(rate_$1) BY host=`DIMENSION_VALUES(host)`, `bucket(@timestamp, 1minute)`
  * | EVAL `avg(rate(request))` = `sum(rate_$1)` / `count(rate_$1)`
  * | KEEP `avg(rate(request))`, host, `bucket(@timestamp, 1minute)`
  * </pre>
@@ -146,22 +148,16 @@ import java.util.Map;
  * | STATS max(rate_$1 + rate_$2) BY host_values, time_bucket
  * </pre>
  */
-public final class TranslateTimeSeriesAggregate extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class TranslateTimeSeriesAggregate extends OptimizerRules.ParameterizedOptimizerRule<
+    TimeSeriesAggregate,
+    LogicalOptimizerContext> {
 
     public TranslateTimeSeriesAggregate() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
     @Override
-    protected LogicalPlan rule(Aggregate aggregate) {
-        if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null) {
-            return translate(ts);
-        } else {
-            return aggregate;
-        }
-    }
-
-    LogicalPlan translate(TimeSeriesAggregate aggregate) {
+    protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
         aggregate.forEachDown(EsRelation.class, r -> {
@@ -278,7 +274,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 firstPassGroupings.add(newFinalGroup);
                 secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
             } else {
-                var valuesAgg = new Alias(g.source(), g.name(), new Values(g.source(), g));
+                var valuesAgg = new Alias(g.source(), g.name(), valuesAggregate(context, g));
                 firstPassAggs.add(valuesAgg);
                 Alias pack = new Alias(
                     g.source(),
@@ -359,6 +355,14 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         merged.addAll(aggregates);
         groupings.forEach(g -> merged.add(Expressions.attribute(g)));
         return merged;
+    }
+
+    private AggregateFunction valuesAggregate(LogicalOptimizerContext context, Attribute group) {
+        if (group.isDimension() && context.minimumVersion().supports(DimensionValues.DIMENSION_VALUES_VERSION)) {
+            return new DimensionValues(group.source(), group);
+        } else {
+            return new Values(group.source(), group);
+        }
     }
 
     private static class InternalNames {

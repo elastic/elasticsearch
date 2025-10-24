@@ -85,6 +85,14 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    /**
+     * @param idMapper should always be null in production! Custom mappers are only used in tests to force ID values to be the same after
+     *                 serialization and deserialization, which is not the case when they are generated as usual.
+     */
+    DataNodeRequest(StreamInput in, PlanStreamInput.NameIdMapper idMapper) throws IOException {
         super(in);
         this.sessionId = in.readString();
         this.configuration = new Configuration(
@@ -94,10 +102,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.clusterAlias = in.readString();
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
-        this.plan = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration).readNamedWriteable(PhysicalPlan.class);
+        PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper);
+        this.plan = pin.readNamedWriteable(PhysicalPlan.class);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.runNodeLevelReduction = in.readBoolean();
         } else {
             this.runNodeLevelReduction = false;
@@ -120,7 +129,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(runNodeLevelReduction);
         }
         if (out.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {

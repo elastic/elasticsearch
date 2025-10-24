@@ -21,8 +21,8 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
@@ -49,25 +49,22 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.CopyingXContentParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
+import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 import org.elasticsearch.xpack.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
 import org.elasticsearch.xpack.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 
 /**
  * {@link FieldMapper} for the exponential_histogram field type. The mapped data represents {@link ExponentialHistogram}s.
@@ -84,46 +81,12 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_IN
  * }
  * </code></pre>
  *
- * <p>Example histogram data for a full histogram value:</p>
- * <pre><code>{
- *   "my_histo": {
- *     "scale": 12,
- *     "sum": 1234,
- *     "min": -123.456,
- *     "max": 456.456,
- *     "zero": {
- *       "threshold": 0.123456,
- *       "count": 42
- *     },
- *     "positive": {
- *       "indices": [-1000000, -10, 25, 26, 99999999],
- *       "counts": [1, 2, 3, 4, 5]
- *     },
- *     "negative": {
- *       "indices": [-123, 0, 12345],
- *       "counts": [20, 30, 40]
- *     }
- *    }
- * </code></pre>
+ * <p>For a example histogram data for a full histogram value,
+ * see {@link ExponentialHistogramParser}.
  */
 public class ExponentialHistogramFieldMapper extends FieldMapper {
 
-    public static final FeatureFlag EXPONENTIAL_HISTOGRAM_FEATURE = new FeatureFlag("exponential_histogram");
-
     public static final String CONTENT_TYPE = "exponential_histogram";
-
-    public static final ParseField SCALE_FIELD = new ParseField(ExponentialHistogramXContent.SCALE_FIELD);
-    public static final ParseField SUM_FIELD = new ParseField(ExponentialHistogramXContent.SUM_FIELD);
-    public static final ParseField MIN_FIELD = new ParseField(ExponentialHistogramXContent.MIN_FIELD);
-    public static final ParseField MAX_FIELD = new ParseField(ExponentialHistogramXContent.MAX_FIELD);
-    public static final ParseField ZERO_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_FIELD);
-    public static final ParseField ZERO_COUNT_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_COUNT_FIELD);
-    public static final ParseField ZERO_THRESHOLD_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_THRESHOLD_FIELD);
-
-    public static final ParseField POSITIVE_FIELD = new ParseField(ExponentialHistogramXContent.POSITIVE_FIELD);
-    public static final ParseField NEGATIVE_FIELD = new ParseField(ExponentialHistogramXContent.NEGATIVE_FIELD);
-    public static final ParseField BUCKET_INDICES_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_INDICES_FIELD);
-    public static final ParseField BUCKET_COUNTS_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_COUNTS_FIELD);
 
     private static ExponentialHistogramFieldMapper toType(FieldMapper in) {
         return (ExponentialHistogramFieldMapper) in;
@@ -357,14 +320,6 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 return;
             }
 
-            Double sum = null;
-            Double min = null;
-            Double max = null;
-            Integer scale = null;
-            ParsedZeroBucket zeroBucket = ParsedZeroBucket.DEFAULT;
-            List<IndexWithCount> negativeBuckets = Collections.emptyList();
-            List<IndexWithCount> positiveBuckets = Collections.emptyList();
-
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             if (shouldStoreMalformedDataForSyntheticSource) {
                 var copyingParser = new CopyingXContentParser(context.parser());
@@ -373,56 +328,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             } else {
                 subParser = new XContentSubParser(context.parser());
             }
-            token = subParser.nextToken();
-            while (token != XContentParser.Token.END_OBJECT) {
-
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
-                String fieldName = subParser.currentName();
-                if (fieldName.equals(SCALE_FIELD.getPreferredName())) {
-                    token = subParser.nextToken();
-
-                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                    scale = subParser.intValue();
-                    if (scale > ExponentialHistogram.MAX_SCALE || scale < ExponentialHistogram.MIN_SCALE) {
-                        throw new DocumentParsingException(
-                            subParser.getTokenLocation(),
-                            "error parsing field ["
-                                + fullPath()
-                                + "], scale field must be in "
-                                + "range ["
-                                + ExponentialHistogram.MIN_SCALE
-                                + ", "
-                                + ExponentialHistogram.MAX_SCALE
-                                + "] but got "
-                                + scale
-                        );
-                    }
-                } else if (fieldName.equals(SUM_FIELD.getPreferredName())) {
-                    sum = parseDoubleAllowingInfinity(subParser);
-                } else if (fieldName.equals(MIN_FIELD.getPreferredName())) {
-                    min = parseDoubleAllowingInfinity(subParser);
-                } else if (fieldName.equals(MAX_FIELD.getPreferredName())) {
-                    max = parseDoubleAllowingInfinity(subParser);
-                } else if (fieldName.equals(ZERO_FIELD.getPreferredName())) {
-                    zeroBucket = parseZeroBucket(subParser);
-                } else if (fieldName.equals(POSITIVE_FIELD.getPreferredName())) {
-                    positiveBuckets = readAndValidateBuckets(POSITIVE_FIELD.getPreferredName(), subParser);
-                } else if (fieldName.equals(NEGATIVE_FIELD.getPreferredName())) {
-                    negativeBuckets = readAndValidateBuckets(NEGATIVE_FIELD.getPreferredName(), subParser);
-                } else {
-                    throw new DocumentParsingException(
-                        subParser.getTokenLocation(),
-                        "error parsing field [" + fullPath() + "], with unknown parameter [" + fieldName + "]"
-                    );
-                }
-                token = subParser.nextToken();
-            }
-            if (scale == null) {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field [" + fullPath() + "], expected field called [" + SCALE_FIELD.getPreferredName() + "]"
-                );
-            }
+            subParser.nextToken();
+            ExponentialHistogramParser.ParsedExponentialHistogram parsedHistogram = ExponentialHistogramParser.parse(fullPath(), subParser);
 
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException(
@@ -436,23 +343,22 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
             long totalValueCount;
             try {
-                totalValueCount = getTotalValueCount(zeroBucket, positiveBuckets, negativeBuckets);
+                totalValueCount = getTotalValueCount(parsedHistogram);
             } catch (ArithmeticException e) {
                 throw new IllegalArgumentException(
                     "Field [" + fullPath() + "] has a total value count exceeding the allowed maximum value of " + Long.MAX_VALUE
                 );
             }
-
-            sum = validateOrEstimateSum(sum, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
-            min = validateOrEstimateMin(min, zeroBucket, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
-            max = validateOrEstimateMax(max, zeroBucket, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
+            double sum = validateOrEstimateSum(parsedHistogram, subParser);
+            double min = validateOrEstimateMin(parsedHistogram, subParser);
+            double max = validateOrEstimateMax(parsedHistogram, subParser);
 
             HistogramDocValueFields docValues = buildDocValueFields(
                 fullPath(),
-                scale,
-                negativeBuckets,
-                positiveBuckets,
-                zeroBucket.threshold(),
+                parsedHistogram.scale(),
+                parsedHistogram.negativeBuckets(),
+                parsedHistogram.positiveBuckets(),
+                parsedHistogram.zeroThreshold(),
                 totalValueCount,
                 sum,
                 min,
@@ -497,11 +403,16 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         double zeroThreshold,
         long totalValueCount,
         double sum,
-        @Nullable Double min,
-        @Nullable Double max
+        double min,
+        double max
     ) throws IOException {
         BytesStreamOutput histogramBytesOutput = new BytesStreamOutput();
-        CompressedExponentialHistogram.writeHistogramBytes(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
+        CompressedExponentialHistogram.writeHistogramBytes(
+            histogramBytesOutput,
+            scale,
+            IndexWithCount.asBuckets(scale, negativeBuckets).iterator(),
+            IndexWithCount.asBuckets(scale, positiveBuckets).iterator()
+        );
         BytesRef histoBytes = histogramBytesOutput.bytes().toBytesRef();
 
         BinaryDocValuesField histoField = new BinaryDocValuesField(fieldName, histoBytes);
@@ -513,11 +424,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             NumericUtils.doubleToSortableLong(sum)
         );
         NumericDocValuesField minField = null;
-        if (min != null) {
+        if (Double.isNaN(min) == false) {
             minField = new NumericDocValuesField(valuesMinSubFieldName(fieldName), NumericUtils.doubleToSortableLong(min));
         }
         NumericDocValuesField maxField = null;
-        if (max != null) {
+        if (Double.isNaN(max) == false) {
             maxField = new NumericDocValuesField(valuesMaxSubFieldName(fieldName), NumericUtils.doubleToSortableLong(max));
         }
         HistogramDocValueFields docValues = new HistogramDocValueFields(
@@ -570,284 +481,71 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
     }
 
-    private Double validateOrEstimateSum(
-        Double sum,
-        Integer scale,
-        List<IndexWithCount> negativeBuckets,
-        List<IndexWithCount> positiveBuckets,
-        long totalValueCount,
-        XContentSubParser subParser
-    ) {
-        if (sum == null) {
+    private static boolean isEmpty(ExponentialHistogramParser.ParsedExponentialHistogram histogram) {
+        return histogram.positiveBuckets().isEmpty() && histogram.negativeBuckets().isEmpty() && histogram.zeroCount() == 0;
+    }
+
+    private double validateOrEstimateSum(ExponentialHistogramParser.ParsedExponentialHistogram histogram, XContentSubParser subParser) {
+        if (histogram.sum() == null) {
             return ExponentialHistogramUtils.estimateSum(
-                IndexWithCount.asBuckets(scale, negativeBuckets).iterator(),
-                IndexWithCount.asBuckets(scale, positiveBuckets).iterator()
+                IndexWithCount.asBuckets(histogram.scale(), histogram.negativeBuckets()).iterator(),
+                IndexWithCount.asBuckets(histogram.scale(), histogram.positiveBuckets()).iterator()
             );
         }
-        if (totalValueCount == 0 && sum != 0.0) {
+        if (isEmpty(histogram) && histogram.sum() != 0.0) {
             throw new DocumentParsingException(
                 subParser.getTokenLocation(),
-                "error parsing field [" + fullPath() + "], sum field must be zero if the histogram is empty, but got " + sum
+                "error parsing field [" + fullPath() + "], sum field must be zero if the histogram is empty, but got " + histogram.sum()
             );
         }
-        return sum;
+        return histogram.sum();
     }
 
-    private Double validateOrEstimateMin(
-        Double parsedMin,
-        ParsedZeroBucket zeroBucket,
-        Integer scale,
-        List<IndexWithCount> negativeBuckets,
-        List<IndexWithCount> positiveBuckets,
-        long totalValueCount,
-        XContentSubParser subParser
-    ) {
-        if (parsedMin == null) {
+    private double validateOrEstimateMin(ExponentialHistogramParser.ParsedExponentialHistogram histogram, XContentSubParser subParser) {
+        if (histogram.min() == null) {
             OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
-                ZeroBucket.create(zeroBucket.threshold(), zeroBucket.count),
-                IndexWithCount.asBuckets(scale, negativeBuckets),
-                IndexWithCount.asBuckets(scale, positiveBuckets)
+                ZeroBucket.create(histogram.zeroThreshold(), histogram.zeroCount()),
+                IndexWithCount.asBuckets(histogram.scale(), histogram.negativeBuckets()),
+                IndexWithCount.asBuckets(histogram.scale(), histogram.positiveBuckets())
             );
-            return estimatedMin.isPresent() ? estimatedMin.getAsDouble() : null;
+            return estimatedMin.isPresent() ? estimatedMin.getAsDouble() : Double.NaN;
         }
-        if (totalValueCount == 0) {
+        if (isEmpty(histogram)) {
             throw new DocumentParsingException(
                 subParser.getTokenLocation(),
-                "error parsing field [" + fullPath() + "], min field must be null if the histogram is empty, but got " + parsedMin
+                "error parsing field [" + fullPath() + "], min field must be null if the histogram is empty, but got " + histogram.min()
             );
         }
-        return parsedMin;
+        return histogram.min();
     }
 
-    private Double validateOrEstimateMax(
-        Double parsedMax,
-        ParsedZeroBucket zeroBucket,
-        Integer scale,
-        List<IndexWithCount> negativeBuckets,
-        List<IndexWithCount> positiveBuckets,
-        long totalValueCount,
-        XContentSubParser subParser
-    ) {
-        if (parsedMax == null) {
+    private double validateOrEstimateMax(ExponentialHistogramParser.ParsedExponentialHistogram histogram, XContentSubParser subParser) {
+        if (histogram.max() == null) {
             OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
-                ZeroBucket.create(zeroBucket.threshold(), zeroBucket.count),
-                IndexWithCount.asBuckets(scale, negativeBuckets),
-                IndexWithCount.asBuckets(scale, positiveBuckets)
+                ZeroBucket.create(histogram.zeroThreshold(), histogram.zeroCount()),
+                IndexWithCount.asBuckets(histogram.scale(), histogram.negativeBuckets()),
+                IndexWithCount.asBuckets(histogram.scale(), histogram.positiveBuckets())
             );
-            return estimatedMax.isPresent() ? estimatedMax.getAsDouble() : null;
+            return estimatedMax.isPresent() ? estimatedMax.getAsDouble() : Double.NaN;
         }
-        if (totalValueCount == 0) {
+        if (isEmpty(histogram)) {
             throw new DocumentParsingException(
                 subParser.getTokenLocation(),
-                "error parsing field [" + fullPath() + "], max field must be null if the histogram is empty, but got " + parsedMax
+                "error parsing field [" + fullPath() + "], max field must be null if the histogram is empty, but got " + histogram.max()
             );
         }
-        return parsedMax;
+        return histogram.max();
     }
 
-    private double parseDoubleAllowingInfinity(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        boolean isValidNumber = token == XContentParser.Token.VALUE_NUMBER;
-        if (token == XContentParser.Token.VALUE_STRING) {
-            String text = parser.text();
-            if (text.equals("-Infinity") || text.equals("Infinity")) {
-                isValidNumber = true;
-            }
-        }
-        if (isValidNumber) {
-            return parser.doubleValue();
-        }
-        throw new DocumentParsingException(
-            parser.getTokenLocation(),
-            "error parsing field [" + fullPath() + "], expected a number but got " + token
-        );
-    }
-
-    private static long getTotalValueCount(
-        ParsedZeroBucket zeroBucket,
-        List<IndexWithCount> positiveBuckets,
-        List<IndexWithCount> negativeBuckets
-    ) {
-        long totalValueCount = zeroBucket.count();
-        for (IndexWithCount bucket : positiveBuckets) {
+    private static long getTotalValueCount(ExponentialHistogramParser.ParsedExponentialHistogram histogram) {
+        long totalValueCount = histogram.zeroCount();
+        for (IndexWithCount bucket : histogram.positiveBuckets()) {
             totalValueCount = Math.addExact(totalValueCount, bucket.count());
         }
-        for (IndexWithCount bucket : negativeBuckets) {
+        for (IndexWithCount bucket : histogram.negativeBuckets()) {
             totalValueCount = Math.addExact(totalValueCount, bucket.count());
         }
         return totalValueCount;
-    }
-
-    private ParsedZeroBucket parseZeroBucket(XContentSubParser subParser) throws IOException {
-        long zeroCount = ParsedZeroBucket.DEFAULT.count();
-        double zeroThreshold = ParsedZeroBucket.DEFAULT.threshold();
-
-        XContentParser.Token token = subParser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, subParser);
-        token = subParser.nextToken();
-        while (token != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
-            String fieldName = subParser.currentName();
-            if (fieldName.equals(ZERO_THRESHOLD_FIELD.getPreferredName())) {
-                token = subParser.nextToken();
-                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                zeroThreshold = subParser.doubleValue();
-                if (zeroThreshold < 0.0 || Double.isFinite(zeroThreshold) == false) {
-                    throw new DocumentParsingException(
-                        subParser.getTokenLocation(),
-                        "error parsing field ["
-                            + fullPath()
-                            + "], zero.threshold field must be a non-negative, finite number but got "
-                            + zeroThreshold
-                    );
-                }
-            } else if (fieldName.equals(ZERO_COUNT_FIELD.getPreferredName())) {
-                token = subParser.nextToken();
-                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                zeroCount = subParser.longValue();
-                if (zeroCount < 0) {
-                    throw new DocumentParsingException(
-                        subParser.getTokenLocation(),
-                        "error parsing field [" + fullPath() + "], zero.count field must be a non-negative number but got " + zeroCount
-                    );
-                }
-            } else {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field [" + fullPath() + "], with unknown parameter for zero sub-object [" + fieldName + "]"
-                );
-            }
-            token = subParser.nextToken();
-        }
-        return new ParsedZeroBucket(zeroCount, zeroThreshold);
-    }
-
-    private List<IndexWithCount> readAndValidateBuckets(String containerFieldName, XContentSubParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        token = parser.nextToken();
-
-        List<Long> indices = Collections.emptyList();
-        List<Long> counts = Collections.emptyList();
-
-        while (token != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-            String fieldName = parser.currentName();
-            if (fieldName.equals(BUCKET_INDICES_FIELD.getPreferredName())) {
-                indices = new ArrayList<>();
-                token = parser.nextToken();
-                // should be an array
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
-                token = parser.nextToken();
-                while (token != XContentParser.Token.END_ARRAY) {
-                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                    long index = parser.longValue();
-                    if (index < MIN_INDEX || index > MAX_INDEX) {
-                        throw new DocumentParsingException(
-                            parser.getTokenLocation(),
-                            "error parsing field ["
-                                + fullPath()
-                                + "], "
-                                + containerFieldName
-                                + "."
-                                + BUCKET_INDICES_FIELD.getPreferredName()
-                                + " values must all be in range ["
-                                + MIN_INDEX
-                                + ", "
-                                + MAX_INDEX
-                                + "] but got "
-                                + index
-                        );
-                    }
-                    indices.add(index);
-                    token = parser.nextToken();
-                }
-            } else if (fieldName.equals(BUCKET_COUNTS_FIELD.getPreferredName())) {
-                counts = new ArrayList<>();
-                token = parser.nextToken();
-                // should be an array
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
-                token = parser.nextToken();
-                while (token != XContentParser.Token.END_ARRAY) {
-                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                    long count = parser.longValue();
-                    if (count <= 0) {
-                        throw new DocumentParsingException(
-                            parser.getTokenLocation(),
-                            "error parsing field ["
-                                + fullPath()
-                                + "], "
-                                + containerFieldName
-                                + "."
-                                + BUCKET_COUNTS_FIELD.getPreferredName()
-                                + " values must all be greater than zero but got "
-                                + count
-                        );
-                    }
-                    counts.add(count);
-                    token = parser.nextToken();
-                }
-            } else {
-                throw new DocumentParsingException(
-                    parser.getTokenLocation(),
-                    "error parsing field ["
-                        + fullPath()
-                        + "], with unknown parameter for "
-                        + containerFieldName
-                        + " sub-object ["
-                        + fieldName
-                        + "]"
-                );
-            }
-            token = parser.nextToken();
-        }
-
-        if (indices.size() != counts.size()) {
-            throw new DocumentParsingException(
-                parser.getTokenLocation(),
-                "error parsing field ["
-                    + fullPath()
-                    + "], expected same length from ["
-                    + containerFieldName
-                    + "."
-                    + BUCKET_INDICES_FIELD.getPreferredName()
-                    + "] and "
-                    + "["
-                    + containerFieldName
-                    + "."
-                    + BUCKET_COUNTS_FIELD.getPreferredName()
-                    + "] but got ["
-                    + indices.size()
-                    + " != "
-                    + counts.size()
-                    + "]"
-            );
-        }
-
-        List<IndexWithCount> results = new ArrayList<>(indices.size());
-        for (int i = 0; i < indices.size(); i++) {
-            results.add(new IndexWithCount(indices.get(i), counts.get(i)));
-        }
-        results.sort(Comparator.comparing(IndexWithCount::index));
-
-        for (int i = 1; i < results.size(); i++) {
-            long index = results.get(i).index();
-            if (index == results.get(i - 1).index()) {
-                throw new DocumentParsingException(
-                    parser.getTokenLocation(),
-                    "error parsing field ["
-                        + fullPath()
-                        + "], expected entries of ["
-                        + containerFieldName
-                        + "."
-                        + BUCKET_INDICES_FIELD.getPreferredName()
-                        + "] to be unique, but got "
-                        + index
-                        + " multiple times"
-                );
-            }
-        }
-        return results;
     }
 
     @Override
@@ -928,6 +626,16 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         public long valuesCountValue() throws IOException {
             return valueCounts.longValue();
         }
+
+        @Override
+        public double sumValue() throws IOException {
+            if (currentDocId == -1) {
+                throw new IllegalStateException("No histogram present for current document");
+            }
+            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
+            assert valueSumsPresent;
+            return NumericUtils.sortableLongToDouble(valueSums.longValue());
+        }
     }
 
     private class ExponentialHistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
@@ -975,8 +683,4 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             return currentHistogram != null ? 1 : 0;
         }
     };
-
-    private record ParsedZeroBucket(long count, double threshold) {
-        static final ParsedZeroBucket DEFAULT = new ParsedZeroBucket(0, 0);
-    }
 }

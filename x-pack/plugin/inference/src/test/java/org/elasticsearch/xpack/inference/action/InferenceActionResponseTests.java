@@ -11,8 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
@@ -39,7 +39,7 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
     @Override
     protected InferenceAction.Response createTestInstance() {
         var result = randomBoolean()
-            ? TextEmbeddingFloatResultsTests.createRandomResults()
+            ? DenseEmbeddingFloatResultsTests.createRandomResults()
             : SparseEmbeddingResultsTests.createRandomResults();
 
         return new InferenceAction.Response(result);

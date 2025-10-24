@@ -316,27 +316,21 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     computeListener.acquireCompute()
                 );
 
-                performCoordinatorRewrite(
+                dataNodeComputeHandler.startComputeOnDataNodes(
+                    localSessionId,
+                    clusterAlias,
+                    parentTask,
+                    flags,
+                    configuration,
                     reductionPlan.dataNodePlan(),
-                    transportService.getThreadPool(),
-                    queryRewriteContext,
-                    computeListener,
-                    p -> dataNodeComputeHandler.startComputeOnDataNodes(
-                        localSessionId,
-                        clusterAlias,
-                        parentTask,
-                        flags,
-                        configuration,
-                        p,
-                        concreteIndices,
-                        originalIndices,
-                        exchangeSource,
-                        cancelQueryOnFailure,
-                        computeListener.acquireCompute().map(r -> {
-                            finalResponse.set(r);
-                            return r.getCompletionInfo();
-                        })
-                    )
+                    concreteIndices,
+                    originalIndices,
+                    exchangeSource,
+                    cancelQueryOnFailure,
+                    computeListener.acquireCompute().map(r -> {
+                        finalResponse.set(r);
+                        return r.getCompletionInfo();
+                    })
                 );
             }
         }

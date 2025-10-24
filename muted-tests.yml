@@ -363,9 +363,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
   method: testInvalidToken
   issue: https://github.com/elastic/elasticsearch/issues/133328
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:change_point.Values null column}
-  issue: https://github.com/elastic/elasticsearch/issues/133334
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/127302
@@ -465,9 +462,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=field_caps/10_basic/Field caps for number field with only doc values}
   issue: https://github.com/elastic/elasticsearch/issues/136244
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:string.SpaceNegative}
-  issue: https://github.com/elastic/elasticsearch/issues/136249
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136353

@@ -581,3 +581,52 @@ max_cost:integer | pod:keyword | time_bucket:datetime     | max_cluster_cost:int
 1209             | three       | 2024-05-10T00:00:00.000Z | 1209                     | staging
 973              | two         | 2024-05-10T00:00:00.000Z | 1209                     | staging
 ;
+
+Max of Rate with Bucket
+required_capability: ts_command_v0
+
+TS k8s
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;
+
+Max of Rate with Bucket, rename _tsid
+required_capability: ts_command_v0
+
+TS k8s METADATA _tsid
+| RENAME _tsid AS newTsid
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;
+
+Max of Rate with Bucket, drop _tsid
+required_capability: ts_command_v0
+
+TS k8s METADATA _tsid
+| DROP _tsid
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;
+
+
+Rename timestamp when aggs don't require timestamp
+required_capability: ts_command_v0
+
+TS k8s 
+| RENAME @timestamp AS newTs 
+| STATS mx = max(max_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)
+;
+
+mx:integer | tbucket:datetime
+1716       | 2024-05-10T00:00:00.000Z
+;
+

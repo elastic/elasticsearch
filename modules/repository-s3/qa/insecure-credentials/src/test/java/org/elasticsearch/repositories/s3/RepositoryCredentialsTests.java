@@ -12,11 +12,14 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -256,8 +259,13 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-            return new ProxyS3Service(environment, nodeSettings, resourceWatcherService);
+        S3Service s3Service(
+            Environment environment,
+            ClusterService clusterService,
+            ProjectResolver projectResolver,
+            ResourceWatcherService resourceWatcherService
+        ) {
+            return new ProxyS3Service(environment, clusterService, projectResolver, resourceWatcherService);
         }
 
         /**
@@ -293,8 +301,13 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
-            ProxyS3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-                super(environment, nodeSettings, resourceWatcherService, () -> null);
+            ProxyS3Service(
+                Environment environment,
+                ClusterService clusterService,
+                ProjectResolver projectResolver,
+                ResourceWatcherService resourceWatcherService
+            ) {
+                super(environment, clusterService, projectResolver, resourceWatcherService, () -> Region.of(randomIdentifier()));
             }
 
             @Override

@@ -12,8 +12,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -35,6 +38,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -134,6 +138,9 @@ public final class CsvAssert {
                         || expectedType == Type.DATE_NANOS
                         || expectedType == Type.GEO_POINT
                         || expectedType == Type.CARTESIAN_POINT
+                        || expectedType == Type.GEOHASH
+                        || expectedType == Type.GEOTILE
+                        || expectedType == Type.GEOHEX
                         || expectedType == UNSIGNED_LONG)) {
                     continue;
                 }
@@ -143,6 +150,10 @@ public final class CsvAssert {
                         || expectedType == Type.TEXT
                         || expectedType == Type.SEMANTIC_TEXT)) {
                     // Type.asType translates all bytes references into keywords
+                    continue;
+                }
+                if (blockType == Type.FLOAT && expectedType == DENSE_VECTOR) {
+                    // DENSE_VECTOR is internally represented as a float block
                     continue;
                 }
                 if (blockType == Type.NULL) {
@@ -280,7 +291,7 @@ public final class CsvAssert {
         fail(description + System.lineSeparator() + describeFailures(dataFailures) + actual + expected);
     }
 
-    private static final int MAX_ROWS = 25;
+    private static final int MAX_ROWS = 50;
 
     private static String pipeTable(
         String description,
@@ -323,7 +334,7 @@ public final class CsvAssert {
         if (values.size() > rows) {
             result.append("...").append(System.lineSeparator());
         }
-        return result.toString();
+        return result.toString().replaceAll("\\s+" + System.lineSeparator(), System.lineSeparator());
     }
 
     private static String header(String name, Type type) {
@@ -407,6 +418,9 @@ public final class CsvAssert {
                 BytesRef.class,
                 x -> CARTESIAN.wkbToWkt((BytesRef) x)
             );
+            case Type.GEOHASH -> rebuildExpected(expectedValue, Long.class, x -> Geohash.stringEncode((long) x));
+            case Type.GEOTILE -> rebuildExpected(expectedValue, Long.class, x -> GeoTileUtils.stringEncode((long) x));
+            case Type.GEOHEX -> rebuildExpected(expectedValue, Long.class, x -> H3.h3ToString((long) x));
             case Type.IP -> // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                 rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
             case Type.VERSION -> // convert BytesRef-packed Version to String

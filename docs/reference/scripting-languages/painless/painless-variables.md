@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-variables.html
+products:
+  - id: painless
 ---
 
 # Variables [painless-variables]

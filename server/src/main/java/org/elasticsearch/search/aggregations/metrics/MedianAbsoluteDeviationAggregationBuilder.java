@@ -183,6 +183,6 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

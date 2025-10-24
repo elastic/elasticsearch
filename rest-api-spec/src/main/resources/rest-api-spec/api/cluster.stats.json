@@ -1,44 +1,47 @@
 {
-  "cluster.stats":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-stats.html",
-      "description":"Returns high-level overview of cluster statistics."
+  "cluster.stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-stats",
+      "description": "Get cluster statistics"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_cluster/stats",
-          "methods":[
+          "path": "/_cluster/stats",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_cluster/stats/nodes/{node_id}",
-          "methods":[
+          "path": "/_cluster/stats/nodes/{node_id}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "node_id":{
-              "type":"list",
-              "description":"A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+          "parts": {
+            "node_id": {
+              "type": "list",
+              "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
             }
           }
         }
       ]
     },
-    "params":{
-      "include_remotes":{
-        "type":"boolean",
-        "description":"Include remote cluster data into the response (default: false)"
+    "params": {
+      "include_remotes": {
+        "type": "boolean",
+        "default": false,
+        "description": "Include remote cluster data into the response (default: false)"
       },
-      "timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout"
+      "timeout": {
+        "type": "time",
+        "description": "Explicit operation timeout"
       }
     }
   }

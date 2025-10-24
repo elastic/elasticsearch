@@ -1,6 +1,0 @@
-pr: 126009
-summary: Change ModelLoaderUtils.split to return the correct number of chunks and ranges.
-area: Machine Learning
-type: bug
-issues:
- - 121799

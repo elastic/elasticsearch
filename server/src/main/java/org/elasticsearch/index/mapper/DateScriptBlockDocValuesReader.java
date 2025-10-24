@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.script.DateFieldScript;
 
 import java.io.IOException;
@@ -49,10 +50,11 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
+    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+        throws IOException {
         // Note that we don't sort the values sort, so we can't use factory.longsFromDocValues
-        try (BlockLoader.LongBuilder builder = factory.longs(docs.count())) {
-            for (int i = 0; i < docs.count(); i++) {
+        try (BlockLoader.LongBuilder builder = factory.longs(docs.count() - offset)) {
+            for (int i = offset; i < docs.count(); i++) {
                 read(docs.get(i), builder);
             }
             return builder.build();

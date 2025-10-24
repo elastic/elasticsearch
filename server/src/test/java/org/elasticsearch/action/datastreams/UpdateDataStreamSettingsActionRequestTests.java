@@ -33,6 +33,7 @@ public class UpdateDataStreamSettingsActionRequestTests extends AbstractWireSeri
     protected UpdateDataStreamSettingsAction.Request createTestInstance() {
         UpdateDataStreamSettingsAction.Request request = new UpdateDataStreamSettingsAction.Request(
             randomSettings(),
+            randomBoolean(),
             randomTimeValue(),
             randomTimeValue()
         );
@@ -44,9 +45,10 @@ public class UpdateDataStreamSettingsActionRequestTests extends AbstractWireSeri
     protected UpdateDataStreamSettingsAction.Request mutateInstance(UpdateDataStreamSettingsAction.Request instance) throws IOException {
         String[] indices = instance.indices();
         Settings settings = instance.getSettings();
+        boolean dryRun = instance.isDryRun();
         TimeValue masterNodeTimeout = instance.masterNodeTimeout();
         TimeValue ackTimeout = instance.ackTimeout();
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> {
                 indices = randomArrayValueOtherThan(indices, this::randomIndices);
             }
@@ -54,14 +56,17 @@ public class UpdateDataStreamSettingsActionRequestTests extends AbstractWireSeri
                 settings = randomValueOtherThan(settings, ComponentTemplateTests::randomSettings);
             }
             case 2 -> {
-                masterNodeTimeout = randomValueOtherThan(masterNodeTimeout, ESTestCase::randomTimeValue);
+                dryRun = dryRun == false;
             }
             case 3 -> {
+                masterNodeTimeout = randomValueOtherThan(masterNodeTimeout, ESTestCase::randomTimeValue);
+            }
+            case 4 -> {
                 ackTimeout = randomValueOtherThan(ackTimeout, ESTestCase::randomTimeValue);
             }
             default -> throw new AssertionError("Should not be here");
         }
-        return new UpdateDataStreamSettingsAction.Request(settings, masterNodeTimeout, ackTimeout).indices(indices);
+        return new UpdateDataStreamSettingsAction.Request(settings, dryRun, masterNodeTimeout, ackTimeout).indices(indices);
     }
 
     private String[] randomIndices() {

@@ -115,22 +115,23 @@ public class FailureStoreDocumentConverter {
                 // we can't instantiate it in tests, so we'll have to check for the headers directly.
                 var ingestException = ExceptionsHelper.<ElasticsearchException>unwrapCausesAndSuppressed(
                     exception,
-                    t -> t instanceof ElasticsearchException e && Sets.haveNonEmptyIntersection(e.getHeaderKeys(), INGEST_EXCEPTION_HEADERS)
+                    t -> t instanceof ElasticsearchException e
+                        && Sets.haveNonEmptyIntersection(e.getBodyHeaderKeys(), INGEST_EXCEPTION_HEADERS)
                 ).orElse(null);
                 if (ingestException != null) {
-                    if (ingestException.getHeaderKeys().contains(PIPELINE_ORIGIN_EXCEPTION_HEADER)) {
-                        List<String> pipelineOrigin = ingestException.getHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER);
+                    if (ingestException.getBodyHeaderKeys().contains(PIPELINE_ORIGIN_EXCEPTION_HEADER)) {
+                        List<String> pipelineOrigin = ingestException.getBodyHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER);
                         Collections.reverse(pipelineOrigin);
                         if (pipelineOrigin.isEmpty() == false) {
                             builder.field("pipeline_trace", pipelineOrigin);
                             builder.field("pipeline", pipelineOrigin.get(pipelineOrigin.size() - 1));
                         }
                     }
-                    if (ingestException.getHeaderKeys().contains(PROCESSOR_TAG_EXCEPTION_HEADER)) {
-                        builder.field("processor_tag", ingestException.getHeader(PROCESSOR_TAG_EXCEPTION_HEADER).get(0));
+                    if (ingestException.getBodyHeaderKeys().contains(PROCESSOR_TAG_EXCEPTION_HEADER)) {
+                        builder.field("processor_tag", ingestException.getBodyHeader(PROCESSOR_TAG_EXCEPTION_HEADER).get(0));
                     }
-                    if (ingestException.getHeaderKeys().contains(PROCESSOR_TYPE_EXCEPTION_HEADER)) {
-                        builder.field("processor_type", ingestException.getHeader(PROCESSOR_TYPE_EXCEPTION_HEADER).get(0));
+                    if (ingestException.getBodyHeaderKeys().contains(PROCESSOR_TYPE_EXCEPTION_HEADER)) {
+                        builder.field("processor_type", ingestException.getBodyHeader(PROCESSOR_TYPE_EXCEPTION_HEADER).get(0));
                     }
                 }
             }

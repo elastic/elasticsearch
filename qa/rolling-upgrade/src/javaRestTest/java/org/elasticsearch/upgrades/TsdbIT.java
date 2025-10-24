@@ -24,7 +24,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingInd
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class TsdbIT extends AbstractRollingUpgradeTestCase {
+public class TsdbIT extends AbstractRollingUpgradeWithSecurityTestCase {
 
     public TsdbIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

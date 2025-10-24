@@ -9,8 +9,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,7 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Base64;
 
-public class ClosePointInTimeRequest extends ActionRequest implements ToXContentObject {
+public class ClosePointInTimeRequest extends LegacyActionRequest implements ToXContentObject {
     private static final ParseField ID = new ParseField("id");
 
     private final BytesReference id;

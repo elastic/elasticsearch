@@ -1,0 +1,114 @@
+redirects:
+  # Related to https://github.com/elastic/elasticsearch/pull/130716/
+  'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'
+
+  # https://github.com/elastic/elasticsearch/pull/131385
+  'reference/elasticsearch/rest-apis/retrievers.md':
+    to: 'reference/elasticsearch/rest-apis/retrievers.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/elasticsearch/rest-apis/retrievers/standard-retriever.md'
+        anchors: {'standard-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/knn-retriever.md'
+        anchors: {'knn-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/linear-retriever.md'
+        anchors: {'linear-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md'
+        anchors: {'rrf-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/rescorer-retriever.md'
+        anchors: {'rescorer-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md'
+        anchors: {'text-similarity-reranker-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/rule-retriever.md'
+        anchors: {'rule-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'
+        anchors: {'pinned-retriever'}
+
+  # ESQL command redirects - split from aggregate pages to individual pages
+  'reference/query-languages/esql/commands/source-commands.md':
+    to: 'reference/query-languages/esql/commands/source-commands.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/commands/from.md'
+        anchors: {'esql-from'}
+      - to: 'reference/query-languages/esql/commands/row.md'
+        anchors: {'esql-row'}
+      - to: 'reference/query-languages/esql/commands/show.md'
+        anchors: {'esql-show'}
+
+  # Handle old anchor references to esql-commands.md
+  'reference/query-languages/esql/esql-commands.md':
+    to: 'reference/query-languages/esql/esql-commands.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/commands/source-commands.md'
+        anchors: {'esql-source-commands'}
+      - to: 'reference/query-languages/esql/commands/processing-commands.md'
+        anchors: {'esql-processing-commands'}
+
+  'reference/query-languages/esql/commands/processing-commands.md':
+    to: 'reference/query-languages/esql/commands/processing-commands.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/commands/change-point.md'
+        anchors: {'esql-change_point'}
+      - to: 'reference/query-languages/esql/commands/completion.md'
+        anchors: {'esql-completion'}
+      - to: 'reference/query-languages/esql/commands/dissect.md'
+        anchors: {'esql-dissect'}
+      - to: 'reference/query-languages/esql/commands/drop.md'
+        anchors: {'esql-drop'}
+      - to: 'reference/query-languages/esql/commands/enrich.md'
+        anchors: {'esql-enrich'}
+      - to: 'reference/query-languages/esql/commands/eval.md'
+        anchors: {'esql-eval'}
+      - to: 'reference/query-languages/esql/commands/fork.md'
+        anchors: {'esql-fork'}
+      - to: 'reference/query-languages/esql/commands/grok.md'
+        anchors: {'esql-grok'}
+      - to: 'reference/query-languages/esql/commands/keep.md'
+        anchors: {'esql-keep'}
+      - to: 'reference/query-languages/esql/commands/limit.md'
+        anchors: {'esql-limit'}
+      - to: 'reference/query-languages/esql/commands/lookup-join.md'
+        anchors: {'esql-lookup-join'}
+      - to: 'reference/query-languages/esql/commands/mv_expand.md'
+        anchors: {'esql-mv_expand'}
+      - to: 'reference/query-languages/esql/commands/rename.md'
+        anchors: {'esql-rename'}
+      - to: 'reference/query-languages/esql/commands/rerank.md'
+        anchors: {'esql-rerank'}
+      - to: 'reference/query-languages/esql/commands/sample.md'
+        anchors: {'esql-sample'}
+      - to: 'reference/query-languages/esql/commands/sort.md'
+        anchors: {'esql-sort'}
+      - to: 'reference/query-languages/esql/commands/stats-by.md'
+        anchors: {'esql-stats-by'}
+      - to: 'reference/query-languages/esql/commands/where.md'
+        anchors: {'esql-where'}
+
+  # https://github.com/elastic/elasticsearch/pull/133359
+  'reference/elasticsearch/rest-apis/filter-search-results.md':
+    to: 'reference/elasticsearch/rest-apis/filter-search-results.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
+        anchors: {'rescore'}
+      - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
+        anchors: {'query-rescorer'}
+      - to: 'reference/elasticsearch/rest-apis/rescore-search-results.md'
+        anchors: {'multiple-rescores'}
+
+  'reference/query-languages/esql/kibana/docs/functions/st_geohash_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'reference/query-languages/esql/kibana/docs/functions/st_geotile_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'reference/query-languages/esql/kibana/docs/functions/st_geohex_to_string.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'reference/query-languages/esql/kibana/docs/functions/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'reference/query-languages/esql/kibana/docs/functions/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+  'reference/query-languages/esql/kibana/docs/functions/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+
+  'reference/elasticsearch/mapping-reference/text.md':
+    to: 'reference/elasticsearch/mapping-reference/text.md'
+    anchors: { } # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/elasticsearch/mapping-reference/match-only-text.md'
+        anchors: { 'match-only-text-field-type', 'match-only-text-params' }

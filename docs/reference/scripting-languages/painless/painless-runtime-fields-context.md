@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-runtime-fields-context.html
+products:
+  - id: painless
 ---
 
 # Runtime fields context [painless-runtime-fields-context]
@@ -109,6 +111,7 @@ PUT seats/_mapping
   }
 }
 ```
+% TEST[setup:seats]
 
 After defining the runtime field and script in the mappings, you can run a query that includes a terms aggregation for `day_of_week`. When the query runs, {{es}} evaluates the included Painless script and dynamically generates a value based on the script definition:
 
@@ -130,6 +133,7 @@ GET seats/_search
     }
 }
 ```
+% TEST[continued]
 
 The response includes `day_of_week` for each hit. {{es}} calculates the value for this field dynamically at search time by operating on the `datetime` field defined in the mappings.
 
@@ -170,4 +174,4 @@ The response includes `day_of_week` for each hit. {{es}} calculates the value fo
   }
 }
 ```
-
+% TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]

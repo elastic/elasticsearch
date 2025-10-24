@@ -47,16 +47,11 @@ class PercentileLongAggregator {
         state.add(groupId, inValue);
     }
 
-    public static void combineStates(
-        QuantileStates.GroupingState current,
-        int currentGroupId,
+    public static Block evaluateFinal(
         QuantileStates.GroupingState state,
-        int statePosition
+        IntVector selectedGroups,
+        GroupingAggregatorEvaluationContext ctx
     ) {
-        current.add(currentGroupId, state.getOrNull(statePosition));
-    }
-
-    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selectedGroups, DriverContext driverContext) {
-        return state.evaluatePercentile(selectedGroups, driverContext);
+        return state.evaluatePercentile(selectedGroups, ctx.driverContext());
     }
 }

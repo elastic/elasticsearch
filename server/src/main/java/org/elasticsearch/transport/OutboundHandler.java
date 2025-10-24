@@ -168,6 +168,7 @@ public final class OutboundHandler {
                     ),
                     ex
                 );
+                channel.setCloseException(ex);
                 channel.close();
             } else {
                 sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
@@ -204,6 +205,7 @@ public final class OutboundHandler {
         } catch (Exception sendException) {
             sendException.addSuppressed(error);
             logger.error(() -> format("Failed to send error response on channel [%s], closing channel", channel), sendException);
+            channel.setCloseException(sendException);
             channel.close();
         }
     }
@@ -431,6 +433,17 @@ public final class OutboundHandler {
                 }
             });
         } catch (RuntimeException ex) {
+            logger.error(
+                Strings.format(
+                    "unexpected exception calling sendMessage for transport message [%s] of size [%d] on [%s]",
+                    messageDescription.get(),
+                    messageSize,
+                    channel
+                ),
+                ex
+            );
+            assert Thread.currentThread().getName().startsWith("TEST-") : ex;
+            channel.setCloseException(ex);
             Releasables.closeExpectNoException(() -> listener.onFailure(ex), () -> CloseableChannel.closeChannel(channel));
             throw ex;
         }
@@ -449,7 +462,7 @@ public final class OutboundHandler {
     }
 
     private boolean assertValidTransportVersion(TransportVersion transportVersion) {
-        assert this.version.before(TransportVersions.MINIMUM_COMPATIBLE) // running an incompatible-version test
+        assert this.version.before(TransportVersion.minimumCompatible()) // running an incompatible-version test
             || this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
         return true;
     }

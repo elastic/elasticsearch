@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-scripts.html
+products:
+  - id: painless
 ---
 
 # Scripts [painless-scripts]

@@ -20,9 +20,9 @@ import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator;
 import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,7 +48,8 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
                 suggestion.getDirectSpellCheckerSettings().suggestMode()
             );
             var termBytes = token.term.bytes();
-            Text key = new Text(ByteBuffer.wrap(termBytes.bytes, termBytes.offset, termBytes.length));
+            var termEncoded = new XContentString.UTF8Bytes(termBytes.bytes, termBytes.offset, termBytes.length);
+            Text key = new Text(termEncoded);
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
             for (SuggestWord suggestWord : suggestedWords) {
                 Text word = new Text(suggestWord.string);
@@ -98,7 +99,8 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         List<Token> tokens = queryTerms(suggestion, spare);
         for (Token token : tokens) {
             var termBytes = token.term.bytes();
-            Text key = new Text(ByteBuffer.wrap(termBytes.bytes, termBytes.offset, termBytes.length));
+            var termEncoded = new XContentString.UTF8Bytes(termBytes.bytes, termBytes.offset, termBytes.length);
+            Text key = new Text(termEncoded);
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
             termSuggestion.addTerm(resultEntry);
         }

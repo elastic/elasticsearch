@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-score-context.html
+products:
+  - id: painless
 ---
 
 # Score context [painless-score-context]
@@ -52,4 +54,5 @@ GET /seats/_search
   }
 }
 ```
+% TEST[setup:seats]
 

@@ -13,6 +13,9 @@ public final class AuthenticationField {
     public static final String PRIVILEGE_CATEGORY_VALUE_OPERATOR = "operator";
     public static final String PRIVILEGE_CATEGORY_VALUE_EMPTY = "__empty";
 
+    public static final String CLOUD_API_KEY_REALM_NAME = "_cloud_api_key";
+    public static final String CLOUD_API_KEY_REALM_TYPE = "_cloud_api_key";
+
     public static final String API_KEY_REALM_NAME = "_es_api_key";
     public static final String API_KEY_REALM_TYPE = "_es_api_key";
 
@@ -20,6 +23,7 @@ public final class AuthenticationField {
     public static final String API_KEY_CREATOR_REALM_TYPE = "_security_api_key_creator_realm_type";
     public static final String API_KEY_ID_KEY = "_security_api_key_id";
     public static final String API_KEY_NAME_KEY = "_security_api_key_name";
+    public static final String API_KEY_INTERNAL_KEY = "_security_api_key_internal";
     public static final String API_KEY_TYPE_KEY = "_security_api_key_type";
     public static final String API_KEY_METADATA_KEY = "_security_api_key_metadata";
     public static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";

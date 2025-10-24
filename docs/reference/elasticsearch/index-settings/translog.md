@@ -2,9 +2,14 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html
 navigation_title: Translog
+applies_to:
+  stack: all
 ---
 
 # Translog settings [index-modules-translog]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 Changes to Lucene are only persisted to disk during a Lucene commit, which is a relatively expensive operation and so cannot be performed after every index or delete operation. Changes that happen after one commit and before another will be removed from the index by Lucene in the event of process exit or hardware failure.
 

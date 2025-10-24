@@ -13,14 +13,20 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.regions.Region;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.Mockito;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyString;
@@ -44,6 +50,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(defaultSettings.readTimeoutMillis, is(Math.toIntExact(S3ClientSettings.Defaults.READ_TIMEOUT.millis())));
         assertThat(defaultSettings.maxConnections, is(S3ClientSettings.Defaults.MAX_CONNECTIONS));
         assertThat(defaultSettings.maxRetries, is(S3ClientSettings.Defaults.RETRY_COUNT));
+        assertThat(defaultSettings.connectionMaxIdleTimeMillis, is(S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME.millis()));
     }
 
     public void testDefaultClientSettingsCanBeSet() {
@@ -184,11 +191,14 @@ public class S3ClientSettingsTests extends ESTestCase {
         try (
             var s3Service = new S3Service(
                 Mockito.mock(Environment.class),
-                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 Mockito.mock(ResourceWatcherService.class),
-                () -> null
+                DEFAULT_REGION_UNAVAILABLE
             )
         ) {
+            s3Service.start();
+
             var otherSettings = settings.get("other");
             Region otherRegion = s3Service.getClientRegion(otherSettings);
             assertEquals(randomRegion, otherRegion.toString());
@@ -196,6 +206,21 @@ public class S3ClientSettingsTests extends ESTestCase {
             // by default, we simply do not know the region (which S3Service maps to us-east-1 with cross-region access enabled)
             assertNull(s3Service.getClientRegion(settings.get("default")));
         }
+    }
+
+    public void testConnectionMaxIdleTimeCanBeSet() {
+        final TimeValue connectionMaxIdleTimeValue = randomValueOtherThan(
+            S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME,
+            ESTestCase::randomTimeValue
+        );
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.connection_max_idle_time", connectionMaxIdleTimeValue).build()
+        );
+        assertThat(settings.get("default").connectionMaxIdleTimeMillis, is(S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME.millis()));
+        assertThat(settings.get("other").connectionMaxIdleTimeMillis, is(connectionMaxIdleTimeValue.millis()));
+
+        // the default appears in the docs so let's make sure it doesn't change:
+        assertEquals(TimeValue.timeValueSeconds(60), S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME);
     }
 
     public void testMaxConnectionsCanBeSet() {
@@ -209,4 +234,8 @@ public class S3ClientSettingsTests extends ESTestCase {
         // the default appears in the docs so let's make sure it doesn't change:
         assertEquals(50, S3ClientSettings.Defaults.MAX_CONNECTIONS);
     }
+
+    public static final Supplier<Region> DEFAULT_REGION_UNAVAILABLE = () -> {
+        throw new ElasticsearchException("default region unavailable in this test");
+    };
 }

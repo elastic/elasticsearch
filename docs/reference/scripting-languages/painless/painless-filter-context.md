@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-filter-context.html
+products:
+  - id: painless
 ---
 
 # Filter context [painless-filter-context]
@@ -55,4 +57,4 @@ GET seats/_search
   }
 }
 ```
-
+% TEST[setup:seats]

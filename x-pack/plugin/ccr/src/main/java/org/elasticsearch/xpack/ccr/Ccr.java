@@ -183,7 +183,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return List.of(
             ccrLicenseChecker,
             restoreSourceService,
-            new CcrRepositoryManager(settings, services.clusterService(), client),
+            new CcrRepositoryManager(settings, services.linkedProjectConfigService(), client),
             new ShardFollowTaskCleaner(services.clusterService(), services.threadPool(), client),
             new AutoFollowCoordinator(
                 settings,
@@ -375,7 +375,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         ClusterService clusterService,
         RecoverySettings recoverySettings
     ) {
-        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(
+        Repository.Factory repositoryFactory = (projectId, metadata) -> new CcrRepository(
+            projectId,
             metadata,
             client,
             settings,

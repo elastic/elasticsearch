@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class AbstractGetResourcesRequest extends ActionRequest {
+public abstract class AbstractGetResourcesRequest extends LegacyActionRequest {
 
     private String resourceId;
     private PageParams pageParams = PageParams.defaultParams();

@@ -10,7 +10,6 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -22,7 +21,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Secrets that are stored in project state as a {@link Metadata.ProjectCustom}
@@ -38,8 +39,10 @@ import java.util.Objects;
  * serializing its content in {@link #toXContentChunked(ToXContent.Params)}.
  */
 public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+    public static final ProjectSecrets EMPTY = new ProjectSecrets(new SecureClusterStateSettings(Map.of()));
 
     public static final String TYPE = "project_state_secrets";
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
 
     private final SecureClusterStateSettings settings;
 
@@ -55,6 +58,10 @@ public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom
         return new SecureClusterStateSettings(settings);
     }
 
+    public Set<String> getSettingNames() {
+        return Collections.unmodifiableSet(settings.getSettingNames());
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         // No need to persist in index or return to user, so do not serialize the secrets
@@ -68,7 +75,7 @@ public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MULTI_PROJECT;
+        return MULTI_PROJECT;
     }
 
     @Override

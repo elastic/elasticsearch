@@ -305,14 +305,18 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
-     * Adds a affix settings consumer that accepts the settings for a group of settings. The consumer is only
-     * notified if at least one of the settings change.
+     * Adds an affix settings consumer and validator that accepts the settings for a group of settings. The consumer and
+     * the validator are only notified if at least one of the settings change.
      * <p>
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
      */
     @SuppressWarnings("rawtypes")
-    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+    public synchronized void addAffixGroupUpdateConsumer(
+        List<Setting.AffixSetting<?>> settings,
+        BiConsumer<String, Settings> consumer,
+        BiConsumer<String, Settings> validator
+    ) {
         List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
         for (Setting.AffixSetting<?> setting : settings) {
             ensureSettingIsRegistered(setting);
@@ -330,8 +334,8 @@ public abstract class AbstractScopedSettings {
             public Map<String, Settings> getValue(Settings current, Settings previous) {
                 Set<String> namespaces = new HashSet<>();
                 for (Setting.AffixSetting<?> setting : settings) {
-                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) -> {});
-                    affixUpdaterA.apply(current, previous);
+                    SettingUpdater affixUpdater = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) -> {});
+                    affixUpdater.apply(current, previous);
                 }
                 Map<String, Settings> namespaceToSettings = Maps.newMapWithExpectedSize(namespaces.size());
                 for (String namespace : namespaces) {
@@ -339,7 +343,9 @@ public abstract class AbstractScopedSettings {
                     for (Setting.AffixSetting<?> setting : settings) {
                         concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
                     }
-                    namespaceToSettings.put(namespace, current.filter(concreteSettings::contains));
+                    var subset = current.filter(concreteSettings::contains);
+                    validator.accept(namespace, subset);
+                    namespaceToSettings.put(namespace, subset);
                 }
                 return namespaceToSettings;
             }
@@ -351,6 +357,17 @@ public abstract class AbstractScopedSettings {
                 }
             }
         });
+    }
+
+    /**
+     * Adds an affix settings consumer that accepts the settings for a group of settings. The consumer is only
+     * notified if at least one of the settings change.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     */
+    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+        addAffixGroupUpdateConsumer(settings, consumer, (a, b) -> {});
     }
 
     private void ensureSettingIsRegistered(Setting.AffixSetting<?> setting) {
@@ -433,7 +450,11 @@ public abstract class AbstractScopedSettings {
         assert setting.getProperties().contains(Setting.Property.Dynamic)
             || setting.getProperties().contains(Setting.Property.OperatorDynamic) : "Can only watch dynamic settings";
         assert setting.getProperties().contains(Setting.Property.NodeScope) : "Can only watch node settings";
-        consumer.accept(setting.get(settings));
+
+        // this mimics the combined settings of last applied and node settings, without building a new settings object
+        Settings settingsWithValue = setting.exists(lastSettingsApplied) ? lastSettingsApplied : settings;
+
+        consumer.accept(setting.get(settingsWithValue));
         addSettingsUpdateConsumer(setting, consumer);
     }
 

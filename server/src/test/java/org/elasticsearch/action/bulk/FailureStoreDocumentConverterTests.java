@@ -43,18 +43,18 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
         }
         boolean withPipelineOrigin = randomBoolean();
         if (withPipelineOrigin) {
-            ingestException.addHeader(
+            ingestException.addBodyHeader(
                 CompoundProcessor.PIPELINE_ORIGIN_EXCEPTION_HEADER,
                 Arrays.asList("some-failing-pipeline", "some-pipeline")
             );
         }
         boolean withProcessorTag = randomBoolean();
         if (withProcessorTag) {
-            ingestException.addHeader(CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER, "foo-tag");
+            ingestException.addBodyHeader(CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER, "foo-tag");
         }
         boolean withProcessorType = randomBoolean();
         if (withProcessorType) {
-            ingestException.addHeader(CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER, "bar-type");
+            ingestException.addBodyHeader(CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER, "bar-type");
         }
         if (randomBoolean()) {
             exception = new RemoteTransportException("Test exception wrapper, please ignore", exception);

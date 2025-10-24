@@ -1,5 +1,0 @@
-pr: 124594
-summary: Store arrays offsets for numeric fields natively with synthetic source
-area: Mapping
-type: enhancement
-issues: []

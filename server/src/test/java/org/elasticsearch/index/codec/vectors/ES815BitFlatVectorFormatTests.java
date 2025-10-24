@@ -10,9 +10,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnByteVectorField;
@@ -23,21 +21,18 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
+import org.apache.lucene.tests.util.TestUtil;
 import org.junit.Before;
 
 import java.io.IOException;
 
 public class ES815BitFlatVectorFormatTests extends BaseKnnBitVectorsFormatTestCase {
 
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES815BitFlatVectorFormat());
+
     @Override
     protected Codec getCodec() {
-        return new Lucene101Codec() {
-            @Override
-            public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES815BitFlatVectorFormat();
-            }
-        };
+        return codec;
     }
 
     @Before
@@ -60,7 +55,7 @@ public class ES815BitFlatVectorFormatTests extends BaseKnnBitVectorsFormatTestCa
                         knnVectorsReader = fieldsReader.getFieldReader("f");
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
-                    var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertEquals(1, offHeap.size());
                     assertTrue(offHeap.get("vec") > 0L);
                 }

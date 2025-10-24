@@ -26,7 +26,6 @@ import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -300,7 +299,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new IllegalStateException("[" + NAME + "] failed to find nested object under path [" + path + "]");
+                throw new QueryShardException(context, "[" + NAME + "] failed to find nested object under path [" + path + "]");
             }
         }
         final BitSetProducer parentFilter;
@@ -396,6 +395,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         private final NestedObjectMapper parentObjectMapper;
         private final NestedObjectMapper childObjectMapper;
+        private final SearchExecutionContext searchExecutionContext;
 
         NestedInnerHitSubContext(
             String name,
@@ -406,6 +406,24 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             super(name, context);
             this.parentObjectMapper = parentObjectMapper;
             this.childObjectMapper = childObjectMapper;
+            this.searchExecutionContext = null;
+        }
+
+        NestedInnerHitSubContext(NestedInnerHitSubContext nestedInnerHitSubContext, SearchExecutionContext searchExecutionContext) {
+            super(nestedInnerHitSubContext);
+            this.parentObjectMapper = nestedInnerHitSubContext.parentObjectMapper;
+            this.childObjectMapper = nestedInnerHitSubContext.childObjectMapper;
+            this.searchExecutionContext = searchExecutionContext;
+        }
+
+        @Override
+        public NestedInnerHitSubContext copyWithSearchExecutionContext(SearchExecutionContext searchExecutionContext) {
+            return new NestedInnerHitSubContext(this, searchExecutionContext);
+        }
+
+        @Override
+        public SearchExecutionContext getSearchExecutionContext() {
+            return searchExecutionContext != null ? searchExecutionContext : super.getSearchExecutionContext();
         }
 
         @Override
@@ -470,6 +488,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

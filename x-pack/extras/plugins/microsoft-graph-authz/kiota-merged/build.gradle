@@ -1,0 +1,75 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'com.gradleup.shadow'
+
+// because each of these declares a module `com.microsoft.kiota`, the plugin will crash at runtime; we work around this by building a shadow "uber jar"
+//  so that there is only one `com.microsoft.kiota` module
+dependencies {
+  implementation "com.microsoft.kiota:microsoft-kiota-abstractions:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-authentication-azure:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-http-okHttp:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-json:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-text:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-form:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-multipart:1.8.4"
+}
+
+tasks.named('shadowJar').configure {
+  manifest {
+    attributes 'Automatic-Module-Name': 'com.microsoft.kiota'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /microsoft-kiota.*/, to: "kiota"
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'com.azure.core.credential.AccessToken',
+    'com.azure.core.credential.TokenCredential',
+    'com.azure.core.credential.TokenRequestContext',
+    'com.google.gson.JsonArray',
+    'com.google.gson.JsonElement',
+    'com.google.gson.JsonObject',
+    'com.google.gson.JsonParser',
+    'com.google.gson.JsonPrimitive',
+    'com.google.gson.stream.JsonWriter',
+    'io.github.stduritemplate.StdUriTemplate',
+    'io.opentelemetry.api.GlobalOpenTelemetry',
+    'io.opentelemetry.api.common.AttributeKey',
+    'io.opentelemetry.api.trace.Span',
+    'io.opentelemetry.api.trace.SpanBuilder',
+    'io.opentelemetry.api.trace.StatusCode',
+    'io.opentelemetry.api.trace.Tracer',
+    'io.opentelemetry.context.Context',
+    'io.opentelemetry.context.Scope',
+    'kotlin.Pair',
+    'okhttp3.Call',
+    'okhttp3.Call$Factory',
+    'okhttp3.Headers',
+    'okhttp3.HttpUrl',
+    'okhttp3.HttpUrl$Builder',
+    'okhttp3.Interceptor',
+    'okhttp3.Interceptor$Chain',
+    'okhttp3.MediaType',
+    'okhttp3.OkHttpClient$Builder',
+    'okhttp3.Protocol',
+    'okhttp3.Request',
+    'okhttp3.Request$Builder',
+    'okhttp3.RequestBody',
+    'okhttp3.Response',
+    'okhttp3.Response$Builder',
+    'okhttp3.ResponseBody',
+    'okio.BufferedSink',
+    'okio.Okio'
+  )
+}

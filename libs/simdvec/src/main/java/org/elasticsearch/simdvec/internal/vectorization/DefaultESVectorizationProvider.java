@@ -10,7 +10,10 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
 
@@ -27,7 +30,23 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
+    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension) {
         return new ES91OSQVectorsScorer(input, dimension);
+    }
+
+    @Override
+    public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(IndexInput input, byte queryBits, byte indexBits, int dimension, int dataLength)
+        throws IOException {
+        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
+    }
+
+    @Override
+    public ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension) {
+        return new ES91Int4VectorsScorer(input, dimension);
+    }
+
+    @Override
+    public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension) {
+        return new ES92Int7VectorsScorer(input, dimension);
     }
 }

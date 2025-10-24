@@ -21,6 +21,13 @@ public enum FunctionType {
      * For example, {@code MAX} in {@code | STATS MAX(LENGTH(string))}.
      */
     AGGREGATE,
+
+    /**
+     * Functions that can only appear in the aggregate" position of a {@code STATS}
+     * started with TS.
+     * For example, {@code MAX_OVER_TIME} in {@code | STATS MAX(MAX_OVER_TIME(string))}.
+     */
+    TIME_SERIES_AGGREGATE,
     /**
      * Functions that can only appear in the "grouping" position of a {@code STATS}.
      * For example, {@code CATEGORIZE} in {@code | STATS MAX(a) BY CATEGORIZE(message)}.

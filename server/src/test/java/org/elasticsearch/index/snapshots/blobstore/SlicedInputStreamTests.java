@@ -178,7 +178,8 @@ public class SlicedInputStreamTests extends ESTestCase {
         // Reset
         input.reset();
         int slicesOpenedAfterReset = streamsOpened.size();
-        assert moreBytes > 0 || mark == 0 || slicesOpenedAfterReset == slicesOpenedAtMark : "Reset at mark should not re-open slices";
+        assert moreBytes > 0 || mark == 0 || mark == bytes.length || slicesOpenedAfterReset == slicesOpenedAtMark
+            : "Reset at mark should not re-open slices";
 
         // Read all remaining bytes, which should be the bytes from mark up to the end
         final int remainingBytes = bytes.length - mark;

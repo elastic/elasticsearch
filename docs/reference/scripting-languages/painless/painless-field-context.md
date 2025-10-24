@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-field-context.html
+products:
+  - id: painless
 ---
 
 # Field context [painless-field-context]
@@ -71,6 +73,7 @@ GET seats/_search
   }
 }
 ```
+% TEST[setup:seats]
 
 ```console-result
 {
@@ -119,4 +122,5 @@ GET seats/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 68/"took" : "$body.took"/]
 

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
  */
 public abstract class OperatorTestCase extends AnyOperatorTestCase {
+
     /**
      * Valid input to be sent to {@link #simple};
      */
@@ -67,14 +69,22 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * are more likely to discover accidental behavior for clumped inputs.
      */
     public final void testSimpleSmallInput() {
-        assertSimple(driverContext(), between(10, 100));
+        assertSimple(driverContext(), smallInputSize());
+    }
+
+    protected int smallInputSize() {
+        return randomIntBetween(10, 100);
     }
 
     /**
      * Test a larger input set against {@link #simple}.
      */
     public final void testSimpleLargeInput() {
-        assertSimple(driverContext(), between(1_000, 10_000));
+        assertSimple(driverContext(), largeInputSize());
+    }
+
+    protected int largeInputSize() {
+        return randomIntBetween(1_000, 10_000);
     }
 
     /**
@@ -96,11 +106,17 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * asserting both that this throws a {@link CircuitBreakingException} and releases
      * all pages.
      */
-    public final void testSimpleCircuitBreaking() {
+    public void testSimpleCircuitBreaking() {
+        /*
+         * Build the input before building `simple` to handle the rare
+         * cases where `simple` need some state from the input - mostly
+         * this is ValuesSourceReaderOperator.
+         */
+        DriverContext inputFactoryContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), largeInputSize()));
+
         ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
         Operator.OperatorFactory simple = simple(new SimpleOptions(true));
-        DriverContext inputFactoryContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
         try {
             ByteSizeValue limit = BreakerTestUtil.findBreakerLimit(memoryLimitForSimple, l -> runWithLimit(simple, input, l));
             ByteSizeValue testWithSize = ByteSizeValue.ofBytes(randomLongBetween(0, limit.getBytes()));
@@ -142,7 +158,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      */
     public final void testSimpleWithCranky() {
         DriverContext inputFactoryContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), largeInputSize()));
 
         DriverContext driverContext = crankyDriverContext();
 
@@ -217,6 +233,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         var operator = simple().get(context);
         List<Page> results = drive(operator, input.iterator(), context);
         assertSimpleOutput(origInput, results);
+        assertOperatorStatus(operator, origInput, results);
         assertThat(context.breaker().getUsed(), equalTo(0L));
 
         // Release all result blocks. After this, all input blocks should be released as well, otherwise we have a leak.
@@ -247,9 +264,20 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
             for (Page page : input) {
-                operator.addInput(page);
+                if (operator.needsInput()) {
+                    operator.addInput(page);
+                } else {
+                    page.releaseBlocks();
+                }
             }
             operator.finish();
+            // for async operator, we need to wait for async actions to finish.
+            if (operator instanceof AsyncOperator<?> || randomBoolean()) {
+                driverContext.finish();
+                PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
+                driverContext.waitForAsyncActions(waitForAsync);
+                waitForAsync.actionGet(TimeValue.timeValueSeconds(30));
+            }
         }
     }
 

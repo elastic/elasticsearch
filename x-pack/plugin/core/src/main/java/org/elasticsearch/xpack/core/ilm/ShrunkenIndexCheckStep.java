@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
@@ -41,24 +41,21 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.getMetadata().getProject().index(index);
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        IndexMetadata idxMeta = currentState.metadata().index(index);
         if (idxMeta == null) {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             // Index must have been since deleted, ignore it
             return new Result(false, null);
         }
-        String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(
-            clusterState.metadata().getProject().index(index).getSettings()
-        );
+        String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(currentState.metadata().index(index).getSettings());
         if (Strings.isNullOrEmpty(shrunkenIndexSource)) {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
         }
 
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         String targetIndexName = getShrinkIndexName(shrunkenIndexSource, lifecycleState);
-        boolean isConditionMet = index.getName().equals(targetIndexName)
-            && clusterState.metadata().getProject().index(shrunkenIndexSource) == null;
+        boolean isConditionMet = index.getName().equals(targetIndexName) && currentState.metadata().index(shrunkenIndexSource) == null;
         if (isConditionMet) {
             return new Result(true, null);
         } else {

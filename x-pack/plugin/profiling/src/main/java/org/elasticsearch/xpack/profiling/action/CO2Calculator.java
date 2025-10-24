@@ -12,7 +12,6 @@ import org.elasticsearch.core.UpdateForV10;
 import java.util.Map;
 
 final class CO2Calculator {
-    private static final double DEFAULT_SAMPLING_FREQUENCY = 19.0d;
     private static final double DEFAULT_CO2_TONS_PER_KWH = 0.000379069d; // unit: metric tons / kWh
     private static final double DEFAULT_KILOWATTS_PER_CORE_X86 = 7.0d / 1000.0d; // unit: watt / core
     private static final double DEFAULT_KILOWATTS_PER_CORE_ARM64 = 2.8d / 1000.0d; // unit: watt / core
@@ -43,8 +42,8 @@ final class CO2Calculator {
             : customPerCoreWattARM64 / 1000.0d;
     }
 
-    public double getAnnualCO2Tons(String hostID, long samples) {
-        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, DEFAULT_SAMPLING_FREQUENCY);
+    public double getAnnualCO2Tons(String hostID, long samples, double samplingFrequency) {
+        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, samplingFrequency);
 
         HostMetadata host = hostMetadata.get(hostID);
         if (host == null) {

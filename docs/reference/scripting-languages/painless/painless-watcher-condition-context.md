@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-watcher-condition-context.html
+products:
+  - id: painless
 ---
 
 # Watcher condition context [painless-watcher-condition-context]
@@ -94,6 +96,7 @@ POST _watcher/watch/_execute
   }
 }
 ```
+% TEST[setup:seats]
 
 1. The Java Stream API is used in the condition. This API allows manipulation of the elements of the list in a pipeline.
 2. The stream filter removes items that do not meet the filter criteria.
@@ -152,6 +155,7 @@ POST _watcher/watch/_execute
   }
 }
 ```
+% TEST[setup:seats]
 
 This example uses a nearly identical condition as the previous example. The differences below are subtle and are worth calling out.
 

@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -426,10 +427,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testRemoveBrokenBackingIndexReference() {
         var dataStreamName = "my-logs";
-        final var projectId = randomProjectIdOrDefault();
-        var project = DataStreamTestHelper.getClusterStateWithDataStreams(projectId, List.of(new Tuple<>(dataStreamName, 2)), List.of())
-            .metadata()
-            .getProject(projectId);
+        var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
         var originalDs = project.dataStreams().get(dataStreamName);
         var broken = originalDs.copy()
             .setBackingIndices(
@@ -453,11 +451,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testRemoveBackingIndexThatDoesntExist() {
         var dataStreamName = "my-logs";
-        final var projectId = randomProjectIdOrDefault();
-        var project = DataStreamTestHelper.getClusterStateWithDataStreams(projectId, List.of(new Tuple<>(dataStreamName, 2)), List.of())
-            .metadata()
-            .getProject(projectId);
-        ;
+        var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
 
         String indexToRemove = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
         var e = expectThrows(
@@ -475,16 +469,12 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
     public void testUpdateLifecycle() {
         String dataStream = randomAlphaOfLength(5);
         DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
-        final var projectId = randomProjectIdOrDefault();
-        ProjectMetadata before = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
-            List.of(new Tuple<>(dataStream, 2)),
-            List.of()
-        ).metadata().getProject(projectId);
+        ProjectMetadata before = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
         MetadataDataStreamsService service = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            IndexSettingProviders.EMPTY
         );
         {
             // Remove lifecycle
@@ -505,22 +495,18 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
     }
 
     public void testUpdateDataStreamOptions() {
-        final var projectId = randomProjectIdOrDefault();
         String dataStream = randomAlphaOfLength(5);
         // we want the data stream options to be non-empty, so we can see the removal in action
         DataStreamOptions dataStreamOptions = randomValueOtherThan(
             DataStreamOptions.EMPTY,
             DataStreamOptionsTests::randomDataStreamOptions
         );
-        ProjectMetadata before = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
-            List.of(new Tuple<>(dataStream, 2)),
-            List.of()
-        ).metadata().getProject(projectId);
+        ProjectMetadata before = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
         MetadataDataStreamsService service = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            IndexSettingProviders.EMPTY
         );
 
         // Ensure no data stream options are stored
@@ -559,7 +545,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testDeleteSnapshotting() {
         String dataStreamName = randomAlphaOfLength(5);
-        Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
+        var projectId = randomProjectIdOrDefault();
+        Snapshot snapshot = new Snapshot(projectId, "doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
@@ -578,7 +565,6 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             )
         );
         final DataStream dataStream = DataStreamTestHelper.randomInstance(dataStreamName);
-        var projectId = randomProjectIdOrDefault();
         ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
             .putCustom(SnapshotsInProgress.TYPE, snaps)
             .putProjectMetadata(ProjectMetadata.builder(projectId).put(dataStream))

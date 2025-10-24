@@ -24,6 +24,7 @@ public class ValueExtractorForAggregateMetricDouble implements ValueExtractor {
 
     @Override
     public void writeValue(BreakingBytesRefBuilder values, int position) {
+        TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(1, values);
         for (DoubleBlock doubleBlock : List.of(block.minBlock(), block.maxBlock(), block.sumBlock())) {
             if (doubleBlock.isNull(position)) {
                 TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(false, values);

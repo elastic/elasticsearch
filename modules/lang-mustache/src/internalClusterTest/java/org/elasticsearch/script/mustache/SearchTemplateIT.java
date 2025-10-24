@@ -426,7 +426,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
     /**
      * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before
-     * TransportVersions.MINIMUM_CCS_VERSION works
+     * TransportVersion.minimumCCSVersion() works
      */
     public void testCCSCheckCompatibility() throws Exception {
         String templateString = """

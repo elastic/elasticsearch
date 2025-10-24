@@ -34,7 +34,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
             ),
             DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION
         )) {
-            ByteBuffer byteBuffer = DenseVectorFieldMapper.ElementType.FLOAT.createByteBuffer(version, 20);
+            ByteBuffer byteBuffer = DenseVectorFieldMapper.FLOAT_ELEMENT.createByteBuffer(version, 20);
             double magnitude = 0.0;
             for (float f : inputFloats) {
                 byteBuffer.putFloat(f);

@@ -35,6 +35,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TESTSETUP
 
 ::::{note}
 You can also store ip ranges in a single field using an [ip_range data type](/reference/elasticsearch/mapping-reference/range.md).
@@ -123,11 +124,6 @@ GET my-index-000001/_search
 
 ## Synthetic `_source` [ip-synthetic-source]
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
-
 Synthetic source may sort `ip` field values and remove duplicates. For example:
 
 $$$synthetic-source-ip-example$$$
@@ -156,6 +152,7 @@ PUT idx/_doc/1
          "2001:db8::1:0:0:1", "::afff:4567:890a"]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -164,6 +161,7 @@ Will become:
   "ip": ["::afff:4567:890a", "10.10.12.123", "192.168.0.1", "2001:db8::1:0:0:1"]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 ::::{note}
 IPv4 addresses are sorted as though they were IPv6 addresses prefixed by `::ffff:0:0:0/96` as specified by [rfc6144](https://datatracker.ietf.org/doc/html/rfc6144).

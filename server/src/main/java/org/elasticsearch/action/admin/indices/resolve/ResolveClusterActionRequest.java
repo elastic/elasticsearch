@@ -11,9 +11,9 @@ package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +29,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-public class ResolveClusterActionRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class ResolveClusterActionRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
     public static final String TRANSPORT_VERSION_ERROR_MESSAGE_PREFIX = "ResolveClusterAction requires at least version";
@@ -84,15 +84,13 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         this.names = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         this.localIndicesRequested = localIndicesPresent(names);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_CLUSTER_NO_INDEX_EXPRESSION)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.clusterInfoOnly = in.readBoolean();
             this.isQueryingCluster = in.readBoolean();
+            this.timeout = in.readOptionalTimeValue();
         } else {
             this.clusterInfoOnly = false;
             this.isQueryingCluster = false;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER)) {
-            this.timeout = in.readOptionalTimeValue();
         }
     }
 
@@ -104,11 +102,9 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         }
         out.writeStringArray(names);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_CLUSTER_NO_INDEX_EXPRESSION)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(clusterInfoOnly);
             out.writeBoolean(isQueryingCluster);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER)) {
             out.writeOptionalTimeValue(timeout);
         }
     }

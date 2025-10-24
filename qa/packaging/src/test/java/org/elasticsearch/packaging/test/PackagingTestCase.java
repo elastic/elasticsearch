@@ -145,6 +145,10 @@ public abstract class PackagingTestCase extends Assert {
         @Override
         protected void failed(Throwable e, Description description) {
             failed = true;
+            if (installation != null && installation.distribution.isDocker()) {
+                logger.warn("Test {} failed. Printing logs for failed test...", description.getMethodName());
+                FileUtils.logAllLogs(installation.logs, logger);
+            }
         }
     };
 

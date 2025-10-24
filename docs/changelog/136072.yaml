@@ -1,0 +1,5 @@
+pr: 136072
+summary: Extend time range bucketing attributes to retrievers
+area: Search
+type: enhancement
+issues: []

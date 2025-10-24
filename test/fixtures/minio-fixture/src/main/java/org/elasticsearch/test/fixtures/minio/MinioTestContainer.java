@@ -15,8 +15,16 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 
 public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer {
 
+    /*
+     * Known issues broken down by MinIO release date:
+     * [< 2025-05-24                ] known issue https://github.com/minio/minio/issues/21189; workaround in #127166
+     * [= 2025-05-24                ] known issue https://github.com/minio/minio/issues/21377; no workaround
+     * [> 2025-05-24 && < 2025-09-07] known issue https://github.com/minio/minio/issues/21456; workaround in #131815
+     * [>= 2025-09-07               ] no known issues (yet)
+     */
+    public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2025-09-07T16-13-09Z";
+
     private static final int servicePort = 9000;
-    public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2024-12-18T13-15-44Z";
     private final boolean enabled;
 
     /**

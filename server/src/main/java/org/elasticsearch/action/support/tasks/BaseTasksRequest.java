@@ -9,8 +9,8 @@
 
 package org.elasticsearch.action.support.tasks;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +27,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A base class for task requests
  */
-public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest {
+public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends LegacyActionRequest {
 
     public static final String[] ALL_ACTIONS = Strings.EMPTY_ARRAY;
 
@@ -103,7 +103,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     /**
      * Returns the id of the task that should be processed.
-     *
+     * <p>
      * By default tasks with any ids are returned.
      */
     public TaskId getTargetTaskId() {

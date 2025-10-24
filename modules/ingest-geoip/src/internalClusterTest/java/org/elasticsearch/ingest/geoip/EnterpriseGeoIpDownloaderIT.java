@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -97,10 +98,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @TestLogging(
-        reason = "understanding why ipinfo asn database sometimes is not loaded",
-        value = "org.elasticsearch.ingest.geoip.DatabaseNodeService:TRACE"
-    )
+    @TestLogging(reason = "For debugging tricky race conditions", value = "org.elasticsearch.ingest.geoip:TRACE")
     public void testEnterpriseDownloaderTask() throws Exception {
         /*
          * This test starts the enterprise geoip downloader task, and creates a database configuration. Then it creates an ingest
@@ -116,7 +114,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         final String sourceField = "ip";
         final String targetField = "ip-result";
 
-        startEnterpriseGeoIpDownloaderTask();
+        startEnterpriseGeoIpDownloaderTask(ProjectId.DEFAULT);
         configureMaxmindDatabase(MAXMIND_DATABASE_TYPE);
         configureIpinfoDatabase(IPINFO_DATABASE_TYPE);
         waitAround();
@@ -171,9 +169,10 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
             );
     }
 
-    private void startEnterpriseGeoIpDownloaderTask() {
+    private void startEnterpriseGeoIpDownloaderTask(ProjectId projectId) {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendProjectStartRequest(
+            projectId,
             ENTERPRISE_GEOIP_DOWNLOADER,
             ENTERPRISE_GEOIP_DOWNLOADER,
             new EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams(),

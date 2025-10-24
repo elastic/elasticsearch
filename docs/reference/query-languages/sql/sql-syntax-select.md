@@ -120,7 +120,7 @@ where:
 `table_name`
 :   Represents the name (optionally qualified) of an existing table, either a concrete or base one (actual index) or alias.
 
-If the table name contains special SQL characters (such as `.`,`-`,`*`,etc…​) use double quotes to escape them:
+If the table name contains special SQL characters (such as `.`,`-`,`*`,etc… ) use double quotes to escape them:
 
 ```sql
 SELECT * FROM "emp" LIMIT 1;
@@ -140,7 +140,7 @@ SELECT emp_no FROM "e*p" LIMIT 1;
 10001
 ```
 
-[preview] To run a [{{ccs}}](docs-content://solutions/search/cross-cluster-search.md), specify a cluster name using the `<remote_cluster>:<target>` syntax, where `<remote_cluster>` maps to a SQL catalog (cluster) and `<target>` to a table (index or data stream). The `<remote_cluster>` supports wildcards (`*`) and `<target>` can be an [index pattern](/reference/query-languages/sql/sql-index-patterns.md).
+{applies_to}`stack: preview` {applies_to}`serverless: preview` To run a [{{ccs}}](docs-content://solutions/search/cross-cluster-search.md), specify a cluster name using the `<remote_cluster>:<target>` syntax, where `<remote_cluster>` maps to a SQL catalog (cluster) and `<target>` to a table (index or data stream). The `<remote_cluster>` supports wildcards (`*`) and `<target>` can be an [index pattern](/reference/query-languages/sql/sql-index-patterns.md).
 
 ```sql
 SELECT emp_no FROM "my*cluster:*emp" LIMIT 1;

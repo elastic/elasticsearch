@@ -55,3 +55,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.fasterxml.jackson.databind.cfg.MapperBuilder'
   )
 }
+
+tasks.named("licenseHeaders").configure {
+  approvedLicenses = ['Apache', 'AGLP+SSPL+Elastic License', 'Generated', 'Vendored']
+}

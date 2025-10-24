@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-operators.html
+products:
+  - id: painless
 ---
 
 # Operators [painless-operators]
@@ -22,9 +24,9 @@ An operator is the most basic action that can be taken to evaluate values in a s
 | [Map Initialization](/reference/scripting-languages/painless/painless-operators-reference.md#map-initialization-operator) | [Reference](/reference/scripting-languages/painless/painless-operators-reference.md) | [:] | 1 | left → right |
 | [Map Access](/reference/scripting-languages/painless/painless-operators-reference.md#map-access-operator) | [Reference](/reference/scripting-languages/painless/painless-operators-reference.md) | [] | 1 | left → right |
 | [Post Increment](/reference/scripting-languages/painless/painless-operators-numeric.md#post-increment-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) | ++ | 1 | left → right |
-| [Post Decrement](/reference/scripting-languages/painless/painless-operators-numeric.md#post-decrement-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) |  —  | 1 | left → right |
+| [Post Decrement](/reference/scripting-languages/painless/painless-operators-numeric.md#post-decrement-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) |  —  | 1 | left → right |
 | [Pre Increment](/reference/scripting-languages/painless/painless-operators-numeric.md#pre-increment-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) | ++ | 2 | right → left |
-| [Pre Decrement](/reference/scripting-languages/painless/painless-operators-numeric.md#pre-decrement-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) |  —  | 2 | right → left |
+| [Pre Decrement](/reference/scripting-languages/painless/painless-operators-numeric.md#pre-decrement-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) |  —  | 2 | right → left |
 | [Unary Positive](/reference/scripting-languages/painless/painless-operators-numeric.md#unary-positive-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) | + | 2 | right → left |
 | [Unary Negative](/reference/scripting-languages/painless/painless-operators-numeric.md#unary-negative-operator) | [Numeric](/reference/scripting-languages/painless/painless-operators-numeric.md) | - | 2 | right → left |
 | [Boolean Not](/reference/scripting-languages/painless/painless-operators-boolean.md#boolean-not-operator) | [Boolean](/reference/scripting-languages/painless/painless-operators-boolean.md) | ! | 2 | right → left |

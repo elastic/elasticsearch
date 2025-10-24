@@ -21,10 +21,14 @@ import software.amazon.awssdk.regions.Region;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.ArgumentCaptor;
@@ -234,7 +238,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         try (
             S3Service s3Service = new S3Service(
                 mock(Environment.class),
-                Settings.EMPTY,
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(ResourceWatcherService.class),
                 () -> Region.of("es-test-region")
             )
@@ -242,13 +247,15 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             s3Service.start();
             final String endpointOverride = "http://first";
             final Settings settings = Settings.builder().put("endpoint", endpointOverride).build();
-            final AmazonS3Reference reference = s3Service.client(new RepositoryMetadata("first", "s3", settings));
+            final AmazonS3Reference reference = s3Service.client(
+                randomFrom(ProjectId.DEFAULT, null),
+                new RepositoryMetadata("first", "s3", settings)
+            );
 
             assertEquals(endpointOverride, reference.client().serviceClientConfiguration().endpointOverride().get().toString());
             assertEquals("es-test-region", reference.client().serviceClientConfiguration().region().toString());
 
             reference.close();
-            s3Service.doClose();
         }
     }
 

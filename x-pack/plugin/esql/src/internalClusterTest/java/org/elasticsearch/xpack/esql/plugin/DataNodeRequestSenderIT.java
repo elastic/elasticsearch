@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -21,12 +22,10 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
@@ -52,17 +51,19 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
 
         // start background searches
         var stopped = new AtomicBoolean(false);
-        var queries = new LongAdder();
         var threads = new Thread[randomIntBetween(1, 5)];
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 while (stopped.get() == false) {
                     try (EsqlQueryResponse resp = run("FROM index-1")) {
                         assertThat(getValuesList(resp), hasSize(docs));
+                    } catch (Exception | AssertionError e) {
+                        logger.warn("Query failed with exception", e);
+                        stopped.set(true);
+                        throw e;
                     }
-                    queries.increment();
                 }
-            });
+            }, "testSearchWhileRelocating-" + i);
         }
         for (Thread thread : threads) {
             thread.start();
@@ -93,7 +94,6 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._name"))
             .get();
-        assertThat(queries.sum(), greaterThan((long) threads.length));
     }
 
     public void testRetryOnShardMovement() {
@@ -132,12 +132,8 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
                 (handler, request, channel, task) -> {
                     // move index shard
                     if (shouldMove.compareAndSet(true, false)) {
-                        var currentShardNodeId = clusterService().state()
-                            .routingTable()
-                            .index("index-1")
-                            .shard(0)
-                            .primaryShard()
-                            .currentNodeId();
+                        var shardRouting = clusterService().state().routingTable(ProjectId.DEFAULT).shardRoutingTable("index-1", 0);
+                        var currentShardNodeId = shardRouting.primaryShard().currentNodeId();
                         assertAcked(
                             client().admin()
                                 .indices()

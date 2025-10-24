@@ -54,7 +54,7 @@ import java.util.Arrays;
  *
  * Of course, decoding follows the opposite order with respect to encoding.
  */
-public class TSDBDocValuesEncoder {
+public final class TSDBDocValuesEncoder {
     private final DocValuesForUtil forUtil;
     private final int numericBlockSize;
 
@@ -346,8 +346,10 @@ public class TSDBDocValuesEncoder {
     }
 
     private void deltaDecode(long[] arr) {
-        for (int i = 1; i < numericBlockSize; ++i) {
-            arr[i] += arr[i - 1];
+        long sum = 0;
+        for (int i = 0; i < numericBlockSize; ++i) {
+            sum += arr[i];
+            arr[i] = sum;
         }
     }
 }

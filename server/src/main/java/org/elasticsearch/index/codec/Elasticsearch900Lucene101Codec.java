@@ -9,12 +9,12 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.backward_codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
@@ -27,6 +27,8 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  * stored fields with ZSTD instead of LZ4/DEFLATE. See {@link Zstd814StoredFieldsFormat}.
  */
 public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFieldInfosCodec {
+
+    static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene101PostingsFormat();
 
     private final StoredFieldsFormat storedFieldsFormat;
 
@@ -66,7 +68,7 @@ public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFiel
     public Elasticsearch900Lucene101Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch900Lucene101", new Lucene101Codec());
         this.storedFieldsFormat = mode.getFormat();
-        this.defaultPostingsFormat = new Lucene101PostingsFormat();
+        this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;
         this.defaultDVFormat = new Lucene90DocValuesFormat();
         this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
     }

@@ -11,6 +11,7 @@ dependencies {
   testImplementation project(path: ':test:test-clusters')
   clusterModules project(':test:external-modules:test-multi-project')
   clusterModules project(':modules:analysis-common')
+  clusterModules project(":modules:ingest-common")
 }
 
 tasks.named("javaRestTest").configure {

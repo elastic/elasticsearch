@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-execute-api.html
+products:
+  - id: painless
 ---
 
 # Painless API examples [painless-execute-api]
@@ -229,7 +231,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
-
+% TEST[continued]
 
 ### Response [_response_2]
 
@@ -281,7 +283,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
-
+% TEST[continued]
 
 ### Response [_response_3]
 
@@ -351,6 +353,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
+% TEST[continued]
 
 Because *Dune* was published in 1965, the result returns as `true`:
 
@@ -385,6 +388,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
+% TEST[continued]
 
 Because `Frank` is five characters, the response returns `false` for the script valuation:
 
@@ -458,6 +462,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
+% TEST[continued]
 
 1. Eight hours, represented in milliseconds
 2. Incredibly fast writing from Robert A. Heinlein
@@ -531,6 +536,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
+% TEST[continued]
 
 The result includes the calculated voltage, which was determined by multiplying the original value of `5.6` by `1.7`:
 
@@ -585,6 +591,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
+% TEST[continued]
 
 Because you’re working with a geo-point field type, the response includes results that are formatted as `coordinates`.
 
@@ -649,6 +656,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
+% TEST[continued]
 
 The response includes only the IP address, ignoring all of the other data in the `message` field.
 
@@ -699,6 +707,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
+% TEST[continued]
 
 The script operates on the value provided for the `@timestamp` field to calculate and return the day of the week:
 
@@ -760,6 +769,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
+% TEST[continued]
 
 The response includes the calculated value from the script valuation:
 
@@ -809,6 +819,7 @@ POST /_scripts/painless/_execute
   }
 }
 ```
+% TEST[continued]
 
 The response includes the values that the script emitted:
 

@@ -14,10 +14,11 @@ import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.DeleteStep;
@@ -54,7 +55,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class TimeSeriesDataStreamsIT extends ESRestTestCase {
+public class TimeSeriesDataStreamsIT extends IlmESRestTestCase {
 
     private String policyName;
     private String dataStream;
@@ -85,7 +86,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             final var backingIndices = getDataStreamBackingIndexNames(dataStream);
             assertEquals(2, backingIndices.size());
             try {
-                assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(backingIndices.getLast()).get("index.hidden")));
+                assertTrue(Booleans.parseBoolean((String) getIndexSettingsAsMap(backingIndices.getLast()).get("index.hidden")));
                 assertEquals(PhaseCompleteStep.finalStep("hot").getKey(), getStepKeyForIndex(client(), backingIndices.getFirst()));
             } catch (ResponseException e) {
                 // These API calls may hit different nodes and they might see slightly different versions of the cluster state,

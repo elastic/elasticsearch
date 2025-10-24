@@ -12,11 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -43,7 +43,7 @@ public class ClusterConnectionManager implements ConnectionManager {
     private static final Logger logger = LogManager.getLogger(ClusterConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<DiscoveryNode, ListenableFuture<Transport.Connection>> pendingConnections = ConcurrentCollections
+    private final ConcurrentMap<DiscoveryNode, SubscribableListener<Transport.Connection>> pendingConnections = ConcurrentCollections
         .newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = AbstractRefCounted.of(this::pendingConnectionsComplete);
 
@@ -184,8 +184,8 @@ public class ClusterConnectionManager implements ConnectionManager {
             return;
         }
 
-        final ListenableFuture<Transport.Connection> currentListener = new ListenableFuture<>();
-        final ListenableFuture<Transport.Connection> existingListener = pendingConnections.putIfAbsent(node, currentListener);
+        final SubscribableListener<Transport.Connection> currentListener = new SubscribableListener<>();
+        final SubscribableListener<Transport.Connection> existingListener = pendingConnections.putIfAbsent(node, currentListener);
         if (existingListener != null) {
             try {
                 // wait on previous entry to complete connection attempt
@@ -203,7 +203,7 @@ public class ClusterConnectionManager implements ConnectionManager {
         // extra connection to the node. We could _just_ check here, but checking up front skips the work to mark the connection as pending.
         final Transport.Connection existingConnectionRecheck = connectedNodes.get(node);
         if (existingConnectionRecheck != null) {
-            ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
+            var future = pendingConnections.remove(node);
             assert future == currentListener : "Listener in pending map is different than the expected listener";
             connectingRefCounter.decRef();
             future.onResponse(existingConnectionRecheck);
@@ -229,11 +229,26 @@ public class ClusterConnectionManager implements ConnectionManager {
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
-                                conn.addCloseListener(ActionListener.running(() -> {
-                                    connectedNodes.remove(node, conn);
-                                    connectionListener.onNodeDisconnected(node, conn);
-                                    managerRefs.decRef();
-                                }));
+                                conn.addCloseListener(new ActionListener<Void>() {
+                                    @Override
+                                    public void onResponse(Void ignored) {
+                                        handleClose(null);
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        handleClose(e);
+                                    }
+
+                                    void handleClose(@Nullable Exception e) {
+                                        connectedNodes.remove(node, conn);
+                                        try {
+                                            connectionListener.onNodeDisconnected(node, e);
+                                        } finally {
+                                            managerRefs.decRef();
+                                        }
+                                    }
+                                });
 
                                 conn.addCloseListener(ActionListener.running(() -> {
                                     if (connectingRefCounter.hasReferences() == false) {
@@ -257,7 +272,7 @@ public class ClusterConnectionManager implements ConnectionManager {
                             }
                         }
                     } finally {
-                        ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
+                        var future = pendingConnections.remove(node);
                         assert future == currentListener : "Listener in pending map is different than the expected listener";
                         managerRefs.decRef();
                         releaseOnce.run();
@@ -387,9 +402,9 @@ public class ClusterConnectionManager implements ConnectionManager {
         DiscoveryNode node,
         RunOnce releaseOnce,
         Exception e,
-        ListenableFuture<Transport.Connection> expectedListener
+        SubscribableListener<Transport.Connection> expectedListener
     ) {
-        ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
+        final var future = pendingConnections.remove(node);
         releaseOnce.run();
         if (future != null) {
             assert future == expectedListener : "Listener in pending map is different than the expected listener";

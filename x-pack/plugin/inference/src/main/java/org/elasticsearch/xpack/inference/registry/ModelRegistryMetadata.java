@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.registry;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -38,8 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
-import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -90,6 +87,10 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         ModelRegistryMetadata resp = projectMetadata.custom(TYPE);
         return resp != null ? resp : EMPTY_NOT_UPGRADED;
     }
+
+    private static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = TransportVersion.fromName(
+        "inference_model_registry_metadata"
+    );
 
     public ModelRegistryMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {
         final var existing = modelMap.get(inferenceEntityId);
@@ -187,7 +188,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     }
 
     /**
-     * Determines whether all models created prior to {@link TransportVersions#INFERENCE_MODEL_REGISTRY_METADATA}
+     * Determines whether all models created prior to {@link #INFERENCE_MODEL_REGISTRY_METADATA}
      * have been successfully restored from the {@link InferenceIndex}.
      *
      * @return true if all such models have been restored; false otherwise.
@@ -237,7 +238,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+        return INFERENCE_MODEL_REGISTRY_METADATA;
     }
 
     @Override
@@ -308,7 +309,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+            return INFERENCE_MODEL_REGISTRY_METADATA;
         }
 
         @Override
@@ -328,6 +329,6 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     }
 
     static boolean shouldSerialize(TransportVersion version) {
-        return version.isPatchFrom(INFERENCE_MODEL_REGISTRY_METADATA_8_19) || version.onOrAfter(INFERENCE_MODEL_REGISTRY_METADATA);
+        return version.supports(INFERENCE_MODEL_REGISTRY_METADATA);
     }
 }

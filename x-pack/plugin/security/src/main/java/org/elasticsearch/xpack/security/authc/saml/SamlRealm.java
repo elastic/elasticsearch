@@ -12,6 +12,7 @@ import net.shibboleth.utilities.java.support.resolver.ResolverException;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.LogManager;
@@ -21,9 +22,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -49,9 +50,11 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.saml.SamlAttributes.SamlPrivateAttribute;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.mapper.ExcludingRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
@@ -62,6 +65,7 @@ import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolve
 import org.opensaml.saml.metadata.resolver.impl.FilesystemMetadataResolver;
 import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
 import org.opensaml.saml.metadata.resolver.impl.PredicateRoleDescriptorResolver;
+import org.opensaml.saml.saml2.core.Attribute;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.LogoutResponse;
@@ -101,13 +105,13 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.X509KeyManager;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
@@ -120,8 +124,10 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.FORCE_AUTHN;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.GROUPS_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_ENTITY_ID;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_REFRESH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_PATH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_SINGLE_LOGOUT;
@@ -154,6 +160,8 @@ public final class SamlRealm extends Realm implements Releasable {
     public static final String TOKEN_METADATA_NAMEID_SP_PROVIDED_ID = "saml_nameid_sp_id";
     public static final String TOKEN_METADATA_SESSION = "saml_session";
     public static final String TOKEN_METADATA_REALM = "saml_realm";
+
+    public static final String PRIVATE_ATTRIBUTES_METADATA = "saml_private_attributes";
     // Although we only use this for IDP metadata loading, the SSLServer only loads configurations where "ssl." is a top-level element
     // in the realm group configuration, so it has to have this name.
 
@@ -217,7 +225,14 @@ public final class SamlRealm extends Realm implements Releasable {
         final Clock clock = Clock.systemUTC();
         final IdpConfiguration idpConfiguration = getIdpConfiguration(config, metadataResolver, idpDescriptor);
         final TimeValue maxSkew = config.getSetting(CLOCK_SKEW);
-        final SamlAuthenticator authenticator = new SamlAuthenticator(clock, idpConfiguration, serviceProvider, maxSkew);
+        final Predicate<Attribute> privateAttributePredicate = new SamlPrivateAttributePredicate(config);
+        final SamlAuthenticator authenticator = new SamlAuthenticator(
+            clock,
+            idpConfiguration,
+            serviceProvider,
+            maxSkew,
+            privateAttributePredicate
+        );
         final SamlLogoutRequestHandler logoutHandler = new SamlLogoutRequestHandler(clock, idpConfiguration, serviceProvider, maxSkew);
         final SamlLogoutResponseHandler logoutResponseHandler = new SamlLogoutResponseHandler(
             clock,
@@ -547,7 +562,7 @@ public final class SamlRealm extends Realm implements Releasable {
                 final SamlToken token = (SamlToken) authenticationToken;
                 final SamlAttributes attributes = authenticator.authenticate(token);
                 logger.debug("Parsed token [{}] to attributes [{}]", token, attributes);
-                buildUser(attributes, listener);
+                buildUser(attributes, ActionListener.releaseAfter(listener, attributes));
             } catch (ElasticsearchSecurityException e) {
                 if (SamlUtils.isSamlException(e)) {
                     listener.onResponse(AuthenticationResult.unsuccessful("Provided SAML response is not valid for realm " + this, e));
@@ -574,11 +589,16 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
         final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
+        final Map<String, List<SecureString>> privateAttributesMetadata = attributes.privateAttributes()
+            .stream()
+            .collect(Collectors.toMap(SamlPrivateAttribute::name, SamlPrivateAttribute::values));
+
         ActionListener<AuthenticationResult<User>> wrappedListener = baseListener.delegateFailureAndWrap((l, auth) -> {
             if (auth.isAuthenticated()) {
                 // Add the SAML token details as metadata on the authentication
                 Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
                 metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
+                metadata.put(PRIVATE_ATTRIBUTES_METADATA, privateAttributesMetadata);
                 auth = AuthenticationResult.success(auth.getValue(), metadata);
             }
             l.onResponse(auth);
@@ -684,10 +704,17 @@ public final class SamlRealm extends Realm implements Releasable {
         HttpClientBuilder builder = HttpClientBuilder.create();
         // ssl setup
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-        final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
-        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
+        final SslProfile sslProfile = sslService.profile(sslKey);
+        final SSLConnectionSocketFactory factory = sslProfile.connectionSocketFactory();
         builder.setSSLSocketFactory(factory);
+
+        TimeValue connectTimeout = config.getSetting(IDP_METADATA_HTTP_CONNECT_TIMEOUT);
+        TimeValue readTimeout = config.getSetting(IDP_METADATA_HTTP_READ_TIMEOUT);
+        RequestConfig requestConfig = RequestConfig.custom()
+            .setConnectTimeout(Math.toIntExact(connectTimeout.millis()))
+            .setSocketTimeout(Math.toIntExact(readTimeout.millis()))
+            .build();
+        builder.setDefaultRequestConfig(requestConfig);
 
         TimeValue maxRefresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
         TimeValue minRefresh = config.getSetting(IDP_METADATA_HTTP_MIN_REFRESH);
@@ -783,7 +810,13 @@ public final class SamlRealm extends Realm implements Releasable {
         final Path path = config.env().configDir().resolve(metadataPath);
         final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
 
-        for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_MIN_REFRESH, IDP_METADATA_HTTP_FAIL_ON_ERROR)) {
+        for (var httpSetting : List.of(
+            IDP_METADATA_HTTP_REFRESH,
+            IDP_METADATA_HTTP_MIN_REFRESH,
+            IDP_METADATA_HTTP_FAIL_ON_ERROR,
+            IDP_METADATA_HTTP_CONNECT_TIMEOUT,
+            IDP_METADATA_HTTP_READ_TIMEOUT
+        )) {
             if (config.hasSetting(httpSetting.apply(config.type()))) {
                 logger.info(
                     "Ignoring setting [{}] because the IdP metadata is being loaded from a file",

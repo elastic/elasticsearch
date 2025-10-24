@@ -37,7 +37,8 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) {
         final Metadata currentMeta = currentState.metadata();
-        final SnapshotLifecycleMetadata currentSlmMeta = currentMeta.getProject().custom(SnapshotLifecycleMetadata.TYPE);
+        final var project = currentMeta.getProject();
+        final SnapshotLifecycleMetadata currentSlmMeta = project.custom(SnapshotLifecycleMetadata.TYPE);
 
         if (currentSlmMeta == null) {
             return currentState;
@@ -50,9 +51,7 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
             newMetrics
         );
 
-        return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, newSlmMeta))
-            .build();
+        return currentState.copyAndUpdateProject(project.id(), builder -> builder.putCustom(SnapshotLifecycleMetadata.TYPE, newSlmMeta));
     }
 
     @Override

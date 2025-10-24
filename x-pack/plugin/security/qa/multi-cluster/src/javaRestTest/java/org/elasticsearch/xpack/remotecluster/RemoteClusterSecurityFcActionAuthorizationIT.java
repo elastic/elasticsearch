@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -618,7 +619,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                             action,
                             SystemUser.crossClusterAccessSubjectInfo(TransportVersion.current(), nodeName)
                         )
-                    ).writeToContext(threadContext);
+                    ).writeToContext(threadContext, null);
                     connection.sendRequest(requestId, action, request, options);
                 }
             });
@@ -632,7 +633,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         return service;
     }
 
-    private static class MalformedGetRequest extends ActionRequest {
+    private static class MalformedGetRequest extends LegacyActionRequest {
         private final String otherIndexId;
 
         MalformedGetRequest(String otherIndexId) {

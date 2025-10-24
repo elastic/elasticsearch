@@ -17,10 +17,6 @@ java {
 
 group = "${group}.client.test"
 
-// rest client sniffer is licenses under Apache 2.0
-projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
-licenseFile.set(layout.getSettingsDirectory().file('licenses/APACHE-LICENSE-2.0.txt').asFile)
-
 dependencies {
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

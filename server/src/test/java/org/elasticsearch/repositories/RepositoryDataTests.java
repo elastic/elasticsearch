@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -118,7 +119,7 @@ public class RepositoryDataTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
             ),
-            shardGenerations,
+            new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
             indexLookup,
             indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
         );
@@ -218,7 +219,7 @@ public class RepositoryDataTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
             ),
-            ShardGenerations.EMPTY,
+            UpdatedShardGenerations.EMPTY,
             Collections.emptyMap(),
             Collections.emptyMap()
         );
@@ -400,7 +401,13 @@ public class RepositoryDataTests extends ESTestCase {
             randomNonNegativeLong(),
             randomAlphaOfLength(10)
         );
-        final RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot, details, shardGenerations, indexLookup, newIdentifiers);
+        final RepositoryData newRepoData = repositoryData.addSnapshot(
+            newSnapshot,
+            details,
+            new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
+            indexLookup,
+            newIdentifiers
+        );
         assertEquals(
             newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(newSnapshot)),
             newIndices.entrySet()
@@ -476,7 +483,7 @@ public class RepositoryDataTests extends ESTestCase {
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
                 ),
-                builder.build(),
+                new UpdatedShardGenerations(builder.build(), ShardGenerations.EMPTY),
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
             );

@@ -1,5 +1,0 @@
-pr: 127383
-summary: Don't push down filters on the right hand side of an inlinejoin
-area: ES|QL
-type: bug
-issues: []

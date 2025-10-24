@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-sort-context.html
+products:
+  - id: painless
 ---
 
 # Sort context [painless-sort-context]

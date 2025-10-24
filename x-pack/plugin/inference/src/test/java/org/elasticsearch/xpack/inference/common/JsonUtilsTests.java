@@ -52,15 +52,16 @@ public class JsonUtilsTests extends ESTestCase {
         assertThat(toJson(1.1f, "field"), is("1.1"));
         assertThat(toJson(true, "field"), is("true"));
         assertThat(toJson(false, "field"), is("false"));
+        assertThat(toJson(new SecureString("api_key".toCharArray()), "field"), is("\"api_key\""));
     }
 
     public void testToJson_ThrowsException_WhenUnableToSerialize() {
-        var exception = expectThrows(IllegalStateException.class, () -> toJson(new SecureString("string".toCharArray()), "field"));
+        var exception = expectThrows(IllegalStateException.class, () -> toJson(new Object(), "field"));
         assertThat(
             exception.getMessage(),
             is(
                 "Failed to serialize value as JSON, field: field, error: "
-                    + "cannot write xcontent for unknown value of type class org.elasticsearch.common.settings.SecureString"
+                    + "cannot write xcontent for unknown value of type class java.lang.Object"
             )
         );
     }

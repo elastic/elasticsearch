@@ -13,9 +13,11 @@ import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -91,10 +93,11 @@ public class HistoryStore {
      * @param state The current cluster state
      * @return true, if history store is ready to be started
      */
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
     public static boolean validate(ClusterState state) {
         IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(HistoryStoreField.DATA_STREAM, state.metadata());
         return indexMetadata == null
             || (indexMetadata.getState() == IndexMetadata.State.OPEN
-                && state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
+                && state.routingTable(ProjectId.DEFAULT).index(indexMetadata.getIndex()).allPrimaryShardsActive());
     }
 }

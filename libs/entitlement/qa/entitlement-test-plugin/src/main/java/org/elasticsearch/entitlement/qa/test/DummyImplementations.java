@@ -13,6 +13,7 @@ import jdk.nio.Channels;
 
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.DatagramPacket;
@@ -41,9 +42,12 @@ import java.nio.channels.Pipe;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.SelectableChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
+import java.nio.channels.spi.AbstractSelectableChannel;
 import java.nio.channels.spi.AbstractSelector;
 import java.nio.channels.spi.AsynchronousChannelProvider;
 import java.nio.channels.spi.SelectorProvider;
@@ -845,5 +849,72 @@ class DummyImplementations {
 
         @Override
         public void implReleaseChannel(SelectableChannel sc) {}
+    }
+
+    static class DummySelectableChannel extends AbstractSelectableChannel {
+        protected DummySelectableChannel(SelectorProvider provider) {
+            super(provider);
+        }
+
+        @Override
+        protected void implCloseSelectableChannel() throws IOException {
+
+        }
+
+        @Override
+        protected void implConfigureBlocking(boolean block) throws IOException {
+
+        }
+
+        @Override
+        public int validOps() {
+            return SelectionKey.OP_ACCEPT | SelectionKey.OP_CONNECT;
+        }
+    }
+
+    static class DummySelector extends AbstractSelector {
+        protected DummySelector(SelectorProvider provider) {
+            super(provider);
+        }
+
+        @Override
+        protected void implCloseSelector() throws IOException {
+
+        }
+
+        @Override
+        protected SelectionKey register(AbstractSelectableChannel ch, int ops, Object att) {
+            return null;
+        }
+
+        @Override
+        public Set<SelectionKey> keys() {
+            return Set.of();
+        }
+
+        @Override
+        public Set<SelectionKey> selectedKeys() {
+            return Set.of();
+        }
+
+        @Override
+        public int selectNow() throws IOException {
+            return 0;
+        }
+
+        @Override
+        public int select(long timeout) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public int select() throws IOException {
+            return 0;
+        }
+
+        @Override
+        public Selector wakeup() {
+            return null;
+        }
     }
 }

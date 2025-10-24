@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -39,16 +38,13 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
             { "_doc": { "_source": { "enabled": false} } }""")).build();
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template2, 1L, new HashMap<>());
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(
-                Metadata.builder()
-                    .componentTemplates(
-                        Map.of("my-template-1", componentTemplate, "my-template-2", componentTemplate, "my-template-3", componentTemplate2)
-                    )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .componentTemplates(
+                Map.of("my-template-1", componentTemplate, "my-template-2", componentTemplate, "my-template-3", componentTemplate2)
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(project);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             SourceFieldMapper.DEPRECATION_WARNING_TITLE,
@@ -72,16 +68,13 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
             .build();
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template2, 1L, new HashMap<>());
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(
-                Metadata.builder()
-                    .componentTemplates(
-                        Map.of("my-template-1", componentTemplate, "my-template-2", componentTemplate, "my-template-3", componentTemplate2)
-                    )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .componentTemplates(
+                Map.of("my-template-1", componentTemplate, "my-template-2", componentTemplate, "my-template-3", componentTemplate2)
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(project);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Configuring tiers via filtered allocation is not recommended.",
@@ -105,23 +98,20 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
             .settings(Settings.builder().put("index.routing.allocation.require.data", randomAlphaOfLength(10)).build())
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(
-                Metadata.builder()
-                    .indexTemplates(
-                        Map.of(
-                            "my-template-1",
-                            ComposableIndexTemplate.builder().template(template).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
-                            "my-template-2",
-                            ComposableIndexTemplate.builder().template(template).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
-                            "my-template-3",
-                            ComposableIndexTemplate.builder().template(template2).indexPatterns(List.of(randomAlphaOfLength(10))).build()
-                        )
-                    )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(
+                Map.of(
+                    "my-template-1",
+                    ComposableIndexTemplate.builder().template(template).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
+                    "my-template-2",
+                    ComposableIndexTemplate.builder().template(template).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
+                    "my-template-3",
+                    ComposableIndexTemplate.builder().template(template2).indexPatterns(List.of(randomAlphaOfLength(10))).build()
+                )
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(project);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Configuring tiers via filtered allocation is not recommended.",
@@ -147,24 +137,21 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
 
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(
-                Metadata.builder()
-                    .componentTemplates(Map.of("my-template-1", componentTemplate))
-                    .indexTemplates(
-                        Map.of(
-                            "my-template-1",
-                            ComposableIndexTemplate.builder().template(template).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
-                            "my-template-2",
-                            ComposableIndexTemplate.builder().template(template).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
-                            "my-template-3",
-                            ComposableIndexTemplate.builder().template(template2).indexPatterns(List.of(randomAlphaOfLength(10))).build()
-                        )
-                    )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .componentTemplates(Map.of("my-template-1", componentTemplate))
+            .indexTemplates(
+                Map.of(
+                    "my-template-1",
+                    ComposableIndexTemplate.builder().template(template).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
+                    "my-template-2",
+                    ComposableIndexTemplate.builder().template(template).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
+                    "my-template-3",
+                    ComposableIndexTemplate.builder().template(template2).indexPatterns(List.of(randomAlphaOfLength(10))).build()
+                )
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(project);
         final DeprecationIssue expectedIndexTemplateIssue = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Configuring tiers via filtered allocation is not recommended.",

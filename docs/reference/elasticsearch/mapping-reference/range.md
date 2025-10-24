@@ -62,6 +62,7 @@ PUT range_index/_doc/1?refresh
   }
 }
 ```
+% TESTSETUP
 
 1. `date_range` types accept the same field parameters defined by the [`date`](/reference/elasticsearch/mapping-reference/date.md) type.
 2. Example indexing a meeting with 10 to 20 attendees, not including 20.
@@ -119,6 +120,7 @@ The result produced by the above query.
   }
 }
 ```
+% TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
 The following is an example of a `date_range` query over the `date_range` field named "time_frame".
 
@@ -177,6 +179,7 @@ This query produces a similar result:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
 ## IP Range [ip-range]
 
@@ -215,13 +218,72 @@ The following parameters are accepted by range types:
 [`store`](/reference/elasticsearch/mapping-reference/mapping-store.md)
 :   Whether the field value should be stored and retrievable separately from the [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field. Accepts `true` or `false` (default).
 
+## Sorting
+
+Sorting is not supported for any of the `range` field types. Attempting to sort by a field of type range_field will result in a `400 Bad Request` response.
+For example, executing a sort query on a field of type `integer_range`,
+```console
+PUT idx
+{
+  "mappings": {
+    "properties": {
+      "my_range": {
+        "type": "integer_range"
+      }
+    }
+  }
+}
+
+POST idx/_search
+{
+  "sort": [
+    {
+      "my_range": {
+        "order": "asc"
+      }
+    }
+  ]
+}
+```
+results in the following response:
+```console-result
+{
+    "error": {
+        "root_cause": [
+            {
+                "type": "illegal_argument_exception",
+                "reason": "Sorting by range field [my_range] is not supported"
+            }
+        ],
+        "type": "search_phase_execution_exception",
+        "reason": "all shards failed",
+        "phase": "query",
+        "grouped": true,
+        "failed_shards": [
+            {
+                "shard": 0,
+                "index": "idx",
+                "node": "7pzVSCf5TuSNZYj-N7u3tw",
+                "reason": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Sorting by range field [my_range] is not supported"
+                }
+            }
+        ],
+        "caused_by": {
+            "type": "illegal_argument_exception",
+            "reason": "Sorting by range field [my_range] is not supported",
+            "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Sorting by range field [my_range] is not supported"
+            }
+        }
+    },
+    "status": 400
+}
+```
 
 ## Synthetic `_source` [range-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 `range` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 
@@ -270,6 +332,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -291,6 +354,7 @@ Will become:
   ]
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 Values of `ip_range` fields are not sorted but original order is not preserved. Duplicate ranges are removed. If `ip_range` field value is provided as a CIDR, it will be represented as a range of IP addresses in synthetic source.
 
@@ -328,6 +392,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -340,6 +405,7 @@ Will become:
 
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 $$$range-synthetic-source-inclusive$$$
 Range field values are always represented as inclusive on both sides with bounds adjusted accordingly. Default values for range bounds are represented as `null`. This is true even if range bound was explicitly provided. For example:
@@ -373,6 +439,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -384,6 +451,7 @@ Will become:
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 $$$range-synthetic-source-default-bounds$$$
 Default values for range bounds are represented as `null` in synthetic source. This is true even if range bound was explicitly provided with default value. For example:
@@ -416,6 +484,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -427,6 +496,7 @@ Will become:
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 `date` ranges are formatted using provided `format` or by default using `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format. For example:
 
@@ -465,6 +535,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -482,5 +553,5 @@ Will become:
   ]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

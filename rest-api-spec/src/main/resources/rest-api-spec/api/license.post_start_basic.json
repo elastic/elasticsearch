@@ -1,35 +1,39 @@
 {
-  "license.post_start_basic":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-basic.html",
-      "description":"Starts an indefinite basic license."
+  "license.post_start_basic": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-license-post-start-basic",
+      "description": "Start a basic license"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_license/start_basic",
-          "methods":[
+          "path": "/_license/start_basic",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "acknowledge":{
-        "type":"boolean",
-        "description":"whether the user has acknowledged acknowledge messages (default: false)"
+    "params": {
+      "acknowledge": {
+        "type": "boolean",
+        "description": "whether the user has acknowledged acknowledge messages (default: false)"
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for processing on master node"
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for acknowledgement of update from all nodes in cluster"
       }
     }

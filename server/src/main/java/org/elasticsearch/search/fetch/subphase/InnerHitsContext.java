@@ -22,6 +22,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -44,7 +45,7 @@ public final class InnerHitsContext {
         this.innerHits = new HashMap<>();
     }
 
-    InnerHitsContext(Map<String, InnerHitSubContext> innerHits) {
+    public InnerHitsContext(Map<String, InnerHitSubContext> innerHits) {
         this.innerHits = Objects.requireNonNull(innerHits);
     }
 
@@ -83,6 +84,14 @@ public final class InnerHitsContext {
             this.name = name;
             this.context = context;
         }
+
+        public InnerHitSubContext(InnerHitSubContext innerHitSubContext) {
+            super(innerHitSubContext);
+            this.name = innerHitSubContext.name;
+            this.context = innerHitSubContext.context;
+        }
+
+        public abstract InnerHitSubContext copyWithSearchExecutionContext(SearchExecutionContext searchExecutionContext);
 
         public abstract TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException;
 

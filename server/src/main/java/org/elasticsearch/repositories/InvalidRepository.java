@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,10 +37,12 @@ import java.util.function.BooleanSupplier;
  */
 public class InvalidRepository extends AbstractLifecycleComponent implements Repository {
 
+    private final ProjectId projectId;
     private final RepositoryMetadata repositoryMetadata;
     private final RepositoryException creationException;
 
-    public InvalidRepository(RepositoryMetadata repositoryMetadata, RepositoryException creationException) {
+    public InvalidRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata, RepositoryException creationException) {
+        this.projectId = projectId;
         this.repositoryMetadata = repositoryMetadata;
         this.creationException = creationException;
     }
@@ -49,6 +53,11 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
             "repository type [" + repositoryMetadata.type() + "] failed to create on current node",
             creationException
         );
+    }
+
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
     }
 
     @Override
@@ -68,7 +77,7 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
         throw createCreationException();
     }
 
@@ -96,16 +105,6 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
         Runnable onCompletion
     ) {
         repositoryDataUpdateListener.onFailure(createCreationException());
-    }
-
-    @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        throw createCreationException();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        throw createCreationException();
     }
 
     @Override
@@ -170,6 +169,16 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     @Override
     public void awaitIdle() {
 
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        throw createCreationException();
     }
 
     @Override

@@ -21,7 +21,7 @@ $$$attachment-options$$$
 | `target_field` | no | attachment | The field that will hold the attachment information |
 | `indexed_chars` | no | 100000 | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit. |
 | `indexed_chars_field` | no | `null` | Field name from which you can overwrite the number of chars being used for extraction. See `indexed_chars`. |
-| `properties` | no | all properties |  Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language` |
+| `properties` | no | all properties |  Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language` |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |
 | `remove_binary` | encouraged | `false` | If `true`, the binary `field` will be removed from the document. This option is not required, but setting it explicitly is encouraged, and omitting it will result in a warning. |
 | `resource_name` | no |  | Field containing the name of the resource to decode. If specified, the processor passes this resource name to the underlying Tika library to enable [Resource Name Based Detection](https://tika.apache.org/1.24.1/detection.html#Resource_Name_Based_Detection). |
@@ -79,6 +79,7 @@ The document’s `attachment` object contains extracted properties for the file:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 ## Exported fields [attachment-fields]
@@ -183,6 +184,7 @@ The document’s `_source` object includes the original binary field:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 ## Use the attachment processor with CBOR [attachment-cbor]
@@ -280,6 +282,7 @@ Returns this:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 ```console
 PUT _ingest/pipeline/attachment
@@ -325,6 +328,7 @@ Returns this:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 ## Using the attachment processor with arrays [attachment-with-arrays]
@@ -347,6 +351,7 @@ For example, given the following source:
   ]
 }
 ```
+% NOTCONSOLE
 
 In this case, we want to process the data field in each element of the attachments field and insert the properties into the document so the following `foreach` processor is used:
 
@@ -419,6 +424,7 @@ Returns this:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Note that the `target_field` needs to be set, otherwise the default value is used which is a top level field `attachment`. The properties on this top level field will contain the value of the first attachment only. However, by specifying the `target_field` on to a value on `_ingest._value` it will correctly associate the properties with the correct attachment.
 

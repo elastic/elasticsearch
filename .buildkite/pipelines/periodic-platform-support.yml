@@ -12,7 +12,6 @@ steps:
               - oraclelinux-8
               - oraclelinux-9
               - sles-15
-              - ubuntu-2004
               - ubuntu-2204
               - ubuntu-2404
               - rocky-8
@@ -38,12 +37,14 @@ steps:
           setup:
             image:
               - windows-2022
+              - windows-2025
             GRADLE_TASK:
               - checkPart1
               - checkPart2
               - checkPart3
               - checkPart4
               - checkPart5
+              - checkPart6
               - checkRestCompat
         agents:
           provider: gcp
@@ -62,7 +63,6 @@ steps:
           setup:
             image:
               - almalinux-8-aarch64
-              - ubuntu-2004-aarch64
               - ubuntu-2404-aarch64
             GRADLE_TASK:
               - checkPart1
@@ -70,6 +70,7 @@ steps:
               - checkPart3
               - checkPart4
               - checkPart5
+              - checkPart6
               - checkRestCompat
         agents:
           provider: aws

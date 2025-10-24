@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-bucket-selector-agg-context.html
+products:
+  - id: painless
 ---
 
 # Bucket selector aggregation context [painless-bucket-selector-agg-context]
@@ -74,6 +76,7 @@ GET /seats/_search
   }
 }
 ```
+% TEST[setup:seats]
 
 1. The `buckets_path` points to the max aggregations (`max_cost`) and adds `max` variables to the `params` map
 2. The user-specified `base_cost` is also added to the `params` map

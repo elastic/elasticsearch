@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class QueryRoleRequest extends ActionRequest {
+public final class QueryRoleRequest extends LegacyActionRequest {
 
     @Nullable
     private final QueryBuilder queryBuilder;

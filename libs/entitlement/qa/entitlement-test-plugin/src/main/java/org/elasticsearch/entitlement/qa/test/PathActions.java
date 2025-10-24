@@ -10,7 +10,7 @@
 package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 import java.io.IOException;
 import java.nio.file.FileSystems;
@@ -19,6 +19,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
 import java.util.Arrays;
+import java.util.Objects;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
@@ -37,7 +38,8 @@ class PathActions {
         try {
             EntitledActions.pathToRealPath(invalidLink); // throws NoSuchFileException when checking entitlements due to invalid target
         } catch (NoSuchFileException e) {
-            assert Arrays.stream(e.getStackTrace()).anyMatch(t -> t.getClassName().equals(PolicyManager.class.getName()))
+            assert Arrays.stream(e.getStackTrace())
+                .anyMatch(t -> Objects.equals(t.getModuleName(), PolicyChecker.class.getModule().getName()))
                 : "Expected NoSuchFileException to be thrown by entitlements check";
             throw e;
         }

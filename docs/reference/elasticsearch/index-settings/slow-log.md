@@ -2,19 +2,25 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-slowlog.html
 navigation_title: Slow log
+applies_to:
+  stack: all
 ---
 
 # Slow log settings [index-modules-slowlog]
 
+:::{include} _snippets/serverless-availability.md
+:::
+
 The slow log records database searching and indexing events that have execution durations above specified thresholds. You can use these logs to investigate analyze or troubleshoot your cluster’s historical search and indexing performance.
 
-Slow logs report task duration at the shard level for searches, and at the index level for indexing, but might not encompass the full task execution time observed on the client. For example, slow logs don’t surface HTTP network delays or the impact of [task queues](docs-content://troubleshoot/elasticsearch/task-queue-backlog.md).
+Slow logs report task duration at the shard level for searches, and at the index level for indexing, but might not encompass the full task execution time observed on the client. For example, slow logs don’t surface HTTP network delays or the impact of [task queues](docs-content://troubleshoot/elasticsearch/task-queue-backlog.md). For more information about the higher-level operations affecting response times, refer to [Reading and writing documents](docs-content://deploy-manage/distributed-architecture/reading-and-writing-documents.md).
 
 Events that meet the specified threshold are emitted into [{{es}} logging](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md) under the `fileset.name` of `slowlog`. These logs can be viewed in the following locations:
 
 * If [{{es}} monitoring](docs-content://deploy-manage/monitor/stack-monitoring.md) is enabled, from [Stack Monitoring](docs-content://deploy-manage/monitor/monitoring-data/visualizing-monitoring-data.md). Slow log events have a `logger` value of `index.search.slowlog` or `index.indexing.slowlog`.
 * From local {{es}} service logs directory. Slow log files have a suffix of `_index_search_slowlog.json` or `_index_indexing_slowlog.json`.
 
+See this [this video](https://www.youtube.com/watch?v=ulUPJshB5bU) for a walkthrough of setting and reviewing slow logs.
 
 ## Slow log format [slow-log-format]
 
@@ -53,6 +59,7 @@ If a call was initiated with an `X-Opaque-ID` header, then the ID is automatical
   "user.realm": "reserved"
 }
 ```
+% NOTCONSOLE
 
 The following is an example of an indexing event in the slow log:
 
@@ -79,7 +86,7 @@ The following is an example of an indexing event in the slow log:
   "user.realm": "reserved"
 }
 ```
-
+% NOTCONSOLE
 
 ## Enable slow logging [enable-slow-log]
 
@@ -137,7 +144,7 @@ PUT /my-index-000001/_settings
   "index.search.slowlog.include.user": true
 }
 ```
-
+% TEST[setup:my_index]
 
 ### Enable slow logging for indexing events [index-slow-log]
 
@@ -173,7 +180,7 @@ PUT /my-index-000001/_settings
   "index.indexing.slowlog.include.user": true
 }
 ```
-
+% TEST[setup:my_index]
 
 #### Logging the `_source` field [_logging_the_source_field]
 
@@ -202,6 +209,7 @@ If you aren’t sure how to start investigating traffic issues, consider enablin
       "index.search.slowlog.threshold.query.warn": "30s"
     }
     ```
+    % TEST[setup:my_index]
 
 * Enable for indexing requests:
 
@@ -212,6 +220,7 @@ If you aren’t sure how to start investigating traffic issues, consider enablin
       "index.indexing.slowlog.threshold.index.warn": "30s"
     }
     ```
+    % TEST[setup:my_index]
 
 
 Slow log thresholds being met does not guarantee cluster performance issues. In the event that symptoms are noticed, slow logs can provide helpful data to diagnose upstream traffic patterns or sources to resolve client-side issues. For example, you can use data included in `X-Opaque-ID`, the `_source` request body, or `user.*` fields to identify the source of your issue. This is similar to troubleshooting [live expensive tasks](docs-content://troubleshoot/elasticsearch/task-queue-backlog.md).

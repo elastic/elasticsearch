@@ -1,5 +1,0 @@
-pr: 124708
-summary: Throw exception for unknown token in RestIndexPutAliasAction
-area: Indices APIs
-type: enhancement
-issues: []

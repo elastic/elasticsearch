@@ -78,7 +78,8 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
     @Before
     public void createComponents() {
-        clusterService = mock(ClusterService.class);
+        clusterService = mock();
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         transformConfigManager = new IndexBasedTransformConfigManager(
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),

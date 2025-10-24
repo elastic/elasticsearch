@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceFloatBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
@@ -38,8 +39,8 @@ public class CountDistinctFloatAggregatorFunctionTests extends AggregatorFunctio
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        long expected = input.stream().flatMap(AggregatorFunctionTestCase::allFloats).distinct().count();
+    protected void assertSimpleOutput(List<Page> input, Block result) {
+        long expected = input.stream().flatMap(p -> allFloats(p.getBlock(0))).distinct().count();
 
         long count = ((LongBlock) result).getLong(0);
         // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param

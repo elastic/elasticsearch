@@ -32,7 +32,6 @@ public class SslEntitlementRestIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .apply(SecurityOnTrialLicenseRestTestCase.commonTrialSecurityClusterConfig)
         .settings(settingsProvider)
-        .systemProperty("es.entitlements.enabled", "true")
         .build();
 
     @Override

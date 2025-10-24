@@ -6,6 +6,10 @@ ap-east-1          s3-fips.ap-east-1.amazonaws.com
 ap-east-1          s3-fips.dualstack.ap-east-1.amazonaws.com
 ap-east-1          s3.ap-east-1.amazonaws.com
 ap-east-1          s3.dualstack.ap-east-1.amazonaws.com
+ap-east-2          s3-fips.ap-east-2.amazonaws.com
+ap-east-2          s3-fips.dualstack.ap-east-2.amazonaws.com
+ap-east-2          s3.ap-east-2.amazonaws.com
+ap-east-2          s3.dualstack.ap-east-2.amazonaws.com
 ap-northeast-1     s3-fips.ap-northeast-1.amazonaws.com
 ap-northeast-1     s3-fips.dualstack.ap-northeast-1.amazonaws.com
 ap-northeast-1     s3.ap-northeast-1.amazonaws.com
@@ -56,6 +60,14 @@ aws-iso-b-global   s3-fips.aws-iso-b-global.sc2s.sgov.gov
 aws-iso-b-global   s3-fips.dualstack.aws-iso-b-global.sc2s.sgov.gov
 aws-iso-b-global   s3.aws-iso-b-global.sc2s.sgov.gov
 aws-iso-b-global   s3.dualstack.aws-iso-b-global.sc2s.sgov.gov
+aws-iso-e-global   s3-fips.aws-iso-e-global.cloud.adc-e.uk
+aws-iso-e-global   s3-fips.dualstack.aws-iso-e-global.cloud.adc-e.uk
+aws-iso-e-global   s3.aws-iso-e-global.cloud.adc-e.uk
+aws-iso-e-global   s3.dualstack.aws-iso-e-global.cloud.adc-e.uk
+aws-iso-f-global   s3-fips.aws-iso-f-global.csp.hci.ic.gov
+aws-iso-f-global   s3-fips.dualstack.aws-iso-f-global.csp.hci.ic.gov
+aws-iso-f-global   s3.aws-iso-f-global.csp.hci.ic.gov
+aws-iso-f-global   s3.dualstack.aws-iso-f-global.csp.hci.ic.gov
 aws-iso-global     s3-fips.aws-iso-global.c2s.ic.gov
 aws-iso-global     s3-fips.dualstack.aws-iso-global.c2s.ic.gov
 aws-iso-global     s3.aws-iso-global.c2s.ic.gov
@@ -76,6 +88,10 @@ cn-north-1         s3.cn-north-1.amazonaws.com.cn
 cn-north-1         s3.dualstack.cn-north-1.amazonaws.com.cn
 cn-northwest-1     s3.cn-northwest-1.amazonaws.com.cn
 cn-northwest-1     s3.dualstack.cn-northwest-1.amazonaws.com.cn
+eusc-de-east-1     s3-fips.eusc-de-east-1.amazonaws.eu
+eusc-de-east-1     s3-fips.dualstack.eusc-de-east-1.amazonaws.eu
+eusc-de-east-1     s3.eusc-de-east-1.amazonaws.eu
+eusc-de-east-1     s3.dualstack.eusc-de-east-1.amazonaws.eu
 eu-central-1       s3-fips.dualstack.eu-central-1.amazonaws.com
 eu-central-1       s3-fips.eu-central-1.amazonaws.com
 eu-central-1       s3.dualstack.eu-central-1.amazonaws.com

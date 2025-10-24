@@ -12,7 +12,7 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.Channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
 
@@ -25,7 +25,7 @@ import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 public class Netty4HttpChannel implements HttpChannel {
 
     private final Channel channel;
-    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
+    private final SubscribableListener<Void> closeContext = new SubscribableListener<>();
 
     Netty4HttpChannel(Channel channel) {
         this.channel = channel;

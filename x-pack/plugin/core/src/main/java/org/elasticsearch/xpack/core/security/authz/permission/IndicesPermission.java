@@ -6,8 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
@@ -20,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -43,8 +47,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -53,6 +59,8 @@ import static java.util.Collections.unmodifiableMap;
  * on specific indices
  */
 public final class IndicesPermission {
+
+    private final Logger logger = LogManager.getLogger(getClass());
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndicesPermission.class);
 
@@ -317,24 +325,36 @@ public final class IndicesPermission {
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
         boolean allMatch = true;
-        Map<Automaton, Automaton> indexGroupAutomatonsForDataSelector = indexGroupAutomatons(
+        Map<Automaton, List<Automaton>> indexGroupAutomatonsForDataSelector = indexGroupAutomatons(
             combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
             IndexComponentSelector.DATA
         );
         // optimization: if there are no failures selector privileges in the set of privileges to check, we can skip building
         // the automaton map
         final boolean containsPrivilegesForFailuresSelector = containsPrivilegesForFailuresSelector(checkForPrivileges);
-        Map<Automaton, Automaton> indexGroupAutomatonsForFailuresSelector = false == containsPrivilegesForFailuresSelector
+        Map<Automaton, List<Automaton>> indexGroupAutomatonsForFailuresSelector = false == containsPrivilegesForFailuresSelector
             ? Map.of()
             : indexGroupAutomatons(
                 combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
                 IndexComponentSelector.FAILURES
             );
-        for (String forIndexPattern : checkForIndexPatterns) {
-            Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
-            if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
-                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());
-            }
+        Map<String, Automaton> checkIndexPatterns = checkForIndexPatterns.stream()
+            .collect(Collectors.toMap(Function.identity(), pattern -> {
+                try {
+                    Automaton automaton = Automatons.patterns(pattern);
+                    if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(pattern)) {
+                        automaton = Automatons.minusAndMinimize(automaton, restrictedIndices.getAutomaton());
+                    }
+                    return automaton;
+                } catch (TooComplexToDeterminizeException e) {
+                    final String text = pattern.length() > 260 ? Strings.cleanTruncate(pattern, 256) + "..." : pattern;
+                    logger.info("refusing to check privileges against complex index pattern [{}]", text);
+                    throw new IllegalArgumentException("the provided index pattern [" + text + "] is too complex to be evaluated", e);
+                }
+            }));
+        for (var entry : checkIndexPatterns.entrySet()) {
+            final String forIndexPattern = entry.getKey();
+            final Automaton checkIndexAutomaton = entry.getValue();
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedPrivilegesAutomatonForDataSelector = getIndexPrivilegesAutomaton(
                     indexGroupAutomatonsForDataSelector,
@@ -442,6 +462,12 @@ public final class IndicesPermission {
             this.selector = selector;
         }
 
+        public List<Index> getFailureIndices(ProjectMetadata metadata) {
+            return indexAbstraction != null && IndexComponentSelector.FAILURES.equals(selector)
+                ? indexAbstraction.getFailureIndices(metadata)
+                : List.of();
+        }
+
         /**
          * @return {@code true} if-and-only-if this object is related to a data-stream, either by having a
          * {@link IndexAbstraction#getType()} of {@link IndexAbstraction.Type#DATA_STREAM} or by being the backing index for a
@@ -516,13 +542,12 @@ public final class IndicesPermission {
             }
         }
 
-        public Collection<String> resolveConcreteIndices(ProjectMetadata metadata) {
+        public Collection<String> resolveConcreteIndices(List<Index> failureIndices) {
             if (indexAbstraction == null) {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
             } else if (IndexComponentSelector.FAILURES.equals(selector)) {
-                final List<Index> failureIndices = indexAbstraction.getFailureIndices(metadata);
                 final List<String> concreteIndexNames = new ArrayList<>(failureIndices.size());
                 for (var idx : failureIndices) {
                     concreteIndexNames.add(idx.getName());
@@ -585,12 +610,16 @@ public final class IndicesPermission {
 
         final boolean overallGranted = isActionGranted(action, resources.values());
         final int finalTotalResourceCount = totalResourceCount;
+        final var failureIndicesByResourceName = resources.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getFailureIndices(metadata)));
+
         final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> buildIndicesAccessControl(
             action,
             resources,
             finalTotalResourceCount,
             fieldPermissionsCache,
-            metadata
+            failureIndicesByResourceName
         );
 
         return new IndicesAccessControl(overallGranted, indexPermissions);
@@ -601,7 +630,7 @@ public final class IndicesPermission {
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
         final FieldPermissionsCache fieldPermissionsCache,
-        final ProjectMetadata metadata
+        final Map<String, List<Index>> failureIndicesByIndexResource
     ) {
 
         // now... every index that is associated with the request, must be granted
@@ -617,7 +646,9 @@ public final class IndicesPermission {
             boolean granted = false;
             final String resourceName = resourceEntry.getKey();
             final IndexResource resource = resourceEntry.getValue();
-            final Collection<String> concreteIndices = resource.resolveConcreteIndices(metadata);
+            final Collection<String> concreteIndices = resource.resolveConcreteIndices(
+                failureIndicesByIndexResource.get(resourceEntry.getKey())
+            );
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {
@@ -826,43 +857,54 @@ public final class IndicesPermission {
      *
      * @param combine combine index groups to allow for checking against regular expressions
      *
-     * @return a map of all index and privilege pattern automatons
+     * @return a map of all privilege to index pattern automatons
      */
-    private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine, IndexComponentSelector selector) {
+    private Map<Automaton, List<Automaton>> indexGroupAutomatons(boolean combine, IndexComponentSelector selector) {
         // Map of privilege automaton object references (cached by IndexPrivilege::CACHE)
-        Map<Automaton, Automaton> allAutomatons = new HashMap<>();
+        var privilegeToIndexAutomatons = new HashMap<Automaton, List<Automaton>>();
         for (Group group : groups) {
             if (false == group.checkSelector(selector)) {
                 continue;
             }
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();
-            allAutomatons.compute(
-                group.privilege().getAutomaton(),
-                (key, value) -> value == null ? indexAutomaton : Automatons.unionAndMinimize(List.of(value, indexAutomaton))
-            );
+
             if (combine) {
+                privilegeToIndexAutomatons.compute(
+                    group.privilege().getAutomaton(),
+                    (key, value) -> value == null
+                        ? List.of(indexAutomaton)
+                        : List.of(Automatons.unionAndMinimize(List.of(value.getFirst(), indexAutomaton)))
+                );
                 List<Tuple<Automaton, Automaton>> combinedAutomatons = new ArrayList<>();
-                for (var indexAndPrivilegeAutomatons : allAutomatons.entrySet()) {
+                for (var privilegeAndIndexAutomatons : privilegeToIndexAutomatons.entrySet()) {
                     Automaton intersectingPrivileges = Operations.intersection(
-                        indexAndPrivilegeAutomatons.getKey(),
+                        privilegeAndIndexAutomatons.getKey(),
                         group.privilege().getAutomaton()
                     );
                     if (Operations.isEmpty(intersectingPrivileges) == false) {
                         Automaton indexPatternAutomaton = Automatons.unionAndMinimize(
-                            List.of(indexAndPrivilegeAutomatons.getValue(), indexAutomaton)
+                            List.of(privilegeAndIndexAutomatons.getValue().getFirst(), indexAutomaton)
                         );
                         combinedAutomatons.add(new Tuple<>(intersectingPrivileges, indexPatternAutomaton));
                     }
                 }
                 combinedAutomatons.forEach(
-                    automatons -> allAutomatons.compute(
+                    automatons -> privilegeToIndexAutomatons.compute(
                         automatons.v1(),
-                        (key, value) -> value == null ? automatons.v2() : Automatons.unionAndMinimize(List.of(value, automatons.v2()))
+                        (key, value) -> value == null
+                            ? List.of(automatons.v2())
+                            : List.of(Automatons.unionAndMinimize(List.of(value.getFirst(), automatons.v2())))
                     )
                 );
+            } else {
+                privilegeToIndexAutomatons.compute(group.privilege().getAutomaton(), (k, v) -> {
+                    var list = v == null ? new ArrayList<Automaton>() : v;
+                    list.add(group.getIndexMatcherAutomaton());
+                    return list;
+                });
             }
         }
-        return allAutomatons;
+        return privilegeToIndexAutomatons;
     }
 
     private static boolean containsPrivilegesForFailuresSelector(Set<String> checkForPrivileges) {
@@ -879,21 +921,26 @@ public final class IndicesPermission {
     }
 
     @Nullable
-    private static Automaton getIndexPrivilegesAutomaton(Map<Automaton, Automaton> indexGroupAutomatons, Automaton checkIndexAutomaton) {
+    private static Automaton getIndexPrivilegesAutomaton(
+        Map<Automaton, List<Automaton>> indexGroupAutomatons,
+        Automaton checkIndexAutomaton
+    ) {
         if (indexGroupAutomatons.isEmpty()) {
             return null;
         }
         Automaton allowedPrivilegesAutomaton = null;
-        for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
-            Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
-            if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
-                Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
-                if (allowedPrivilegesAutomaton != null) {
-                    allowedPrivilegesAutomaton = Automatons.unionAndMinimize(
-                        Arrays.asList(allowedPrivilegesAutomaton, privilegesAutomaton)
-                    );
-                } else {
-                    allowedPrivilegesAutomaton = privilegesAutomaton;
+        for (Map.Entry<Automaton, List<Automaton>> indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
+            List<Automaton> indexNameAutomatons = indexAndPrivilegeAutomaton.getValue();
+            for (var indexNameAutomaton : indexNameAutomatons) {
+                if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
+                    Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
+                    if (allowedPrivilegesAutomaton != null) {
+                        allowedPrivilegesAutomaton = Automatons.unionAndMinimize(
+                            Arrays.asList(allowedPrivilegesAutomaton, privilegesAutomaton)
+                        );
+                    } else {
+                        allowedPrivilegesAutomaton = privilegesAutomaton;
+                    }
                 }
             }
         }
@@ -931,15 +978,13 @@ public final class IndicesPermission {
             this.selectorPredicate = privilege.getSelectorPredicate();
             this.indices = indices;
             this.allowRestrictedIndices = allowRestrictedIndices;
-            ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {
                 this.indexNameMatcher = StringMatcher.of(indices);
-                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));
+                this.indexNameAutomaton = CachedSupplier.wrap(() -> Automatons.patterns(indices));
             } else {
                 this.indexNameMatcher = StringMatcher.of(indices).and(name -> restrictedIndices.isRestricted(name) == false);
-                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
-                    indices,
-                    k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
+                this.indexNameAutomaton = CachedSupplier.wrap(
+                    () -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
                 );
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);

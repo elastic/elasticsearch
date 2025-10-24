@@ -1,34 +1,38 @@
 {
-  "logstash.put_pipeline":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/logstash-api-put-pipeline.html",
-      "description":"Adds and updates Logstash Pipelines used for Central Management"
+  "logstash.put_pipeline": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-logstash-put-pipeline",
+      "description": "Create or update a Logstash pipeline"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_logstash/pipeline/{id}",
-          "methods":[ "PUT" ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The ID of the Pipeline"
+          "path": "/_logstash/pipeline/{id}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the Pipeline"
             }
           }
         }
       ]
     },
-    "params":{
-    },
-    "body":{
-      "description":"The Pipeline to add or update",
-      "required":true
+    "body": {
+      "description": "The Pipeline to add or update",
+      "required": true
     }
   }
 }

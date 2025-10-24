@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-walkthrough.html
+products:
+  - id: painless
 ---
 
 # A brief painless walkthrough [painless-walkthrough]
@@ -32,7 +34,7 @@ PUT hockey/_bulk?refresh
 {"index":{"_id":11}}
 {"first":"joe","last":"colborne","goals":[3,18,13],"assists":[6,20,24],"gp":[26,67,82],"born":"1990/01/30"}
 ```
-
+% TESTSETUP
 
 ## Accessing Doc Values from Painless [_accessing_doc_values_from_painless]
 

@@ -1,0 +1,202 @@
+###############################################
+# Tests for Score function
+#
+
+scoreSingle
+required_capability: metadata_score
+required_capability: score_function
+required_capability: match_function
+
+// tag::score-function[]
+FROM books METADATA _score
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL first_score = score(match(title, "Return")) 
+// end::score-function[]
+| KEEP book_no, title, _score, first_score
+| SORT book_no
+| LIMIT 5
+;
+
+// tag::score-single-result[]
+book_no:keyword | title:text                                                       | _score:double      | first_score:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 3.1309072971343994 | 1.9245924949645996
+7350            | Return of the Shadow                                             | 4.8434343338012695 | 3.5432329177856445
+// end::score-single-result[]
+;
+
+scoreSingleNoMetadata
+required_capability: score_function
+required_capability: match_function
+
+FROM books
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL first_score = score(match(title, "Return")) 
+| KEEP book_no, title, first_score
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text                                                       | first_score:double 
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+7350            | Return of the Shadow                                             | 3.5432329177856445
+;
+
+scoreAfterEval
+required_capability: score_function
+required_capability: metadata_score
+required_capability: match_function
+
+FROM books METADATA _score
+| EVAL stars = to_long(ratings / 2.0)
+| EVAL s1 = score(match(author, "William")) 
+| WHERE match(author, "Faulkner")
+| SORT book_no 
+| KEEP book_no, author, stars, s1
+| limit 5;
+
+book_no:keyword | author:text                                        | stars:long | s1:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 3          | 0.0
+2713            | William Faulkner                                   | 2          | 1.9043500423431396
+2847            | Colleen Faulkner                                   | 3          | 0.0
+2883            | William Faulkner                                   | 2          | 1.9043500423431396
+3293            | Danny Faulkner                                     | 2          | 0.0
+;
+
+scoreMatchWithFilterConjunction
+required_capability: score_function
+required_capability: match_function
+
+FROM books
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL s1 = score(match(title, "Rings") and ratings > 4.6)
+| KEEP book_no, title, s1
+| SORT book_no
+| LIMIT 5;
+
+book_no:keyword | title:text                                                       | s1:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+7350            | Return of the Shadow                                             | 0.0
+;
+
+scoreMatchWithDisjunction
+required_capability: score_function
+required_capability: match_function
+
+FROM books
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL s1 = score(match(title, "Rings") or match(title, "Shadow"))
+| KEEP book_no, title, s1
+| SORT book_no
+| LIMIT 5;
+
+book_no:keyword | title:text                                                       | s1:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+7350            | Return of the Shadow                                             | 3.5432329177856445
+;
+
+scoreMatchWithDisjunctionAndFilter
+required_capability: score_function
+required_capability: match_function
+
+FROM books
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL s1 = score(match(title, "Rings") or match(title, "Shadow") and ratings > 4.6)
+| KEEP book_no, title, s1
+| SORT book_no
+| LIMIT 5;
+
+book_no:keyword | title:text                                                       | s1:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+7350            | Return of the Shadow                                             | 3.5432329177856445
+;
+
+scoreMatchDisjunctionNonPushable
+required_capability: score_function
+required_capability: match_function
+
+FROM books
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL s1 = score(match(title, "Rings") or ratings > 4.6)
+| KEEP book_no, title, s1
+| SORT book_no
+| LIMIT 5;
+
+book_no:keyword | title:text                                                       | s1:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+7350            | Return of the Shadow                                             | 0.0
+;
+
+evalUsingScoreAndLimit
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+FROM books
+| EVAL title_match = SCORE(MATCH(title, "aardvark"))
+| LIMIT 2
+| KEEP title_match
+;
+
+title_match:double
+0
+0
+;
+
+evalUsingScoreAndLimit2
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+FROM books
+| WHERE author == "J R R Tolkien"
+| EVAL title_match_ring = SCORE(MATCH(title, "ring")), title_match_hobbit = SCORE(MATCH(title, "hobbit"))
+| keep title_match_ring, title_match_hobbit
+;
+
+title_match_ring:double   | title_match_hobbit:double
+0                         | 3.45605206489563
+;
+
+evalUsingScoreAndTopN
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+FROM books
+| SORT book_no desc
+| EVAL title_match_towers = SCORE(MATCH(title, "towers"))
+| limit 10
+| keep book_no, title_match_towers
+;
+
+book_no:keyword | title_match_towers:double
+9896            | 0
+9801            | 0
+9607            | 0
+9032            | 0
+8956            | 0
+8875            | 3.5007452964782715
+8873            | 0
+8678            | 0
+8615            | 0
+8605            | 0
+;
+
+evalUsingScoreAndFilter
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+FROM books
+| sort book_no desc
+| EVAL title_match_world = SCORE(MATCH(title, "world"))
+| WHERE title_match_world > 0 and to_integer(book_no) < 8500
+| LIMIT 10
+| KEEP book_no, title_match_world
+| SORT book_no asc
+| LIMIT 1
+;
+
+book_no:keyword  |  title_match_world:double
+7912             |  2.7460334300994873
+;

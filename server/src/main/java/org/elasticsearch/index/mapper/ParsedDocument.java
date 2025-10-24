@@ -45,9 +45,9 @@ public class ParsedDocument {
      * Create a no-op tombstone document
      * @param reason    the reason for the no-op
      */
-    public static ParsedDocument noopTombstone(String reason) {
+    public static ParsedDocument noopTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String reason) {
         LuceneDocument document = new LuceneDocument();
-        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
+        var seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone(seqNoIndexOptions);
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
@@ -70,15 +70,32 @@ public class ParsedDocument {
     /**
      * Create a delete tombstone document, which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
-     * @param id    the id of the deleted document
+     * @param id                the id of the deleted document
      */
-    public static ParsedDocument deleteTombstone(String id) {
+    public static ParsedDocument deleteTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String id) {
+        return deleteTombstone(seqNoIndexOptions, false, id);
+    }
+
+    /**
+     * Create a delete tombstone document, which will be used in soft-update methods.
+     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     * @param useSyntheticId    whether the id is synthetic or not
+     * @param id                the id of the deleted document
+     */
+    public static ParsedDocument deleteTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, boolean useSyntheticId, String id) {
         LuceneDocument document = new LuceneDocument();
-        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
+        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone(seqNoIndexOptions);
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
-        document.add(IdFieldMapper.standardIdField(id));
+        if (useSyntheticId) {
+            // Use a synthetic _id field which is not indexed nor stored
+            document.add(IdFieldMapper.syntheticIdField(id));
+            // TODO I think we also need to add the fields that compose the synthetic _id.
+        } else {
+            // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
+            document.add(IdFieldMapper.standardIdField(id));
+        }
         return new ParsedDocument(
             versionField,
             seqIdFields,

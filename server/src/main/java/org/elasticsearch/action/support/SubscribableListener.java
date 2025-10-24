@@ -32,15 +32,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
- * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is
- * completed it fans-out its result to the subscribed listeners.
+ * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
+ * fans-out its result to the subscribed listeners.
  * <p>
- * If this listener is complete, {@link #addListener} completes the subscribing listener immediately
- * with the result with which this listener was completed. Otherwise, the subscribing listener is retained
- * and completed when this listener is completed.
+ * If this listener is complete, {@link #addListener} completes the subscribing listener immediately with the result with which this
+ * listener was completed. Otherwise, the subscribing listener is retained and completed when this listener is completed.
  * <p>
- * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are child
- * classes that provide additional exception handling.
+ * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are
+ * subclasses which modify the exceptions passed to subscribed listeners.
+ * <p>
+ * If this listener is completed more than once then all results other than the first (whether successful or otherwise) are silently
+ * discarded. All subscribed listeners will be notified of the same result, exactly once, even if several completions occur concurrently.
  * <p>
  * A sequence of async steps can be chained together using a series of {@link SubscribableListener}s, similar to {@link CompletionStage}
  * (without the {@code catch (Throwable t)}). Listeners can be created for each step, where the next step subscribes to the result of the
@@ -127,6 +129,9 @@ public class SubscribableListener<T> implements ActionListener<T> {
     /**
      * Create a {@link SubscribableListener}, fork a computation to complete it, and return the listener. If the forking itself throws an
      * exception then the exception is caught and fed to the returned listener.
+     * <p>
+     * The listener passed to {@code fork} is the returned {@link SubscribableListener}. In particular, it is valid to complete this
+     * listener more than once, but all results after the first completion will be silently ignored.
      */
     public static <T> SubscribableListener<T> newForked(CheckedConsumer<ActionListener<T>, ? extends Exception> fork) {
         final var listener = new SubscribableListener<T>();
@@ -446,6 +451,9 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * <li>Ensure that this {@link SubscribableListener} is always completed using that executor, and</li>
      * <li>Invoke {@link #andThen} using that executor.</li>
      * </ul>
+     * <p>
+     * The listener passed to {@code nextStep} is the returned {@link SubscribableListener}. In particular, it is valid to complete this
+     * listener more than once, but all results after the first completion will be silently ignored.
      */
     public <U> SubscribableListener<U> andThen(CheckedConsumer<ActionListener<U>, ? extends Exception> nextStep) {
         return newForked(l -> addListener(l.delegateFailureIgnoreResponseAndWrap(nextStep)));
@@ -473,6 +481,9 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * <li>Ensure that this {@link SubscribableListener} is always completed using that executor, and</li>
      * <li>Invoke {@link #andThen} using that executor.</li>
      * </ul>
+     * <p>
+     * The listener passed to {@code nextStep} is the returned {@link SubscribableListener}. In particular, it is valid to complete this
+     * listener more than once, but all results after the first completion will be silently ignored.
      */
     public <U> SubscribableListener<U> andThen(CheckedBiConsumer<ActionListener<U>, T, ? extends Exception> nextStep) {
         return andThen(EsExecutors.DIRECT_EXECUTOR_SERVICE, null, nextStep);
@@ -511,6 +522,9 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * with a rejection exception on the thread which completes this listener. Likewise if this listener is completed exceptionally but
      * {@code executor} rejects the execution of the completion of the returned listener then the returned listener is completed with a
      * rejection exception on the thread which completes this listener.
+     * <p>
+     * The listener passed to {@code nextStep} is the returned {@link SubscribableListener}. In particular, it is valid to complete this
+     * listener more than once, but all results after the first completion will be silently ignored.
      */
     public <U> SubscribableListener<U> andThen(
         Executor executor,

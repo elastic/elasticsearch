@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-update-context.html
+products:
+  - id: painless
 ---
 
 # Update context [painless-update-context]
@@ -68,4 +70,4 @@ POST /seats/_update/3
   }
 }
 ```
-
+% TEST[setup:seats]

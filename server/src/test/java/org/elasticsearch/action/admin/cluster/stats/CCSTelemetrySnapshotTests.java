@@ -325,6 +325,7 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
             XContentHelper.toXContent(snapshot, XContentType.JSON, randomBoolean()),
             XContentType.JSON
         );
+        assertToXContentEquivalent(new BytesArray(expectedJson), new BytesArray(snapshot.toString()), XContentType.JSON);
     }
 
     private String readJSONFromResource(String fileName) throws IOException {

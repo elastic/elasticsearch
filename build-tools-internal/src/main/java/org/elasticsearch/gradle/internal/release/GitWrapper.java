@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import org.gradle.api.GradleException;
 import org.gradle.process.ExecOperations;
 
 import java.io.ByteArrayOutputStream;
@@ -86,5 +87,15 @@ public class GitWrapper {
      */
     public Stream<String> listFiles(String ref, String path) {
         return runCommand("git", "ls-tree", "--name-only", "-r", ref, path).lines();
+    }
+
+    public String getUpstream() {
+        String upstream = listRemotes().entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().contains("elastic/elasticsearch"))
+            .findFirst()
+            .map(Map.Entry::getKey)
+            .orElseThrow(() -> new GradleException("Couldn't find a git remote for [elastic/elasticsearch]"));
+        return upstream;
     }
 }

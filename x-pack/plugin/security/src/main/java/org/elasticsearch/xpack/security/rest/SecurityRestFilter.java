@@ -22,7 +22,10 @@ import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
+import java.util.function.Consumer;
+
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.rest.RestContentAggregator.aggregate;
 
 public class SecurityRestFilter implements RestInterceptor {
 
@@ -70,16 +73,29 @@ public class SecurityRestFilter implements RestInterceptor {
             return;
         }
 
-        final RestRequest wrappedRequest = maybeWrapRestRequest(request, targetHandler);
-        auditTrailService.get().authenticationSuccess(wrappedRequest);
-        secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
-            if (secondaryAuthentication != null) {
-                logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
-            }
-            WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
+        // RestRequest might have stream content, in some cases we need to aggregate request content, for example audit logging.
+        final Consumer<RestRequest> aggregationCallback = (aggregatedRestRequest) -> {
+            final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
+            auditTrailService.get().authenticationSuccess(wrappedRequest);
+            secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
+                if (secondaryAuthentication != null) {
+                    logger.trace(
+                        "Found secondary authentication {} in REST request [{}]",
+                        secondaryAuthentication,
+                        aggregatedRestRequest.uri()
+                    );
+                }
+                WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
 
-            doHandleRequest(request, channel, targetHandler, listener);
-        }, e -> handleException(request, e, listener)));
+                doHandleRequest(aggregatedRestRequest, channel, targetHandler, listener);
+            }, e -> handleException(aggregatedRestRequest, e, listener)));
+        };
+        if (request.isStreamedContent() && auditTrailService.includeRequestBody()) {
+            aggregate(request, aggregationCallback::accept);
+        } else {
+            aggregationCallback.accept(request);
+        }
+
     }
 
     private void doHandleRequest(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) {

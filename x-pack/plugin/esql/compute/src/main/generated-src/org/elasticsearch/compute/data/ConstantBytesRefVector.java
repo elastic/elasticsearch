@@ -32,8 +32,11 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
-        return value;
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
     }
 
     @Override
@@ -110,6 +113,11 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public BytesRefVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantBytesRefVector(value, getPositionCount());
     }
 
     public static long ramBytesUsed(BytesRef value) {

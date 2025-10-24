@@ -70,6 +70,7 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -943,17 +944,17 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader() {
-        return searchExecutionContext.newSourceLoader(request.isForceSyntheticSource());
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter) {
+        return searchExecutionContext.newSourceLoader(filter, request.isForceSyntheticSource());
     }
 
     @Override
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            IndexRouting.ExtractFromSource indexRouting = null;
+            IndexRouting.ExtractFromSource.ForRoutingPath indexRouting = null;
             List<String> routingPaths = null;
             if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
-                indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
+                indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) indexService.getIndexSettings().getIndexRouting();
                 routingPaths = indexService.getMetadata().getRoutingPaths();
                 for (String routingField : routingPaths) {
                     if (routingField.contains("*")) {

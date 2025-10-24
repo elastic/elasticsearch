@@ -106,6 +106,22 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public boolean supportsConcurrentMultipartUploads() {
+        return true;
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        blobStore.writeBlobAtomic(purpose, buildKey(blobName), blobSize, provider, failIfAlreadyExists);
+    }
+
+    @Override
     public void writeBlobAtomic(
         OperationPurpose purpose,
         String blobName,

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 navigation_title: "Type conversion functions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-type-conversion-functions
@@ -43,10 +46,19 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/to_double.md
 :::
 
+:::{include} ../_snippets/functions/layout/to_geohash.md
+:::
+
+:::{include} ../_snippets/functions/layout/to_geohex.md
+:::
+
 :::{include} ../_snippets/functions/layout/to_geopoint.md
 :::
 
 :::{include} ../_snippets/functions/layout/to_geoshape.md
+:::
+
+:::{include} ../_snippets/functions/layout/to_geotile.md
 :::
 
 :::{include} ../_snippets/functions/layout/to_integer.md

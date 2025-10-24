@@ -25,7 +25,6 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 
-import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -68,19 +67,17 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             try {
                 // hack around code messiness in GCE code
                 // TODO: get this fixed
-                return Access.doPrivilegedIOException(() -> {
-                    String nextPageToken = null;
-                    List<Instance> zoneInstances = new ArrayList<>();
-                    do {
-                        Compute.Instances.List list = client().instances().list(project, zoneId).setPageToken(nextPageToken);
-                        InstanceList instanceList = list.execute();
-                        nextPageToken = instanceList.getNextPageToken();
-                        if (instanceList.isEmpty() == false && instanceList.getItems() != null) {
-                            zoneInstances.addAll(instanceList.getItems());
-                        }
-                    } while (nextPageToken != null);
-                    return zoneInstances;
-                });
+                String nextPageToken = null;
+                List<Instance> zoneInstances = new ArrayList<>();
+                do {
+                    Compute.Instances.List list = client().instances().list(project, zoneId).setPageToken(nextPageToken);
+                    InstanceList instanceList = list.execute();
+                    nextPageToken = instanceList.getNextPageToken();
+                    if (instanceList.isEmpty() == false && instanceList.getItems() != null) {
+                        zoneInstances.addAll(instanceList.getItems());
+                    }
+                } while (nextPageToken != null);
+                return zoneInstances;
             } catch (IOException e) {
                 logger.warn(() -> "Problem fetching instance list for zone " + zoneId, e);
                 logger.debug("Full exception:", e);
@@ -152,7 +149,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
     String getAppEngineValueFromMetadataServer(String serviceURL) throws GeneralSecurityException, IOException {
         String metadata = GceMetadataService.GCE_HOST.get(settings);
-        GenericUrl url = Access.doPrivileged(() -> new GenericUrl(metadata + serviceURL));
+        GenericUrl url = new GenericUrl(metadata + serviceURL);
 
         HttpTransport httpTransport = getGceHttpTransport();
         HttpRequestFactory requestFactory = httpTransport.createRequestFactory();
@@ -160,7 +157,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             .setConnectTimeout(500)
             .setReadTimeout(500)
             .setHeaders(new HttpHeaders().set("Metadata-Flavor", "Google"));
-        HttpResponse response = Access.doPrivilegedIOException(() -> request.execute());
+        HttpResponse response = request.execute();
         return headerContainsMetadataFlavor(response) ? response.parseAsString() : null;
     }
 
@@ -211,7 +208,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            Access.doPrivilegedIOException(credential::refreshToken);
+            credential.refreshToken();
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
             if (credential.getExpiresInSeconds() != null) {

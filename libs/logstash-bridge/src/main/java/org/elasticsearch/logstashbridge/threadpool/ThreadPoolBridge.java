@@ -16,25 +16,46 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
 
-public class ThreadPoolBridge extends StableBridgeAPI.Proxy<ThreadPool> {
+/**
+ * An external bridge for {@link ThreadPool}
+ */
+public interface ThreadPoolBridge extends StableBridgeAPI<ThreadPool> {
 
-    public ThreadPoolBridge(final SettingsBridge settingsBridge) {
-        this(new ThreadPool(settingsBridge.unwrap(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()));
+    long relativeTimeInMillis();
+
+    long absoluteTimeInMillis();
+
+    boolean terminate(long timeout, TimeUnit timeUnit);
+
+    static ThreadPoolBridge create(final SettingsBridge bridgedSettings) {
+        final ThreadPool internal = new ThreadPool(bridgedSettings.toInternal(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        return new ProxyInternal(internal);
     }
 
-    public ThreadPoolBridge(final ThreadPool delegate) {
-        super(delegate);
-    }
+    /**
+     * An implementation of {@link ThreadPoolBridge} that proxies calls through
+     * to an internal {@link ThreadPool}.
+     * @see StableBridgeAPI.ProxyInternal
+     */
+    class ProxyInternal extends StableBridgeAPI.ProxyInternal<ThreadPool> implements ThreadPoolBridge {
 
-    public static boolean terminate(final ThreadPoolBridge pool, final long timeout, final TimeUnit timeUnit) {
-        return ThreadPool.terminate(pool.unwrap(), timeout, timeUnit);
-    }
+        ProxyInternal(final ThreadPool delegate) {
+            super(delegate);
+        }
 
-    public long relativeTimeInMillis() {
-        return delegate.relativeTimeInMillis();
-    }
+        @Override
+        public long relativeTimeInMillis() {
+            return internalDelegate.relativeTimeInMillis();
+        }
 
-    public long absoluteTimeInMillis() {
-        return delegate.absoluteTimeInMillis();
+        @Override
+        public long absoluteTimeInMillis() {
+            return internalDelegate.absoluteTimeInMillis();
+        }
+
+        @Override
+        public boolean terminate(final long timeout, final TimeUnit timeUnit) {
+            return ThreadPool.terminate(internalDelegate, timeout, timeUnit);
+        }
     }
 }

@@ -35,7 +35,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -109,23 +108,29 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterState apply(ClusterState clusterState, RerouteStrategy rerouteStrategy);
     }
 
+    @FunctionalInterface
+    public interface ShardAllocationExplainer {
+        ShardAllocationDecision explain(ShardRouting shard, RoutingAllocation allocation);
+    }
+
     public DesiredBalanceShardsAllocator(
         ClusterSettings clusterSettings,
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
-        TelemetryProvider telemetryProvider,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
+        ShardAllocationExplainer shardAllocationExplainer,
+        DesiredBalanceMetrics desiredBalanceMetrics
     ) {
         this(
             delegateAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
+            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator, shardAllocationExplainer),
             reconciler,
-            telemetryProvider,
-            nodeAllocationStatsAndWeightsCalculator
+            nodeAllocationStatsAndWeightsCalculator,
+            desiredBalanceMetrics
         );
     }
 
@@ -135,10 +140,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceComputer desiredBalanceComputer,
         DesiredBalanceReconcilerAction reconciler,
-        TelemetryProvider telemetryProvider,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
+        DesiredBalanceMetrics desiredBalanceMetrics
     ) {
-        this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
+        this.desiredBalanceMetrics = desiredBalanceMetrics;
         this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
         this.balancerRoundSummaryService = new AllocationBalancingRoundSummaryService(threadPool, clusterService.getClusterSettings());
         this.delegateAllocator = delegateAllocator;
@@ -391,6 +396,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         resetCurrentDesiredBalance = true;
     }
 
+    /**
+     * Used as the argument for the {@code ensureNotCancelled} {@code Runnable} when calling the
+     * {@code nodeAllocationStatsAndWeightsCalculator} since there is no cancellation mechanism when called from
+     * {@code updateDesireBalanceMetrics()}.
+     */
+    private static final Runnable NEVER_CANCELLED = () -> {};
+
     private void updateDesireBalanceMetrics(
         DesiredBalance desiredBalance,
         RoutingAllocation routingAllocation,
@@ -400,6 +412,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             routingAllocation.metadata(),
             routingAllocation.routingNodes(),
             routingAllocation.clusterInfo(),
+            NEVER_CANCELLED,
             desiredBalance
         );
         Map<DiscoveryNode, NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight> filteredNodeAllocationStatsAndWeights =
@@ -428,6 +441,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             desiredBalanceMetrics.totalAllocations(),
             desiredBalanceMetrics.undesiredAllocations()
         );
+    }
+
+    public DesiredBalanceMetrics.AllocationStats getAllocationStats() {
+        return desiredBalanceMetrics.allocationStats();
     }
 
     private void onNoLongerMaster() {

@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -138,7 +138,7 @@ public class CcrLicenseCheckerTests extends ESTestCase {
                 Client client,
                 String clusterAlias,
                 RemoteClusterClient remoteClient,
-                ClusterStateRequest request,
+                RemoteClusterStateRequest request,
                 Consumer<Exception> onFailure,
                 Consumer<ClusterStateResponse> leaderClusterStateConsumer,
                 Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,

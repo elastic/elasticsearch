@@ -39,8 +39,8 @@ public interface CircuitBreaker {
      */
     String REQUEST = "request";
     /**
-     * The in-flight request breaker tracks bytes allocated for reading and
-     * writing requests on the network layer.
+     * The in-flight request breaker tracks bytes allocated for reading requests
+     * on the network layer.
      */
     String IN_FLIGHT_REQUESTS = "inflight_requests";
 

@@ -9,7 +9,9 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -484,13 +486,14 @@ public class GeoIpProcessorTests extends ESTestCase {
         return () -> loader;
     }
 
+    @FixForMultiProject(description = "Replace DEFAULT project")
     private DatabaseReaderLazyLoader loader(final String databaseName, final AtomicBoolean closed) {
         int last = databaseName.lastIndexOf("/");
         final Path path = tmpDir.resolve(last == -1 ? databaseName : databaseName.substring(last + 1));
         copyDatabase(databaseName, path);
 
         final GeoIpCache cache = new GeoIpCache(1000);
-        return new DatabaseReaderLazyLoader(cache, path, null) {
+        return new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, path, null) {
             @Override
             protected void doShutdown() throws IOException {
                 if (closed != null) {

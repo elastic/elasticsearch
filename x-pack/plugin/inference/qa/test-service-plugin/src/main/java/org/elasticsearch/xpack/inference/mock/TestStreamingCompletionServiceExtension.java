@@ -35,9 +35,9 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,6 +60,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
     public static class TestInferenceService extends AbstractTestInferenceService {
         private static final String NAME = "streaming_completion_test_service";
+        private static final String ALIAS = "streaming_completion_test_service_alias";
         private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
         private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
@@ -73,6 +74,11 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         @Override
         public String name() {
             return NAME;
+        }
+
+        @Override
+        public List<String> aliases() {
+            return List.of(ALIAS);
         }
 
         @Override
@@ -132,9 +138,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                             )
                         );
                     } else {
-                        // Return text embedding results when creating a sparse_embedding inference endpoint to allow creation validation to
-                        // pass. This is required to test that streaming fails for a sparse_embedding endpoint.
-                        listener.onResponse(makeTextEmbeddingResults(input));
+                        // Return dense embedding results when creating a sparse_embedding inference endpoint to allow creation validation
+                        // to pass. This is required to test that streaming fails for a sparse_embedding endpoint.
+                        listener.onResponse(makeDenseEmbeddingResults(input));
                     }
                 }
                 default -> listener.onFailure(
@@ -183,16 +189,16 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             });
         }
 
-        private TextEmbeddingFloatResults makeTextEmbeddingResults(List<String> input) {
-            var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>();
+        private DenseEmbeddingFloatResults makeDenseEmbeddingResults(List<String> input) {
+            var embeddings = new ArrayList<DenseEmbeddingFloatResults.Embedding>();
             for (int i = 0; i < input.size(); i++) {
                 var values = new float[5];
                 for (int j = 0; j < 5; j++) {
                     values[j] = random.nextFloat();
                 }
-                embeddings.add(new TextEmbeddingFloatResults.Embedding(values));
+                embeddings.add(new DenseEmbeddingFloatResults.Embedding(values));
             }
-            return new TextEmbeddingFloatResults(embeddings);
+            return new DenseEmbeddingFloatResults(embeddings);
         }
 
         private InferenceServiceResults.Result completionChunk(String delta) {
@@ -320,6 +326,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     );
 
                     return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setName(NAME)
                         .setTaskTypes(supportedTaskTypes)
                         .setConfigurations(configurationMap)
                         .build();

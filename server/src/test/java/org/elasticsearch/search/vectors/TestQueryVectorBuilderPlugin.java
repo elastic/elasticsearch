@@ -45,7 +45,7 @@ public class TestQueryVectorBuilderPlugin implements SearchPlugin {
             PARSER.declareFloatArray(ConstructingObjectParser.constructorArg(), QUERY_VECTOR);
         }
 
-        private List<Float> vectorToBuild;
+        private final List<Float> vectorToBuild;
 
         public TestQueryVectorBuilder(List<Float> vectorToBuild) {
             this.vectorToBuild = vectorToBuild;

@@ -10,9 +10,9 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,11 +23,11 @@ import java.util.Arrays;
 
 /**
  * Request the mappings of specific fields
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
  */
-public class GetFieldMappingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class GetFieldMappingsRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
 
     private String[] fields = Strings.EMPTY_ARRAY;
 
@@ -84,7 +84,9 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         return true;
     }
 
-    /** @param fields a list of fields to retrieve the mapping for */
+    /**
+     * @param fields a list of fields to retrieve the mapping for
+     */
     public GetFieldMappingsRequest fields(String... fields) {
         this.fields = fields;
         return this;
@@ -98,7 +100,9 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         return includeDefaults;
     }
 
-    /** Indicates whether default mapping settings should be returned */
+    /**
+     * Indicates whether default mapping settings should be returned
+     */
     public GetFieldMappingsRequest includeDefaults(boolean includeDefaults) {
         this.includeDefaults = includeDefaults;
         return this;

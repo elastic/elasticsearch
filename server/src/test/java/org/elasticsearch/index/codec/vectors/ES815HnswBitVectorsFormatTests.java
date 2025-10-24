@@ -10,9 +10,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnByteVectorField;
@@ -23,21 +21,23 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
+import org.apache.lucene.tests.util.TestUtil;
 import org.junit.Before;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
+
 public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCase {
+
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES815HnswBitVectorsFormat());
 
     @Override
     protected Codec getCodec() {
-        return new Lucene101Codec() {
-            @Override
-            public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES815HnswBitVectorsFormat();
-            }
-        };
+        return codec;
     }
 
     @Before
@@ -60,10 +60,11 @@ public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestC
                         knnVectorsReader = fieldsReader.getFieldReader("f");
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
-                    var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
-                    assertEquals(2, offHeap.size());
-                    assertTrue(offHeap.get("vec") > 0L);
-                    assertEquals(1L, (long) offHeap.get("vex"));
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+
+                    assertThat(offHeap, aMapWithSize(2));
+                    assertThat(offHeap, hasEntry("vex", 1L));
+                    assertThat(offHeap, hasEntry(equalTo("vec"), greaterThan(0L)));
                 }
             }
         }

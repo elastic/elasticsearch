@@ -22,12 +22,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -211,9 +213,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
                 new DateFieldMapper.DateFieldType(
                     DATE_FIELD_NAME,
-                    randomBoolean(),
-                    randomBoolean(),
-                    true,
+                    IndexType.points(randomBoolean(), true),
+                    false,
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     Resolution.MILLISECONDS,
                     null,
@@ -491,7 +492,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            true,
+            IndexType.points(true, true),
             false,
             true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -559,6 +560,12 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         });
         final MockScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, emptyMap());
         final Map<String, ScriptEngine> engines = Map.of(engine.getType(), engine);
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 0);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 0,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 }

@@ -1,0 +1,41 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+// Necessary to use tests in Serverless
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+dependencies {
+  javaRestTestImplementation project(path: ':x-pack:plugin:deprecation:qa:common')
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+
+  clusterModules project(':x-pack:plugin:deprecation:qa::early-deprecation-plugin')
+  clusterModules project(':x-pack:plugin:deprecation:qa::deprecation-plugin')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(xpackModule('stack'))
+  clusterModules project(xpackModule('deprecation'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('ml'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('wildcard'))
+  clusterModules project(xpackModule('transform'))
+}
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'index'
+  }
+}
+
+// Test clusters run with security disabled
+tasks.named("javaRestTest") {
+  buildParams.withFipsEnabledOnly(it)
+}
+

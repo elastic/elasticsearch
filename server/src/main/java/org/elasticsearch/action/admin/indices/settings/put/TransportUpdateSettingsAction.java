@@ -85,7 +85,8 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     @Override
     protected ClusterBlockException checkBlock(UpdateSettingsRequest request, ClusterState state) {
         // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        ClusterBlockException globalBlock = state.blocks()
+            .globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
         if (globalBlock != null) {
             return globalBlock;
         }

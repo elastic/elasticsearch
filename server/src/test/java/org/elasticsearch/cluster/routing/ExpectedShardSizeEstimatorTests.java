@@ -199,14 +199,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
     }
 
     private static ClusterInfo createClusterInfo(ShardRouting shard, Long size) {
-        return new ClusterInfo(
-            Map.of(),
-            Map.of(),
-            Map.of(ClusterInfo.shardIdentifierFromRouting(shard), size),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        return ClusterInfo.builder().shardSizes(Map.of(ClusterInfo.shardIdentifierFromRouting(shard), size)).build();
     }
 
     private ClusterState buildRoutingTable(ClusterState state) {

@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.services.huggingface.request.HuggingFaceInferenceRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.request.embeddings.HuggingFaceEmbeddingsRequest;
 
 import java.util.List;
 import java.util.Objects;
@@ -62,9 +62,9 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getStringInputs();
-        var truncatedInput = truncate(docsInput, model.getTokenLimit());
-        var request = new HuggingFaceInferenceRequest(truncator, truncatedInput, model);
+        List<String> inputs = inferenceInputs.castTo(EmbeddingsInput.class).getInputs();
+        var truncatedInput = truncate(inputs, model.getTokenLimit());
+        var request = new HuggingFaceEmbeddingsRequest(truncator, truncatedInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, responseHandler, hasRequestCompletedFunction, listener));
     }

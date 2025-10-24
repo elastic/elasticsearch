@@ -26,6 +26,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ValuesFloatGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+    private final boolean withNulls = randomBoolean();
+
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return new ValuesFloatAggregatorFunctionSupplier();
@@ -40,7 +42,8 @@ public class ValuesFloatGroupingAggregatorFunctionTests extends GroupingAggregat
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new LongFloatTupleBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomFloat()))
+            LongStream.range(0, size)
+                .mapToObj(l -> Tuple.tuple(randomLongBetween(0, 100), withNulls && randomBoolean() ? null : randomFloat()))
         );
     }
 

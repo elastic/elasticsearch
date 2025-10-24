@@ -11,6 +11,9 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.test-build-info'
+apply plugin: 'elasticsearch.transport-version-references'
+apply plugin: 'elasticsearch.transport-version-resources'
 
 publishing {
   publications {
@@ -35,6 +38,7 @@ dependencies {
   api project(":libs:plugin-analysis-api")
   api project(':libs:grok')
   api project(":libs:tdigest")
+  api project(":libs:exponential-histogram")
   implementation project(":libs:simdvec")
   implementation project(":libs:entitlement")
 
@@ -74,6 +78,11 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
   }
+  testImplementation(testArtifact(project(":libs:exponential-histogram"))) {
+    // The test framework is manually included with excludes above
+    exclude group: 'org.elasticsearch.test', module: 'framework'
+  }
+
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
@@ -283,3 +292,10 @@ tasks.named("licenseHeaders").configure {
 }
 
 tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }
+
+tasks.named("generateTestBuildInfo").configure {
+  t -> {
+    t.getComponentName().set("server")
+    t.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-build-info/server-test-build-info.json"))
+  }
+}

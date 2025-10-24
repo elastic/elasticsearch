@@ -32,6 +32,7 @@ Date formats can be customised, but if no `format` is specified then it uses the
 ```js
     "strict_date_optional_time||epoch_millis"
 ```
+% NOTCONSOLE
 
 This means that it will accept dates with optional timestamps, which conform to the formats supported by [`strict_date_optional_time`](/reference/elasticsearch/mapping-reference/mapping-date-format.md#strict-date-time) or milliseconds-since-the-epoch.
 
@@ -163,6 +164,7 @@ POST my-index-000001/_search
   "_source": false
 }
 ```
+% TEST[s/_search/_search?filter_path=hits.hits/]
 
 Which will reply with a date like:
 
@@ -185,11 +187,6 @@ Which will reply with a date like:
 
 
 ## Synthetic `_source` [date-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 Synthetic source may sort `date` field values. For example:
 
@@ -218,6 +215,7 @@ PUT idx/_doc/1
   "date": ["2015-01-01T12:10:30Z", "2014-01-01T12:10:30Z"]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -226,5 +224,5 @@ Will become:
   "date": ["2014-01-01T12:10:30.000Z", "2015-01-01T12:10:30.000Z"]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

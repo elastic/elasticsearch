@@ -19,8 +19,10 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Collection;
@@ -32,6 +34,7 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,7 +85,13 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                     }
                 );
             }
-            try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gte("2023-01-01"))) {
+            try (
+                EsqlQueryResponse resp = run(
+                    syncEsqlQueryRequest().query("from events_*")
+                        .pragmas(randomPragmas())
+                        .filter(new RangeQueryBuilder("@timestamp").gte("2023-01-01"))
+                )
+            ) {
                 assertThat(getValuesList(resp), hasSize(4));
                 assertThat(queriedIndices, equalTo(Set.of("events_2023")));
                 queriedIndices.clear();
@@ -93,7 +102,13 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 queriedIndices.clear();
             }
 
-            try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").lt("2023-01-01"))) {
+            try (
+                EsqlQueryResponse resp = run(
+                    syncEsqlQueryRequest().query("from events_*")
+                        .pragmas(randomPragmas())
+                        .filter(new RangeQueryBuilder("@timestamp").lt("2023-01-01"))
+                )
+            ) {
                 assertThat(getValuesList(resp), hasSize(3));
                 assertThat(queriedIndices, equalTo(Set.of("events_2022")));
                 queriedIndices.clear();
@@ -106,9 +121,9 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
             try (
                 EsqlQueryResponse resp = run(
-                    "from events_*",
-                    randomPragmas(),
-                    new RangeQueryBuilder("@timestamp").gt("2022-01-01").lt("2023-12-31")
+                    syncEsqlQueryRequest().query("from events_*")
+                        .pragmas(randomPragmas())
+                        .filter(new RangeQueryBuilder("@timestamp").gt("2022-01-01").lt("2023-12-31"))
                 )
             ) {
                 assertThat(getValuesList(resp), hasSize(7));
@@ -129,9 +144,9 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
             try (
                 EsqlQueryResponse resp = run(
-                    "from events_*",
-                    randomPragmas(),
-                    new RangeQueryBuilder("@timestamp").gt("2021-01-01").lt("2021-12-31")
+                    syncEsqlQueryRequest().query("from events_*")
+                        .pragmas(randomPragmas())
+                        .filter(new RangeQueryBuilder("@timestamp").gt("2021-01-01").lt("2021-12-31"))
                 )
             ) {
                 assertThat(getValuesList(resp), hasSize(0));
@@ -181,62 +196,110 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .addAlias("employees", "sales", new MatchQueryBuilder("dept", "sales"))
         );
         // employees index
-        try (var resp = run("from employees | stats count(emp_no)", randomPragmas())) {
+        try (var resp = run("from employees | stats count(emp_no)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
         }
-        try (var resp = run("from employees | stats avg(salary)", randomPragmas())) {
+        try (var resp = run("from employees | stats avg(salary)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
         }
 
-        try (var resp = run("from employees | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest().query("from employees | stats count(emp_no)")
+                    .pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
         }
-        try (var resp = run("from employees | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest().query("from employees | stats avg(salary)")
+                    .pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
         }
 
         // match both employees index and engineers alias -> employees
-        try (var resp = run("from e* | stats count(emp_no)", randomPragmas())) {
+        try (var resp = run("from e* | stats count(emp_no)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
         }
-        try (var resp = run("from employees | stats avg(salary)", randomPragmas())) {
+        try (var resp = run("from employees | stats avg(salary)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
         }
 
-        try (var resp = run("from e* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest().query("from e* | stats count(emp_no)")
+                    .pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
         }
-        try (var resp = run("from e* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest().query("from e* | stats avg(salary)")
+                    .pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
         }
 
         // engineers alias
-        try (var resp = run("from engineer* | stats count(emp_no)", randomPragmas())) {
+        try (var resp = run("from engineer* | stats count(emp_no)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
         }
-        try (var resp = run("from engineer* | stats avg(salary)", randomPragmas())) {
+        try (var resp = run("from engineer* | stats avg(salary)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
         }
 
-        try (var resp = run("from engineer* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest().query("from engineer* | stats count(emp_no)")
+                    .pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(3L)));
         }
-        try (var resp = run("from engineer* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest().query("from engineer* | stats avg(salary)")
+                    .pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(27.2d)));
         }
 
         // sales alias
-        try (var resp = run("from sales | stats count(emp_no)", randomPragmas())) {
+        try (var resp = run("from sales | stats count(emp_no)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(2L)));
         }
-        try (var resp = run("from sales | stats avg(salary)", randomPragmas())) {
+        try (var resp = run("from sales | stats avg(salary)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(27.55d)));
         }
 
-        try (var resp = run("from sales | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest().query("from sales | stats count(emp_no)")
+                    .pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(1L)));
         }
-        try (var resp = run("from sales | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest().query("from sales | stats avg(salary)")
+                    .pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(25.0d)));
         }
     }
@@ -297,7 +360,15 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             containsString("index [logs] has no active shard copy"),
             () -> run("from * | KEEP timestamp,message")
         );
-        try (EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message", null, null, true)) {
+        try (
+            EsqlQueryResponse resp = run(
+                syncEsqlQueryRequest().query("from events,logs | KEEP timestamp,message").allowPartialResults(true)
+            )
+        ) {
+            assertTrue(resp.isPartial());
+            EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertThat(local.getFailures(), hasSize(1));
+            assertThat(local.getFailures().get(0).reason(), containsString("index [logs] has no active shard copy"));
             assertThat(getValuesList(resp), hasSize(3));
         }
     }

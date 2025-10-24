@@ -41,6 +41,7 @@ PUT _connector/my-outlook-connector
   "service_type": "outlook"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -116,10 +117,12 @@ To integrate with the Outlook connector using Azure, follow these steps to creat
 4. Click on the **Certificates & secrets** tab and create a new client secret. Keep this secret handy.
 5. Go to the **API permissions** tab.
 
-    * Click on "Add permissions."
-    * Choose "APIs my organization uses."
-    * Search for and select "Office 365 Exchange Online."
-    * Add the `full_access_as_app` application permission.
+    1. Click on "Add permissions".
+    2. Choose "APIs my organization uses".
+    3. Search for and select "Office 365 Exchange Online".
+        * Add the `full_access_as_app` application permission.
+    4. Search for and select "Microsoft Graph"
+        * Add the `User.Read.All` application permission.
 
 
 You can now use the Client ID, Tenant ID, and Client Secret you’ve noted to configure the Outlook connector.
@@ -192,6 +195,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -229,13 +233,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

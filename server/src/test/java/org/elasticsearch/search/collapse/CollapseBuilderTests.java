@@ -18,10 +18,10 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
@@ -145,8 +145,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
             numberFieldType = new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberFieldMapper.NumberType.LONG,
-                true,
-                false,
+                IndexType.points(true, false),
                 false,
                 false,
                 null,
@@ -164,9 +163,8 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
             numberFieldType = new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberFieldMapper.NumberType.LONG,
+                IndexType.docValuesOnly(),
                 false,
-                false,
-                true,
                 false,
                 null,
                 Collections.emptyMap(),
@@ -216,7 +214,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
         }
 
         {
-            MappedFieldType fieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+            MappedFieldType fieldType = new MappedFieldType("field", IndexType.points(true, true), false, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
                     return "some_type";

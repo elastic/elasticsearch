@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -93,7 +94,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testRequestValidationFailureScenarios() throws IOException {
-        class Dummy extends ActionRequest {
+        class Dummy extends LegacyActionRequest {
             String realm;
             String user;
             String apiKeyId;
@@ -105,7 +106,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 user = a[1];
                 apiKeyId = a[2];
                 apiKeyName = a[3];
-                ownedByAuthenticatedUser = Boolean.parseBoolean(a[4]);
+                ownedByAuthenticatedUser = Booleans.parseBoolean(a[4]);
             }
 
             @Override

@@ -41,7 +41,7 @@ import java.util.Set;
  *
  * This task is necessary because the built-in task {@link org.gradle.api.tasks.bundling.Tar} does not preserve symbolic links.
  */
-public class SymbolicLinkPreservingTar extends Tar {
+public abstract class SymbolicLinkPreservingTar extends Tar {
 
     @Override
     protected CopyAction createCopyAction() {

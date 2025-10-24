@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-runtime-fields.html
+products:
+  - id: painless
 ---
 
 # Use painless scripts in runtime fields [painless-runtime-fields]
@@ -43,7 +45,7 @@ PUT my-index/
   }
 }
 ```
-
+% TESTSETUP
 
 ## Define a runtime field only in a search request [painless-runtime-fields-query]
 

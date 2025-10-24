@@ -5,16 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.logical;
+package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldFunctionAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -22,21 +25,27 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
+
 /**
  * Replaces vector similarity functions with a field function attribute that applies
  * the similarity function during value loading, when one side of the function is a literal.
  * It also adds the new field function attribute to the EsRelation output, and adds a projection after it to remove it from the output.
  */
-public class PushDownVectorSimilarityFunctions extends OptimizerRules.OptimizerRule<Eval> {
+public class PushDownVectorSimilarityFunctions extends OptimizerRules.ParameterizedOptimizerRule<Eval, LocalLogicalOptimizerContext> {
+
+    public PushDownVectorSimilarityFunctions() {
+        super(OptimizerRules.TransformDirection.DOWN);
+    }
 
     @Override
-    protected LogicalPlan rule(Eval eval) {
+    protected LogicalPlan rule(Eval eval, LocalLogicalOptimizerContext context) {
         // TODO Extend to WHERE if necessary
 
         AttributeSet.Builder addedAttrs = AttributeSet.builder();
         Eval transformedEval = (Eval) eval.transformExpressionsDown(VectorSimilarityFunction.class, similarityFunction -> {
             if (similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) {
-                return replaceFieldsForFieldTransformations(similarityFunction, addedAttrs);
+                return replaceFieldsForFieldTransformations(similarityFunction, addedAttrs, context);
             }
             return similarityFunction;
         });
@@ -56,7 +65,8 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.OptimizerR
 
     private static Expression replaceFieldsForFieldTransformations(
         VectorSimilarityFunction similarityFunction,
-        AttributeSet.Builder addedAttrs
+        AttributeSet.Builder addedAttrs,
+        LocalLogicalOptimizerContext context
     ) {
         // Only replace if exactly one side is a literal and the other a field attribute
         if ((similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) == false) {
@@ -64,15 +74,17 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.OptimizerR
         }
 
         Literal literal = (Literal) (similarityFunction.left() instanceof Literal ? similarityFunction.left() : similarityFunction.right());
-        FieldAttribute fieldAttribute = null;
+        FieldAttribute fieldAttr = null;
         if (similarityFunction.left() instanceof FieldAttribute fa) {
-            fieldAttribute = fa;
+            fieldAttr = fa;
         } else if (similarityFunction.right() instanceof FieldAttribute fa) {
-            fieldAttribute = fa;
+            fieldAttr = fa;
         }
-        if (fieldAttribute == null) {
+        // We can push down also for doc values, requires handling that case on the field mapper
+        if (fieldAttr == null || context.searchStats().isIndexed(fieldAttr.fieldName()) == false) {
             return similarityFunction;
         }
+
         @SuppressWarnings("unchecked")
         List<Number> vectorList = (List<Number>) literal.value();
         float[] vectorArray = new float[vectorList.size()];
@@ -81,8 +93,24 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.OptimizerR
         }
 
         // Change the similarity function to a reference of a transformation on the field
-        FieldFunctionAttribute fieldFunctionAttribute = FieldFunctionAttribute.fromFieldAttribute(fieldAttribute, similarityFunction);
-        addedAttrs.add(fieldFunctionAttribute);
-        return fieldFunctionAttribute;
+        FunctionEsField functionEsField = new FunctionEsField(
+            fieldAttr.field(),
+            similarityFunction,
+            similarityFunction.getBlockLoaderFunctionConfig()
+        );
+        var nameId = new NameId();
+        var name = rawTemporaryName(fieldAttr.name(), similarityFunction.nodeName(), nameId.toString());
+        var functionAttr = new FieldAttribute(
+            fieldAttr.source(),
+            fieldAttr.parentName(),
+            fieldAttr.qualifier(),
+            name,
+            functionEsField,
+            fieldAttr.nullable(),
+            nameId,
+            fieldAttr.synthetic()
+        );
+        addedAttrs.add(functionAttr);
+        return functionAttr;
     }
 }

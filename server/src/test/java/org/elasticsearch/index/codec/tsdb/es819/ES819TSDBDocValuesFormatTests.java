@@ -1546,7 +1546,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     public static BinaryDVCompressionMode randomBinaryCompressionMode() {
 //        BinaryDVCompressionMode[] modes = BinaryDVCompressionMode.values();
 //        return modes[random().nextInt(modes.length)];
-        return BinaryDVCompressionMode.COMPRESSED_WITH_LZ4;
+        return BinaryDVCompressionMode.COMPRESSED_WITH_ZSTD;
     }
 
 }

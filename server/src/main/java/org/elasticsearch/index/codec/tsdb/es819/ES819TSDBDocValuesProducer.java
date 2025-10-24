@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.tsdb.es819;
 
-import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
@@ -49,6 +48,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -198,7 +198,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         return switch (entry.compression) {
             case NO_COMPRESS -> getUncompressedBinary(entry);
-            case COMPRESSED_WITH_LZ4 -> getCompressedBinary(entry);
+            case COMPRESSED_WITH_ZSTD -> getCompressedBinary(entry);
         };
     }
 
@@ -347,6 +347,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private final BytesRef uncompressedBytesRef;
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
+        private final Zstd814StoredFieldsFormat.ZstdDecompressor decompressor = new Zstd814StoredFieldsFormat.ZstdDecompressor();
 
         BinaryDecoder(
             LongValues addresses,
@@ -367,7 +368,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         // unconditionally decompress blockId into
         // uncompressedDocStarts
-        // uncompressedBlck
+        // uncompressedBlock
         private void decompressBlock(int blockId, int numDocsInBlock) throws IOException {
             long blockStartOffset = addresses.get(blockId);
             compressedData.seek(blockStartOffset);
@@ -378,12 +379,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 return;
             }
 
-            DataInput input = EndiannessReverserUtil.wrapDataInput(compressedData);
-
+            DataInput input = compressedData;
             int offsetBytesLen = numDocsInBlock * Integer.BYTES;
             assert offsetBytesLen <= uncompressedDocLengths.length;
             BytesRef offsetOut = new BytesRef(uncompressedDocLengths, 0, offsetBytesLen);
-            LZ4.decompress(input, offsetBytesLen, offsetOut.bytes, offsetOut.offset);
+            decompressor.decompress(input, offsetBytesLen, 0, offsetBytesLen, offsetOut);
 
             int docStart = 0;
             for (int i = 0; i < numDocsInBlock; i++) {
@@ -393,8 +393,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
 
             assert uncompressedBlockLength <= uncompressedBlock.length;
-            BytesRef dataOut = new BytesRef(uncompressedBlock, 0, uncompressedBlockLength);
-            LZ4.decompress(input, uncompressedBlockLength, dataOut.bytes, dataOut.offset);
+            uncompressedBytesRef.offset = 0;
+            uncompressedBytesRef.length = uncompressedBlock.length;
+            decompressor.decompress(input, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
         }
 
         // Find range containing docId that is within or after lastBlockId

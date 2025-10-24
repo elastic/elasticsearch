@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.tsdb.es819;
 
-import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
@@ -28,6 +27,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.DataOutput;
@@ -46,9 +46,11 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -328,7 +330,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeByte(binaryDVCompressionMode.code);
         switch (binaryDVCompressionMode) {
             case NO_COMPRESS -> doAddUncompressedBinary(field, valuesProducer);
-            case COMPRESSED_WITH_LZ4 -> doAddCompressedBinary(field, valuesProducer);
+            case COMPRESSED_WITH_ZSTD -> doAddCompressedBinary(field, valuesProducer);
         }
     }
 
@@ -513,8 +515,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private class CompressedBinaryBlockWriter implements Closeable {
         static final int MIN_BLOCK_BYTES = 256 * 1024;
         static final int START_BLOCK_DOCS = 1024; // likely needs to grow
+        private static final int ZSTD_LEVEL = 1;
 
-        final LZ4.FastCompressionHashTable ht = new LZ4.FastCompressionHashTable();
+        private final Zstd814StoredFieldsFormat.ZstdCompressor compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(ZSTD_LEVEL);
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
         int numDocsInCurrentBlock = 0;
@@ -584,9 +587,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
                 maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocsInCurrentBlock);
 
-                DataOutput output = EndiannessReverserUtil.wrapDataOutput(data);
-                LZ4.compress(docLengths, 0, numDocsInCurrentBlock * Integer.BYTES, output, ht);
-                LZ4.compress(block, 0, uncompressedBlockLength, output, ht);
+                compress(docLengths, numDocsInCurrentBlock * Integer.BYTES, data);
+                compress(block, uncompressedBlockLength, data);
 
                 blockDocRangeAcc.addDoc(numDocsInCurrentBlock);
                 numDocsInCurrentBlock = 0;
@@ -596,6 +598,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 long blockLenBytes = maxPointer - thisBlockStartPointer;
                 blockAddressAcc.addDoc(blockLenBytes);
             }
+        }
+
+        void compress(byte[] data, int uncompressedLength, DataOutput output) throws IOException {
+            ByteBuffer inputBuffer = ByteBuffer.wrap(data, 0, uncompressedLength);
+            ByteBuffersDataInput input = new ByteBuffersDataInput(List.of(inputBuffer));
+            compressor.compress(input, output);
         }
 
         void writeMetaData() throws IOException {

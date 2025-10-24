@@ -16,7 +16,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -39,6 +38,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     public static void initClass() throws IOException {
         webServer.start();
         gatewayUrl = getUrl(webServer);
+        // TODO add response to the web server to return no authorized models
     }
 
     @Before
@@ -67,6 +67,11 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     public void testCreateEndpoints() {
-        var executor = new AuthorizationTaskExecutor();
+        // verify that no models are authorized
+        // add request to return an authorized model
+        // cancel the task
+        // ensure the task is recreated?
+        // verify that the authorized model is present
+        fail("Not implemented yet");
     }
 }

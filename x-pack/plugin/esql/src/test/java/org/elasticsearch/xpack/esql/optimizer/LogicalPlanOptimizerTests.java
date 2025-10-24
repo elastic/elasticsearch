@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -98,7 +99,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
@@ -178,9 +178,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultAnalyzer;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -4299,7 +4301,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testSpatialTypesAndStatsUseDocValues() {
         var plan = planAirports("""
-            from test
+            from airports
             | stats centroid = st_centroid_agg(location)
             """);
 
@@ -4326,7 +4328,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testSpatialTypesAndStatsUseDocValuesWithEval() {
         var plan = planAirports("""
-            from test
+            from airports
             | stats centroid = st_centroid_agg(to_geopoint(location))
             """);
 
@@ -4362,7 +4364,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 default -> "to_" + type;
             };
             var field = "types." + type;
-            var plan = planExtra("from test | eval new_" + field + " = " + func + "(" + field + ")");
+            var plan = planExtra("from extra | eval new_" + field + " = " + func + "(" + field + ")");
             var eval = as(plan, Eval.class);
             var alias = as(eval.fields().get(0), Alias.class);
             assertThat(func + "(" + field + ")", alias.name(), equalTo("new_" + field));
@@ -5319,12 +5321,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testEmptyMappingIndex() {
         EsIndex empty = new EsIndex("empty_test", emptyMap(), Map.of());
-        IndexResolution getIndexResultAirports = IndexResolution.valid(empty);
         var analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResultAirports,
+                indexResolutions(empty),
                 enrichResolution,
                 emptyInferenceResolution()
             ),
@@ -5404,6 +5405,82 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var joinWithInvalidRightPlan = join.replaceChildren(join.left(), join.left());
         e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidRightPlan));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
+    }
+
+    /**
+     * Expected
+     * <pre>{@code
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[languages{f}#8],[language_code{f}#16],languages{f}#8 == language_code{f}#16 AND language_name{f}#17 == English
+     * [KEYWORD]]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+     * }</pre>
+     */
+    public void testLookupJoinRightFilter() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN languages_lookup ON languages == language_code and language_name == "English"
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, true);
+        var join = as(upperLimit.child(), Join.class);
+        assertEquals("ON languages == language_code and language_name == \"English\"", join.config().joinOnConditions().toString());
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    public void testLookupJoinRightFilterMatch() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN languages_lookup ON languages == language_code and MATCH(language_name,"English")
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, true);
+        var join = as(upperLimit.child(), Join.class);
+        assertEquals("ON languages == language_code and MATCH(language_name,\"English\")", join.config().joinOnConditions().toString());
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_Filter[LIKE(language_name{f}#18, "French*", false)]
+     *   \_Join[LEFT,[languages{f}#9],[language_code{f}#17],languages{f}#9 == language_code{f}#17 AND MATCH(language_name{f}#18,
+     * English[KEYWORD])]
+     *     |_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *     \_Filter[LIKE(language_name{f}#18, "French*", false)]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
+     */
+    public void testLookupJoinRightFilterMatchWithWhereClause() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN languages_lookup ON languages == language_code and MATCH(language_name,"English")
+            | WHERE language_name LIKE "French*"
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, false);
+        var topFilter = as(upperLimit.child(), Filter.class);
+        var join = as(topFilter.child(), Join.class);
+        assertEquals("ON languages == language_code and MATCH(language_name,\"English\")", join.config().joinOnConditions().toString());
+
+        // Check that the LIKE condition is pushed down as a right pre-join filter
+        var rightFilter = as(join.right(), Filter.class);
+        var likeCondition = as(rightFilter.condition(), WildcardLike.class);
+        var field = as(likeCondition.field(), FieldAttribute.class);
+        assertEquals("language_name", field.name());
+        assertEquals("French*", likeCondition.pattern().pattern());
+
+        as(rightFilter.child(), EsRelation.class);
     }
 
     // https://github.com/elastic/elasticsearch/issues/104995
@@ -7334,6 +7411,91 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[emp_no{f}#5],[id{f}#16],emp_no{f}#5 == id{f}#16 AND SPATIALINTERSECTS([1 3 0 0 0 1 0 0 0 5 0 0 0 0 0 0 0 0
+     * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+     * f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0][GEO_SHAPE],shape{f}#19)]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsRelation[spatial_lookup][LOOKUP][contains{f}#18, id{f}#16, intersects{f}#17, shape{f..]
+     */
+    public void testLookupJoinRightFilterSpatialIntersects() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN spatial_lookup ON emp_no == id AND ST_INTERSECTS(TO_GEOSHAPE("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"), shape)
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, true);
+        var join = as(upperLimit.child(), Join.class);
+        assertEquals(
+            "ON emp_no == id AND ST_INTERSECTS(TO_GEOSHAPE(\"POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))\"), shape)",
+            join.config().joinOnConditions().toString()
+        );
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[emp_no{f}#5],[id{f}#16],emp_no{f}#5 == id{f}#16 AND SPATIALINTERSECTS([1 3 0 0 0 1 0 0 0 5 0 0 0 0 0 0 0 0
+     * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+     * f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0][GEO_SHAPE],shape{f}#19)]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsRelation[spatial_lookup][LOOKUP][contains{f}#18, id{f}#16, intersects{f}#17, shape{f..]
+     */
+    public void testLookupJoinRightFilterSpatialWithin() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN spatial_lookup ON emp_no == id AND ST_WITHIN(shape, TO_GEOSHAPE("POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))"))
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, true);
+        var join = as(upperLimit.child(), Join.class);
+        assertEquals(
+            "ON emp_no == id AND ST_WITHIN(shape, TO_GEOSHAPE(\"POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))\"))",
+            join.config().joinOnConditions().toString()
+        );
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[emp_no{f}#5],[id{f}#16],emp_no{f}#5 == id{f}#16 AND SPATIALCONTAINS(shape{f}#19,[1 3 0 0 0 1 0 0 0 5 0 0 0
+     * 0 0 0 0 0 0 e0 3f 0 0 0 0 0 0 e0 3f 0 0 0 0 0 0 f8 3f 0 0 0 0 0 0 e0 3f 0 0 0 0 0 0 f8 3f 0 0 0 0 0 0 f8 3f 0 0 0 0 0 0
+     * e0 3f 0 0 0 0 0 0 f8 3f 0 0 0 0 0 0 e0 3f 0 0 0 0 0 0 e0 3f][GEO_SHAPE])]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsRelation[spatial_lookup][LOOKUP][contains{f}#18, id{f}#16, intersects{f}#17, shape{f..]
+     */
+    public void testLookupJoinRightFilterSpatialContains() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN spatial_lookup
+            ON emp_no == id AND ST_CONTAINS(shape, TO_GEOSHAPE("POLYGON((0.5 0.5, 1.5 0.5, 1.5 1.5, 0.5 1.5, 0.5 0.5))"))
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, true);
+        var join = as(upperLimit.child(), Join.class);
+        assertEquals(
+            "ON emp_no == id AND ST_CONTAINS(shape, TO_GEOSHAPE(\"POLYGON((0.5 0.5, 1.5 0.5, 1.5 1.5, 0.5 1.5, 0.5 0.5))\"))",
+            join.config().joinOnConditions().toString()
+        );
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    /**
      * Disjunctions however keep the filter in place, even on pushable fields
      * <p>
      * Expects
@@ -8572,7 +8734,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = """
-            FROM TEST
+            FROM test
             | SAMPLE .3
             | EVAL irrelevant1 = 1
             | SAMPLE .5
@@ -8602,7 +8764,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "GROK first_name \"%{WORD:bar}\"",
             "DISSECT first_name \"%{z}\""
         )) {
-            var query = "FROM TEST | " + command + " | SAMPLE .5";
+            var query = "FROM test | " + command + " | SAMPLE .5";
             var optimized = optimizedPlan(query);
 
             var unary = as(optimized, UnaryPlan.class);
@@ -8617,7 +8779,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testSamplePushDown_sort() {
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
-        var query = "FROM TEST | WHERE emp_no > 0 | SAMPLE 0.5 | LIMIT 100";
+        var query = "FROM test | WHERE emp_no > 0 | SAMPLE 0.5 | LIMIT 100";
         var optimized = optimizedPlan(query);
 
         var limit = as(optimized, Limit.class);
@@ -8631,7 +8793,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testSamplePushDown_where() {
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
-        var query = "FROM TEST | SORT emp_no | SAMPLE 0.5 | LIMIT 100";
+        var query = "FROM test | SORT emp_no | SAMPLE 0.5 | LIMIT 100";
         var optimized = optimizedPlan(query);
 
         var topN = as(optimized, TopN.class);
@@ -8645,7 +8807,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         for (var command : List.of("LIMIT 100", "MV_EXPAND languages", "STATS COUNT()")) {
-            var query = "FROM TEST | " + command + " | SAMPLE .5";
+            var query = "FROM test | " + command + " | SAMPLE .5";
             var optimized = optimizedPlan(query);
 
             var limit = as(optimized, Limit.class);
@@ -8669,7 +8831,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = """
-            FROM TEST
+            FROM test
             | EVAL language_code = emp_no
             | LOOKUP JOIN languages_lookup ON language_code
             | SAMPLE .5
@@ -8697,7 +8859,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = """
-            FROM TEST
+            FROM test
             | CHANGE_POINT emp_no ON hire_date
             | SAMPLE .5
             """;
@@ -8713,7 +8875,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testPushDownConjunctionsToKnnPrefilter() {
         var query = """
-            from test
+            from types
             | where knn(dense_vector, [0, 1, 2]) and integer > 10
             """;
         var optimized = planTypes(query);
@@ -8731,7 +8893,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testPushDownMultipleFiltersToKnnPrefilter() {
         var query = """
-            from test
+            from types
             | where knn(dense_vector, [0, 1, 2])
             | where integer > 10
             | where keyword == "test"
@@ -8752,7 +8914,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testNotPushDownDisjunctionsToKnnPrefilter() {
         var query = """
-            from test
+            from types
             | where knn(dense_vector, [0, 1, 2]) or integer > 10
             """;
         var optimized = planTypes(query);
@@ -8779,7 +8941,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
          */
         // Both conjunctions are pushed down to knn prefilters, disjunctions are not
         var query = """
-            from test
+            from types
             | where
                  ((knn(dense_vector, [0, 1, 2]) or integer > 10) and keyword == "test") and ((short < 5) or (double > 5.0))
             """;
@@ -8812,7 +8974,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
          */
         // Just the conjunction is pushed down to knn prefilters, disjunctions are not
         var query = """
-            from test
+            from types
             | where
                  ((knn(dense_vector, [0, 1, 2]) and integer > 10) or keyword == "test") or ((short < 5) and (double > 5.0))
             """;
@@ -8839,7 +9001,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     knn(dense_vector, [4, 5, 6], 10)
          */
         var query = """
-            from test
+            from types
             | where ((knn(dense_vector, [0, 1, 2]) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
             """;
         var optimized = planTypes(query);
@@ -8871,7 +9033,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testKnnImplicitLimit() {
         var query = """
-            from test
+            from types
             | where knn(dense_vector, [0, 1, 2])
             """;
         var optimized = planTypes(query);
@@ -8884,7 +9046,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testKnnWithLimit() {
         var query = """
-            from test
+            from types
             | where knn(dense_vector, [0, 1, 2])
             | limit 10
             """;
@@ -8898,7 +9060,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testKnnWithTopN() {
         var query = """
-            from test metadata _score
+            from types metadata _score
             | where knn(dense_vector, [0, 1, 2])
             | sort _score desc
             | limit 10
@@ -8913,7 +9075,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testKnnWithMultipleLimitsAfterTopN() {
         var query = """
-            from test metadata _score
+            from types metadata _score
             | where knn(dense_vector, [0, 1, 2])
             | limit 20
             | sort _score desc
@@ -8931,7 +9093,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testKnnWithMultipleLimitsCombined() {
         var query = """
-            from test metadata _score
+            from types metadata _score
             | where knn(dense_vector, [0, 1, 2])
             | limit 20
             | limit 10
@@ -8947,7 +9109,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testKnnWithMultipleClauses() {
         var query = """
-            from test metadata _score
+            from types metadata _score
             | where knn(dense_vector, [0, 1, 2]) and match(keyword, "test")
             | where knn(dense_vector, [1, 2, 3])
             | sort _score
@@ -8968,14 +9130,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testKnnWithStats() {
         assertThat(
-            typesError("from test | where knn(dense_vector, [0, 1, 2]) | stats c = count(*)"),
+            typesError("from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*)"),
             containsString("Knn function must be used with a LIMIT clause")
         );
     }
 
     public void testKnnWithRerankAmdTopN() {
         assertThat(typesError("""
-            from test metadata _score
+            from types metadata _score
             | where knn(dense_vector, [0, 1, 2])
             | rerank "some text" on text with { "inference_id" : "reranking-inference-id" }
             | sort _score desc
@@ -8985,7 +9147,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testKnnWithRerankAmdLimit() {
         var query = """
-            from test metadata _score
+            from types metadata _score
             | where knn(dense_vector, [0, 1, 2])
             | rerank "some text" on text with { "inference_id" : "reranking-inference-id" }
             | limit 100

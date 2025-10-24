@@ -978,6 +978,11 @@ public enum DataType implements Writeable {
 
     public static class DataTypesTransportVersions {
 
+        /**
+         * The first transport version after the PR that introduced geotile/geohash/geohex, resp.
+         * after 9.1. We didn't require transport versions at that point in time, as geotile/hash/hex require
+         * using specific functions to even occur in query plans.
+         */
         public static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
 
         public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(

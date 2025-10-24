@@ -176,8 +176,11 @@ required_capability: to_long_base
 | KEEP  string, base, expect_long
 ;
 
-string:keyword |base:integer |expect_long:long
-0xff           |16           |255
+string:keyword | base:integer | expect_long:long
+0xff           | 16           | 255
+0xff           | null         | null
+null           | 16           | null
+null           | null         | null
 ;
 
 convertStringToLongBaseIndexGroup1
@@ -189,10 +192,66 @@ required_capability: to_long_base
 | KEEP  string, base, to_long
 ;
 
-string:keyword |base:integer |to_long:long
-0x32           |16           |50
-31             |13           |40
-5              |null         |null
+string:keyword | base:integer | to_long:long
+0x32           | 16           | 50
+31             | 13           | 40
+5              | 10           | 5
+;
+
+convertStringToLongBaseIndexGroup2
+required_capability: to_long_base
+
+  FROM  base_conversion
+| WHERE group == 2
+| EVAL  to_long = TO_LONG(string, base)
+| KEEP  string, base, to_long
+;
+
+string:keyword | base:integer | to_long:long
+314            | 10           | 314
+314            | null         | null
+-314           | 10           | -314
+-314           | null         | null
++314           | 10           | 314
++314           | null         | null
+;
+
+convertStringToLongBaseIndexGroup3
+required_capability: to_long_base
+
+  FROM  base_conversion
+| WHERE group == 3
+| EVAL  to_long = TO_LONG(string, base)
+| KEEP  string, base, to_long
+;
+warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[0x1337\]
+
+string:keyword | base:integer | to_long:long
+1337           | 10           | 1337
+1337           | 16           | 4919
+0x1337         | null         | null
+0x1337         | 10           | null
+0x1337         | 16           | 4919
+0xdeadbeef     | null         | null
+0xdeadbeef     | 16           | 3735928559
+deadbeef       | null         | null
+deadbeef       | 16           | 3735928559
+;
+
+convertStringToLongBaseIndexGroup4
+required_capability: to_long_base
+
+  FROM  base_conversion
+| WHERE group == 4
+| EVAL  to_long = TO_LONG(string, base)
+| KEEP  string, base, to_long
+;
+
+string:keyword | base:integer | to_long:long
+52403          | null         | null
+052403         | 8            | 21763
+52403          | 7            | 12890
 ;
 
 // END esql_to_long_base_133728

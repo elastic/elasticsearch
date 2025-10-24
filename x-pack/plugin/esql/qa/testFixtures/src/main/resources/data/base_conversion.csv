@@ -15,9 +15,9 @@
 //
 // schema line
 group:integer,string:keyword,base:integer,expect_long:long,expect_integer:integer,notes:keyword
+
 //
-//
-// Test Group 0 - example of the data
+// Test Group 0 - example of the data with an without nulls
 //
 // ┌────────────────── string         - string for test
 // │   ┌────────────── base           - base for test
@@ -26,7 +26,10 @@ group:integer,string:keyword,base:integer,expect_long:long,expect_integer:intege
 // │   │  │   │   ┌─── notes          - comments on the test
 // ▼   ▼  ▼   ▼   ▼
 0,0xff,16,255,255,              TO_LONG("0x32"\, 16)            == 50
-//
+0,0xff,,,,                      TO_LONG("0x32"\, null)          == null because base is null
+0,,16,,,                        TO_LONG(null\, 16)              == null because string is null
+0,,,,,                          TO_LONG(null\, null)            == null because all args are null
+
 //
 // Test Group 1
 //
@@ -39,9 +42,60 @@ group:integer,string:keyword,base:integer,expect_long:long,expect_integer:intege
 //         number("31", 13)
 //         number("5")
 //             
-//     note when the binary TO_LONG function is given a null base it is treated as a unary function
-//     e.g TO_LONG("5",null) == TO_LONG("5") 
-//          
 1,0x32,16,50,50,                TO_LONG("0x32"\, 16)            == 50
 1,31,13,40,40,                  TO_LONG("31"\, 13)              == 40
-1,5,,5,5,                       TO_LONG("5"\, null)             == null
+1,5,10,5,5,                     TO_LONG("5"\, 10)               == 5
+
+//
+// Test Group 2
+// 
+//     base 10 tests from "Test the `number` function" 
+//     x-pack/plugin/eql/src/test/resources/test_string_functions.toml
+//
+//         number("314")
+//         number("-314", 10)
+//         number("+314", 10)
+//
+2,314,10,314,314,               TO_LONG("314"\, 10)             == 314
+2,314,,,,                       TO_LONG("314"\, null)           == null because base is null
+2,-314,10,-314,-314,            TO_LONG("-314"\, 10)            == -314
+2,-314,,,,                      TO_LONG("-314"\, null)          == null because base is null
+2,+314,10,314,314,              TO_LONG("+314"\, 10)            == 314
+2,+314,,,,                      TO_LONG("+314"\, null)          == null because base is null
+
+//
+// Test Group 3
+//
+//     base 16 tests from "Test the `number` function"
+//     x-pack/plugin/eql/src/test/resources/test_string_functions.toml
+//
+//         number("0x1337")
+//         number("0x1337", 16) 
+//         number("0xdeadbeef")
+//         number("deadbeef", 16)
+//
+//     this test will generate InvalidArgumentException parse warnings
+//
+3,1337,10,1337,1337,            TO_LONG("1337"\, 10)             == 1337
+3,1337,16,4919,4919,            TO_LONG("1337"\, 16)             == 4919
+3,0x1337,,,,                    TO_LONG("0x1337"\, null)         == null because base is null
+3,0x1337,10,,,                  TO_LONG("0x1337"\, 10)           == null because string is invalid in base 10
+3,0x1337,16,4919,4919,          TO_LONG("0x1337"\, 16)           == 4919
+3,0xdeadbeef,,,,                TO_LONG("0xdeadbeef"\, null)     == null because base is null
+3,0xdeadbeef,16,3735928559,,    TO_LONG("0xdeadbeef"\, 16)       == long 3735928559 but integer null because overflow
+3,deadbeef,,,,                  TO_LONG("deadbeef"\, null)       == null because base is null
+3,deadbeef,16,3735928559,,      TO_LONG("deadbeef"\, 16)         == long 3735928559 but integer null because overflow
+
+//
+// Test Group 4
+//
+//     other base tests from "Test the `number` function"
+//     x-pack/plugin/eql/src/test/resources/test_string_functions.toml
+//
+//         number("52403")
+//         number("052403", 8)
+//         number("52403", 7)
+//
+4,52403,,,,                     TO_LONG("52403"\, null)          == null because base is null
+4,052403,8,21763,21763,         TO_LONG("052403"\, 8)            == 21763
+4,52403,7,12890,12890,          TO_LONG("52403"\, 7)             == 12890

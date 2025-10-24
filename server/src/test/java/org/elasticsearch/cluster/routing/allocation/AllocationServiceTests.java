@@ -60,7 +60,7 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
-import static org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus.DECIDERS_NO;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus.DECIDERS_NO;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
@@ -315,7 +315,7 @@ public class AllocationServiceTests extends ESTestCase {
         assertTrue(shardAllocationDecision.isDecisionTaken());
         assertThat(
             shardAllocationDecision.getAllocateDecision().getAllocationStatus(),
-            equalTo(UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY)
+            equalTo(UnassignedInfo.FailedAllocationStatus.NO_VALID_SHARD_COPY)
         );
         assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(), equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
         assertThat(shardAllocationDecision.getAllocateDecision().getExplanation(), equalTo(Explanations.Allocation.NO_COPIES));

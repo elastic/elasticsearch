@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
@@ -70,23 +70,23 @@ public class AllocationDecisionTests extends ESTestCase {
     }
 
     /**
-     * Tests getting a {@link AllocationDecision} from {@link AllocationStatus}.
+     * Tests getting a {@link AllocationDecision} from {@link FailedAllocationStatus}.
      */
     public void testFromAllocationStatus() {
-        AllocationStatus allocationStatus = rarely() ? null : randomFrom(AllocationStatus.values());
-        AllocationDecision allocationDecision = AllocationDecision.fromAllocationStatus(allocationStatus);
+        FailedAllocationStatus failedAllocationStatus = rarely() ? null : randomFrom(FailedAllocationStatus.values());
+        AllocationDecision allocationDecision = AllocationDecision.fromAllocationStatus(failedAllocationStatus);
         AllocationDecision expected;
-        if (allocationStatus == null) {
+        if (failedAllocationStatus == null) {
             expected = AllocationDecision.YES;
-        } else if (allocationStatus == AllocationStatus.DECIDERS_THROTTLED) {
+        } else if (failedAllocationStatus == FailedAllocationStatus.DECIDERS_THROTTLED) {
             expected = AllocationDecision.THROTTLED;
-        } else if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
+        } else if (failedAllocationStatus == FailedAllocationStatus.FETCHING_SHARD_DATA) {
             expected = AllocationDecision.AWAITING_INFO;
-        } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
+        } else if (failedAllocationStatus == FailedAllocationStatus.DELAYED_ALLOCATION) {
             expected = AllocationDecision.ALLOCATION_DELAYED;
-        } else if (allocationStatus == AllocationStatus.NO_VALID_SHARD_COPY) {
+        } else if (failedAllocationStatus == FailedAllocationStatus.NO_VALID_SHARD_COPY) {
             expected = AllocationDecision.NO_VALID_SHARD_COPY;
-        } else if (allocationStatus == AllocationStatus.NO_ATTEMPT) {
+        } else if (failedAllocationStatus == FailedAllocationStatus.NO_ATTEMPT) {
             expected = AllocationDecision.NO_ATTEMPT;
         } else {
             expected = AllocationDecision.NO;

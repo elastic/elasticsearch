@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -939,8 +939,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 fooRouting.unassignedInfo().unassignedTimeMillis(),
                 false,
                 fooRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE
-                    ? AllocationStatus.DECIDERS_NO
-                    : AllocationStatus.NO_VALID_SHARD_COPY,
+                    ? FailedAllocationStatus.DECIDERS_NO
+                    : FailedAllocationStatus.NO_VALID_SHARD_COPY,
                 fooRouting.unassignedInfo().failedNodeIds(),
                 fooRouting.unassignedInfo().lastAllocatedNodeId()
             ),
@@ -1268,7 +1268,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(
             shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).stream()
                 .map(ShardRouting::unassignedInfo)
-                .allMatch(unassignedInfo -> AllocationStatus.NO_ATTEMPT.equals(unassignedInfo.lastAllocationStatus())),
+                .allMatch(unassignedInfo -> FailedAllocationStatus.NO_ATTEMPT.equals(unassignedInfo.lastFailedAllocationStatus())),
             is(true)
         );
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
@@ -1290,7 +1290,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(
             shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).stream()
                 .map(ShardRouting::unassignedInfo)
-                .allMatch(unassignedInfo -> AllocationStatus.FETCHING_SHARD_DATA.equals(unassignedInfo.lastAllocationStatus())),
+                .allMatch(unassignedInfo -> FailedAllocationStatus.FETCHING_SHARD_DATA.equals(unassignedInfo.lastFailedAllocationStatus())),
             is(true)
         );
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));

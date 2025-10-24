@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -576,7 +576,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                 final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
                 for (ShardRouting shardRouting : indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
-                    if (shardRouting.unassignedInfo().lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA) {
+                    if (shardRouting.unassignedInfo().lastFailedAllocationStatus() == FailedAllocationStatus.FETCHING_SHARD_DATA) {
                         try {
                             assertBusy(() -> {
                                 final Long snapshotShardSize = snapshotsInfoService.snapshotShardSizes().getShardSize(shardRouting);
@@ -673,7 +673,9 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     assertBusy(() -> {
                         List<Long> sizes = indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)
                             .stream()
-                            .filter(shard -> shard.unassignedInfo().lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA)
+                            .filter(
+                                shard -> shard.unassignedInfo().lastFailedAllocationStatus() == FailedAllocationStatus.FETCHING_SHARD_DATA
+                            )
                             .sorted(Comparator.comparingInt(ShardRouting::getId))
                             .map(shard -> snapshotsInfoService.snapshotShardSizes().getShardSize(shard))
                             .filter(Objects::nonNull)

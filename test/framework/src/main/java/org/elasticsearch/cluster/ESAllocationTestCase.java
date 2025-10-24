@@ -493,7 +493,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 return;
             }
             if (shardRouting.unassignedInfo().delayed()) {
-                unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
+                unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.FailedAllocationStatus.DELAYED_ALLOCATION, allocation.changes());
             }
         }
     }

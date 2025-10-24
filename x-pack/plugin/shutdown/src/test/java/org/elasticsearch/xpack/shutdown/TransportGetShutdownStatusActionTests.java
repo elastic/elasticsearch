@@ -896,7 +896,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             System.nanoTime(),
             System.currentTimeMillis(),
             false,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
             Set.of(),
             nodeId
         );

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -89,13 +89,13 @@ public enum AllocationDecision implements Writeable {
     }
 
     /**
-     * Gets an {@link AllocationDecision} from a {@link AllocationStatus}.
+     * Gets an {@link AllocationDecision} from a {@link FailedAllocationStatus}.
      */
-    public static AllocationDecision fromAllocationStatus(AllocationStatus allocationStatus) {
-        if (allocationStatus == null) {
+    public static AllocationDecision fromAllocationStatus(FailedAllocationStatus failedAllocationStatus) {
+        if (failedAllocationStatus == null) {
             return YES;
         } else {
-            return switch (allocationStatus) {
+            return switch (failedAllocationStatus) {
                 case DECIDERS_THROTTLED -> THROTTLED;
                 case FETCHING_SHARD_DATA -> AWAITING_INFO;
                 case DELAYED_ALLOCATION -> ALLOCATION_DELAYED;

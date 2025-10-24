@@ -110,7 +110,7 @@ public interface ExistingShardsAllocator {
          *
          * @param attempt the result of the allocation attempt
          */
-        void removeAndIgnore(UnassignedInfo.AllocationStatus attempt, RoutingChangesObserver changes);
+        void removeAndIgnore(UnassignedInfo.FailedAllocationStatus attempt, RoutingChangesObserver changes);
 
         /**
          * updates the unassigned info and recovery source on the current unassigned shard

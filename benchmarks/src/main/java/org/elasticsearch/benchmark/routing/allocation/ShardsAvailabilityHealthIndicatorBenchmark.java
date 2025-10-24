@@ -116,7 +116,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             System.nanoTime(),
             System.currentTimeMillis(),
             false,
-            UnassignedInfo.AllocationStatus.DECIDERS_NO,
+            UnassignedInfo.FailedAllocationStatus.DECIDERS_NO,
             failedNodeIds,
             null
         );

@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
@@ -616,7 +616,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             unassignedInfo.unassignedTimeNanos(),
                             unassignedInfo.unassignedTimeMillis(),
                             false,
-                            AllocationStatus.NO_ATTEMPT,
+                            FailedAllocationStatus.NO_ATTEMPT,
                             Collections.emptySet(),
                             routing.currentNodeId()
                         );
@@ -700,7 +700,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         unassignedInfo.unassignedTimeNanos(),
                         unassignedInfo.unassignedTimeMillis(),
                         false, // TODO debatable, but do we want to delay reassignment of unpromotable replicas tho?
-                        AllocationStatus.NO_ATTEMPT,
+                        FailedAllocationStatus.NO_ATTEMPT,
                         Set.of(),
                         unpromotableReplica.currentNodeId()
                     )
@@ -1016,16 +1016,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
          * Should be used with caution, typically,
          * the correct usage is to removeAndIgnore from the iterator.
          * @see #ignored()
-         * @see UnassignedIterator#removeAndIgnore(AllocationStatus, RoutingChangesObserver)
+         * @see UnassignedIterator#removeAndIgnore(FailedAllocationStatus, RoutingChangesObserver)
          * @see #isIgnoredEmpty()
          */
-        public void ignoreShard(ShardRouting shard, AllocationStatus allocationStatus, RoutingChangesObserver changes) {
+        public void ignoreShard(ShardRouting shard, FailedAllocationStatus failedAllocationStatus, RoutingChangesObserver changes) {
             nodes.ensureMutable();
             if (shard.primary()) {
                 ignoredPrimaries++;
                 UnassignedInfo currInfo = shard.unassignedInfo();
                 assert currInfo != null;
-                if (allocationStatus.equals(currInfo.lastAllocationStatus()) == false) {
+                if (failedAllocationStatus.equals(currInfo.lastFailedAllocationStatus()) == false) {
                     UnassignedInfo newInfo = new UnassignedInfo(
                         currInfo.reason(),
                         currInfo.message(),
@@ -1034,7 +1034,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         currInfo.unassignedTimeNanos(),
                         currInfo.unassignedTimeMillis(),
                         currInfo.delayed(),
-                        allocationStatus,
+                        failedAllocationStatus,
                         currInfo.failedNodeIds(),
                         currInfo.lastAllocatedNodeId()
                     );
@@ -1097,7 +1097,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
              * @param attempt the result of the allocation attempt
              */
             @Override
-            public void removeAndIgnore(AllocationStatus attempt, RoutingChangesObserver changes) {
+            public void removeAndIgnore(FailedAllocationStatus attempt, RoutingChangesObserver changes) {
                 nodes.ensureMutable();
                 innerRemove();
                 ignoreShard(current, attempt, changes);
@@ -1130,7 +1130,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
             /**
              * Unsupported operation, just there for the interface. Use
-             * {@link #removeAndIgnore(AllocationStatus, RoutingChangesObserver)} or
+             * {@link #removeAndIgnore(FailedAllocationStatus, RoutingChangesObserver)} or
              * {@link #initialize(String, String, long, RoutingChangesObserver)}.
              */
             @Override
@@ -1157,8 +1157,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         /**
          * Returns <code>true</code> iff any unassigned shards are marked as temporarily ignored.
-         * @see UnassignedShards#ignoreShard(ShardRouting, AllocationStatus, RoutingChangesObserver)
-         * @see UnassignedIterator#removeAndIgnore(AllocationStatus, RoutingChangesObserver)
+         * @see UnassignedShards#ignoreShard(ShardRouting, FailedAllocationStatus, RoutingChangesObserver)
+         * @see UnassignedIterator#removeAndIgnore(FailedAllocationStatus, RoutingChangesObserver)
          */
         public boolean isIgnoredEmpty() {
             return ignored.isEmpty();
@@ -1387,7 +1387,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     unassignedInfo.unassignedTimeNanos(),
                     unassignedInfo.unassignedTimeMillis(),
                     unassignedInfo.delayed(),
-                    unassignedInfo.lastAllocationStatus(),
+                    unassignedInfo.lastFailedAllocationStatus(),
                     Collections.emptySet(),
                     unassignedInfo.lastAllocatedNodeId()
                 ),

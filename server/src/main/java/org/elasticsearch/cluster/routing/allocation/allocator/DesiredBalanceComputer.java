@@ -170,7 +170,7 @@ public class DesiredBalanceComputer {
                         || ignoredShards.contains(discardAllocationStatus(shardRouting)) == false) {
                         shardRoutings.computeIfAbsent(shardRouting.shardId(), ShardRoutings::new).unassigned().add(shardRouting);
                     } else {
-                        iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);
+                        iterator.removeAndIgnore(UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT, changes);
                         if (shardRouting.primary()) {
                             unassignedPrimaries.add(shardRouting.shardId());
                         }
@@ -341,7 +341,7 @@ public class DesiredBalanceComputer {
                 for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
                     final var shardRouting = iterator.next();
                     if (ignoredShards.contains(discardAllocationStatus(shardRouting))) {
-                        iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);
+                        iterator.removeAndIgnore(UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT, changes);
                     }
                 }
             }
@@ -481,18 +481,19 @@ public class DesiredBalanceComputer {
         for (var shard : routingNodes.unassigned().ignored()) {
             var info = shard.unassignedInfo();
             assert info != null
-                && (info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
-                    || info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
-                    || info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) : "Unexpected stats in: " + info;
+                && (info.lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.DECIDERS_NO
+                    || info.lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT
+                    || info.lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.DECIDERS_THROTTLED)
+                : "Unexpected stats in: " + info;
 
-            if (hasChanges == false && info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) {
+            if (hasChanges == false && info.lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.DECIDERS_THROTTLED) {
                 // Simulation could not progress due to missing information in any of the deciders.
                 // Currently, this could happen if `HasFrozenCacheAllocationDecider` is still fetching the data.
                 // Progress would be made after the followup reroute call.
                 hasChanges = true;
             }
 
-            var ignored = shard.unassignedInfo().lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ? 0 : 1;
+            var ignored = shard.unassignedInfo().lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.DECIDERS_NO ? 0 : 1;
             assignments.compute(
                 shard.shardId(),
                 (key, oldValue) -> oldValue == null
@@ -669,7 +670,7 @@ public class DesiredBalanceComputer {
     }
 
     private static UnassignedInfo discardAllocationStatus(UnassignedInfo info) {
-        if (info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT) {
+        if (info.lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT) {
             return info;
         }
         return new UnassignedInfo(
@@ -680,7 +681,7 @@ public class DesiredBalanceComputer {
             info.unassignedTimeNanos(),
             info.unassignedTimeMillis(),
             info.delayed(),
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
             info.failedNodeIds(),
             info.lastAllocatedNodeId()
         );

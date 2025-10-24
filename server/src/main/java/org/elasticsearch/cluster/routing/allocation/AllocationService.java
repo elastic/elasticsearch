@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
@@ -250,7 +250,7 @@ public class AllocationService {
                     currentNanoTime,
                     System.currentTimeMillis(),
                     false,
-                    AllocationStatus.NO_ATTEMPT,
+                    FailedAllocationStatus.NO_ATTEMPT,
                     failedNodeIds,
                     shardToFail.currentNodeId()
                 );
@@ -501,7 +501,7 @@ public class AllocationService {
                                 unassignedInfo.unassignedTimeNanos(),
                                 unassignedInfo.unassignedTimeMillis(),
                                 false,
-                                unassignedInfo.lastAllocationStatus(),
+                                unassignedInfo.lastFailedAllocationStatus(),
                                 unassignedInfo.failedNodeIds(),
                                 unassignedInfo.lastAllocatedNodeId()
                             ),
@@ -730,7 +730,7 @@ public class AllocationService {
                     allocation.getCurrentNanoTime(),
                     System.currentTimeMillis(),
                     delayed,
-                    AllocationStatus.NO_ATTEMPT,
+                    FailedAllocationStatus.NO_ATTEMPT,
                     Collections.emptySet(),
                     shardRouting.currentNodeId()
                 );
@@ -853,7 +853,7 @@ public class AllocationService {
             RoutingAllocation allocation,
             UnassignedAllocationHandler unassignedAllocationHandler
         ) {
-            unassignedAllocationHandler.removeAndIgnore(AllocationStatus.NO_VALID_SHARD_COPY, allocation.changes());
+            unassignedAllocationHandler.removeAndIgnore(FailedAllocationStatus.NO_VALID_SHARD_COPY, allocation.changes());
         }
 
         @Override
@@ -876,7 +876,7 @@ public class AllocationService {
                     )
                 );
             }
-            return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, nodeAllocationResults);
+            return AllocateUnassignedDecision.no(FailedAllocationStatus.NO_VALID_SHARD_COPY, nodeAllocationResults);
         }
 
         @Override

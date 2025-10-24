@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.FrequencyCappedAction;
@@ -219,7 +219,7 @@ public class DesiredBalanceReconciler {
             while (unassignedIterator.hasNext()) {
                 final ShardRouting shardRouting = unassignedIterator.next();
                 final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-                if (shardRouting.primary() && unassignedInfo.lastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
+                if (shardRouting.primary() && unassignedInfo.lastFailedAllocationStatus() == FailedAllocationStatus.NO_ATTEMPT) {
                     unassignedIterator.updateUnassigned(
                         new UnassignedInfo(
                             unassignedInfo.reason(),
@@ -229,7 +229,7 @@ public class DesiredBalanceReconciler {
                             unassignedInfo.unassignedTimeNanos(),
                             unassignedInfo.unassignedTimeMillis(),
                             unassignedInfo.delayed(),
-                            AllocationStatus.DECIDERS_NO,
+                            FailedAllocationStatus.DECIDERS_NO,
                             unassignedInfo.failedNodeIds(),
                             unassignedInfo.lastAllocatedNodeId()
                         ),
@@ -299,11 +299,11 @@ public class DesiredBalanceReconciler {
                     // An ignored shard copy is one that has no desired balance assignment.
                     final boolean ignored = assignment == null || isIgnored(routingNodes, shard, assignment);
 
-                    AllocationStatus unallocatedStatus;
+                    FailedAllocationStatus unallocatedStatus;
                     if (ignored) {
-                        unallocatedStatus = AllocationStatus.NO_ATTEMPT;
+                        unallocatedStatus = FailedAllocationStatus.NO_ATTEMPT;
                     } else {
-                        unallocatedStatus = AllocationStatus.DECIDERS_NO;
+                        unallocatedStatus = FailedAllocationStatus.DECIDERS_NO;
                         final var nodeIdsIterator = new NodeIdsIterator(shard, assignment, routingNodes);
                         while (nodeIdsIterator.hasNext()) {
                             final var nodeId = nodeIdsIterator.next();
@@ -341,7 +341,7 @@ public class DesiredBalanceReconciler {
                                 }
                                 case THROTTLE -> {
                                     nodeIdsIterator.wasThrottled = true;
-                                    unallocatedStatus = AllocationStatus.DECIDERS_THROTTLED;
+                                    unallocatedStatus = FailedAllocationStatus.DECIDERS_THROTTLED;
                                     logger.debug("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
                                 }
                                 case NO -> {

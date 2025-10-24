@@ -599,7 +599,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     UnassignedAllocationHandler unassignedAllocationHandler
                 ) {
                     if (allocateTest1.get() == false && "test1".equals(shardRouting.index().getName())) {
-                        unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                        unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT, allocation.changes());
                     } else {
                         super.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
                     }

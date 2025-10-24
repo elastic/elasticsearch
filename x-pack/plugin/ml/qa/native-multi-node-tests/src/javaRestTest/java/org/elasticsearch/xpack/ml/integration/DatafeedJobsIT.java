@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.logging.log4j.Level;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -253,18 +252,18 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             // Datafeed did not do anything yet, hence search_count is equal to 0.
             assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
             startDatafeed(datafeedId, 0L, now.toEpochMilli());
-            
+
             // First, wait for data processing to complete
-            assertBusy(() -> {
-                assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs));
-            }, 60, TimeUnit.SECONDS);
-            
+            assertBusy(() -> { assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs)); }, 60, TimeUnit.SECONDS);
+
             // Then, wait for datafeed timing stats to be persisted
             // Datafeed processed numDocs documents so search_count must be greater than 0.
-            assertBusy(() -> {
-                assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
-            }, 30, TimeUnit.SECONDS);
-            
+            assertBusy(
+                () -> { assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L)); },
+                30,
+                TimeUnit.SECONDS
+            );
+
             deleteDatafeed(datafeedId);
             waitUntilJobIsClosed(job.getId());
         };

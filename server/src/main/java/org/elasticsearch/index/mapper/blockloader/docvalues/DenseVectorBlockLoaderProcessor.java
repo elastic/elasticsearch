@@ -21,7 +21,7 @@ import java.io.IOException;
  *
  * @param <B> The type of builder to append results to
  */
-public interface VectorProcessor<B extends BlockLoader.Builder> {
+public interface DenseVectorBlockLoaderProcessor<B extends BlockLoader.Builder> {
 
     /**
      * Creates a builder for the given expected count.
@@ -45,12 +45,14 @@ public interface VectorProcessor<B extends BlockLoader.Builder> {
     /**
      * Appends a null value to the builder.
      */
-    void appendNull(B builder);
+    default void appendNull(B builder) {
+        builder.appendNull();
+    }
 
     /**
      * Processor that appends raw float vectors to a FloatBuilder.
      */
-    class VectorAppender implements VectorProcessor<BlockLoader.FloatBuilder> {
+    class DenseVectorLoaderProcessor implements DenseVectorBlockLoaderProcessor<BlockLoader.FloatBuilder> {
 
         @Override
         public BlockLoader.FloatBuilder createBuilder(BlockLoader.BlockFactory factory, int expectedCount, int dimensions) {
@@ -74,20 +76,15 @@ public interface VectorProcessor<B extends BlockLoader.Builder> {
             }
             builder.endPositionEntry();
         }
-
-        @Override
-        public void appendNull(BlockLoader.FloatBuilder builder) {
-            builder.appendNull();
-        }
     }
 
     /**
      * Processor that calculates similarity scores and appends them to a DoubleBuilder.
      */
-    class SimilarityCalculator implements VectorProcessor<BlockLoader.DoubleBuilder> {
+    class DenseVectorSimilarityProcessor implements DenseVectorBlockLoaderProcessor<BlockLoader.DoubleBuilder> {
         private final DenseVectorFieldMapper.VectorSimilarityFunctionConfig config;
 
-        public SimilarityCalculator(DenseVectorFieldMapper.VectorSimilarityFunctionConfig config) {
+        public DenseVectorSimilarityProcessor(DenseVectorFieldMapper.VectorSimilarityFunctionConfig config) {
             this.config = config;
         }
 
@@ -106,11 +103,6 @@ public interface VectorProcessor<B extends BlockLoader.Builder> {
         public void process(byte[] vector, BlockLoader.DoubleBuilder builder) {
             double similarity = config.similarityFunction().calculateSimilarity(vector, config.vectorAsBytes());
             builder.appendDouble(similarity);
-        }
-
-        @Override
-        public void appendNull(BlockLoader.DoubleBuilder builder) {
-            builder.appendNull();
         }
     }
 }

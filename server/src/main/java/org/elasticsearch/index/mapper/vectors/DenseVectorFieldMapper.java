@@ -75,7 +75,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.VectorProcessor;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoaderProcessor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -2692,13 +2692,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             BlockLoaderFunctionConfig functionConfig = blContext.blockLoaderFunctionConfig();
             if (indexed) {
+                final DenseVectorBlockLoaderProcessor loaderProcessor;
                 if (functionConfig == null) {
-                    return new DenseVectorBlockLoader<>(name(), dims, this, new VectorProcessor.VectorAppender());
+                    loaderProcessor = new DenseVectorBlockLoaderProcessor.DenseVectorLoaderProcessor();
+                } else if (functionConfig instanceof VectorSimilarityFunctionConfig similarityConfig) {
+                    loaderProcessor = new DenseVectorBlockLoaderProcessor.DenseVectorSimilarityProcessor(similarityConfig);
+                } else {
+                    throw new UnsupportedOperationException("Unknown block loader function config: " + functionConfig.getClass());
                 }
-                if (functionConfig instanceof VectorSimilarityFunctionConfig similarityConfig) {
-                    return new DenseVectorBlockLoader<>(name(), dims, this, new VectorProcessor.SimilarityCalculator(similarityConfig));
-                }
-                throw new UnsupportedOperationException("Unknown block loader function config: " + functionConfig.getClass());
+                return new DenseVectorBlockLoader<>(name(), dims, this, loaderProcessor);
             }
 
             if (functionConfig != null) {

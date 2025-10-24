@@ -601,19 +601,19 @@ public class DesiredBalanceReconciler {
                 }
 
                 final var rebalanceDecision = findRelocationTarget(shardRouting, assignment.nodeIds(), this::decideCanAllocate);
-                final var rebalanceTargetNode = rebalanceDecision.chosenNode();
-                if (rebalanceTargetNode != null) {
+                final var rebalanceTarget = rebalanceDecision.chosenNode();
+                if (rebalanceTarget != null) {
                     immovableShards.remove(shardRouting);
                     logger.debug(
                         "Rebalancing shard {} from {} to {}",
                         shardRouting.shardId(),
                         shardRouting.currentNodeId(),
-                        rebalanceTargetNode.getId()
+                        rebalanceTarget.getId()
                     );
 
                     routingNodes.relocateShard(
                         shardRouting,
-                        rebalanceTargetNode.getId(),
+                        rebalanceTarget.getId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                         "rebalance",
                         allocation.changes()
@@ -621,7 +621,7 @@ public class DesiredBalanceReconciler {
                     iterator.dePrioritizeNode(shardRouting.currentNodeId());
                     moveOrdering.recordAllocation(shardRouting.currentNodeId());
                 } else {
-                    // Start tracking this shard as immovable if we are not already
+                    // Start tracking this shard as immovable if we are not already, we're not interested in shards that are THROTTLED
                     if (rebalanceDecision.bestDecision() == null || rebalanceDecision.bestDecision() == Decision.NO) {
                         if (immovableShards.containsKey(shardRouting) == false) {
                             immovableShards.put(shardRouting, timeProvider.relativeTimeInMillis());

@@ -279,9 +279,9 @@ Will become:
 ```console-result
 {
   "kwd": ["NA", "bar", "foo"]
-}
+  }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 ## Constant keyword field type [constant-keyword-field-type]
 

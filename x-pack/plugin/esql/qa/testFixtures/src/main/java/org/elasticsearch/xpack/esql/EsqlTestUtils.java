@@ -62,9 +62,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -104,6 +104,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -471,31 +472,31 @@ public final class EsqlTestUtils {
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
-    public static AnalyzerContext testAnalyzerContext(
+    public static MutableAnalyzerContext testAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
-        IndexResolution indexResolution,
+        Map<IndexPattern, IndexResolution> indexResolutions,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution
     ) {
-        return testAnalyzerContext(configuration, functionRegistry, indexResolution, Map.of(), enrichResolution, inferenceResolution);
+        return testAnalyzerContext(configuration, functionRegistry, indexResolutions, Map.of(), enrichResolution, inferenceResolution);
     }
 
     /**
      * Analyzer context for a random (but compatible) minimum transport version.
      */
-    public static AnalyzerContext testAnalyzerContext(
+    public static MutableAnalyzerContext testAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
-        IndexResolution indexResolution,
+        Map<IndexPattern, IndexResolution> indexResolutions,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution
     ) {
-        return new AnalyzerContext(
+        return new MutableAnalyzerContext(
             configuration,
             functionRegistry,
-            indexResolution,
+            indexResolutions,
             lookupResolution,
             enrichResolution,
             inferenceResolution,

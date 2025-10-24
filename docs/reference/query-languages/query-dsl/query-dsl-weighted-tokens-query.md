@@ -43,7 +43,7 @@ POST _search
   }
 }
 ```
-%  TEST[skip: TBD]
+% TEST[skip: TBD]
 
 
 ## Top level parameters for `weighted_token` [weighted-token-query-params]

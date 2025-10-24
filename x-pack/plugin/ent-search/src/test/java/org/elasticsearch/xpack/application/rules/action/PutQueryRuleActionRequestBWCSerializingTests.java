@@ -40,7 +40,14 @@ public class PutQueryRuleActionRequestBWCSerializingTests extends AbstractBWCSer
 
     @Override
     protected PutQueryRuleAction.Request mutateInstance(PutQueryRuleAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String id = instance.queryRulesetId();
+        QueryRule queryRule = instance.queryRule();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> id = randomValueOtherThan(id, () -> randomAlphaOfLengthBetween(5, 10));
+            case 1 -> queryRule = randomValueOtherThan(queryRule, () -> EnterpriseSearchModuleTestUtils.randomQueryRule());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PutQueryRuleAction.Request(id, queryRule);
     }
 
     @Override

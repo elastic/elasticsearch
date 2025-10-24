@@ -37,11 +37,13 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
     public static class Request extends ActionRequest {
         private final List<String> indices;
         private final List<String> fields;
+        private final boolean resolveWildcards;
         private final String query;
 
-        public Request(List<String> indices, List<String> fields, @Nullable String query) {
+        public Request(List<String> indices, List<String> fields, boolean resolveWildcards, @Nullable String query) {
             this.indices = indices;
             this.fields = fields;
+            this.resolveWildcards = resolveWildcards;
             this.query = query;
         }
 
@@ -49,6 +51,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             super(in);
             this.indices = in.readCollectionAsList(StreamInput::readString);
             this.fields = in.readCollectionAsList(StreamInput::readString);
+            this.resolveWildcards = in.readBoolean();
             this.query = in.readOptionalString();
         }
 
@@ -57,6 +60,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             super.writeTo(out);
             out.writeStringCollection(indices);
             out.writeStringCollection(fields);
+            out.writeBoolean(resolveWildcards);
             out.writeOptionalString(query);
         }
 
@@ -73,6 +77,10 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return Collections.unmodifiableList(fields);
         }
 
+        public boolean resolveWildcards() {
+            return resolveWildcards;
+        }
+
         public String getQuery() {
             return query;
         }
@@ -84,12 +92,13 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             Request request = (Request) o;
             return Objects.equals(indices, request.indices)
                 && Objects.equals(fields, request.fields)
+                && resolveWildcards == request.resolveWildcards
                 && Objects.equals(query, request.query);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, fields, query);
+            return Objects.hash(indices, fields, resolveWildcards, query);
         }
     }
 

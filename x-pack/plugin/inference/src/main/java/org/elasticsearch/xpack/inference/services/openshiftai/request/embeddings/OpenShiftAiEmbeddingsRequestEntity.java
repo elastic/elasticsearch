@@ -15,6 +15,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * OpenShiftAiEmbeddingsRequestEntity is responsible for creating the request entity for OpenShift AI embeddings.
+ * It implements ToXContentObject to allow serialization to XContent format.
+ */
 public record OpenShiftAiEmbeddingsRequestEntity(
     List<String> input,
     @Nullable String modelId,

@@ -44,6 +44,7 @@ public record OpenShiftAiRerankRequest(
     public OpenShiftAiRerankRequest {
         Objects.requireNonNull(input);
         Objects.requireNonNull(query);
+        Objects.requireNonNull(model);
     }
 
     @Override

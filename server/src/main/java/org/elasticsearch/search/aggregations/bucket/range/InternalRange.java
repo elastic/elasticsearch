@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
@@ -137,7 +138,13 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(key);
+            // NOTE: the key is required in version == 8.0.0,
+            // while it is optional for all subsequent versions.
+            if (out.getTransportVersion().equals(TransportVersions.V_8_0_0)) {
+                out.writeString(key == null ? generateKey(from, to, format) : key);
+            } else {
+                out.writeOptionalString(key);
+            }
             out.writeDouble(from);
             out.writeOptionalDouble(from);
             out.writeDouble(to);
@@ -223,7 +230,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            final String key = in.readOptionalString();
+            // NOTE: the key is required in version == 8.0.0,
+            // while it is optional for all subsequent versions.
+            final String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString() : in.readOptionalString();
             double from = in.readDouble();
             final Double originalFrom = in.readOptionalDouble();
             if (originalFrom != null) {

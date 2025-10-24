@@ -9,6 +9,48 @@ mapped_pages:
 
 A multi-bucket value source based aggregation where buckets are dynamically built - one per unique value.
 
+<!--
+```console
+PUT /products
+{
+  "mappings": {
+    "properties": {
+      "genre": {
+        "type": "keyword"
+      },
+      "product": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+POST /products/_bulk?refresh
+{"index":{"_id":0}}
+{"genre": "rock", "product": "Product A"}
+{"index":{"_id":1}}
+{"genre": "rock", "product": "Product B"}
+{"index":{"_id":2}}
+{"genre": "rock", "product": "Product C"}
+{"index":{"_id":3}}
+{"genre": "jazz", "product": "Product D"}
+{"index":{"_id":4}}
+{"genre": "jazz", "product": "Product E"}
+{"index":{"_id":5}}
+{"genre": "electronic", "product": "Anthology A"}
+{"index":{"_id":6}}
+{"genre": "electronic", "product": "Anthology A"}
+{"index":{"_id":7}}
+{"genre": "electronic", "product": "Product F"}
+{"index":{"_id":8}}
+{"genre": "electronic", "product": "Product G"}
+{"index":{"_id":9}}
+{"genre": "electronic", "product": "Product H"}
+{"index":{"_id":10}}
+{"genre": "electronic", "product": "Product I"}
+```
+% TESTSETUP
+-->
+
 Example:
 
 $$$terms-aggregation-example$$$
@@ -23,6 +65,7 @@ GET /_search
   }
 }
 ```
+% TEST[s/_search/_search?filter_path=aggregations/]
 
 Response:
 
@@ -51,6 +94,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\.//]
 
 1. an upper bound of the error on the document counts for each term, see [below](#terms-agg-doc-count-error)
 2. when there are lots of unique terms, Elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
@@ -122,6 +166,7 @@ GET /_search
   }
 }
 ```
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 These errors can only be calculated in this way when the terms are ordered by descending document count. When the aggregation is ordered by the terms values themselves (either ascending or descending) there is no error in the document count since if a shard does not return a particular term which appears in the results from another shard, it must not have that term in its index. When the aggregation is either sorted by a sub aggregation or in order of ascending document count, the error in the document counts cannot be determined and is given a value of -1 to indicate this.
 
@@ -419,6 +464,7 @@ Which will look like:
   ...
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
 
 This is a little slower because the runtime field has to access two fields instead of one and because there are some optimizations that work on non-runtime `keyword` fields that we have to give up for for runtime `keyword` fields. If you need the speed, you can index the `normalized_genre` field.
 

@@ -47,6 +47,7 @@ PUT my-image-index
     { "index": { "_id": "3" } }
     { "image-vector": [15, 11, 23], "file-type": "jpg", "title": "mountain lake lodge" }
     ```
+    % TEST[continued]
 
 2. Run the search using the `knn` query, asking for the top 10 nearest vectors from each shard, and then combine shard results to get the top 3 global results.
 
@@ -63,7 +64,7 @@ PUT my-image-index
       }
     }
     ```
-
+    % TEST[continued]
 
 
 ## Top-level parameters for `knn` [knn-query-top-level-parameters]
@@ -164,6 +165,7 @@ POST my-image-index/_search
   }
 }
 ```
+% TEST[continued]
 
 
 ## Hybrid search with knn query [knn-query-in-hybrid-search]
@@ -199,6 +201,7 @@ POST my-image-index/_search
   }
 }
 ```
+% TEST[continued]
 
 
 ## Knn query inside a nested query [knn-query-with-nested-query]
@@ -220,7 +223,7 @@ To ensure correct results: each individual filter must be either over:
 
 This query performs a basic nested knn search:
 
-```json
+```js
 {
   "query" : {
     "nested" : {
@@ -235,6 +238,7 @@ This query performs a basic nested knn search:
   }
 }
 ```
+% NOTCONSOLE
 
 ### Filter over nested metadata
 
@@ -245,7 +249,7 @@ stack: ga 9.2
 This query filters over nested metadata. For scoring parent documents, this query only considers vectors that
 have "paragraph.language" set to "EN":
 
-```json
+```js
 {
   "query" : {
     "nested" : {
@@ -265,6 +269,7 @@ have "paragraph.language" set to "EN":
   }
 }
 ```
+% NOTCONSOLE
 
 ### Multiple filters (nested and top-level metadata)
 
@@ -276,7 +281,7 @@ This query uses multiple filters: one over nested metadata and another over the 
 this query only considers vectors whose parent's title contain "essay"
 word and have "paragraph.language" set to "EN":
 
-```json
+```js
 {
   "query" : {
     "nested" : {
@@ -303,6 +308,7 @@ word and have "paragraph.language" set to "EN":
   }
 }
 ```
+% NOTCONSOLE
 
 Note that nested `knn` only supports `score_mode=max`.
 
@@ -313,7 +319,7 @@ Elasticsearch supports knn queries over a [
 
 Here is an example using the `query_vector_builder`:
 
-```json
+```js
 {
   "query": {
     "knn": {
@@ -329,6 +335,7 @@ Here is an example using the `query_vector_builder`:
   }
 }
 ```
+% NOTCONSOLE
 
 Note that for `semantic_text` fields, the `model_id` does not have to be
 provided as it can be inferred from the `semantic_text` field mapping.

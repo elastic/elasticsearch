@@ -576,6 +576,48 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(new BytesRef("foo"), doc.rootDoc().getField("field2").binaryValue());
     }
 
+    public void testNormalizerSyntheticSourceKeepOriginalValue() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", false)
+            )
+        );
+        assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+    }
+
+    public void testNormalizerSyntheticSourceSkipStoreOriginalValue() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", true)
+            )
+        );
+        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+    }
+
+    public void testSkipStoreOriginalValueForLowercaseNormalizer() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "keyword").field("normalizer", "lowercase"))
+        );
+
+        var keywordMapper = mapper.mappingLookup().getMapper("field");
+        assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
+        assertTrue(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
+
+        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+    }
+
+    public void testSkipStoreOriginalValueForCustomNormalizer() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "keyword").field("normalizer", "other_lowercase"))
+        );
+
+        var keywordMapper = mapper.mappingLookup().getMapper("field");
+        assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
+
+        assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+    }
+
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
@@ -623,7 +665,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testUpdateNormalizer() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("normalizer", "lowercase")));
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", false)
+            )
+        );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("normalizer", "other_lowercase")))
@@ -841,6 +887,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.startObject("mykeyw");
             b.field("type", "keyword");
             b.field("normalizer", "lowercase");
+            b.field("normalizer_skip_store_original_value", false);
             b.endObject();
         }));
         assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
@@ -1122,8 +1169,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         // then
 
-        // since synthetic source is disabled, the fallback field name shouldn't exist
-        assertThat(mapper.fieldType().syntheticSourceFallbackFieldName(), Matchers.nullValue());
         // despite exceeding ignore_above, because synthetic source is disabled, we don't expect to store anything
         assertThat(doc.rootDoc().getField(mapper.fieldType() + "_original"), Matchers.nullValue());
     }

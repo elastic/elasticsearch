@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -64,6 +65,9 @@ public interface SecurityExtension {
 
         /** Provides the ability to access project-scoped data from the global scope **/
         ProjectResolver projectResolver();
+
+        /** Provides the ability to access the APM tracer and meter registry **/
+        TelemetryProvider telemetryProvider();
     }
 
     /**

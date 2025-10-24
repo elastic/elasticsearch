@@ -15,37 +15,16 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
 
 import java.io.IOException;
 import java.util.ArrayList;
-
-import static org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModelTests.createCompletionModel;
 
 public class MistralChatCompletionRequestEntityTests extends ESTestCase {
 
     private static final String ROLE = "user";
 
-    public void testModelUserFieldsSerialization() throws IOException {
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString("Hello, world!"),
-            ROLE,
-            null,
-            null
-        );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
-        messageList.add(message);
-
-        var unifiedRequest = UnifiedCompletionRequest.of(messageList);
-
-        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
-        MistralChatCompletionModel model = createCompletionModel("api-key", "test-endpoint");
-
-        MistralChatCompletionRequestEntity entity = new MistralChatCompletionRequestEntity(unifiedChatInput, model);
-
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        String expectedJson = """
+    public void testSerializationWithModelIdStreaming() throws IOException {
+        testSerialization("test-endpoint", true, """
             {
                 "messages": [
                     {
@@ -57,7 +36,73 @@ public class MistralChatCompletionRequestEntityTests extends ESTestCase {
                 "n": 1,
                 "stream": true
             }
-            """;
+            """);
+    }
+
+    public void testSerializationWithModelIdNonStreaming() throws IOException {
+        testSerialization("test-endpoint", false, """
+            {
+                "messages": [
+                    {
+                        "content": "Hello, world!",
+                        "role": "user"
+                    }
+                ],
+                "model": "test-endpoint",
+                "n": 1,
+                "stream": false
+            }
+            """);
+    }
+
+    public void testSerializationWithoutModelIdStreaming() throws IOException {
+        testSerialization(null, true, """
+            {
+                "messages": [
+                    {
+                        "content": "Hello, world!",
+                        "role": "user"
+                    }
+                ],
+                "n": 1,
+                "stream": true
+            }
+            """);
+    }
+
+    public void testSerializationWithoutModelIdNonStreaming() throws IOException {
+        testSerialization(null, false, """
+            {
+                "messages": [
+                    {
+                        "content": "Hello, world!",
+                        "role": "user"
+                    }
+                ],
+                "n": 1,
+                "stream": false
+            }
+            """);
+    }
+
+    private static void testSerialization(String modelId, boolean isStreaming, String expectedJson) throws IOException {
+        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString("Hello, world!"),
+            ROLE,
+            null,
+            null
+        );
+        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        messageList.add(message);
+
+        var unifiedRequest = UnifiedCompletionRequest.of(messageList);
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, isStreaming);
+
+        MistralChatCompletionRequestEntity entity = new MistralChatCompletionRequestEntity(unifiedChatInput, modelId);
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
     }
 }

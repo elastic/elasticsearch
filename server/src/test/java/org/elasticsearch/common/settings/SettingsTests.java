@@ -11,6 +11,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -619,7 +620,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(TransportVersion.current());
+        output.setTransportVersion(randomFrom(TransportVersion.current(), TransportVersions.V_8_0_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         settings.writeTo(output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));

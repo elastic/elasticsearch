@@ -51,7 +51,7 @@ public abstract class TextFamilyFieldType extends StringFieldType {
      * stored for whatever reason.
      */
     public String syntheticSourceFallbackFieldName() {
-        return isSyntheticSourceEnabled ? name() + "._original" : null;
+        return name() + "._original";
     }
 
     /**

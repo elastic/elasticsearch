@@ -42,7 +42,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| WHERE pod == \"one\"\n| STATS increase_bytes_in = sum(increase(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)"
+    "TS k8s\n| WHERE pod == \"one\"\n| STATS increase_bytes_in = SUM(INCREASE(network.total_bytes_in)) BY cluster, time_bucket = TBUCKET(10minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

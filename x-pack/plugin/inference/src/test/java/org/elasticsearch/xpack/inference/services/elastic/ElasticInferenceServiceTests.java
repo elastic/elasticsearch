@@ -40,8 +40,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -889,9 +889,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 var denseResult = (ChunkedInferenceEmbedding) results.getFirst();
                 assertThat(denseResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, "hello world".length()), denseResult.chunks().getFirst().offset());
-                assertThat(denseResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(denseResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
 
-                var embedding = (TextEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
+                var embedding = (DenseEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
                 assertArrayEquals(new float[] { 0.123f, -0.456f, 0.789f }, embedding.values(), 0.0f);
             }
 
@@ -901,9 +901,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 var denseResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(denseResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, "dense embedding".length()), denseResult.chunks().getFirst().offset());
-                assertThat(denseResult.chunks().getFirst().embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(denseResult.chunks().getFirst().embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
 
-                var embedding = (TextEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
+                var embedding = (DenseEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
                 assertArrayEquals(new float[] { 0.987f, -0.654f, 0.321f }, embedding.values(), 0.0f);
             }
 

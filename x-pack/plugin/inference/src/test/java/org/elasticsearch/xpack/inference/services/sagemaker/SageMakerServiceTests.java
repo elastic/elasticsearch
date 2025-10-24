@@ -28,10 +28,10 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -449,7 +449,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         var model = mockModelForChunking();
 
         SageMakerSchema schema = mock();
-        when(schema.response(any(), any(), any())).thenReturn(TextEmbeddingFloatResultsTests.createRandomResults());
+        when(schema.response(any(), any(), any())).thenReturn(DenseEmbeddingFloatResultsTests.createRandomResults());
         when(schemas.schemaFor(model)).thenReturn(schema);
         mockInvoke();
 

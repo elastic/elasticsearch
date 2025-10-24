@@ -1,0 +1,5 @@
+pr: 134702
+summary: "Cleanup: Align `SparseVectorQueryBuilder` with `InferenceAction`"
+area: Relevance
+type: tech debt
+issues: []

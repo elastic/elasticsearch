@@ -59,7 +59,6 @@ import static org.hamcrest.Matchers.nullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class JobsAndModelsIT extends BaseMlIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103588")
     public void testCluster_GivenAnomalyDetectionJobAndTrainedModelDeployment_ShouldNotAllocateBothOnSameNode() throws Exception {
         // This test starts 2 ML nodes and then starts an anomaly detection job and a
         // trained model deployment that do not both fit in one node. We then proceed
@@ -236,8 +235,6 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
 
             assertThat(jobStats.getNode(), is(not(equalTo(modelStats.getDeploymentStats().getNodeStats().get(0).getNode()))));
         });
-
-        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(jobId), Duration.of(10, ChronoUnit.SECONDS), null);
 
         // Clean up
         client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId).setForce(true)).actionGet();

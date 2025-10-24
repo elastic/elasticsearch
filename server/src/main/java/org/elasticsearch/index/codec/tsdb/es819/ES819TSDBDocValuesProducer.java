@@ -277,7 +277,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    // START: Copied fom LUCENE-9211
     private BinaryDocValues getCompressedBinary(BinaryEntry entry) throws IOException {
         if (entry.docsWithFieldOffset == -1) {
             // dense
@@ -1364,17 +1363,17 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         } else {
             if (entry.numDocsWithField > 0 || entry.minLength < entry.maxLength) {
                 entry.addressesOffset = meta.readLong();
-                // New count of compressed addresses - the number of compresseed blocks
+                // New count of compressed addresses - the number of compressed blocks
                 int numCompressedChunks = meta.readVInt();
                 entry.maxUncompressedChunkSize = meta.readVInt();
                 entry.maxNumDocsInAnyBlock = meta.readVInt();
                 final int blockShift = meta.readVInt();
 
-                entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, numCompressedChunks, blockShift);
+                entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, numCompressedChunks + 1, blockShift);
                 entry.addressesLength = meta.readLong();
 
                 entry.docRangeOffset = meta.readLong();
-                entry.docRangeMeta = DirectMonotonicReader.loadMeta(meta, numCompressedChunks * 2L, blockShift);
+                entry.docRangeMeta = DirectMonotonicReader.loadMeta(meta, numCompressedChunks + 1, blockShift);
                 entry.docRangeLength = meta.readLong();
 
                 entry.numCompressedBlocks = numCompressedChunks;

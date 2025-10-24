@@ -269,9 +269,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     ) throws IOException {
         ChunkedInference results = switch (model.getTaskType()) {
             case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
-                case FLOAT -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+                case FLOAT, BFLOAT16 -> randomChunkedInferenceEmbeddingFloat(model, inputs);
                 case BYTE, BIT -> randomChunkedInferenceEmbeddingByte(model, inputs);
-                case BFLOAT16 -> throw new AssertionError();
             };
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs, false);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());

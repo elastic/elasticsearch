@@ -647,6 +647,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                             }
                             final Exception ex = CrossProjectIndexResolutionValidator.validate(
                                 originalIndicesOptions,
+                                request.getProjectRouting(),
                                 localResolvedIndexExpressions,
                                 getResolvedExpressionsByRemote(remoteResponses)
                             );
@@ -684,6 +685,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     // `<alias-pattern-matching-origin-only>:index` also get deferred validation
                     final Exception ex = CrossProjectIndexResolutionValidator.validate(
                         originalIndicesOptions,
+                        request.getProjectRouting(),
                         localResolvedIndexExpressions,
                         Map.of()
                     );

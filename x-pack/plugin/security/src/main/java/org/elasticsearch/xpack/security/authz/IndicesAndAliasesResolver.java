@@ -436,8 +436,8 @@ class IndicesAndAliasesResolver {
                         : "resolving cross-project request but authorized project is local only";
 
                     final var resolvedProjects = crossProjectRoutingResolver.resolve(replaceable.getProjectRouting(), authorizedProjects);
-                    logger.debug(
-                        "routing [{}] resolved projects from [{}] to [{}]",
+                    logger.info(
+                        "--> routing [{}] resolved projects from [{}] to [{}]",
                         replaceable.getProjectRouting(),
                         authorizedProjects,
                         resolvedProjects
@@ -452,6 +452,7 @@ class IndicesAndAliasesResolver {
                         resolvedProjects,
                         indicesRequest.includeDataStreams()
                     );
+                    logger.info("--> resolved from {} to index expressions: []{}", Arrays.asList(replaceable.indices()), resolved);
                     setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
@@ -470,6 +471,7 @@ class IndicesAndAliasesResolver {
                         authorizedIndices::check,
                         indicesRequest.includeDataStreams()
                     );
+                    logger.info("--> non-cps resolved from {} to index expressions: [{}]", split.getLocal(), resolved);
                     // only store resolved expressions if configured, to avoid unnecessary memory usage
                     // once we've migrated from `indices()` to using resolved expressions holistically,
                     // we will always store them

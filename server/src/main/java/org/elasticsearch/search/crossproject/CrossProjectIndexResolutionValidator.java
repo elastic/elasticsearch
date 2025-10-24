@@ -16,6 +16,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -49,6 +51,14 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
 public class CrossProjectIndexResolutionValidator {
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexResolutionValidator.class);
 
+    public static ElasticsearchException validate(
+        IndicesOptions indicesOptions,
+        ResolvedIndexExpressions localResolvedExpressions,
+        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
+    ) {
+        return validate(indicesOptions, null, localResolvedExpressions, remoteResolvedExpressions);
+    }
+
     /**
      * Validates the results of cross-project index resolution and returns appropriate exceptions based on the provided
      * {@link IndicesOptions}.
@@ -72,6 +82,7 @@ public class CrossProjectIndexResolutionValidator {
      */
     public static ElasticsearchException validate(
         IndicesOptions indicesOptions,
+        @Nullable String projectRouting,
         ResolvedIndexExpressions localResolvedExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
     ) {
@@ -87,18 +98,24 @@ public class CrossProjectIndexResolutionValidator {
             indicesOptions
         );
 
+        final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
+        logger.info("--> validating local [{}] remote [{}]", localResolvedExpressions, remoteResolvedExpressions);
+
         for (ResolvedIndexExpression localResolvedIndices : localResolvedExpressions.expressions()) {
             String originalExpression = localResolvedIndices.original();
             logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
 
             // Check if this is a qualified resource (project:index pattern)
-            boolean isQualifiedExpression = RemoteClusterAware.isRemoteIndexName(originalExpression);
+            boolean isQualifiedExpression = hasProjectRouting || RemoteClusterAware.isRemoteIndexName(originalExpression);
 
             Set<String> remoteExpressions = localResolvedIndices.remoteExpressions();
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
             ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
             if (isQualifiedExpression) {
                 ElasticsearchException e = checkResolutionFailure(localExpressions.indices(), result, originalExpression, indicesOptions);
+                logger.info("--> Q for localExpressions [{}] local exception is [{}] has indices [{}] is [{}]",
+                    localExpressions,
+                    originalExpression, localExpressions.indices(), e);
                 if (e != null) {
                     return e;
                 }
@@ -123,6 +140,9 @@ public class CrossProjectIndexResolutionValidator {
                     originalExpression,
                     indicesOptions
                 );
+                logger.info("--> for localExpressions [{}] local exception for [{}] has indices [{}] is [{}]",
+                    localExpressions,
+                    originalExpression, localExpressions.indices(), localException);
                 if (localException == null) {
                     // found locally, continue to next expression
                     continue;

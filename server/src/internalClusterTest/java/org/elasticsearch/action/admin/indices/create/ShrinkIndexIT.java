@@ -629,7 +629,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         // Shrink the index
         indicesAdmin().prepareResizeIndex("source", "target")
             .setResizeType(ResizeType.SHRINK)
-            .setSettings(Settings.builder().put("index.number_of_shards", 1).build())
+            // We need to explicitly set the number of replicas in case the source has 0 replicas and the cluster has only 1 data node
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build())
             .get();
 
         // Verify that the target index has the correct @timestamp mapping
@@ -638,6 +639,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
             equalTo("date_nanos")
         );
+        ensureGreen();
     }
 
     /**
@@ -657,7 +659,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         // Shrink the index
         indicesAdmin().prepareResizeIndex("source", "target")
             .setResizeType(ResizeType.SHRINK)
-            .setSettings(Settings.builder().put("index.number_of_shards", 1).build())
+            // We need to explicitly set the number of replicas in case the source has 0 replicas and the cluster has only 1 data node
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build())
             .get();
 
         // Verify that the target index has the correct @timestamp mapping
@@ -666,6 +669,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
             equalTo("date_nanos")
         );
+        ensureGreen();
     }
 
     static void assertNoResizeSourceIndexSettings(final String index) {

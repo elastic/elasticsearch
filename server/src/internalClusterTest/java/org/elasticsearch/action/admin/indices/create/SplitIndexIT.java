@@ -504,15 +504,16 @@ public class SplitIndexIT extends ESIntegTestCase {
      */
     public void testSplitLogsdbIndexWithNonDefaultTimestamp() {
         // Create a logsdb index with a date_nanos @timestamp field
-        final var settings = indexSettings(1, randomInt(internalCluster().numDataNodes() - 1)).put("index.mode", "logsdb")
-            .put("index.blocks.write", true);
+        final int numberOfReplicas = randomInt(internalCluster().numDataNodes() - 1);
+        final var settings = indexSettings(1, numberOfReplicas).put("index.mode", "logsdb").put("index.blocks.write", true);
         prepareCreate("source").setSettings(settings).setMapping("@timestamp", "type=date_nanos").get();
         ensureGreen();
 
         // Split the index
         indicesAdmin().prepareResizeIndex("source", "target")
             .setResizeType(ResizeType.SPLIT)
-            .setSettings(Settings.builder().put("index.number_of_shards", 2).build())
+            // We need to explicitly set the number of replicas in case the source has 0 replicas and the cluster has only 1 data node
+            .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", numberOfReplicas).build())
             .get();
 
         // Verify that the target index has the correct @timestamp mapping
@@ -521,5 +522,6 @@ public class SplitIndexIT extends ESIntegTestCase {
             ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
             equalTo("date_nanos")
         );
+        ensureGreen();
     }
 }

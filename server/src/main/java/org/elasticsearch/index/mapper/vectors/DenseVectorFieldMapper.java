@@ -127,15 +127,9 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
  */
 public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
-    private static final float EPS = 1e-3f;
     public static final int BBQ_MIN_DIMS = 64;
 
     private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
-
-    public static boolean isNotUnitVector(float magnitude) {
-        // TODO: need different EPS for bfloat16?
-        return Math.abs(magnitude - 1.0f) > EPS;
-    }
 
     /**
      * The heuristic to utilize when executing a filtered search against vectors indexed in an HNSW graph.
@@ -540,6 +534,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public abstract void writeValue(ByteBuffer byteBuffer, float value);
 
+        public abstract void writeValues(ByteBuffer byteBuffer, float[] values);
+
         public abstract void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException;
 
         abstract IndexFieldData.Builder fielddataBuilder(DenseVectorFieldType denseVectorFieldType, FieldDataContext fieldDataContext);
@@ -556,6 +552,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract int getNumBytes(int dimensions);
 
         public abstract ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes);
+
+        public boolean isUnitVector(float squaredMagnitude) {
+            return Math.abs(squaredMagnitude - 1.0f) < 1e-3f;
+        }
 
         public void checkVectorBounds(float[] vector) {
             StringBuilder errors = checkVectorErrors(vector);
@@ -639,6 +639,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public void writeValue(ByteBuffer byteBuffer, float value) {
             byteBuffer.put((byte) value);
+        }
+
+        @Override
+        public void writeValues(ByteBuffer byteBuffer, float[] values) {
+            for (float f : values) {
+                byteBuffer.put((byte) f);
+            }
         }
 
         @Override
@@ -894,6 +901,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        public void writeValues(ByteBuffer byteBuffer, float[] values) {
+            byteBuffer.asFloatBuffer().put(values);
+            byteBuffer.position(byteBuffer.position() + (values.length * Float.BYTES));
+        }
+
+        @Override
         public void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException {
             b.value(byteBuffer.getFloat());
         }
@@ -956,7 +969,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(appender.apply(errorBuilder).toString());
             }
 
-            if (similarity == VectorSimilarity.DOT_PRODUCT && isNotUnitVector(squaredMagnitude)) {
+            if (similarity == VectorSimilarity.DOT_PRODUCT && isUnitVector(squaredMagnitude) == false) {
                 errorBuilder = new StringBuilder(
                     "The [" + VectorSimilarity.DOT_PRODUCT + "] similarity can only be used with unit-length vectors."
                 );
@@ -992,7 +1005,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             fieldMapper.checkDimensionMatches(index, context);
             checkVectorBounds(vector);
             checkVectorMagnitude(fieldMapper.fieldType().similarity, errorElementsAppender(vector), squaredMagnitude);
-            if (fieldMapper.fieldType().isNormalized() && isNotUnitVector(squaredMagnitude)) {
+            if (fieldMapper.fieldType().isNormalized() && isUnitVector(squaredMagnitude) == false) {
                 float length = (float) Math.sqrt(squaredMagnitude);
                 for (int i = 0; i < vector.length; i++) {
                     vector[i] /= length;
@@ -1079,8 +1092,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        public void writeValues(ByteBuffer byteBuffer, float[] values) {
+            BFloat16.floatToBFloat16(values, byteBuffer.asShortBuffer().limit(values.length));
+            byteBuffer.position(byteBuffer.position() + (values.length * BFloat16.BYTES));
+        }
+
+        @Override
         public void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException {
             b.value(BFloat16.bFloat16ToFloat(byteBuffer.getShort()));
+        }
+
+        @Override
+        public boolean isUnitVector(float squaredMagnitude) {
+            // bfloat16 needs to be more lenient
+            return Math.abs(squaredMagnitude - 1.0f) < 0.02f;
         }
 
         @Override
@@ -2456,7 +2481,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(similarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
-                if (isNormalized() && isNotUnitVector(squaredMagnitude)) {
+                if (isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
                     float length = (float) Math.sqrt(squaredMagnitude);
                     queryVector = Arrays.copyOf(queryVector, queryVector.length);
                     for (int i = 0; i < queryVector.length; i++) {
@@ -2652,7 +2677,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(similarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
-                if (isNormalized() && isNotUnitVector(squaredMagnitude)) {
+                if (isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
                     float length = (float) Math.sqrt(squaredMagnitude);
                     queryVector = Arrays.copyOf(queryVector, queryVector.length);
                     for (int i = 0; i < queryVector.length; i++) {
@@ -2872,7 +2897,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 checkDimensionExceeded(i, context);
             }
         }, fieldType().similarity);
-        vectorData.addToBuffer(byteBuffer);
+        vectorData.addToBuffer(element, byteBuffer);
         if (indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)) {
             // encode vector magnitude at the end
             double dotProduct = element.computeSquaredMagnitude(vectorData);

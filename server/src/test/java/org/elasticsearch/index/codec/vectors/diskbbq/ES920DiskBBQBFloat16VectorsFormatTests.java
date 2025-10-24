@@ -9,90 +9,104 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.junit.AssumptionViolatedException;
+import org.junit.Before;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.io.IOException;
+import java.util.List;
 
-import static org.hamcrest.Matchers.closeTo;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
-public class ES920DiskBBQBFloat16VectorsFormatTests extends ES920DiskBBQVectorsFormatTests {
-    @Override
-    DenseVectorFieldMapper.ElementType elementType() {
-        return DenseVectorFieldMapper.ElementType.BFLOAT16;
+public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    private KnnVectorsFormat format;
+
+    @Before
     @Override
-    public void testEmptyByteVectorData() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testMergingWithDifferentByteKnnFields() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testByteVectorScorerIteration() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testSortedIndexBytes() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testMismatchedFields() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testRandomBytes() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testWriterRamEstimate() throws Exception {
-        // estimate is different due to bfloat16
-    }
-
-    @Override
-    public void testRandom() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testRandom);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testSparseVectors() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testSparseVectors);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testVectorValuesReportCorrectDocs() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testVectorValuesReportCorrectDocs);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testRandomWithUpdatesAndGraph() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testRandomWithUpdatesAndGraph);
-        assertFloatsWithinBounds(err);
-    }
-
-    private static final Pattern FLOAT_ASSERTION_FAILURE = Pattern.compile(".*expected:<([0-9.-]+)> but was:<([0-9.-]+)>");
-
-    private static void assertFloatsWithinBounds(AssertionError error) {
-        Matcher m = FLOAT_ASSERTION_FAILURE.matcher(error.getMessage());
-        if (m.matches() == false) {
-            throw error;    // nothing to do with us, just rethrow
+    public void setUp() throws Exception {
+        if (rarely()) {
+            format = new ES920DiskBBQVectorsFormat(
+                random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
+                random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                random().nextBoolean()
+            );
+        } else {
+            // run with low numbers to force many clusters with parents
+            format = new ES920DiskBBQVectorsFormat(
+                random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
+                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                random().nextBoolean()
+            );
         }
+        super.setUp();
+    }
 
-        // numbers just need to be in the same vicinity
-        double expected = Double.parseDouble(m.group(1));
-        double actual = Double.parseDouble(m.group(2));
-        double allowedError = expected * 0.01;  // within 1%
-        assertThat(error.getMessage(), actual, closeTo(expected, allowedError));
+    @Override
+    protected Codec getCodec() {
+        return TestUtil.alwaysKnnVectorsFormat(format);
+    }
+
+    @Override
+    protected VectorSimilarityFunction randomSimilarity() {
+        return RandomPicks.randomFrom(
+            random(),
+            List.of(
+                VectorSimilarityFunction.DOT_PRODUCT,
+                VectorSimilarityFunction.EUCLIDEAN,
+                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
+            )
+        );
+    }
+
+    @Override
+    public void testSearchWithVisitedLimit() {
+        throw new AssumptionViolatedException("ivf doesn't enforce visitation limit");
+    }
+
+    @Override
+    public void testAdvance() throws Exception {
+        // TODO re-enable with hierarchical IVF, clustering as it is is flaky
+    }
+
+    @Override
+    protected void assertOffHeapByteSize(LeafReader r, String fieldName) throws IOException {
+        var fieldInfo = r.getFieldInfos().fieldInfo(fieldName);
+
+        if (r instanceof CodecReader codecReader) {
+            KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+            if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                knnVectorsReader = fieldsReader.getFieldReader(fieldName);
+            }
+            var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+            long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
+            // IVF doesn't report stats at the moment
+            assertThat(offHeap, anEmptyMap());
+            assertThat(totalByteSize, equalTo(0L));
+        } else {
+            throw new AssertionError("unexpected:" + r.getClass());
+        }
     }
 }

@@ -41,7 +41,7 @@ public class Eval extends UnaryPlan
         GeneratingPlan<Eval>,
         PostAnalysisVerificationAware,
         TelemetryAware,
-        CardinalityPreserving,
+        Streaming,
         SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Eval", Eval::new);
 

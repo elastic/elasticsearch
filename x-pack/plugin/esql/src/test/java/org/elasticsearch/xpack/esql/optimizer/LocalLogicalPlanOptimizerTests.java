@@ -1231,8 +1231,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(
             esRelation.output()
                 .stream()
-                .anyMatch(att -> (att instanceof FieldAttribute fieldAttr)
-                    && fieldAttr.field() instanceof FunctionEsField) == false
+                .anyMatch(att -> (att instanceof FieldAttribute fieldAttr) && fieldAttr.field() instanceof FunctionEsField) == false
         );
     }
 

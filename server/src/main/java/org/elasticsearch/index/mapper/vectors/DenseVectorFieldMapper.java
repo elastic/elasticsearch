@@ -2688,15 +2688,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
 
+            BlockLoaderFunctionConfig functionConfig = blContext.blockLoaderFunctionConfig();
             if (indexed) {
-                BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
-                if (config == null) {
+                if (functionConfig == null) {
                     return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims, this);
                 }
-                if (config instanceof VectorSimilarityFunctionConfig similarityConfig) {
+                if (functionConfig instanceof VectorSimilarityFunctionConfig similarityConfig) {
                     return new BlockDocValuesReader.DenseVectorSimilarityFunctionBlockLoader(name(), this, similarityConfig);
                 }
-                throw new UnsupportedOperationException("Unknown block loader function config: " + config.getClass());
+                throw new UnsupportedOperationException("Unknown block loader function config: " + functionConfig.getClass());
+            }
+
+            if (functionConfig != null) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + name()
+                        + "] of type ["
+                        + typeName()
+                        + "] doesn't support block loader functions when [index] is set to [false]"
+                );
             }
 
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {

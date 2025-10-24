@@ -8,16 +8,21 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -30,6 +35,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -39,9 +45,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -64,6 +75,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -71,6 +83,12 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+/**
+ * Parses a plan, builds an AST for it, runs logical analysis and post analysis verification.
+ * So if we don't error out in the process, post analysis verification passed
+ * Use this class if you want to test post analysis verification
+ * and especially if you expect to get a VerificationException
+ */
 public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
@@ -79,7 +97,24 @@ public class VerifierTests extends ESTestCase {
     private final Analyzer sampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-sample_data.json", "test"));
     private final Analyzer oddSampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-odd-timestamp.json", "test"));
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
-
+    private Analyzer k8s;
+    {
+        // Load Time Series mappings for these tests
+        Map<String, EsField> mappingK8s = EsqlTestUtils.loadMapping("k8s-mappings.json");
+        EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
+        IndexResolution getIndexResult = IndexResolution.valid(k8sIndex);
+        k8s = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                Map.of(new IndexPattern(Source.EMPTY, "k8s"), getIndexResult),
+                defaultLookupResolution(),
+                new EnrichResolution(),
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+    }
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
 
@@ -1005,10 +1040,10 @@ public class VerifierTests extends ESTestCase {
         query("from test | where null::boolean");
 
         // Provide `NULL` type in `EVAL`
-        query("from t | EVAL x = null | where x");
+        query("from test | EVAL x = null | where x");
 
         // `to_string(null)` is of `KEYWORD` type null, resulting in `to_string(null) == "abc"` being of `BOOLEAN`
-        query("from t | where to_string(null) == \"abc\"");
+        query("from test | where to_string(null) == \"abc\"");
 
         // Other DataTypes can contain null values
         assertEquals("1:19: Condition expression needs to be boolean, found [KEYWORD]", error("from test | where null::string"));
@@ -1113,27 +1148,27 @@ public class VerifierTests extends ESTestCase {
 
     public void testAggregateOnCounter() {
         assertThat(
-            error("FROM tests | STATS min(network.bytes_in)", tsdb),
+            error("FROM test | STATS min(network.bytes_in)", tsdb),
             equalTo(
-                "1:20: argument of [min(network.bytes_in)] must be"
+                "1:19: argument of [min(network.bytes_in)] must be"
                     + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
 
         assertThat(
-            error("FROM tests | STATS max(network.bytes_in)", tsdb),
+            error("FROM test | STATS max(network.bytes_in)", tsdb),
             equalTo(
-                "1:20: argument of [max(network.bytes_in)] must be"
+                "1:19: argument of [max(network.bytes_in)] must be"
                     + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
 
         assertThat(
-            error("FROM tests | STATS count(network.bytes_out)", tsdb),
+            error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
-                "1:20: argument of [count(network.bytes_out)] must be [any type except counter types or dense_vector],"
+                "1:19: argument of [count(network.bytes_out)] must be [any type except counter types or dense_vector],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -1151,96 +1186,195 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testRenameOrDropTimestmapWithRate() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(rate(network.total_cost))", k8s),
+            equalTo("1:38: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithLastOverTime() {
+        assertThat(
+            error(
+                "TS k8s | RENAME @timestamp AS newTs | STATS max(last_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
+                k8s
+            ),
+            equalTo("1:49: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(last_over_time(network.eth0.tx))", k8s),
+            equalTo("1:38: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithFirstOverTime() {
+        assertThat(
+            error(
+                "TS k8s | RENAME @timestamp AS newTs | STATS max(first_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
+                k8s
+            ),
+            equalTo("1:49: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(first_over_time(network.eth0.tx))", k8s),
+            equalTo("1:38: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithIncrease() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(increase(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(increase(network.eth0.tx))", k8s),
+            equalTo("1:38: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithIRate() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(irate(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(irate(network.eth0.tx))", k8s),
+            equalTo("1:38: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithDelta() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(delta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(delta(network.eth0.tx))", k8s),
+            equalTo("1:38: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithIDelta() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(idelta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(idelta(network.eth0.tx))", k8s),
+            equalTo("1:38: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestampWithTBucket() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)", k8s),
+            equalTo("1:95: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(max_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)", k8s),
+            equalTo("1:83: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
     public void testAggsResolutionWithUnresolvedGroupings() {
         String agg_func = randomFrom(
             new String[] { "avg", "count", "count_distinct", "min", "max", "median", "median_absolute_deviation", "sum", "values" }
         );
 
-        assertThat(error("FROM tests | STATS " + agg_func + "(emp_no) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(error("FROM test | STATS " + agg_func + "(emp_no) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(error("FROM test | STATS " + agg_func + "(x) by foobar, x = emp_no"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(error("FROM test | STATS " + agg_func + "(foobar) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
         assertThat(
-            error("FROM tests | STATS " + agg_func + "(x) by foobar, x = emp_no"),
-            matchesRegex("1:\\d+: Unknown column \\[foobar]")
-        );
-        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
-        assertThat(
-            error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(hire_date, 10)"),
+            error("FROM test | STATS " + agg_func + "(foobar) by BUCKET(hire_date, 10)"),
             matchesRegex(
                 "1:\\d+: function expects exactly four arguments when the first one is of type \\[DATETIME]"
                     + " and the second of type \\[INTEGER]\n"
                     + "line 1:\\d+: Unknown column \\[foobar]"
             )
         );
-        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by emp_no"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(error("FROM test | STATS " + agg_func + "(foobar) by emp_no"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
         // TODO: Ideally, we'd detect that count_distinct(x) doesn't require an error message.
         assertThat(
-            error("FROM tests | STATS " + agg_func + "(x) by x = foobar"),
+            error("FROM test | STATS " + agg_func + "(x) by x = foobar"),
             matchesRegex("1:\\d+: Unknown column \\[foobar]\n" + "line 1:\\d+: Unknown column \\[x]")
         );
     }
 
     public void testNotAllowRateOutsideMetrics() {
         assertThat(
-            error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
+            error("FROM test  | STATS avg(rate(network.bytes_in))", tsdb),
             equalTo("1:24: time_series aggregate[rate(network.bytes_in)] can only be used with the TS command")
         );
         assertThat(
-            error("FROM tests | STATS rate(network.bytes_in)", tsdb),
+            error("FROM test  | STATS rate(network.bytes_in)", tsdb),
             equalTo("1:20: time_series aggregate[rate(network.bytes_in)] can only be used with the TS command")
         );
         assertThat(
-            error("FROM tests | STATS max_over_time(network.connections)", tsdb),
+            error("FROM test  | STATS max_over_time(network.connections)", tsdb),
             equalTo("1:20: time_series aggregate[max_over_time(network.connections)] can only be used with the TS command")
         );
         assertThat(
-            error("FROM tests | EVAL r = rate(network.bytes_in)", tsdb),
+            error("FROM test  | EVAL r = rate(network.bytes_in)", tsdb),
             equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside STATS command")
         );
     }
 
     public void testTimeseriesAggregate() {
         assertThat(
-            error("TS tests | STATS rate(network.bytes_in)", tsdb),
+            error("TS test  | STATS rate(network.bytes_in)", tsdb),
             equalTo(
                 "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used with the TS command "
                     + "and inside another aggregate function"
             )
         );
         assertThat(
-            error("TS tests | STATS avg_over_time(network.connections)", tsdb),
+            error("TS test  | STATS avg_over_time(network.connections)", tsdb),
             equalTo(
                 "1:18: time-series aggregate function [avg_over_time(network.connections)] can only be used "
                     + "with the TS command and inside another aggregate function"
             )
         );
         assertThat(
-            error("TS tests | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
+            error("TS test  | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
             equalTo(
                 "1:47: time-series aggregate function [rate(network.bytes_in)] can only be used "
                     + "with the TS command and inside another aggregate function"
             )
         );
 
-        assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+        assertThat(error("TS test  | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
             1:22: nested aggregations [avg(rate(network.bytes_in))] \
             not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
             line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
             inside over-time aggregation function [rate(network.bytes_in)]"""));
 
-        assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+        assertThat(error("TS test  | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
             1:22: nested aggregations [avg(rate(network.bytes_in))] \
             not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
             line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
             inside over-time aggregation function [rate(network.bytes_in)]"""));
 
         assertThat(
-            error("TS tests | STATS rate(network.bytes_in) BY bucket(@timestamp, 1 hour)", tsdb),
+            error("TS test  | STATS rate(network.bytes_in) BY bucket(@timestamp, 1 hour)", tsdb),
             equalTo(
                 "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used "
                     + "with the TS command and inside another aggregate function"
             )
         );
         assertThat(
-            error("TS tests | STATS COUNT(*)", tsdb),
+            error("TS test  | STATS COUNT(*)", tsdb),
             equalTo("1:18: count_star [COUNT(*)] can't be used with TS command; use count on a field instead")
         );
     }
@@ -1732,45 +1866,45 @@ public class VerifierTests extends ESTestCase {
 
             // counter
             assertEquals(
-                "1:23: second argument of ["
+                "1:22: second argument of ["
                     + functionName
                     + "(network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
-                error("FROM tests | eval x = " + functionName + "(network.bytes_in, 0)", tsdb)
+                error("FROM test | eval x = " + functionName + "(network.bytes_in, 0)", tsdb)
             );
 
             assertEquals(
-                "1:23: second argument of ["
+                "1:22: second argument of ["
                     + functionName
                     + "(network.bytes_in, to_long(0))] must be [counter_long], "
                     + "found value [to_long(0)] type [long]",
-                error("FROM tests | eval x = " + functionName + "(network.bytes_in, to_long(0))", tsdb)
+                error("FROM test | eval x = " + functionName + "(network.bytes_in, to_long(0))", tsdb)
             );
             assertEquals(
-                "1:23: second argument of ["
+                "1:22: second argument of ["
                     + functionName
                     + "(network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
-                error("FROM tests | eval x = " + functionName + "(network.bytes_in, 0.0)", tsdb)
+                error("FROM test | eval x = " + functionName + "(network.bytes_in, 0.0)", tsdb)
             );
 
             assertEquals(
-                "1:23: third argument of ["
+                "1:22: third argument of ["
                     + functionName
                     + "(null, network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
-                error("FROM tests | eval x = " + functionName + "(null, network.bytes_in, 0)", tsdb)
+                error("FROM test | eval x = " + functionName + "(null, network.bytes_in, 0)", tsdb)
             );
 
             assertEquals(
-                "1:23: third argument of ["
+                "1:22: third argument of ["
                     + functionName
                     + "(null, network.bytes_in, to_long(0))] must be [counter_long], "
                     + "found value [to_long(0)] type [long]",
-                error("FROM tests | eval x = " + functionName + "(null, network.bytes_in, to_long(0))", tsdb)
+                error("FROM test | eval x = " + functionName + "(null, network.bytes_in, to_long(0))", tsdb)
             );
             assertEquals(
-                "1:23: third argument of ["
+                "1:22: third argument of ["
                     + functionName
                     + "(null, network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
-                error("FROM tests | eval x = " + functionName + "(null, network.bytes_in, 0.0)", tsdb)
+                error("FROM test | eval x = " + functionName + "(null, network.bytes_in, 0.0)", tsdb)
             );
         }
 
@@ -1780,8 +1914,8 @@ public class VerifierTests extends ESTestCase {
             error("from test | eval x = case(languages == 1, salary, height)")
         );
         assertEquals(
-            "1:23: third argument of [case(name == \"a\", network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
-            error("FROM tests | eval x = case(name == \"a\", network.bytes_in, 0)", tsdb)
+            "1:22: third argument of [case(name == \"a\", network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
+            error("FROM test | eval x = case(name == \"a\", network.bytes_in, 0)", tsdb)
         );
     }
 
@@ -1842,35 +1976,35 @@ public class VerifierTests extends ESTestCase {
     public void testToDatePeriodToTimeDurationWithInvalidType() {
         assertEquals(
             "1:36: argument of [1.5::date_period] must be [date_period or string], found value [1.5] type [double]",
-            error("from types | EVAL x = birth_date + 1.5::date_period")
+            error("from test  | EVAL x = birth_date + 1.5::date_period")
         );
         assertEquals(
             "1:37: argument of [to_timeduration(1)] must be [time_duration or string], found value [1] type [integer]",
-            error("from types  | EVAL x = birth_date - to_timeduration(1)")
+            error("from test   | EVAL x = birth_date - to_timeduration(1)")
         );
         assertEquals(
             "1:45: argument of [x::date_period] must be [date_period or string], found value [x] type [double]",
-            error("from types | EVAL x = 1.5, y = birth_date + x::date_period")
+            error("from test  | EVAL x = 1.5, y = birth_date + x::date_period")
         );
         assertEquals(
             "1:44: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [integer]",
-            error("from types  | EVAL x = 1, y = birth_date - to_timeduration(x)")
+            error("from test   | EVAL x = 1, y = birth_date - to_timeduration(x)")
         );
         assertEquals(
             "1:64: argument of [x::date_period] must be [date_period or string], found value [x] type [datetime]",
-            error("from types | EVAL x = \"2024-09-08\"::datetime, y = birth_date + x::date_period")
+            error("from test  | EVAL x = \"2024-09-08\"::datetime, y = birth_date + x::date_period")
         );
         assertEquals(
             "1:65: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [datetime]",
-            error("from types  | EVAL x = \"2024-09-08\"::datetime, y = birth_date - to_timeduration(x)")
+            error("from test   | EVAL x = \"2024-09-08\"::datetime, y = birth_date - to_timeduration(x)")
         );
         assertEquals(
             "1:58: argument of [x::date_period] must be [date_period or string], found value [x] type [ip]",
-            error("from types | EVAL x = \"2024-09-08\"::ip, y = birth_date + x::date_period")
+            error("from test  | EVAL x = \"2024-09-08\"::ip, y = birth_date + x::date_period")
         );
         assertEquals(
             "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
-            error("from types  | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
+            error("from test   | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
         );
     }
 
@@ -1878,17 +2012,17 @@ public class VerifierTests extends ESTestCase {
         // DateTrunc
         for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
             assertThat(
-                error("from types  | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
+                error("from test   | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
                 containsString("1:35: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
             );
             assertThat(
-                error("from types  | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"),
+                error("from test   | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"),
                 containsString("1:67: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
             );
         }
         for (String interval : List.of("1", "0.5", "invalid")) {
             assertThat(
-                error("from types  | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
+                error("from test   | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
                 containsString(
                     "1:24: first argument of [date_trunc(\""
                         + interval
@@ -1898,7 +2032,7 @@ public class VerifierTests extends ESTestCase {
                 )
             );
             assertThat(
-                error("from types  | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"),
+                error("from test   | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"),
                 containsString(
                     "1:56: first argument of [date_trunc(\""
                         + interval
@@ -2190,8 +2324,8 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals("1:23: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | WHERE 1 + max(a) > 0"));
         assertEquals(
-            "1:24: aggregate function [min(languages)] not allowed outside STATS command",
-            error("FROM employees | WHERE min(languages) > 2")
+            "1:19: aggregate function [min(languages)] not allowed outside STATS command",
+            error("FROM test | WHERE min(languages) > 2")
         );
         assertEquals(
             "1:19: aggregate function [present(gender)] not allowed outside STATS command",
@@ -2250,6 +2384,88 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             " ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]",
             error(queryString)
+        );
+    }
+
+    public void testLookupJoinExpressionRightNotPushable() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON languages_left == language_code and abs(salary) > 1000
+            """;
+
+        assertEquals(
+            "3:71: Unsupported join filter expression:abs(salary) > 1000",
+            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+        );
+    }
+
+    public void testLookupJoinExpressionConstant() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON false and languages_left == language_code
+            """;
+
+        assertEquals("3:35: Unsupported join filter expression:false", error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION));
+    }
+
+    public void testLookupJoinExpressionTranslatableButFromLeft() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON languages_left == language_code and languages_left == "English"
+            """;
+
+        assertEquals(
+            "3:71: Unsupported join filter expression:languages_left == \"English\"",
+            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+        );
+    }
+
+    public void testLookupJoinExpressionTranslatableButMixedLeftRight() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON languages_left == language_code and CONCAT(languages_left, language_code) == "English"
+            """;
+
+        assertEquals(
+            "3:71: Unsupported join filter expression:CONCAT(languages_left, language_code) == \"English\"",
+            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+        );
+    }
+
+    public void testLookupJoinExpressionComplexFormula() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON languages_left == language_code AND STARTSWITH(languages_left, language_code)
+            """;
+
+        assertEquals(
+            "3:71: Unsupported join filter expression:STARTSWITH(languages_left, language_code)",
+            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
         );
     }
 
@@ -2517,7 +2733,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testInvalidTBucketCalls() {
-        assertThat(error("from test | stats max(emp_no) by tbucket(1 hour)"), equalTo("1:34: Unknown column [@timestamp]"));
+        assertThat(
+            error("from test | stats max(emp_no) by tbucket(1 hour)"),
+            equalTo("1:34: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+        );
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
             equalTo("1:42: error building [tbucket]: expects exactly one argument")
@@ -2813,6 +3032,178 @@ public class VerifierTests extends ESTestCase {
             can only be used after STATS when used with TS command"""));
     }
 
+    public void testInlineStatsWithRateNotAllowed() {
+        assertThat(error("TS test | INLINE STATS max(60 * rate(network.bytes_in)), max(network.connections)", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max(60 * rate(network.bytes_in)), max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
+
+    }
+
+    public void testLimitBeforeInlineStats_WithTS() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        assertThat(
+            error("TS test | STATS m=max(languages) BY s=salary/10000 | LIMIT 5 | INLINE STATS max(s) BY m"),
+            containsString(
+                "1:64: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@1:54]"
+            )
+        );
+    }
+
+    public void testLimitBeforeInlineStats_WithFork() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        assertThat(
+            error(
+                "FROM test\n"
+                    + "| WHERE emp_no == 10048 OR emp_no == 10081\n"
+                    + "| FORK (EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
+                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                    + "       (EVAL b = CONCAT(last_name, \" \", emp_no::keyword, \" \", first_name)\n"
+                    + "        | GROK b \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                    + "| SORT _fork, emp_no"
+                    + "| INLINE STATS max_lang = MAX(languages) BY gender"
+            ),
+            containsString(
+                "7:23: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
+                    + "after [(EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
+                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WOR...] [@3:8]"
+            )
+        );
+
+        assertThat(
+            error(
+                "FROM test\n"
+                    + "| KEEP emp_no, languages, gender\n"
+                    + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
+                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"
+                    + "| LIMIT 5"
+                    + "| INLINE STATS max_lang = MAX(languages) BY gender \n"
+                    + "| SORT emp_no, gender, _fork\n"
+            ),
+            containsString(
+                "5:12: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 5] [@5:3]"
+            )
+        );
+
+        assertThat(
+            error(
+                "FROM test\n"
+                    + "| KEEP emp_no, languages, gender\n"
+                    + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
+                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"
+                    + "| INLINE STATS max_lang = MAX(languages) BY gender \n"
+                    + "| SORT emp_no, gender, _fork\n"
+                    + "| LIMIT 5"
+            ),
+            containsString(
+                "5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
+                    + "after [(WHERE emp_no == 10048 OR emp_no == 10081)\n"
+                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)] [@3:8]"
+            )
+        );
+    }
+
+    public void testLimitBeforeInlineStats_WithFrom_And_Row() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        var sourceCommands = new String[] { "FROM test | ", "ROW salary=1,gender=\"M\",languages=1 | " };
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "SORT languages | LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        assertThat(
+            error(
+                randomFrom(sourceCommands) + "LIMIT 1 | LIMIT 2 | INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"
+            ),
+            allOf(
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+                ),
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS avg(salary)] after [LIMIT 2] [@"
+                )
+            )
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + """
+                EVAL x = 1
+                | LIMIT 1
+                | INLINE STATS avg(salary)
+                | STATS m=max(languages) BY s=salary/10000
+                | LIMIT 5
+                | INLINE STATS max(s) BY m
+                """),
+            allOf(
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@"
+                ),
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS avg(salary)] after [LIMIT 1] [@"
+                )
+            )
+        );
+    }
+
+    public void testMvExpandBeforeTSStatsNotAllowed() {
+        assertThat(error("TS test | MV_EXPAND name | STATS max(network.connections)", tsdb), equalTo("""
+            1:11: mv_expand [MV_EXPAND name] in the time-series before the first aggregation \
+            [STATS max(network.connections)] is not allowed"""));
+
+        assertThat(error("TS test | MV_EXPAND name | MV_EXPAND network.connections | STATS max(network.connections)", tsdb), equalTo("""
+            1:28: mv_expand [MV_EXPAND network.connections] in the time-series before the first aggregation \
+            [STATS max(network.connections)] is not allowed
+            line 1:11: mv_expand [MV_EXPAND name] in the time-series before the first aggregation \
+            [STATS max(network.connections)] is not allowed"""));
+    }
+
+    public void testTRangeFailures() {
+        assertThat(error("TS test | WHERE TRANGE(-1h) | KEEP @timestamp", tsdb), equalTo("1:24: start_time_or_offset cannot be negative"));
+
+        assertThat(error("TS test | WHERE TRANGE(\"2024-05-10T00:17:14.000Z\") | KEEP @timestamp", tsdb), equalTo("""
+            1:17: first argument of [TRANGE("2024-05-10T00:17:14.000Z")] must be [time_duration or date_period], \
+            found value ["2024-05-10T00:17:14.000Z"] type [keyword]"""));
+
+        assertThat(error("TS test | WHERE TRANGE(1 hour, 2 hours) | KEEP @timestamp", tsdb), equalTo("""
+            1:17: first argument of [TRANGE(1 hour, 2 hours)] must be [string, long, date or date_nanos], \
+            found value [1 hour] type [time_duration]"""));
+
+        assertThat(error("TS test | WHERE TRANGE(1715300236000, \"2024-05-10T00:17:14.000Z\") | KEEP @timestamp", tsdb), equalTo("""
+            1:17: second argument of [TRANGE(1715300236000, "2024-05-10T00:17:14.000Z")] must be [long], \
+            found value ["2024-05-10T00:17:14.000Z"] type [keyword]"""));
+
+        assertThat(error("TS test | WHERE TRANGE(\"2024-05-10T00:17:14.000Z\", 1 hour) | KEEP @timestamp", tsdb), equalTo("""
+            1:17: second argument of [TRANGE("2024-05-10T00:17:14.000Z", 1 hour)] must be [keyword], \
+            found value [1 hour] type [time_duration]"""));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
@@ -2830,11 +3221,15 @@ public class VerifierTests extends ESTestCase {
     }
 
     private String error(String query, Object... params) {
-        return error(query, defaultAnalyzer, params);
+        return error(query, defaultAnalyzer, VerificationException.class, params);
     }
 
     private String error(String query, Analyzer analyzer, Object... params) {
         return error(query, analyzer, VerificationException.class, params);
+    }
+
+    private String error(String query, TransportVersion transportVersion, Object... params) {
+        return error(query, transportVersion, VerificationException.class, params);
     }
 
     private String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
@@ -2864,6 +3259,13 @@ public class VerifierTests extends ESTestCase {
         String pattern = "\nline ";
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());
+    }
+
+    private String error(String query, TransportVersion transportVersion, Class<? extends Exception> exception, Object... params) {
+        MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) defaultAnalyzer.context();
+        try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
+            return error(query, defaultAnalyzer, exception, params);
+        }
     }
 
     @Override

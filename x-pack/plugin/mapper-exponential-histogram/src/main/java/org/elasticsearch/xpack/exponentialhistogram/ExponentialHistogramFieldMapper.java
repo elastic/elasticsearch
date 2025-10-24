@@ -22,6 +22,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
@@ -406,7 +407,12 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         double max
     ) throws IOException {
         BytesStreamOutput histogramBytesOutput = new BytesStreamOutput();
-        CompressedExponentialHistogram.writeHistogramBytes(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
+        CompressedExponentialHistogram.writeHistogramBytes(
+            histogramBytesOutput,
+            scale,
+            IndexWithCount.asBuckets(scale, negativeBuckets).iterator(),
+            IndexWithCount.asBuckets(scale, positiveBuckets).iterator()
+        );
         BytesRef histoBytes = histogramBytesOutput.bytes().toBytesRef();
 
         BinaryDocValuesField histoField = new BinaryDocValuesField(fieldName, histoBytes);
@@ -619,6 +625,16 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         @Override
         public long valuesCountValue() throws IOException {
             return valueCounts.longValue();
+        }
+
+        @Override
+        public double sumValue() throws IOException {
+            if (currentDocId == -1) {
+                throw new IllegalStateException("No histogram present for current document");
+            }
+            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
+            assert valueSumsPresent;
+            return NumericUtils.sortableLongToDouble(valueSums.longValue());
         }
     }
 

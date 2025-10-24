@@ -82,8 +82,6 @@ public record SemanticTextField(
 
     public record Chunk(@Nullable String text, int startOffset, int endOffset, BytesReference rawEmbeddings) {}
 
-    public record Offset(String sourceFieldName, int startOffset, int endOffset) {}
-
     public static String getOriginalTextFieldName(String fieldName) {
         return fieldName + "." + TEXT_FIELD;
     }

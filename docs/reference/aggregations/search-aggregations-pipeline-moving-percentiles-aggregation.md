@@ -133,9 +133,9 @@ And the following may be the response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 The output format of the `moving_percentiles` aggregation is inherited from the format of the referenced [`percentiles`](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md) aggregation.
 

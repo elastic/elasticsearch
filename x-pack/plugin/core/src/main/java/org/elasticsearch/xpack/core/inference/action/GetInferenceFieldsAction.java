@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +25,8 @@ import java.util.Objects;
 
 public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsAction.Response> {
     public static final GetInferenceFieldsAction INSTANCE = new GetInferenceFieldsAction();
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
+
     public static final String NAME = "cluster:monitor/xpack/inference_fields/get";
 
     public GetInferenceFieldsAction() {

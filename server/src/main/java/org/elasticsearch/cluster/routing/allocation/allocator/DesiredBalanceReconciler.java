@@ -534,6 +534,7 @@ public class DesiredBalanceReconciler {
                 final var moveTarget = findRelocationTarget(shardRouting, assignment.nodeIds());
                 if (moveTarget != null) {
                     logger.debug("Moving shard {} from {} to {}", shardRouting.shardId(), shardRouting.currentNodeId(), moveTarget.getId());
+                    immovableShards.remove(shardRouting);
                     routingNodes.relocateShard(
                         shardRouting,
                         moveTarget.getId(),

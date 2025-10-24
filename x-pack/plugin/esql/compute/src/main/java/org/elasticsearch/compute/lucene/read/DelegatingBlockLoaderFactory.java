@@ -146,14 +146,21 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
-    public BlockLoader.Block buildExponentialHistogramBlockDirect(BlockLoader.Block minima, BlockLoader.Block maxima, BlockLoader.Block sums, BlockLoader.Block valueCounts, BlockLoader.Block zeroThresholds, BlockLoader.Block encodedHistograms) {
+    public BlockLoader.Block buildExponentialHistogramBlockDirect(
+        BlockLoader.Block minima,
+        BlockLoader.Block maxima,
+        BlockLoader.Block sums,
+        BlockLoader.Block valueCounts,
+        BlockLoader.Block zeroThresholds,
+        BlockLoader.Block encodedHistograms
+    ) {
         return factory.newExponentialHistogramBlockFromDocValues(
-                (DoubleBlock) minima,
-                (DoubleBlock) maxima,
-                (DoubleBlock) sums,
-                (LongBlock) valueCounts,
-                (DoubleBlock) zeroThresholds,
-                (BytesRefBlock) encodedHistograms
+            (DoubleBlock) minima,
+            (DoubleBlock) maxima,
+            (DoubleBlock) sums,
+            (LongBlock) valueCounts,
+            (DoubleBlock) zeroThresholds,
+            (BytesRefBlock) encodedHistograms
         );
     }
 }

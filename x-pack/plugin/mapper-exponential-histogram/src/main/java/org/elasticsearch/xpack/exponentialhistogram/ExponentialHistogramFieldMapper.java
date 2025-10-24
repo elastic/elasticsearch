@@ -307,18 +307,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            DoublesBlockLoader minimaLoader = new DoublesBlockLoader(
-                valuesMinSubFieldName(name()),
-                NumericUtils::sortableLongToDouble
-            );
-            DoublesBlockLoader maximaLoader = new DoublesBlockLoader(
-                valuesMaxSubFieldName(name()),
-                NumericUtils::sortableLongToDouble
-            );
-            DoublesBlockLoader sumsLoader = new DoublesBlockLoader(
-                valuesSumSubFieldName(name()),
-                NumericUtils::sortableLongToDouble
-            );
+            DoublesBlockLoader minimaLoader = new DoublesBlockLoader(valuesMinSubFieldName(name()), NumericUtils::sortableLongToDouble);
+            DoublesBlockLoader maximaLoader = new DoublesBlockLoader(valuesMaxSubFieldName(name()), NumericUtils::sortableLongToDouble);
+            DoublesBlockLoader sumsLoader = new DoublesBlockLoader(valuesSumSubFieldName(name()), NumericUtils::sortableLongToDouble);
             LongsBlockLoader valueCountsLoader = new LongsBlockLoader(valuesCountSubFieldName(name()));
             DoublesBlockLoader zeroThresholdsLoader = new DoublesBlockLoader(
                 zeroThresholdSubFieldName(name()),

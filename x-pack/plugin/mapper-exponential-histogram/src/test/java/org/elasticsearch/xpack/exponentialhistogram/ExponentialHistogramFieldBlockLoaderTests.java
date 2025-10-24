@@ -13,10 +13,8 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
-import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
@@ -27,14 +25,12 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.IntStream;
 
 public class ExponentialHistogramFieldBlockLoaderTests extends BlockLoaderTestCase {
 
@@ -84,7 +80,7 @@ public class ExponentialHistogramFieldBlockLoaderTests extends BlockLoaderTestCa
         }
     };
 
-    private static Map<String,?> createRandomHistogramJsonValue() {
+    private static Map<String, ?> createRandomHistogramJsonValue() {
         try {
             ExponentialHistogram histo = ExponentialHistogramTestUtils.randomHistogram();
             return convertToMap(histo);

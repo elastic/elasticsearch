@@ -32,6 +32,9 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -214,7 +217,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH)).thenReturn(url);
         when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED)).thenReturn(true);
         when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MIN)).thenReturn(TimeValue.timeValueMinutes(1));
-        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MAX)).thenReturn(TimeValue.timeValueMinutes(1));
+        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MAX)).thenReturn(TimeValue.timeValueMinutes(60));
         Scheduler scheduler = mock(Scheduler.class);
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
 
@@ -232,9 +235,19 @@ public class JwkSetLoaderTests extends ESTestCase {
 
     private void verifySchedulingIteration(JwkSetCallback callback, Scheduler scheduler, CloseableHttpAsyncClient httpClient, int iteration)
         throws IOException {
-        // capture scheduled task
+        // capture scheduled task and delay
         ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
-        verify(scheduler, times(1)).schedule(taskCaptor.capture(), any(TimeValue.class), isNull());
+        ArgumentCaptor<TimeValue> timeCaptor = ArgumentCaptor.forClass(TimeValue.class);
+        verify(scheduler, times(1)).schedule(taskCaptor.capture(), timeCaptor.capture(), isNull());
+
+        TimeValue delay = timeCaptor.getValue();
+        if (iteration == 1) { // first iteration
+            assertThat(delay, is(TimeValue.timeValueMinutes(1))); // first delay is always minimum (1 minute configured above)
+        } else {
+            TimeValue lower = TimeValue.timeValueMinutes(9);
+            TimeValue upper = TimeValue.timeValueMinutes(11);
+            assertThat(delay, both(greaterThanOrEqualTo(lower)).and(lessThanOrEqualTo(upper))); // 10 minutes +/-1 minute (jitter)
+        }
 
         // run the scheduled task, which triggers HTTP call
         taskCaptor.getValue().run();
@@ -246,7 +259,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         Header header = mock(Header.class);
         StatusLine statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(200);
-        when(header.getValue()).thenReturn("Wed, 21 Oct 2015 07:28:00 GMT");
+        when(header.getValue()).thenReturn(expiresHeader(10)); // expires in 10 minutes
         when(entity.getContent()).thenReturn(new ByteArrayInputStream(bytes));
         HttpResponse response = mock(HttpResponse.class);
         when(response.getStatusLine()).thenReturn(statusLine);
@@ -260,6 +273,12 @@ public class JwkSetLoaderTests extends ESTestCase {
         responseFn.getValue().completed(response);
         assertThat(callback.content, is(equalTo(bytes)));
         assertThat(callback.count, is(iteration));
+    }
+
+    private static String expiresHeader(int plusMinutes) {
+        ZonedDateTime nowUtc = ZonedDateTime.now(ZoneId.of("UTC"));
+        ZonedDateTime zdt = nowUtc.plusMinutes(plusMinutes);
+        return zdt.format(DateTimeFormatter.RFC_1123_DATE_TIME);
     }
 
     public void testUrlPkcJwkSetLoaderDisabled() {

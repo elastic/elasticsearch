@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -15,10 +15,13 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Collection;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
@@ -26,18 +29,22 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 
 public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
-    private ModelRegistry modelRegistry;
-    private final MockWebServer webServer = new MockWebServer();
-    private ThreadPool threadPool;
-    private String gatewayUrl;
+    private static final MockWebServer webServer = new MockWebServer();
+    private static String gatewayUrl;
 
-    @Before
-    public void createComponents() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityExecutors());
+    private ModelRegistry modelRegistry;
+    private ThreadPool threadPool;
+
+    @BeforeClass
+    public static void initClass() throws IOException {
         webServer.start();
         gatewayUrl = getUrl(webServer);
+    }
+
+    @Before
+    public void createComponents() {
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
-        node().injector().getInstance(ClusterState.class);
     }
 
     @After
@@ -47,8 +54,11 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     @Override
-    protected boolean resetNodeAfterTest() {
-        return true;
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            .put(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), gatewayUrl)
+            .put(ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED.getKey(), false)
+            .build();
     }
 
     @Override

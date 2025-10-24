@@ -762,6 +762,12 @@ public class DesiredBalanceReconciler {
             return new DecisionAndResult(bestDecision, chosenNode);
         }
 
+        /**
+         * An allocation decision result
+         *
+         * @param bestDecision The best decision we saw from the nodes attempted (can be null if no nodes were attempted)
+         * @param chosenNode The node to allocate the shard to (can be null if no suitable nodes were found)
+         */
         private record DecisionAndResult(@Nullable Decision bestDecision, @Nullable DiscoveryNode chosenNode) {}
 
         private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {

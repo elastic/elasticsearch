@@ -325,58 +325,21 @@ public class TransportDeleteSampleConfigurationActionTests extends ESTestCase {
     }
 
     /**
-     * Tests that multiple indices in request causes IndexNotFoundException when resolved.
+     * Tests that multiple indices in request causes IllegalArgumentException.
      * The action should only accept single index operations.
      */
-    public void testMasterOperationMultipleIndices() throws Exception {
+    public void testMasterOperationMultipleIndices() {
         // Setup test data
-        ProjectId projectId = randomProjectIdOrDefault();
         String indexName1 = randomIdentifier();
         String indexName2 = randomIdentifier();
         TimeValue masterNodeTimeout = randomTimeValue(100, 200);
         TimeValue ackTimeout = randomTimeValue(100, 200);
 
         DeleteSampleConfigurationAction.Request request = new DeleteSampleConfigurationAction.Request(masterNodeTimeout, ackTimeout);
-        request.indices(indexName1, indexName2);
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
-        Task task = mock(Task.class);
-
-        // Setup mocks - IndexNameExpressionResolver should throw for multiple indices
-        IndexNotFoundException multipleIndicesException = new IndexNotFoundException("Multiple indices not supported");
-        when(indexNameExpressionResolver.concreteIndexNames(clusterState, request)).thenThrow(multipleIndicesException);
-
-        // Test execution with CountDownLatch to handle async operation
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
-
-        ActionListener<AcknowledgedResponse> testListener = new ActionListener<AcknowledgedResponse>() {
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                responseRef.set(response);
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                exceptionRef.set(e);
-                latch.countDown();
-            }
-        };
-
-        action.masterOperation(task, request, clusterState, testListener);
-
-        // Wait for async operation to complete
-        assertTrue("Operation should complete within timeout", latch.await(5, TimeUnit.SECONDS));
-
-        // Verify results
-        assertThat(responseRef.get(), nullValue());
-        assertThat(exceptionRef.get(), not(nullValue()));
-        assertThat(exceptionRef.get(), sameInstance(multipleIndicesException));
-
-        // Verify interactions
-        verify(indexNameExpressionResolver).concreteIndexNames(clusterState, request);
+        // Verify that setting multiple indices throws IllegalArgumentException
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request.indices(indexName1, indexName2));
+        assertThat(exception.getMessage(), equalTo("[indices] must contain only one index"));
     }
 
     /**

@@ -22,8 +22,8 @@ import java.io.IOException;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX;
 
 /**
- * Unified block loader for dense vector fields that can output either raw vectors or
- * processed values (like similarity scores) depending on the VectorProcessor provided.
+ * Block loader for dense vector fields that can output either raw vectors or
+ * processed values (like similarity scores) depending on the {@link DenseVectorBlockLoaderProcessor} provided.
  *
  * @param <B> The type of builder used (FloatBuilder for vectors, DoubleBuilder for scores, etc.)
  */
@@ -157,8 +157,9 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
         }
     }
 
-    private static class FloatDenseVectorValuesBlockReader<B extends BlockLoader.Builder> extends
-        AbstractVectorValuesReader<FloatVectorValues, B> {
+    private static class FloatDenseVectorValuesBlockReader<B extends BlockLoader.Builder> extends AbstractVectorValuesReader<
+        FloatVectorValues,
+        B> {
 
         FloatDenseVectorValuesBlockReader(
             FloatVectorValues floatVectorValues,
@@ -219,14 +220,11 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
         }
     }
 
-    private static class ByteDenseVectorValuesBlockReader<B extends BlockLoader.Builder> extends
-        AbstractVectorValuesReader<ByteVectorValues, B> {
+    private static class ByteDenseVectorValuesBlockReader<B extends BlockLoader.Builder> extends AbstractVectorValuesReader<
+        ByteVectorValues,
+        B> {
 
-        ByteDenseVectorValuesBlockReader(
-            ByteVectorValues byteVectorValues,
-            int dimensions,
-            DenseVectorBlockLoaderProcessor<B> processor
-        ) {
+        ByteDenseVectorValuesBlockReader(ByteVectorValues byteVectorValues, int dimensions, DenseVectorBlockLoaderProcessor<B> processor) {
             super(byteVectorValues, processor, dimensions);
         }
 
@@ -243,14 +241,9 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
         }
     }
 
-    private static class BitDenseVectorValuesBlockReader<B extends BlockLoader.Builder> extends
-        ByteDenseVectorValuesBlockReader<B> {
+    private static class BitDenseVectorValuesBlockReader<B extends BlockLoader.Builder> extends ByteDenseVectorValuesBlockReader<B> {
 
-        BitDenseVectorValuesBlockReader(
-            ByteVectorValues byteVectorValues,
-            int dimensions,
-            DenseVectorBlockLoaderProcessor<B> processor
-        ) {
+        BitDenseVectorValuesBlockReader(ByteVectorValues byteVectorValues, int dimensions, DenseVectorBlockLoaderProcessor<B> processor) {
             super(byteVectorValues, dimensions, processor);
         }
 

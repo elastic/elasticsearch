@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -101,5 +102,10 @@ public class ExchangeExec extends UnaryExec {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), output, inBetweenAggs);
+    }
+
+    @Override
+    public String nodeString() {
+        return nodeName() + "[output=" + NodeUtils.limitedToString(output) + ", inBetweenAggs=" + inBetweenAggs + "]";
     }
 }

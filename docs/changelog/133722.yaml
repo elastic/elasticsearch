@@ -1,5 +1,0 @@
-pr: 133722
-summary: Fix disk usage estimation for SORTED_SET doc values
-area: Codec
-type: bug
-issues: []

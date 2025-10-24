@@ -491,7 +491,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                boolean indexed = indexType.hasPoints();
                 return (cache, breakerService) -> {
                     final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
                         name(),
@@ -500,9 +499,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
                         },
-                        indexed
+                        indexType
                     ).build(cache, breakerService);
-                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new, indexed);
+                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new, indexType);
                 };
             }
 

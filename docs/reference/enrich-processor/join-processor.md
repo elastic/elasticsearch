@@ -30,5 +30,5 @@ $$$join-options$$$
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 

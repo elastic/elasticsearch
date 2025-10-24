@@ -150,7 +150,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                IndexResolution.valid(testAll),
+                indexResolutions(testAll),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
@@ -1105,7 +1105,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     public void testVectorFunctionsReplaced() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
-            from types_all
+            from test_all
             | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
             """;
 
@@ -1150,7 +1150,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     public void testVectorFunctionsReplacedWithTopN() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
-            from types
+            from test_all
             | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
             | sort s desc
             | limit 1
@@ -1195,7 +1195,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     public void testVectorFunctionsNotPushedDownWhenNotIndexed() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
-            from types
+            from test_all
             | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
             | sort s desc
             | limit 1

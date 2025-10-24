@@ -209,26 +209,14 @@ public final class TimeSeriesRestDriver {
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
         warmActions.put(
             AllocateAction.NAME,
-            new AllocateAction(
-                1,
-                null,
-                Map.of("_name", "javaRestTest-0,javaRestTest-1," + "javaRestTest-2," + "javaRestTest-3"),
-                null,
-                null
-            )
+            new AllocateAction(1, null, Map.of("_name", "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3"), null, null)
         );
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         coldActions.put(
             AllocateAction.NAME,
-            new AllocateAction(
-                0,
-                null,
-                Map.of("_name", "javaRestTest-0,javaRestTest-1," + "javaRestTest-2," + "javaRestTest-3"),
-                null,
-                null
-            )
+            new AllocateAction(0, null, Map.of("_name", "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3"), null, null)
         );
         Map<String, Phase> phases = new HashMap<>();
         phases.put("hot", new Phase("hot", hotTime, hotActions));

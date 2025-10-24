@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -44,12 +44,24 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
                     "logger.org.elasticsearch.xpack.ml.packageloader" : "DEBUG"
                 }}""");
         client().performRequest(loggingSettings);
+
+        initInferenceIndices();
     }
 
     @After
     public void tearDown() throws Exception {
         threadPool.close();
         super.tearDown();
+    }
+
+    private static void initInferenceIndices() {
+        try {
+            // Creating an inference endpoint to force the backing indices to be created to reduce the likelihood of the tests failing
+            // because they're trying to interact with the indices while they're being created.
+            putModel("initial-model", mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
+        } catch (IOException e) {
+            // Ignoring exceptions because the model may already exist
+        }
     }
 
     public void testGet() throws IOException {
@@ -75,7 +87,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
 
         putModel("my-model", mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
         var registeredModels = getMinimalConfigs();
-        assertThat(registeredModels.size(), equalTo(1));
+        assertThat(registeredModels.size(), greaterThanOrEqualTo(1));
         assertTrue(registeredModels.containsKey("my-model"));
         assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_E5_ID));
         assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_ELSER_ID));

@@ -208,6 +208,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
 
     @Override
     public MappedFieldType.BlockLoaderFunctionConfig getBlockLoaderFunctionConfig() {
+        // PushDownVectorSimilarityFunctions checks that one of the sides is a literal
         Literal literal = (Literal) (left() instanceof Literal ? left() : right());
         @SuppressWarnings("unchecked")
         List<Number> numberList = (List<Number>) literal.value();

@@ -99,7 +99,7 @@ public class VerifierTests extends ESTestCase {
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                Map.of(new IndexPattern(Source.EMPTY, "k8s"), getIndexResult),
+                getIndexResult,
                 defaultLookupResolution(),
                 new EnrichResolution(),
                 emptyInferenceResolution()

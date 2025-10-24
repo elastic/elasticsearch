@@ -12,12 +12,16 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.ccs.AbstractSemanticCrossClusterSearchTestCase;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +50,13 @@ public class LinearRetrieverCrossClusterSearchIT extends AbstractSemanticCrossCl
     private static final String TEXT_FIELD = "text-field";
 
     boolean clustersConfigured = false;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
+        plugins.add(RRFRankPlugin.class);
+        return plugins;
+    }
 
     @Override
     protected boolean reuseClusters() {

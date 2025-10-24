@@ -195,8 +195,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         // Apply any block loader function if present
         MappedFieldType.BlockLoaderFunctionConfig functionConfig = null;
-        if (attr instanceof FieldAttribute fieldAttr
-            && fieldAttr.field() instanceof FunctionEsField functionEsField) {
+        if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
             functionConfig = functionEsField.functionConfig();
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;

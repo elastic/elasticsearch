@@ -32,32 +32,24 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class StdDev extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
+public class Variance extends AggregateFunction implements ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Variance", Variance::new);
 
     @FunctionInfo(
         returnType = "double",
-        description = "The population standard deviation of a numeric field.",
+        description = "The population variance of a numeric field.",
         type = FunctionType.AGGREGATE,
-        examples = {
-            @Example(file = "stats", tag = "stdev"),
-            @Example(
-                description = "The expression can use inline functions. For example, to calculate the population standard "
-                    + "deviation of each employee’s maximum salary changes, first use `MV_MAX` on each row, "
-                    + "and then use `STD_DEV` on the result",
-                file = "stats",
-                tag = "docsStatsStdDevNestedExpression"
-            ) }
+        examples = { @Example(file = "stats", tag = "variance") }
     )
-    public StdDev(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
+    public Variance(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         this(source, field, Literal.TRUE);
     }
 
-    public StdDev(Source source, Expression field, Expression filter) {
+    public Variance(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 
-    private StdDev(StreamInput in) throws IOException {
+    private Variance(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -83,30 +75,30 @@ public class StdDev extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    protected NodeInfo<StdDev> info() {
-        return NodeInfo.create(this, StdDev::new, field(), filter());
+    protected NodeInfo<Variance> info() {
+        return NodeInfo.create(this, Variance::new, field(), filter());
     }
 
     @Override
-    public StdDev replaceChildren(List<Expression> newChildren) {
-        return new StdDev(source(), newChildren.get(0), newChildren.get(1));
+    public Variance replaceChildren(List<Expression> newChildren) {
+        return new Variance(source(), newChildren.get(0), newChildren.get(1));
     }
 
-    public StdDev withFilter(Expression filter) {
-        return new StdDev(source(), field(), filter);
+    public Variance withFilter(Expression filter) {
+        return new Variance(source(), field(), filter);
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier(true);
+            return new StdDevLongAggregatorFunctionSupplier(false);
         }
         if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier(true);
+            return new StdDevIntAggregatorFunctionSupplier(false);
         }
         if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier(true);
+            return new StdDevDoubleAggregatorFunctionSupplier(false);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

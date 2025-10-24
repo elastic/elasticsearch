@@ -11,6 +11,8 @@ package org.elasticsearch.action.admin.indices.sampling;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -78,7 +80,7 @@ public class GetAllSampleConfigurationAction extends ActionType<GetAllSampleConf
     /**
      * Request object for getting all sampling configurations in a cluster.
      */
-    public static class Request extends LocalClusterStateRequest {
+    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
         /**
          * Constructs a new request.
          *
@@ -96,6 +98,29 @@ public class GetAllSampleConfigurationAction extends ActionType<GetAllSampleConf
          */
         public Request(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public String[] indices() {
+            // This action reads from cluster state metadata (SamplingMetadata), not from indices directly.
+            // The IndicesRequest implementation is required for security authorization checks.
+            return new String[] { "*" };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.LENIENT_EXPAND_OPEN;
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
+        public Request indices(String... indices) {
+            // This is a get-all operation, so we don't support changing the indices
+            return this;
         }
 
         @Override

@@ -43,7 +43,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 // TODO: Handle multi-project
-// TODO: Don't hard-code useDefaultFields
 
 public class TransportGetInferenceFieldsAction extends HandledTransportAction<
     GetInferenceFieldsAction.Request,
@@ -79,11 +78,17 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         final List<String> indices = request.getIndices();
         final List<String> fields = request.getFields();
         final boolean resolveWildcards = request.resolveWildcards();
+        final boolean useDefaultFields = request.useDefaultFields();
         final String query = request.getQuery();
 
         Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(indices.size());
         indices.forEach(index -> {
-            List<InferenceFieldMetadata> inferenceFieldMetadataList = getInferenceFieldMetadata(index, fields, resolveWildcards, false);
+            List<InferenceFieldMetadata> inferenceFieldMetadataList = getInferenceFieldMetadata(
+                index,
+                fields,
+                resolveWildcards,
+                useDefaultFields
+            );
             if (inferenceFieldMetadataList != null) {
                 inferenceFieldsMap.put(index, inferenceFieldMetadataList);
             }

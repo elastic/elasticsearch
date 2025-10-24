@@ -38,12 +38,20 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         private final List<String> indices;
         private final List<String> fields;
         private final boolean resolveWildcards;
+        private final boolean useDefaultFields;
         private final String query;
 
-        public Request(List<String> indices, List<String> fields, boolean resolveWildcards, @Nullable String query) {
+        public Request(
+            List<String> indices,
+            List<String> fields,
+            boolean resolveWildcards,
+            boolean useDefaultFields,
+            @Nullable String query
+        ) {
             this.indices = indices;
             this.fields = fields;
             this.resolveWildcards = resolveWildcards;
+            this.useDefaultFields = useDefaultFields;
             this.query = query;
         }
 
@@ -52,6 +60,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             this.indices = in.readCollectionAsList(StreamInput::readString);
             this.fields = in.readCollectionAsList(StreamInput::readString);
             this.resolveWildcards = in.readBoolean();
+            this.useDefaultFields = in.readBoolean();
             this.query = in.readOptionalString();
         }
 
@@ -61,6 +70,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             out.writeStringCollection(indices);
             out.writeStringCollection(fields);
             out.writeBoolean(resolveWildcards);
+            out.writeBoolean(useDefaultFields);
             out.writeOptionalString(query);
         }
 
@@ -81,6 +91,10 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return resolveWildcards;
         }
 
+        public boolean useDefaultFields() {
+            return useDefaultFields;
+        }
+
         public String getQuery() {
             return query;
         }
@@ -93,12 +107,13 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return Objects.equals(indices, request.indices)
                 && Objects.equals(fields, request.fields)
                 && resolveWildcards == request.resolveWildcards
+                && useDefaultFields == request.useDefaultFields
                 && Objects.equals(query, request.query);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, fields, resolveWildcards, query);
+            return Objects.hash(indices, fields, resolveWildcards, useDefaultFields, query);
         }
     }
 

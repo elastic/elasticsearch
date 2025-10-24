@@ -89,6 +89,25 @@ book_no:keyword | title:text                                                    
 7350            | Return of the Shadow                                             | first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution
 ;
 
+chunkTextWithConcatenatedField
+required_capability: chunk_function
+
+FROM books
+| EVAL title_description = CONCAT(title, description)
+| EVAL chunks = CHUNK(title_description, {"num_chunks":1, "chunk_size":20})
+| KEEP book_no, title, chunks
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text                                            | chunks:keyword
+1211            | The brothers Karamazov                                | The brothers KaramazovIn 1880 Dostoevsky completed The Brothers Karamazov, the literary effort for which he had been preparing all his
+1463            | Realms of Tolkien: Images of Middle-earth             | Realms of Tolkien: Images of Middle-earthTwenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an
+1502            | Selected Passages from Correspondence with Friends    | Selected Passages from Correspondence with FriendsNikolai Gogol wrote some letters to his friends, none of which were a nose of
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | The Best Short Stories of Dostoevsky (Modern Library)This collection, unique to the Modern Library, gathers seven of Dostoevsky's key
+1985            | Brothers Karamazov                                    | Brothers KaramazovFour brothers reunite in their hometown in Russia.
+;
+
 
 
 

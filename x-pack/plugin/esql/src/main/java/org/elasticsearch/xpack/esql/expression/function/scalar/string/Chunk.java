@@ -201,7 +201,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         return chunker.chunk(content, chunkingSettings)
             .stream()
             .map(offset -> content.substring(offset.start(), offset.end()))
-            .limit(numChunks > 0 ? numChunks : Long.MAX_VALUE)
+            .limit(numChunks > 0 ? numChunks : DEFAULT_NUM_CHUNKS)
             .toList();
     }
 

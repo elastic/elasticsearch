@@ -46,6 +46,9 @@ public class Hamming extends VectorSimilarityFunction {
 
             @Override
             public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+                if (leftScratch.length != rightScratch.length) {
+                    throw new IllegalArgumentException("vector dimensions differ:" + leftScratch.length + "!=" + rightScratch.length);
+                }
                 byte[] a = new byte[leftScratch.length];
                 byte[] b = new byte[rightScratch.length];
                 for (int i = 0; i < leftScratch.length; i++) {

@@ -1160,9 +1160,7 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
-        useDocValuesSkipper = DOC_VALUES_SKIPPER
-            && scopedSettings.get(USE_DOC_VALUES_SKIPPER)
-            && version.onOrAfter(IndexVersions.ENABLE_TSID_HOSTNAME_TIMESTAMP_DOC_VALUES_SKIPPERS_WITH_FF);
+        useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         tsdbSyntheticId = TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         assert tsdbSyntheticId == false || mode == IndexMode.TIME_SERIES : mode;

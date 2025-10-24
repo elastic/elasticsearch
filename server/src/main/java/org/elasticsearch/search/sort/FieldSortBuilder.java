@@ -19,7 +19,6 @@ import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

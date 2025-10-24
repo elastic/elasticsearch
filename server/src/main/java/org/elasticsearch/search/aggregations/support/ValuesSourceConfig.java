@@ -433,11 +433,10 @@ public class ValuesSourceConfig {
     public boolean alignsWithSearchIndex() {
         boolean hasDocValuesSkipper = fieldType() instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
         boolean isTimestampField = fieldContext() != null && DataStream.TIMESTAMP_FIELD_NAME.equals(fieldContext().field());
-        boolean hasDocValuesSkipper = isTimestampField && ((DateFieldMapper.DateFieldType) fieldContext.fieldType()).hasDocValuesSkipper();
         return script() == null
             && missing() == null
             && fieldType() != null
-            && (fieldType().indexType().supportsSortShortcuts() || hasDocValuesSkipper) || hasDocValuesSkipper);
+            && (fieldType().indexType().supportsSortShortcuts() || hasDocValuesSkipper);
     }
 
     /**

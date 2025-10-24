@@ -173,7 +173,7 @@ public class IndexVersions {
     public static final IndexVersion DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ = def(9_024_0_00, Version.LUCENE_10_2_1);
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BBQ = def(9_025_0_00, Version.LUCENE_10_2_1);
     public static final IndexVersion DEFAULT_TO_ACORN_HNSW_FILTER_HEURISTIC = def(9_026_0_00, Version.LUCENE_10_2_1);
-    public static final IndexVersion ENABLE_TSID_HOSTNAME_TIMESTAMP_DOC_VALUES_SKIPPERS_WITH_FF = def(9_027_0_00, Version.LUCENE_10_2_1);
+    public static final IndexVersion SEQ_NO_WITHOUT_POINTS = def(9_027_0_00, Version.LUCENE_10_2_1);
     public static final IndexVersion INDEX_INT_SORT_INT_TYPE = def(9_028_0_00, Version.LUCENE_10_2_1);
     public static final IndexVersion MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED = def(9_029_0_00, Version.LUCENE_10_2_1);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_2_2 = def(9_030_0_00, Version.LUCENE_10_2_2);

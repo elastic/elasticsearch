@@ -32,7 +32,6 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.lucene.queries.TimestampQuery;
-import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.internal.CancellableBulkScorer;
 import org.elasticsearch.xcontent.XContentBuilder;

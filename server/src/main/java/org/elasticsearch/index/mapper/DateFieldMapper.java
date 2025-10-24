@@ -38,7 +38,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -53,7 +52,6 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.TimestampQuery;
-import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -668,17 +666,17 @@ public final class DateFieldMapper extends FieldMapper {
                 name(),
                 (l, u) -> {
                     var indexSettings = context.getIndexSettings();
-                var indexMode = indexSettings.getMode();
-                boolean sortOnTimestamp = indexSettings.getIndexSortConfig().hasSortOnField(DataStream.TIMESTAMP_FIELD_NAME);
-                if ((indexMode == IndexMode.TIME_SERIES || indexMode == IndexMode.LOGSDB)
-                    && sortOnTimestamp
-                    && indexSettings.useDocValuesSkipper()
-                    && name().equals(DataStream.TIMESTAMP_FIELD_NAME)) {
-                    return new TimestampQuery(l, u);
-                }
+                    var indexMode = indexSettings.getMode();
+                    boolean sortOnTimestamp = indexSettings.getIndexSortConfig().hasSortOnField(DataStream.TIMESTAMP_FIELD_NAME);
+                    if ((indexMode == IndexMode.TIME_SERIES || indexMode == IndexMode.LOGSDB)
+                        && sortOnTimestamp
+                        && indexSettings.useDocValuesSkipper()
+                        && name().equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+                        return new TimestampQuery(l, u);
+                    }
 
-                Query query;
-                if (indexType.hasPoints()) {
+                    Query query;
+                    if (indexType.hasPoints()) {
                         query = LongPoint.newRangeQuery(name(), l, u);
                         if (hasDocValues()) {
                             Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);

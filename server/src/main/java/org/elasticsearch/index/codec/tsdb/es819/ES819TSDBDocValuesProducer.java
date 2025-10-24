@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -335,12 +336,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     // Decompresses blocks of binary values to retrieve content
     static final class BinaryDecoder {
 
+        private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
         private final LongValues addresses;
         private final LongValues docRanges;
         private final IndexInput compressedData;
         // Cache of last uncompressed block
         private long lastBlockId = -1;
-        private final byte[] uncompressedDocLengths;
+        private final long[] docLengthDecompBuffer = new long[NUMERIC_BLOCK_SIZE];
         private final int[] uncompressedDocStarts;
         private final byte[] uncompressedBlock;
         private final BytesRef uncompressedBytesRef;
@@ -361,13 +363,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             // pre-allocate a byte array large enough for the biggest uncompressed block needed.
             this.uncompressedBlock = new byte[biggestUncompressedBlockSize];
             uncompressedBytesRef = new BytesRef(uncompressedBlock);
-            uncompressedDocLengths = new byte[(maxNumDocsInAnyBlock + 1) * Integer.BYTES];
             uncompressedDocStarts = new int[maxNumDocsInAnyBlock + 1];
         }
 
-        // unconditionally decompress blockId into
-        // uncompressedDocStarts
-        // uncompressedBlock
+        // unconditionally decompress blockId into uncompressedDocStarts and uncompressedBlock
         private void decompressBlock(int blockId, int numDocsInBlock) throws IOException {
             long blockStartOffset = addresses.get(blockId);
             compressedData.seek(blockStartOffset);
@@ -378,23 +377,26 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 return;
             }
 
-            DataInput input = compressedData;
-            int offsetBytesLen = numDocsInBlock * Integer.BYTES;
-            assert offsetBytesLen <= uncompressedDocLengths.length;
-            BytesRef offsetOut = new BytesRef(uncompressedDocLengths, 0, offsetBytesLen);
-            decompressor.decompress(input, offsetBytesLen, 0, offsetBytesLen, offsetOut);
-
-            int docStart = 0;
-            for (int i = 0; i < numDocsInBlock; i++) {
-                int len = getOffsetDocStart(i);
-                docStart += len;
-                uncompressedDocStarts[i+1] = docStart;
-            }
+            decompressDocOffsets(numDocsInBlock, compressedData);
 
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;
             uncompressedBytesRef.length = uncompressedBlock.length;
-            decompressor.decompress(input, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
+            decompressor.decompress(compressedData, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
+        }
+
+        void decompressDocOffsets(int numDocsInBlock, DataInput input) throws IOException {
+            int batchStart = 0;
+            while (batchStart < numDocsInBlock) {
+                decoder.decode(input, docLengthDecompBuffer);
+                int lenToCopy = Math.min(numDocsInBlock - batchStart, NUMERIC_BLOCK_SIZE);
+                for (int i = 0; i < lenToCopy; i++) {
+                    // convert compressed length to offsets
+                    int docLength  = (int) docLengthDecompBuffer[i];
+                    uncompressedDocStarts[batchStart + i + 1] = docLength + uncompressedDocStarts[batchStart + i];
+                }
+                batchStart += NUMERIC_BLOCK_SIZE;
+            }
         }
 
         // Find range containing docId that is within or after lastBlockId
@@ -407,17 +409,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     return blockId;
                 }
             }
-            return -1;
-        }
-
-        private int getOffsetDocStart(int idx) {
-            return (int) BitUtil.VH_LE_INT.get(uncompressedDocLengths, idx * Integer.BYTES);
+            throw new AssertionError("No block found containing document: " + docNumber + ", this should never happen.");
         }
 
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
-            // docNumber because these are dense and could be indices from a DISI
-            long blockId = docNumber < limitDocNumForBlock ? lastBlockId : getBlockContainingDoc(docRanges, lastBlockId, docNumber, numBlocks);
-            assert blockId >= 0;
+            // docNumber, rather than docId, because these are dense and could be indices from a DISI
+            long blockId = docNumber < limitDocNumForBlock
+                ? lastBlockId
+                : getBlockContainingDoc(docRanges, lastBlockId, docNumber, numBlocks);
 
             int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
             int idxInBlock = (int) (docNumber - startDocNumForBlock);

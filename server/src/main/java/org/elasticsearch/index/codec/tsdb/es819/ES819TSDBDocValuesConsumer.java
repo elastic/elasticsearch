@@ -57,6 +57,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.codec.tsdb.es819.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SORTED_SET;
@@ -514,16 +515,19 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
     private class CompressedBinaryBlockWriter implements Closeable {
         static final int MIN_BLOCK_BYTES = 256 * 1024;
-        static final int START_BLOCK_DOCS = 1024; // likely needs to grow
-        private static final int ZSTD_LEVEL = 1;
+        static final int START_BLOCK_DOCS = 1024;
+        static final int ZSTD_LEVEL = 1;
 
-        private final Zstd814StoredFieldsFormat.ZstdCompressor compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(ZSTD_LEVEL);
+        final Zstd814StoredFieldsFormat.ZstdCompressor compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(ZSTD_LEVEL);
+
+        final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+        final long[] docLengthCompressBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+        int[] docLengths = new int[START_BLOCK_DOCS];
+
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
         int numDocsInCurrentBlock = 0;
 
-        // Store ints, but use byte[] so can be zero-copy converted to ByteBuffer
-        byte[] docLengths = new byte[START_BLOCK_DOCS * Integer.BYTES];
         byte[] block = BytesRef.EMPTY_BYTES;
         int totalChunks = 0;
         long maxPointer = 0;
@@ -561,15 +565,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
          * But we can guarantee that the lookup value is dense on the range of inserted values.
          */
         void addDoc(int _docId, BytesRef v) throws IOException {
-            docLengths = ArrayUtil.grow(docLengths, (numDocsInCurrentBlock + 1) * Integer.BYTES);
-            BitUtil.VH_LE_INT.set(docLengths, numDocsInCurrentBlock * Integer.BYTES, v.length);
+            docLengths = ArrayUtil.grow(docLengths, numDocsInCurrentBlock + 1);
+            docLengths[numDocsInCurrentBlock] = v.length;
 
             block = ArrayUtil.grow(block, uncompressedBlockLength + v.length);
             System.arraycopy(v.bytes, v.offset, block, uncompressedBlockLength, v.length);
             uncompressedBlockLength += v.length;
             numDocsInCurrentBlock++;
 
-//            int totalUncompressedSize = uncompressedBlockLength + numDocsInCurrentBlock * Integer.BYTES;
             if (uncompressedBlockLength > MIN_BLOCK_BYTES) {
                 flushData();
             }
@@ -587,7 +590,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
                 maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocsInCurrentBlock);
 
-                compress(docLengths, numDocsInCurrentBlock * Integer.BYTES, data);
+                compressOffsets(data, numDocsInCurrentBlock);
                 compress(block, uncompressedBlockLength, data);
 
                 blockDocRangeAcc.addDoc(numDocsInCurrentBlock);
@@ -597,6 +600,21 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 maxPointer = data.getFilePointer();
                 long blockLenBytes = maxPointer - thisBlockStartPointer;
                 blockAddressAcc.addDoc(blockLenBytes);
+            }
+        }
+
+        void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
+            int batchStart = 0;
+            while (batchStart < numDocsInCurrentBlock) {
+                int batchLength = Math.min(numDocsInCurrentBlock - batchStart, NUMERIC_BLOCK_SIZE);
+                for (int i = 0; i < batchLength; i++) {
+                    docLengthCompressBuffer[i] = docLengths[batchStart + i];
+                }
+                if (batchLength < docLengthCompressBuffer.length) {
+                    Arrays.fill(docLengthCompressBuffer, batchLength, docLengthCompressBuffer.length,0);
+                }
+                encoder.encode(docLengthCompressBuffer, output);
+                batchStart += batchLength;
             }
         }
 

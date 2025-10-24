@@ -78,13 +78,13 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         return List.of(sums, valueCounts, zeroThresholds, encodedHistograms, minima, maxima);
     }
 
-    void loadAtPostion(int position, CompressedExponentialHistogram resultHistogram, BytesRef tempBytesRef) {
-        BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(position), tempBytesRef);
-        double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(position));
-        long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(position));
-        double sum = sums.getDouble(sums.getFirstValueIndex(position));
-        double min = valueCount == 0 ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(position));
-        double max = valueCount == 0 ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(position));
+    void loadValue(int valueIndex, CompressedExponentialHistogram resultHistogram, BytesRef tempBytesRef) {
+        BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), tempBytesRef);
+        double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
+        long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
+        double sum = sums.getDouble(sums.getFirstValueIndex(valueIndex));
+        double min = valueCount == 0 ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(valueIndex));
+        double max = valueCount == 0 ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(valueIndex));
         try {
             resultHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
         } catch (IOException e) {

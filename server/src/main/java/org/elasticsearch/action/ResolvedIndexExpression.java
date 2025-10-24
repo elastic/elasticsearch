@@ -48,7 +48,7 @@ import java.util.Set;
  */
 public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, Set<String> remoteExpressions)
     implements
-    Writeable {
+        Writeable {
 
     public ResolvedIndexExpression(StreamInput in) throws IOException {
         this(in.readString(), new LocalExpressions(in), in.readCollectionAsImmutableSet(StreamInput::readString));

@@ -531,30 +531,19 @@ public class AuthorizationService {
                 ActionListener.run(
                     listener,
                     l -> authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
-                        .addListener(
-                            wrapPreservingContext(
-                                new AuthorizationResultListener<>(
-                                    result -> {
-                                        setIndexResolutionException(authzInfo, request, authentication, action);
-                                        handleIndexActionAuthorizationResult(
-                                            result,
-                                            requestInfo,
-                                            requestId,
-                                            authzInfo,
-                                            authzEngine,
-                                            resolvedIndicesAsyncSupplier,
-                                            projectMetadata,
-                                            l
-                                        );
-                                    },
-                                    l::onFailure,
-                                    requestInfo,
-                                    requestId,
-                                    authzInfo
-                                ),
-                                threadContext
-                            )
-                        )
+                        .addListener(wrapPreservingContext(new AuthorizationResultListener<>(result -> {
+                            setIndexResolutionException(authzInfo, request, authentication, action);
+                            handleIndexActionAuthorizationResult(
+                                result,
+                                requestInfo,
+                                requestId,
+                                authzInfo,
+                                authzEngine,
+                                resolvedIndicesAsyncSupplier,
+                                projectMetadata,
+                                l
+                            );
+                        }, l::onFailure, requestInfo, requestId, authzInfo), threadContext))
                 );
             }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e)));
         } else {

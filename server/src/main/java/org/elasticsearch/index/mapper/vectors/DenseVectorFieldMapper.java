@@ -75,7 +75,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorSimilarityFunctionBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.VectorProcessor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -2693,10 +2693,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BlockLoaderFunctionConfig functionConfig = blContext.blockLoaderFunctionConfig();
             if (indexed) {
                 if (functionConfig == null) {
-                    return new DenseVectorBlockLoader(name(), dims, this);
+                    return new DenseVectorBlockLoader<>(name(), dims, this, new VectorProcessor.VectorAppender());
                 }
                 if (functionConfig instanceof VectorSimilarityFunctionConfig similarityConfig) {
-                    return new DenseVectorSimilarityFunctionBlockLoader(name(), this, similarityConfig);
+                    return new DenseVectorBlockLoader<>(name(), dims, this, new VectorProcessor.SimilarityCalculator(similarityConfig));
                 }
                 throw new UnsupportedOperationException("Unknown block loader function config: " + functionConfig.getClass());
             }

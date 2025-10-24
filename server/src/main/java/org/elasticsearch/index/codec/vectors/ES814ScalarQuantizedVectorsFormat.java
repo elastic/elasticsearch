@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors;
 
+import org.apache.lucene.backward_codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;

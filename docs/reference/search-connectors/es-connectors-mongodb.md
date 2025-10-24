@@ -114,7 +114,7 @@ PUT _connector/my-mongodb-connector
   "service_type": "mongodb"
 }
 ```
-%  TEST[skip:can’t test in isolation]
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -197,7 +197,7 @@ Incorrect (`new Date()` will be interpreted as string):
     }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Correct (usage of [$$NOW](https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW)):
 
@@ -226,7 +226,7 @@ Correct (usage of [$$NOW](https://www.mongodb.com/docs/manual/reference/aggregat
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 
 #### Connecting with self-signed or custom CA TLS Cert [es-connectors-mongodb-client-known-issues-tls-with-invalid-cert]
@@ -290,7 +290,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -415,7 +415,7 @@ For `find` queries, the structure of this JSON DSL should look like:
 	}
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 For example:
 
@@ -433,7 +433,7 @@ For example:
 	}
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 `find` queries also support additional options, for example the `projection` object:
 
@@ -454,7 +454,7 @@ For example:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Where the available options are:
 
@@ -487,7 +487,7 @@ Similarly, for aggregation pipelines, the structure of the JSON DSL should look 
     }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Where the available options are:
 

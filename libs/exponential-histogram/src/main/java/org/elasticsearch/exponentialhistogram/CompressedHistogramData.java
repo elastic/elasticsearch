@@ -117,11 +117,10 @@ final class CompressedHistogramData {
         }
         output.write((byte) scaleWithFlags);
         if (hasNegativeBuckets) {
-            ByteArrayOutputStream temp = new ByteArrayOutputStream();
+            AccessibleByteArrayOutputStream temp = new AccessibleByteArrayOutputStream();
             BucketsDecoder.serializeBuckets(temp, negativeBuckets);
-            byte[] data = temp.toByteArray();
-            writeVLong(data.length, output);
-            output.write(data);
+            writeVLong(temp.size(), output);
+            output.write(temp.getBufferDirect(), 0, temp.size());
         }
         BucketsDecoder.serializeBuckets(output, positiveBuckets);
     }
@@ -250,6 +249,14 @@ final class CompressedHistogramData {
                 prevIndex = index;
             }
         }
+    }
+
+    private static class AccessibleByteArrayOutputStream extends ByteArrayOutputStream {
+
+        byte[] getBufferDirect() {
+            return buf;
+        }
+
     }
 
     private static class AccessibleByteArrayStreamInput extends ByteArrayInputStream {

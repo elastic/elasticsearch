@@ -1558,6 +1558,11 @@ public class EsqlCapabilities {
          * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
          */
         FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
+
+        /**
+         * Catch-and-rethrow determinization complexity errors as 400s rather than 500s
+         */
+        HANDLE_DETERMINIZATION_COMPLEXITY,
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

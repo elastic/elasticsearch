@@ -2692,15 +2692,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             BlockLoaderFunctionConfig functionConfig = blContext.blockLoaderFunctionConfig();
             if (indexed) {
-                final DenseVectorBlockLoaderProcessor loaderProcessor;
                 if (functionConfig == null) {
-                    loaderProcessor = new DenseVectorBlockLoaderProcessor.DenseVectorLoaderProcessor();
+                    return new DenseVectorBlockLoader<>(
+                        name(),
+                        dims,
+                        this,
+                        new DenseVectorBlockLoaderProcessor.DenseVectorLoaderProcessor()
+                    );
                 } else if (functionConfig instanceof VectorSimilarityFunctionConfig similarityConfig) {
-                    loaderProcessor = new DenseVectorBlockLoaderProcessor.DenseVectorSimilarityProcessor(similarityConfig);
+                    return new DenseVectorBlockLoader<>(
+                        name(),
+                        dims,
+                        this,
+                        new DenseVectorBlockLoaderProcessor.DenseVectorSimilarityProcessor(similarityConfig)
+                    );
                 } else {
                     throw new UnsupportedOperationException("Unknown block loader function config: " + functionConfig.getClass());
                 }
-                return new DenseVectorBlockLoader<>(name(), dims, this, loaderProcessor);
             }
 
             if (functionConfig != null) {

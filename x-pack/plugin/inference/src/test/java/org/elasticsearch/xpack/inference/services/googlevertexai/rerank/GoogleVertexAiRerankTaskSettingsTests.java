@@ -134,7 +134,7 @@ public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerial
 
     @Override
     protected GoogleVertexAiRerankTaskSettings mutateInstance(GoogleVertexAiRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, GoogleVertexAiRerankTaskSettingsTests::createRandom);
+        return new GoogleVertexAiRerankTaskSettings(randomValueOtherThan(instance.topN(), () -> randomFrom(randomNonNegativeInt(), null)));
     }
 
     @Override

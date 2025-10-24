@@ -139,7 +139,17 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
 
     @Override
     protected VoyageAIRerankTaskSettings mutateInstance(VoyageAIRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, VoyageAIRerankTaskSettingsTests::createRandom);
+        var topKDocumentsOnly = instance.getTopKDocumentsOnly();
+        var doReturnDocuments = instance.getReturnDocuments();
+        var truncation = instance.getTruncation();
+        switch (randomInt(2)) {
+            case 0 -> topKDocumentsOnly = randomValueOtherThan(topKDocumentsOnly, () -> randomFrom(randomIntBetween(1, 10), null));
+            case 1 -> doReturnDocuments = randomValueOtherThan(doReturnDocuments, () -> randomFrom(randomBoolean(), null));
+            case 2 -> truncation = randomValueOtherThan(truncation, () -> randomFrom(randomBoolean(), null));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new VoyageAIRerankTaskSettings(topKDocumentsOnly, doReturnDocuments, truncation);
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

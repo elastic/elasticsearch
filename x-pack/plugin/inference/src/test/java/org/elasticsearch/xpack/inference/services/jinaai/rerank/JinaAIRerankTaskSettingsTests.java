@@ -109,7 +109,13 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     @Override
     protected JinaAIRerankTaskSettings mutateInstance(JinaAIRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, JinaAIRerankTaskSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var topNDocumentsOnly = randomValueOtherThan(instance.getTopNDocumentsOnly(), () -> randomFrom(randomIntBetween(1, 10), null));
+            return new JinaAIRerankTaskSettings(topNDocumentsOnly, instance.getReturnDocuments());
+        } else {
+            var returnDocuments = randomValueOtherThan(instance.getReturnDocuments(), () -> randomFrom(randomBoolean(), null));
+            return new JinaAIRerankTaskSettings(instance.getTopNDocumentsOnly(), returnDocuments);
+        }
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

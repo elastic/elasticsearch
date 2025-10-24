@@ -1583,7 +1583,7 @@ public class EsqlCapabilities {
          * Catch-and-rethrow determinization complexity errors as 400s rather than 500s
          */
         HANDLE_DETERMINIZATION_COMPLEXITY,
-        
+
         /**
          * Support for the TRANGE function
          */

@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
@@ -202,5 +203,50 @@ public class CloneIndexIT extends ESIntegTestCase {
                 .get();
         });
         assertThat(error.getMessage(), containsString("can't override index sort when resizing an index"));
+    }
+
+    /**
+     * Test that cloning a logsdb index with a non-default timestamp mapping doesn't result in any mapping conflicts.
+     */
+    public void testCloneLogsdbIndexWithNonDefaultTimestamp() {
+        // Create a logsdb index with a date_nanos @timestamp field
+        final var settings = indexSettings(1, randomInt(internalCluster().numDataNodes() - 1)).put("index.mode", "logsdb")
+            .put("index.blocks.write", true);
+        prepareCreate("source").setSettings(settings).setMapping("@timestamp", "type=date_nanos").get();
+        ensureGreen();
+
+        // Clone the index
+        indicesAdmin().prepareResizeIndex("source", "target").setResizeType(ResizeType.CLONE).get();
+
+        // Verify that the target index has the correct @timestamp mapping
+        final var targetMappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "target").get();
+        assertThat(
+            ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
+            equalTo("date_nanos")
+        );
+    }
+
+    /**
+     * Test that cloning a time series index with a non-default timestamp mapping doesn't result in any mapping conflicts.
+     */
+    public void testCloneTimeSeriesIndexWithNonDefaultTimestamp() {
+        // Create a time series index with a date_nanos @timestamp field
+        final var settings = indexSettings(1, randomInt(internalCluster().numDataNodes() - 1)).put("index.mode", "time_series")
+            .put("index.routing_path", "sensor_id")
+            .put("index.blocks.write", true);
+        prepareCreate("source").setSettings(settings)
+            .setMapping("@timestamp", "type=date_nanos", "sensor_id", "type=keyword,time_series_dimension=true")
+            .get();
+        ensureGreen();
+
+        // Clone the index
+        indicesAdmin().prepareResizeIndex("source", "target").setResizeType(ResizeType.CLONE).get();
+
+        // Verify that the target index has the correct @timestamp mapping
+        final var targetMappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "target").get();
+        assertThat(
+            ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
+            equalTo("date_nanos")
+        );
     }
 }

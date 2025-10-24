@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -495,5 +496,30 @@ public class SplitIndexIT extends ESIntegTestCase {
         flushAndRefresh();
         assertSortedSegments("target", expectedIndexSort);
         assertNoResizeSourceIndexSettings("target");
+    }
+
+    /**
+     * Tests that splitting a logsdb index with a non-default timestamp mapping doesn't result in any mapping conflicts.
+     * N.B.: we don't test time_series indices as split is not supported for them.
+     */
+    public void testSplitLogsdbIndexWithNonDefaultTimestamp() {
+        // Create a logsdb index with a date_nanos @timestamp field
+        final var settings = indexSettings(1, randomInt(internalCluster().numDataNodes() - 1)).put("index.mode", "logsdb")
+            .put("index.blocks.write", true);
+        prepareCreate("source").setSettings(settings).setMapping("@timestamp", "type=date_nanos").get();
+        ensureGreen();
+
+        // Split the index
+        indicesAdmin().prepareResizeIndex("source", "target")
+            .setResizeType(ResizeType.SPLIT)
+            .setSettings(Settings.builder().put("index.number_of_shards", 2).build())
+            .get();
+
+        // Verify that the target index has the correct @timestamp mapping
+        final var targetMappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "target").get();
+        assertThat(
+            ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
+            equalTo("date_nanos")
+        );
     }
 }

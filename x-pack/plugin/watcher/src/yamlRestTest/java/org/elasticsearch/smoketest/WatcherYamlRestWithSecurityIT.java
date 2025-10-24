@@ -41,7 +41,7 @@ public class WatcherYamlRestWithSecurityIT extends WatcherYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters("security");
+        return createParameters(new String[] { "security" });
     }
 
     @Before

@@ -25,7 +25,7 @@ public class WatcherYamlRestIT extends WatcherYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters("mustache", "painless", "watcher");
+        return createParameters(new String[] { "mustache", "painless", "watcher" });
     }
 
     @Override

@@ -99,3 +99,12 @@ group:integer,string:keyword,base:integer,expect_long:long,expect_integer:intege
 4,52403,,,,                     TO_LONG("52403"\, null)          == null because base is null
 4,052403,8,21763,21763,         TO_LONG("052403"\, 8)            == 21763
 4,52403,7,12890,12890,          TO_LONG("52403"\, 7)             == 12890
+
+//
+// Test Group 5
+//
+//     For nested calls test    ┌────────────────────────────────────────────┐
+//                                                       8              + 2
+//                                              ┌──────────────────────┐
+//                                      "1000"          "1000"   2
+5,1000,2,1000,1000,             TO_LONG(string\, TO_LONG(string\, base) + 2 ) == 1000

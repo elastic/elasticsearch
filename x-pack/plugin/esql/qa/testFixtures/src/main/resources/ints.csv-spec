@@ -254,6 +254,42 @@ string:keyword | base:integer | to_long:long
 52403          | 7            | 12890
 ;
 
+
+convertStringToLongBaseNestedGroup5
+required_capability: to_long_base
+
+  FROM  base_conversion
+| WHERE group == 5
+| EVAL  part1 = TO_LONG(string, base) + 2
+| EVAL  part2 = TO_LONG(string, part1)
+| KEEP  string, base, part1, part2
+;
+
+string:keyword | base:integer | part1:long | part2:long
+1000           | 2            | 10         | 1000
+;
+
+// same as group5 using a ROW 
+
+convertStringToLongBaseNestedRow
+required_capability: to_long_base
+
+  ROW   string = "1000"
+    ,   base   = 2
+| EVAL  part1 = TO_LONG(string, base) + 2
+| EVAL  part2 = TO_LONG(string, part1)
+| KEEP  string, base, part1, part2
+;
+
+string:keyword | base:integer | part1:long | part2:long
+1000           | 2            | 10         | 1000
+;
+
+
+
+
+
+
 // END esql_to_long_base_133728
 
 convertDoubleToLong

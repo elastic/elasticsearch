@@ -1,0 +1,179 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "*test*"
+        ignore_unavailable: true
+        allow_no_indices: true
+
+---
+"Get sampling configuration after setting it":
+  - do:
+      indices.create:
+        index: test-get-config-index
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      indices.put_sample_configuration:
+        index: test-get-config-index
+        body:
+          rate: 0.5
+          max_samples: 100
+          max_size: "10mb"
+          time_to_live: "1h"
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_sample_configuration:
+        index: test-get-config-index
+        human: true
+
+  - match: { configuration.rate: 0.5 }
+  - match: { configuration.max_samples: 100 }
+  - match: { configuration.max_size: "10mb" }
+  - match: { configuration.time_to_live: "1h" }
+
+---
+"Get sampling configuration with minimal parameters":
+  - do:
+      indices.create:
+        index: test-minimal-config-index
+
+  - do:
+      indices.put_sample_configuration:
+        index: test-minimal-config-index
+        body:
+          rate: 0.1
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_sample_configuration:
+        index: test-minimal-config-index
+        human: true
+
+  - match: { configuration.rate: 0.1 }
+
+---
+"Get sampling configuration with condition":
+  - do:
+      indices.create:
+        index: test-condition-config-index
+
+  - do:
+      indices.put_sample_configuration:
+        index: test-condition-config-index
+        body:
+          rate: 1.0
+          max_samples: 50
+          if: "ctx?.field == 'sample_me'"
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_sample_configuration:
+        index: test-condition-config-index
+        human: true
+
+  - match: { configuration.rate: 1.0 }
+  - match: { configuration.max_samples: 50 }
+  - match: { configuration.if: "ctx?.field == 'sample_me'" }
+
+---
+"Get sampling configuration for non-existent index":
+  - do:
+      catch: missing
+      indices.get_sample_configuration:
+        index: non-existent-index
+
+---
+"Get sampling configuration for index without configuration":
+  - do:
+      indices.create:
+        index: test-no-config-index
+
+  - do:
+      indices.get_sample_configuration:
+        index: test-no-config-index
+        human: true
+
+  # Should return empty or default configuration
+  - is_false: test-no-config-index.sampling
+
+---
+"Get sampling configuration after update":
+  - do:
+      indices.create:
+        index: test-update-config-index
+
+  # Set initial configuration
+  - do:
+      indices.put_sample_configuration:
+        index: test-update-config-index
+        body:
+          rate: 0.3
+          max_samples: 25
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_sample_configuration:
+        index: test-update-config-index
+        human: true
+
+  - match: { configuration.rate: 0.3 }
+  - match: { configuration.max_samples: 25 }
+
+  # Update configuration
+  - do:
+      indices.put_sample_configuration:
+        index: test-update-config-index
+        body:
+          rate: 0.8
+          max_samples: 75
+          max_size: "5mb"
+
+  - match: { acknowledged: true }
+
+  # Verify updated configuration
+  - do:
+      indices.get_sample_configuration:
+        index: test-update-config-index
+        human: true
+
+  - match: { configuration.rate: 0.8 }
+  - match: { configuration.max_samples: 75 }
+  - match: { configuration.max_size: "5mb" }
+
+---
+"Get sampling configuration with master timeout":
+  - do:
+      indices.create:
+        index: test-timeout-config-index
+
+  - do:
+      indices.put_sample_configuration:
+        index: test-timeout-config-index
+        body:
+          rate: 0.7
+          max_samples: 200
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_sample_configuration:
+        index: test-timeout-config-index
+        master_timeout: "30s"
+        human: true
+
+  - match: { configuration.rate: 0.7 }
+  - match: { configuration.max_samples: 200 }

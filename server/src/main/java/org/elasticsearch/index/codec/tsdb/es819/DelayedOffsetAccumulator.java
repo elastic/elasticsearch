@@ -25,7 +25,7 @@ import java.io.IOException;
  *  rather than directly to a DirectMonotonicWriter because the number of values is unknown. If number of
  *  values if known prefer OffsetsWriter.
  */
-final class OffsetsAccumulatorUnknownLength implements Closeable {
+final class DelayedOffsetAccumulator implements Closeable {
     private final Directory dir;
     private final long startOffset;
 
@@ -33,7 +33,7 @@ final class OffsetsAccumulatorUnknownLength implements Closeable {
     private final IndexOutput tempOutput;
     private final String suffix;
 
-    OffsetsAccumulatorUnknownLength(
+    DelayedOffsetAccumulator(
         Directory dir,
         IOContext context,
         IndexOutput data,
@@ -61,8 +61,8 @@ final class OffsetsAccumulatorUnknownLength implements Closeable {
         }
     }
 
-    public void addDoc(long value) throws IOException {
-        tempOutput.writeVLong(value);
+    public void addDoc(long delta) throws IOException {
+        tempOutput.writeVLong(delta);
         numValues++;
     }
 

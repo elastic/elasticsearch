@@ -519,19 +519,19 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         int maxUncompressedBlockLength = 0;
         int numDocsInCurrentBlock = 0;
 
-        // really want ints, but need zero-copy way to convert to ByteBuffer
+        // Store ints, but use byte[] so can be zero-copy converted to ByteBuffer
         byte[] docLengths = new byte[START_BLOCK_DOCS * Integer.BYTES];
         byte[] block = BytesRef.EMPTY_BYTES;
         int totalChunks = 0;
         long maxPointer = 0;
         int maxNumDocsInAnyBlock = 0;
 
-        final OffsetsAccumulatorUnknownLength blockAddressAcc;
-        final OffsetsAccumulatorUnknownLength blockDocRangeAcc;
+        final DelayedOffsetAccumulator blockAddressAcc;
+        final DelayedOffsetAccumulator blockDocRangeAcc;
 
         CompressedBinaryBlockWriter() throws IOException {
             long blockAddressesStart = data.getFilePointer();
-            blockAddressAcc = new OffsetsAccumulatorUnknownLength(
+            blockAddressAcc = new DelayedOffsetAccumulator(
                 state.directory,
                 state.context,
                 data,
@@ -540,7 +540,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             );
 
             try {
-                blockDocRangeAcc = new OffsetsAccumulatorUnknownLength(
+                blockDocRangeAcc = new DelayedOffsetAccumulator(
                     state.directory,
                     state.context,
                     data,

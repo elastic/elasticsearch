@@ -17,7 +17,7 @@ import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import java.io.IOException;
 import java.util.List;
 
-public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCounted implements ExponentialHistogramBlock {
+final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCounted implements ExponentialHistogramBlock {
 
     private final DoubleBlock minima;
     private final DoubleBlock maxima;
@@ -26,7 +26,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
     private final DoubleBlock zeroThresholds;
     private final BytesRefBlock encodedHistograms;
 
-    public ExponentialHistogramArrayBlock(
+    ExponentialHistogramArrayBlock(
         DoubleBlock minima,
         DoubleBlock maxima,
         DoubleBlock sums,

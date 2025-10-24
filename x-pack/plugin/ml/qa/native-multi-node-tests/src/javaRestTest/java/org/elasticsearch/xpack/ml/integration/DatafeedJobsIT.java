@@ -232,7 +232,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(jobBuilder.getId());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63973")
     public void testDatafeedTimingStats_DatafeedRecreated() throws Exception {
         client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
         long numDocs = randomIntBetween(32, 2048);
@@ -254,11 +253,18 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             // Datafeed did not do anything yet, hence search_count is equal to 0.
             assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
             startDatafeed(datafeedId, 0L, now.toEpochMilli());
+            
+            // First, wait for data processing to complete
             assertBusy(() -> {
                 assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs));
-                // Datafeed processed numDocs documents so search_count must be greater than 0.
-                assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
             }, 60, TimeUnit.SECONDS);
+            
+            // Then, wait for datafeed timing stats to be persisted
+            // Datafeed processed numDocs documents so search_count must be greater than 0.
+            assertBusy(() -> {
+                assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
+            }, 30, TimeUnit.SECONDS);
+            
             deleteDatafeed(datafeedId);
             waitUntilJobIsClosed(job.getId());
         };
@@ -788,7 +794,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105239")
     public void testStartDatafeed_GivenTimeout_Returns408() throws Exception {
         client().admin().indices().prepareCreate("data-1").setMapping("time", "type=date").get();
         long numDocs = 100;

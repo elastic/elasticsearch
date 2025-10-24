@@ -13,11 +13,15 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.ShortBuffer;
 
 public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
@@ -50,6 +54,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
         }
         return switch (elementType) {
             case FLOAT -> new FloatDenseVectorFromBinary(docValues, dims, indexVersion);
+            case BFLOAT16 -> new BFloat16DenseVectorFromBinary(docValues, dims, indexVersion);
             case BYTE -> new ByteDenseVectorFromBinary(docValues, dims, indexVersion);
             case BIT -> new BitDenseVectorFromBinary(docValues, dims, indexVersion);
         };
@@ -129,6 +134,32 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
         @Override
         public String toString() {
             return "FloatDenseVectorFromBinary.Bytes";
+        }
+    }
+
+    private static class BFloat16DenseVectorFromBinary extends AbstractDenseVectorFromBinary<float[]> {
+        BFloat16DenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            super(docValues, dims, indexVersion, new float[dims]);
+        }
+
+        @Override
+        protected void writeScratchToBuilder(float[] scratch, BlockLoader.FloatBuilder builder) {
+            for (float value : scratch) {
+                builder.appendFloat(value);
+            }
+        }
+
+        @Override
+        protected void decodeDenseVector(BytesRef bytesRef, float[] scratch) {
+            ShortBuffer sb = ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .asShortBuffer();
+            BFloat16.bFloat16ToFloat(sb, scratch);
+        }
+
+        @Override
+        public String toString() {
+            return "BFloat16DenseVectorFromBinary.Bytes";
         }
     }
 

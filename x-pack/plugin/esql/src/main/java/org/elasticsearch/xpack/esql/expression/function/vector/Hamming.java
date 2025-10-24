@@ -47,11 +47,11 @@ public class Hamming extends VectorSimilarityFunction {
             @Override
             public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
                 byte[] a = new byte[leftScratch.length];
-                byte[] b = new byte[rightScratch.length];
                 for (int i = 0; i < leftScratch.length; i++) {
                     a[i] = (byte) leftScratch[i];
                 }
-                for (int i = 0; i < leftScratch.length; i++) {
+                byte[] b = new byte[rightScratch.length];
+                for (int i = 0; i < rightScratch.length; i++) {
                     b[i] = (byte) rightScratch[i];
                 }
                 return Hamming.calculateSimilarity(a, b);

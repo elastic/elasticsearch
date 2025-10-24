@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -102,6 +104,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -162,6 +165,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -216,6 +220,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ImplicitCastAggregateMetricDoubles()
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
+    );
+    public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(
+        "esql_lookup_join_full_text_function"
     );
 
     private final Verifier verifier;
@@ -532,7 +539,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (plan instanceof LookupJoin j) {
-                return resolveLookupJoin(j);
+                return resolveLookupJoin(j, context);
             }
 
             if (plan instanceof Insist i) {
@@ -721,55 +728,114 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return l;
         }
 
-        private List<Expression> resolveJoinFiltersAndSwapIfNeeded(
-            List<Expression> filters,
-            AttributeSet leftOutput,
-            AttributeSet rightOutput
+        private Expression resolveJoinFiltersAndSwapIfNeeded(
+            Expression joinOnCondition,
+            AttributeSet leftChildOutput,
+            AttributeSet rightChildOutput,
+            List<Attribute> leftJoinKeysToPopulate,
+            List<Attribute> rightJoinKeysToPopulate,
+            AnalyzerContext context
         ) {
-            if (filters.isEmpty()) {
-                return emptyList();
+            if (joinOnCondition == null) {
+                return joinOnCondition;
             }
-            List<Attribute> childrenOutput = new ArrayList<>(leftOutput);
-            childrenOutput.addAll(rightOutput);
+            List<Expression> filters = Predicates.splitAnd(joinOnCondition);
+            List<Attribute> childrenOutput = new ArrayList<>(leftChildOutput);
+            childrenOutput.addAll(rightChildOutput);
 
             List<Expression> resolvedFilters = new ArrayList<>(filters.size());
             for (Expression filter : filters) {
                 Expression filterResolved = filter.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
-                resolvedFilters.add(resolveAndOrientJoinCondition(filterResolved, leftOutput, rightOutput));
+                // Check if the filterResolved contains unresolved attributes, if it does, we cannot process it further
+                // and the error message about the unresolved attribute is already appropriate
+                if (filterResolved.anyMatch(UnresolvedAttribute.class::isInstance)) {
+                    resolvedFilters.add(filterResolved);
+                    continue;
+                }
+                Expression result = resolveAndOrientJoinCondition(
+                    filterResolved,
+                    leftChildOutput,
+                    rightChildOutput,
+                    leftJoinKeysToPopulate,
+                    rightJoinKeysToPopulate,
+                    context
+                );
+                resolvedFilters.add(result);
             }
-            return resolvedFilters;
+            return Predicates.combineAndWithSource(resolvedFilters, joinOnCondition.source());
         }
 
-        private Expression resolveAndOrientJoinCondition(Expression condition, AttributeSet leftOutput, AttributeSet rightOutput) {
+        /**
+         * This function resolves and orients a single join on condition.
+         * We support AND of such conditions, here we handle a single child of the AND
+         * We support the following 2 cases:
+         * 1) Binary comparisons between a left and a right attribute.
+         * We resolve all attributes and orient them so that the attribute on the left side of the join
+         * is on the left side of the binary comparison
+         *  and the attribute from the lookup index is on the right side of the binary comparison
+         * 2) A Lucene pushable expression containing only attributes from the lookup side of the join
+         * We resolve all attributes in the expression, verify they are from the right side of the join
+         * and also verify that the expression is potentially Lucene pushable
+         */
+        private Expression resolveAndOrientJoinCondition(
+            Expression condition,
+            AttributeSet leftChildOutput,
+            AttributeSet rightChildOutput,
+            List<Attribute> leftJoinKeysToPopulate,
+            List<Attribute> rightJoinKeysToPopulate,
+            AnalyzerContext context
+        ) {
             if (condition instanceof EsqlBinaryComparison comp
                 && comp.left() instanceof Attribute leftAttr
                 && comp.right() instanceof Attribute rightAttr) {
 
-                boolean leftIsFromLeft = leftOutput.contains(leftAttr);
-                boolean rightIsFromRight = rightOutput.contains(rightAttr);
+                boolean leftIsFromLeft = leftChildOutput.contains(leftAttr);
+                boolean rightIsFromRight = rightChildOutput.contains(rightAttr);
 
                 if (leftIsFromLeft && rightIsFromRight) {
+                    leftJoinKeysToPopulate.add(leftAttr);
+                    rightJoinKeysToPopulate.add(rightAttr);
                     return comp; // Correct orientation
                 }
 
-                boolean leftIsFromRight = rightOutput.contains(leftAttr);
-                boolean rightIsFromLeft = leftOutput.contains(rightAttr);
+                boolean leftIsFromRight = rightChildOutput.contains(leftAttr);
+                boolean rightIsFromLeft = leftChildOutput.contains(rightAttr);
 
                 if (leftIsFromRight && rightIsFromLeft) {
+                    leftJoinKeysToPopulate.add(rightAttr);
+                    rightJoinKeysToPopulate.add(leftAttr);
                     return comp.swapLeftAndRight(); // Swapped orientation
                 }
+            }
+            if (context.minimumVersion().onOrAfter(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION) == false) {
                 return new UnresolvedAttribute(
                     condition.source(),
                     "unsupported",
-                    "Join condition must be between one attribute on the left side and "
-                        + "one attribute on the right side of the join, but found: "
+                    "Lookup join on condition is not supported on the remote node,"
+                        + " consider upgrading the remote node. Unsupported join filter expression:"
                         + condition.sourceText()
                 );
             }
-            return condition; // Not a binary comparison between two attributes, no change needed.
+            return handleRightOnlyPushableFilter(condition, rightChildOutput);
         }
 
-        private Join resolveLookupJoin(LookupJoin join) {
+        private Expression handleRightOnlyPushableFilter(Expression condition, AttributeSet rightChildOutput) {
+            if (isCompletelyRightSideAndTranslatable(condition, rightChildOutput)) {
+                // The condition is completely on the right side and is translation aware, so it can be (potentially) pushed down
+                return condition;
+            } else {
+                // The condition cannot be used in the join on clause for now
+                // It is not a binary comparison between left and right attributes
+                // It is not using fields from the right side only and translation aware
+                return new UnresolvedAttribute(
+                    condition.source(),
+                    "unsupported",
+                    "Unsupported join filter expression:" + condition.sourceText()
+                );
+            }
+        }
+
+        private Join resolveLookupJoin(LookupJoin join, AnalyzerContext context) {
             JoinConfig config = join.config();
             // for now, support only (LEFT) USING clauses
             JoinType type = config.type();
@@ -785,38 +851,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 List<Attribute> leftKeys = new ArrayList<>();
                 List<Attribute> rightKeys = new ArrayList<>();
-                List<Expression> resolvedFilters = new ArrayList<>();
+                Expression joinOnConditions = null;
                 if (join.config().joinOnConditions() != null) {
-                    resolvedFilters = resolveJoinFiltersAndSwapIfNeeded(
-                        Predicates.splitAnd(join.config().joinOnConditions()),
+                    joinOnConditions = resolveJoinFiltersAndSwapIfNeeded(
+                        join.config().joinOnConditions(),
                         join.left().outputSet(),
-                        join.right().outputSet()
+                        join.right().outputSet(),
+                        leftKeys,
+                        rightKeys,
+                        context
                     );
-                    // build leftKeys and rightKeys using the correct side of the resolvedFilters.
-                    // resolveJoinFiltersAndSwapIfNeeded already put the left and right on the correct side
-                    for (Expression expression : resolvedFilters) {
-                        if (expression instanceof EsqlBinaryComparison binaryComparison
-                            && binaryComparison.left() instanceof Attribute leftAttribute
-                            && binaryComparison.right() instanceof Attribute rightAttribute) {
-                            leftKeys.add(leftAttribute);
-                            rightKeys.add(rightAttribute);
-                        } else {
-                            UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
-                                expression.source(),
-                                "unsupported",
-                                "Unsupported join filter expression:" + expression.sourceText()
-                            );
-                            return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
-
-                        }
-                    }
                 } else {
                     // resolve the using columns against the left and the right side then assemble the new join config
                     leftKeys = resolveUsingColumns(join.config().leftFields(), join.left().output(), "left");
                     rightKeys = resolveUsingColumns(join.config().rightFields(), join.right().output(), "right");
                 }
-
-                config = new JoinConfig(type, leftKeys, rightKeys, Predicates.combineAnd(resolvedFilters));
+                config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
                 return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
             } else {
                 // everything else is unsupported for now
@@ -824,6 +874,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
             }
+        }
+
+        private boolean isCompletelyRightSideAndTranslatable(Expression expression, AttributeSet rightOutputSet) {
+            return rightOutputSet.containsAll(expression.references()) && isTranslatable(expression);
+        }
+
+        private boolean isTranslatable(Expression expression) {
+            // Here we are trying to eliminate cases where the expression is definitely not translatable.
+            // We do this early and without access to search stats for the lookup index that are only on the lookup node,
+            // so we only eliminate some of the not translatable cases here
+            // Later we will do a more thorough check on the lookup node
+            return translatable(expression, LucenePushdownPredicates.DEFAULT) != TranslationAware.Translatable.NO;
         }
 
         private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {

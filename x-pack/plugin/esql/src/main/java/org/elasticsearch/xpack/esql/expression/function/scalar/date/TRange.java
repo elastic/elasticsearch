@@ -17,9 +17,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -68,7 +67,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  *     <li>TRANGE(1715504400000, 1715517000000) - [explicit start in millis; explicit end in millis]</li>
  * </ul>
  */
-public class TRange extends EsqlConfigurationFunction implements OptionalArgument, SurrogateExpression, PostAnalysisPlanVerificationAware {
+public class TRange extends EsqlConfigurationFunction
+    implements
+        OptionalArgument,
+        SurrogateExpression,
+        PostAnalysisPlanVerificationAware,
+        TimestampAware {
     public static final String NAME = "TRange";
 
     public static final String START_TIME_OR_OFFSET_PARAMETER = "start_time_or_offset";
@@ -90,6 +94,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
     )
     public TRange(
         Source source,
+        Expression timestamp,
         @Param(
             name = START_TIME_OR_OFFSET_PARAMETER,
             type = { "time_duration", "date_period", "date", "date_nanos", "keyword", "long" },
@@ -102,10 +107,6 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
             Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""", optional = true) Expression second,
         Configuration configuration
     ) {
-        this(source, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD), first, second, configuration);
-    }
-
-    public TRange(Source source, Expression timestamp, Expression first, Expression second, Configuration configuration) {
         super(source, second != null ? List.of(timestamp, first, second) : List.of(timestamp, first), configuration);
         this.timestamp = timestamp;
         this.first = first;

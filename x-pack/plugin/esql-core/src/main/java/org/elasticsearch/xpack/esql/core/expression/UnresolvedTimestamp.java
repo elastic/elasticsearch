@@ -7,21 +7,27 @@
 
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public class UnresolvedTimestamp extends UnresolvedAttribute {
 
-    private static final String NAME = "@timestamp";
-
-    public static final UnresolvedTimestamp INSTANCE = new UnresolvedTimestamp();
-
-    private UnresolvedTimestamp() {
-        super(Source.EMPTY, NAME);
+    public UnresolvedTimestamp(Source source) {
+        super(source, MetadataAttribute.TIMESTAMP_FIELD);
     }
 
     @Override
     public final DataType dataType() {
         return DataType.DATETIME;
+    }
+
+    public static UnresolvedTimestamp withSource(Source source) {
+        return new UnresolvedTimestamp(source);
+    }
+
+    @Override
+    protected NodeInfo<UnresolvedTimestamp> info() {
+        return NodeInfo.create(this);
     }
 }

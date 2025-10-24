@@ -289,13 +289,13 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
+        assertThat(params.get(0).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+
         if (params.size() == 2) {
-            assertThat(params.get(0).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
             return List.of(params.get(1));
         }
 
         assertThat(params, hasSize(3));
-        assertThat(params.get(0).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
         return List.of(params.get(1), params.get(2));
     }
 

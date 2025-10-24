@@ -2543,7 +2543,7 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1 hour\")", oddSampleDataAnalyzer),
             equalTo(
-                "1:42: second argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
+                "1:42: first argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
             )
         );
         for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
@@ -2552,6 +2552,14 @@ public class VerifierTests extends ESTestCase {
                 containsString("1:50: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
             );
         }
+    }
+
+    public void testfoo() {
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(\"" + "1 minu" + "\")", sampleDataAnalyzer),
+            containsString("1:50: Cannot convert string [" + "1 minu" + "] to [DATE_PERIOD or TIME_DURATION]")
+        );
+
     }
 
     public void testFuse() {

@@ -18,19 +18,19 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.TimestampAttributeSupplier;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Splits dates into a given number of buckets. The span is derived from a time range provided.
  */
-public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implements SurrogateExpression {
+public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implements SurrogateExpression, TimestampAware {
     public static final String NAME = "TBucket";
 
     private final Expression buckets;
@@ -62,17 +62,12 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
     )
     public TBucket(
         Source source,
-        @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets,
-        Expression timestamp
+        Expression timestamp,
+        @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets
     ) {
-        super(source, List.of(buckets, timestamp));
-        this.buckets = buckets;
+        super(source, List.of(timestamp, buckets));
         this.timestamp = timestamp;
-    }
-
-    // needs to remain the 2nd c'tor, as it has same number of arguments as the first one (arrangement required by EsqlNodeSubclassTests)
-    public TBucket(Source source, Expression buckets, TimestampAttributeSupplier timestampSupplier) {
-        this(source, buckets, timestampSupplier.timestampAttribute());
+        this.buckets = buckets;
     }
 
     @Override
@@ -100,8 +95,8 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(buckets, DataType::isTemporalAmount, sourceText(), DEFAULT, "date_period", "time_duration").and(
-            isType(timestamp, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime")
+        return isType(timestamp, DataType::isMillisOrNanos, sourceText(), FIRST, "date_nanos or datetime").and(
+            isType(buckets, DataType::isTemporalAmount, sourceText(), DEFAULT, "date_period", "time_duration")
         );
     }
 
@@ -117,7 +112,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TBucket::new, buckets, timestamp);
+        return NodeInfo.create(this, TBucket::new, timestamp, buckets);
     }
 
     public Expression field() {

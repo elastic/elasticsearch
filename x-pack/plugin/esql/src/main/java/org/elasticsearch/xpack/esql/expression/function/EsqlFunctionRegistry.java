@@ -342,7 +342,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Bucket.class, Bucket::new, "bucket", "bin"),
                 def(Categorize.class, Categorize::new, "categorize"),
-                def(TBucket.class, tcab(TBucket::new), "tbucket") },
+                defTS(TBucket.class, TBucket::new, "tbucket") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -437,7 +437,7 @@ public class EsqlFunctionRegistry {
                 def(DayName.class, DayName::new, "day_name"),
                 def(MonthName.class, MonthName::new, "month_name"),
                 def(Now.class, Now::new, "now"),
-                def(TRange.class, bic(TRange::new), "trange") },
+                defTS(TRange.class, TRange::new, "trange") },
             // spatial
             new FunctionDefinition[] {
                 def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
@@ -762,7 +762,9 @@ public class EsqlFunctionRegistry {
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
-        for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
+        final int offset = 1 // skipping 1st argument, the source
+            + (TimestampAware.class.isAssignableFrom(def.clazz()) ? 1 : 0); // skipping the 2nd argument, the @timestamp
+        for (int i = offset; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
                 boolean isList = List.class.isAssignableFrom(params[i].getType());
                 variadic |= isList;
@@ -990,9 +992,7 @@ public class EsqlFunctionRegistry {
         String... names
     ) {
         FunctionBuilder builder = (source, children, cfg) -> {
-            if (children.size() != 1) {
-                throw new QlIllegalArgumentException("expects exactly one argument");
-            }
+            checkIsUniFunction(children.size());
             return ctorRef.apply(source, children.get(0));
         };
         return def(function, builder, names);
@@ -1042,12 +1042,7 @@ public class EsqlFunctionRegistry {
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> {
-            boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
-            if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
-                throw new QlIllegalArgumentException("expects two or three arguments");
-            } else if (hasMinimumTwo == false && children.size() != 3) {
-                throw new QlIllegalArgumentException("expects exactly three arguments");
-            }
+            checkIsOptionalTriFunction(function, children.size());
             return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
         };
         return def(function, builder, names);
@@ -1227,12 +1222,7 @@ public class EsqlFunctionRegistry {
         String... names
     ) {
         FunctionBuilder builder = (source, children, cfg) -> {
-            boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
-            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
-                throw new QlIllegalArgumentException("expects one or two arguments");
-            } else if (isBinaryOptionalParamFunction == false && children.size() != 2) {
-                throw new QlIllegalArgumentException("expects exactly two arguments");
-            }
+            checkIsOptionalBiFunction(function, children.size());
             return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null, cfg);
         };
         return def(function, builder, names);
@@ -1248,12 +1238,7 @@ public class EsqlFunctionRegistry {
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected <T extends Function> FunctionDefinition def(Class<T> function, TernaryConfigurationAwareBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> {
-            boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
-            if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
-                throw new QlIllegalArgumentException("expects two or three arguments");
-            } else if (hasMinimumTwo == false && children.size() != 3) {
-                throw new QlIllegalArgumentException("expects exactly three arguments");
-            }
+            checkIsOptionalTriFunction(function, children.size());
             return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg);
         };
         return def(function, builder, names);
@@ -1263,24 +1248,36 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
     }
 
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
+    protected static <T extends Function> FunctionDefinition defTS(
         Class<T> function,
-        UnaryTimestampAwareBuilder<T> ctorRef,
+        BinaryBuilder<T> ctorRef,
         String... names
     ) {
-        FunctionBuilder builder = (source, children, timestampSupplier) -> {
-            if (children.size() != 1) {
-                throw new QlIllegalArgumentException("expects exactly one argument");
-            }
-            Expression child = children.get(0);
-            return ctorRef.build(source, child, () -> UnresolvedTimestamp.INSTANCE);
+        checkIsTimestampAware(function);
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsUniFunction(children.size());
+            return ctorRef.build(source, UnresolvedTimestamp.withSource(source), children.get(0));
         };
         return def(function, builder, names);
     }
 
-    protected interface UnaryTimestampAwareBuilder<T> {
-        T build(Source source, Expression one, TimestampAttributeSupplier timestampSupplier);
+    protected static <T extends Function> FunctionDefinition defTS(
+        Class<T> function,
+        TernaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
+        checkIsTimestampAware(function);
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsOptionalBiFunction(function, children.size());
+            return ctorRef.build(
+                source,
+                UnresolvedTimestamp.withSource(source),
+                children.get(0),
+                children.size() == 2 ? children.get(1) : null,
+                cfg
+            );
+        };
+        return def(function, builder, names);
     }
 
     //
@@ -1307,7 +1304,33 @@ public class EsqlFunctionRegistry {
         return function;
     }
 
-    private static <T extends Function> UnaryTimestampAwareBuilder<T> tcab(UnaryTimestampAwareBuilder<T> function) {
-        return function;
+    private static void checkIsTimestampAware(Class<? extends Function> function) {
+        if (TimestampAware.class.isAssignableFrom(function) == false) {
+            throw new IllegalArgumentException("function class [" + function.getSimpleName() + "] is not TimestampAware");
+        }
+    }
+
+    private static void checkIsUniFunction(int childrenSize) {
+        if (childrenSize != 1) {
+            throw new QlIllegalArgumentException("expects exactly one argument");
+        }
+    }
+
+    private static void checkIsOptionalBiFunction(Class<? extends Function> function, int childrenSize) {
+        boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
+        if (isBinaryOptionalParamFunction && (childrenSize > 2 || childrenSize < 1)) {
+            throw new QlIllegalArgumentException("expects one or two arguments");
+        } else if (isBinaryOptionalParamFunction == false && childrenSize != 2) {
+            throw new QlIllegalArgumentException("expects exactly two arguments");
+        }
+    }
+
+    private static void checkIsOptionalTriFunction(Class<? extends Function> function, int childrenSize) {
+        boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
+        if (hasMinimumTwo && (childrenSize > 3 || childrenSize < 2)) {
+            throw new QlIllegalArgumentException("expects two or three arguments");
+        } else if (hasMinimumTwo == false && childrenSize != 3) {
+            throw new QlIllegalArgumentException("expects exactly three arguments");
+        }
     }
 }

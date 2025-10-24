@@ -21,6 +21,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -47,6 +48,11 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     @BeforeClass
     public static void setDebugLogLevel() {
         Configurator.setLevel(SearchService.class, Level.DEBUG);
+    }
+
+    @After
+    public void clearExpectations() {
+        ErrorTraceHelper.clearExpectations(internalCluster());
     }
 
     private void setupIndexWithDocs() {

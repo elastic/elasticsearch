@@ -626,7 +626,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
             meta.writeLong(dataDocRangeStart);
             blockDocRangeAcc.build(meta, data);
-            long docRangesLen = data.getFilePointer() - dataAddressesStart;
+            long docRangesLen = data.getFilePointer() - dataDocRangeStart;
             meta.writeLong(docRangesLen);
         }
 

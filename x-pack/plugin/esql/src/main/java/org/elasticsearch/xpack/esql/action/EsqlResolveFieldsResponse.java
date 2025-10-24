@@ -13,6 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 
@@ -21,6 +22,17 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
         "esql_resolve_fields_response_created"
     );
 
+    /**
+     * Marks when we started using the minimum transport version to determine whether a data type is supported on all nodes.
+     * This is about the coordinator - data nodes will be able to respond with the correct data as long as they're on the
+     * transport version required for the respective data types. See {@link DataType#supportedVersion()}.
+     * <p>
+     * Note: this is in 9.2.1, but not 9.2.0 - in 9.2.0 we resorted to workarounds to sometimes enable {@link DataType#DENSE_VECTOR} and
+     * {@link DataType#AGGREGATE_METRIC_DOUBLE}, even though 9.2.0 nodes already support these types.
+     * <p>
+     * This means that mixed clusters with a 9.2.1 coordinator and 9.2.0 data nodes will properly support these types,
+     * but a 9.2.0 coordinator with 9.2.1+ nodes will still require the workaround.
+     */
     public static final TransportVersion RESOLVE_FIELDS_RESPONSE_USED_TV = TransportVersion.fromName("esql_resolve_fields_response_used");
 
     private final FieldCapabilitiesResponse caps;

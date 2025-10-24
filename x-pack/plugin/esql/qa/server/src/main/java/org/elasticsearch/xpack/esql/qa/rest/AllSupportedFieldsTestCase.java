@@ -47,6 +47,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_USED_TV;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.INDEX_SOURCE;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -72,8 +73,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
-
-    private static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -639,6 +638,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case HALF_FLOAT, SCALED_FLOAT, FLOAT -> equalTo("double");
             case NULL -> equalTo("keyword");
             case AGGREGATE_METRIC_DOUBLE -> {
+                // RESOLVE_FIELDS_RESPONSE_USED_TV is newer and technically sufficient to check.
+                // We also check for ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION for clarity.
+                // Future data types added here should only require the TV when they were created,
+                // because it will be after RESOLVE_FIELDS_RESPONSE_USED_TV.
                 if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
                     || minVersion().supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
                     yield equalTo("unsupported");

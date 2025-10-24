@@ -351,12 +351,13 @@ public class RankVectorsScoreScriptUtils {
                         yield new MaxSimByteDotProduct(scoreScript, field, bytesOrList.list);
                     }
                 }
-                case FLOAT, BFLOAT16 -> {
+                case FLOAT -> {
                     if (queryVector instanceof List) {
                         yield new MaxSimFloatDotProduct(scoreScript, field, (List<List<Number>>) queryVector);
                     }
                     throw new IllegalArgumentException("Unsupported input object for float vectors: " + queryVector.getClass().getName());
                 }
+                case BFLOAT16 -> throw new IllegalArgumentException("Unsupported element type: bfloat16");
             };
         }
 

@@ -341,7 +341,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizedProjectsResolver = mock(AuthorizedProjectsResolver.class);
         doAnswer(invocation -> {
             ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
-            callback.onResponse(TargetProjects.NOT_CROSS_PROJECT);
+            callback.onResponse(TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
             return null;
         }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
         crossProjectModeDecider = mock(CrossProjectModeDecider.class);
@@ -3894,7 +3894,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(expressions.getFirst(), equalTo(resolvedIndexExpression("available-index", Set.of("available-index"), SUCCESS)));
 
         assertThat(expressions.get(1).original(), equalTo("not-available-index"));
-        assertThat(expressions.get(1).localExpressions().expressions(), empty());
+        assertThat(expressions.get(1).localExpressions().indices(), empty());
         assertThat(expressions.get(1).localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
         assertThat(
             expressions.get(1).localExpressions().exception().getMessage(),

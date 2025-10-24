@@ -48,8 +48,7 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
         description = "Calculates the absolute change of a gauge field in a time window.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
-        examples = { @Example(file = "k8s-timeseries-delta", tag = "delta") },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command"
+        examples = { @Example(file = "k8s-timeseries-delta", tag = "delta") }
     )
     public Delta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));

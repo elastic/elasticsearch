@@ -67,7 +67,7 @@ required_capability: delta_ts_agg
 // tag::delta[]
 TS k8s
 | WHERE pod == "one" 
-| STATS tx = sum(delta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| STATS tx = SUM(DELTA(network.bytes_in)) BY cluster, time_bucket = TBUCKET(10minute)
 // end::delta[]
 | SORT time_bucket, cluster | LIMIT 10;
 

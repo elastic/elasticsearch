@@ -121,6 +121,7 @@ To retrieve vector values explicitly, you can use:
     "fields": ["my_vector"]
   }
   ```
+  % TEST[continued]
 
 - The `_source.exclude_vectors` flag to re-enable vector inclusion in `_source` responses:
 
@@ -132,6 +133,7 @@ To retrieve vector values explicitly, you can use:
     }
   }
   ```
+  % TEST[continued]
 
 :::{tip}
 For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
@@ -445,6 +447,7 @@ POST /my-bit-vectors/_bulk?refresh
 {"index": {"_id" : "2"}}
 {"my_vector": "8100012a7f"} <2>
 ```
+% TEST[continued]
 
 1. 5 bytes representing the 40 bit dimensioned vector
 2. A hexidecimal string representing the 40 bit dimensioned vector
@@ -463,35 +466,36 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
   }
 }
 ```
+% TEST[continued]
 
 ```console-result
 {
-    "hits": {
-        "hits": [
-            {
-                "_index": "my-bit-vectors",
-                "_id": "1",
-                "_score": 1.0,
-                "_source": {
-                    "my_vector": [
-                        127,
-                        -127,
-                        0,
-                        1,
-                        42
-                    ]
-                }
-            },
-            {
-                "_index": "my-bit-vectors",
-                "_id": "2",
-                "_score": 0.55,
-                "_source": {
-                    "my_vector": "8100012a7f"
-                }
-            }
-        ]
-    }
+  "hits": {
+    "hits": [
+      {
+        "_index": "my-bit-vectors",
+        "_id": "1",
+        "_score": 1,
+        "_source": {
+          "my_vector": [
+            127,
+            -127,
+            0,
+            1,
+            42
+          ]
+        }
+      },
+      {
+        "_index": "my-bit-vectors",
+        "_id": "2",
+        "_score": 0.55,
+        "_source": {
+          "my_vector": "8100012a7f"
+        }
+      }
+    ]
+  }
 }
 ```
 
@@ -554,6 +558,7 @@ PUT /my-index-000001/_mapping
     }
 }
 ```
+% TEST[setup:my_index]
 
 Vectors indexed before this change will keep using the `flat` type (raw float32 representation and brute force search for KNN queries).
 

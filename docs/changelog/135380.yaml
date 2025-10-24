@@ -1,0 +1,5 @@
+pr: 135380
+summary: Add DirectIO bulk rescoring
+area: Vector Search
+type: enhancement
+issues: []

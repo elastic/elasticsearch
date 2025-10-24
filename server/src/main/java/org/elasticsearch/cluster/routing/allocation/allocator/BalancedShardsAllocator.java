@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
@@ -324,8 +325,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.threshold = threshold;
             avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
             avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
-            avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(allocation.clusterInfo(), metadata, routingNodes);
-            nodes = Collections.unmodifiableMap(buildModelFromAssigned());
+            avgDiskUsageInBytesPerNode = balancingWeights.diskUsageIgnored()
+                ? 0
+                : WeightFunction.avgDiskUsageInBytesPerNode(allocation.clusterInfo(), metadata, routingNodes);
+            nodes = Collections.unmodifiableMap(buildModelFromAssigned(balancingWeights.diskUsageIgnored()));
             this.nodeSorters = balancingWeights.createNodeSorters(nodesArray(), this);
             this.balancingWeights = balancingWeights;
             this.completeEarlyOnShardAssignmentChange = completeEarlyOnShardAssignmentChange;
@@ -1156,10 +1159,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * on the target node which we respect during the allocation / balancing
          * process. In short, this method recreates the status-quo in the cluster.
          */
-        private Map<String, ModelNode> buildModelFromAssigned() {
+        private Map<String, ModelNode> buildModelFromAssigned(boolean diskUsageIgnored) {
             Map<String, ModelNode> nodes = Maps.newMapWithExpectedSize(routingNodes.size());
             for (RoutingNode rn : routingNodes) {
-                ModelNode node = new ModelNode(writeLoadForecaster, metadata, allocation.clusterInfo(), rn);
+                ModelNode node = new ModelNode(writeLoadForecaster, metadata, allocation.clusterInfo(), rn, diskUsageIgnored);
                 nodes.put(rn.nodeId(), node);
                 for (ShardRouting shard : rn) {
                     assert rn.nodeId().equals(shard.currentNodeId());
@@ -1344,7 +1347,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     nodeExplanationMap.put(node.getNodeId(), new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
                     nodeWeights.add(Tuple.tuple(node.getNodeId(), currentWeight));
                 }
-                if (currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE) {
+                if (currentDecision.type() == Type.YES
+                    || currentDecision.type() == Type.THROTTLE
+                    || currentDecision.type() == Type.NOT_PREFERRED) {
                     final boolean updateMinNode;
                     if (currentWeight == minWeight) {
                         /*  we have an equal weight tie breaking:
@@ -1365,10 +1370,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId))
                                 && (nodeHigh < minNodeHigh)) || (nodeHigh > repId && minNodeHigh < repId));
                         } else {
-                            updateMinNode = currentDecision.type() == Type.YES;
+                            // always prefer a YES, prefer anything over a NOT_PREFERRED
+                            updateMinNode = currentDecision.type() == Type.YES || decision.type() == Type.NOT_PREFERRED;
                         }
                     } else {
-                        updateMinNode = currentWeight < minWeight;
+                        updateMinNode = preferNewDecisionOverExisting(currentDecision, currentWeight, decision, minWeight);
                     }
                     if (updateMinNode) {
                         minNode = node;
@@ -1393,6 +1399,41 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
             return AllocateUnassignedDecision.fromDecision(decision, minNode != null ? minNode.routingNode.node() : null, nodeDecisions);
+        }
+
+        /**
+         * Decide whether to take a new allocation decision/weight over the existing allocation decision/weight
+         * <p>
+         * We take the lowest weight decision, but we always prefer {@code YES} or {@code THROTTLE} decisions over {@code NOT_PREFERRED}
+         *
+         * @param newDecision The new decision
+         * @param newWeight The new weight
+         * @param existingDecision The existing decision, or null if there is no existing decision
+         * @param existingWeight The existing weight, or {@link Float#POSITIVE_INFINITY} if there is no existing weight
+         * @return true to take the new decision/weight, false to keep the existing decision/weight
+         */
+        private static boolean preferNewDecisionOverExisting(
+            Decision newDecision,
+            float newWeight,
+            @Nullable Decision existingDecision,
+            float existingWeight
+        ) {
+            assert newDecision != null : "newDecision should never be null";
+            assert newDecision.type() == Type.YES || newDecision.type() == Type.NOT_PREFERRED || newDecision.type() == Type.THROTTLE
+                : "unsupported decision type: " + newDecision.type();
+            assert newWeight != existingWeight : "Equal weights should be handled elsewhere";
+            if (existingDecision == null) {
+                // This is the first YES/NOT_PREFERRED/THROTTLE decision we've seen, take it
+                return true;
+            } else if (existingDecision.type() == newDecision.type()) {
+                // Decision types are the same, take the lower weight
+                return newWeight < existingWeight;
+            } else {
+                // Decision types are different, take the lower weight unless it's NOT_PREFERRED
+                float adjustedNewWeight = newDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : newWeight;
+                float adjustedExistingWeight = existingDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : existingWeight;
+                return adjustedNewWeight < adjustedExistingWeight;
+            }
         }
 
         private static final Comparator<ShardRouting> BY_DESCENDING_SHARD_ID = (s1, s2) -> Integer.compare(s2.id(), s1.id());
@@ -1476,13 +1517,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final ClusterInfo clusterInfo;
         private final RoutingNode routingNode;
         private final Map<ProjectIndex, ModelIndex> indices;
+        private final boolean diskUsageIgnored;
 
-        public ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, ClusterInfo clusterInfo, RoutingNode routingNode) {
+        public ModelNode(
+            WriteLoadForecaster writeLoadForecaster,
+            Metadata metadata,
+            ClusterInfo clusterInfo,
+            RoutingNode routingNode,
+            boolean diskUsageIgnored
+        ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.metadata = metadata;
             this.clusterInfo = clusterInfo;
             this.routingNode = routingNode;
             this.indices = Maps.newMapWithExpectedSize(routingNode.size() + 10);// some extra to account for shard movements
+            this.diskUsageIgnored = diskUsageIgnored;
         }
 
         public ModelIndex getIndex(ProjectIndex index) {
@@ -1527,7 +1576,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             indices.computeIfAbsent(index, t -> new ModelIndex()).addShard(shard);
             IndexMetadata indexMetadata = metadata.getProject(index.project).index(shard.index());
             writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            diskUsageInBytes += Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
+            if (diskUsageIgnored == false) {
+                diskUsageInBytes += Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
+            }
             numShards++;
         }
 
@@ -1541,7 +1592,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
             IndexMetadata indexMetadata = metadata.getProject(projectIndex.project).index(shard.index());
             writeLoad -= writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            diskUsageInBytes -= Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
+            if (diskUsageIgnored == false) {
+                diskUsageInBytes -= Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
+            }
             numShards--;
         }
 
@@ -1656,7 +1709,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public float minWeightDelta() {
-            return function.minWeightDelta(balancer.getShardWriteLoad(index), balancer.maxShardSizeBytes(index));
+            return function.minWeightDelta(
+                balancer.getShardWriteLoad(index),
+                balancer.balancingWeights.diskUsageIgnored() ? 0 : balancer.maxShardSizeBytes(index)
+            );
         }
 
         @Override

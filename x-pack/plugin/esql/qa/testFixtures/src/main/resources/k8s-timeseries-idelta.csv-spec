@@ -152,7 +152,7 @@ idelta_all_value_types
 required_capability: ts_command_v0
 // tag::idelta[]
 TS k8s 
-| STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute)
+| STATS events = SUM(IDELTA(events_received)) by pod, time_bucket = TBUCKET(10minute)
 // end::idelta[]
 | SORT events desc, pod, time_bucket | LIMIT 10 ;
 

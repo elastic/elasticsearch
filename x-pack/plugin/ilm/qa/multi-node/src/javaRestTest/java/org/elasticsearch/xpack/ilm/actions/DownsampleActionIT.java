@@ -23,9 +23,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DownsampleActionIT extends ESRestTestCase {
+public class DownsampleActionIT extends IlmESRestTestCase {
 
     private String index;
     private String policy;
@@ -194,7 +194,12 @@ public class DownsampleActionIT extends ESRestTestCase {
         // Create the ILM policy
         String phaseName = randomFrom("warm", "cold");
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            phaseName,
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+        );
 
         // Create a time series index managed by the policy
         createIndex(index, alias, policy, true);
@@ -228,7 +233,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 client(),
                 policy,
                 "hot",
-                new DownsampleAction(ConfigTestHelpers.randomInterval(), DownsampleAction.DEFAULT_WAIT_TIMEOUT)
+                new DownsampleAction(ConfigTestHelpers.randomInterval(), DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
             )
         );
         assertTrue(
@@ -246,7 +251,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             RolloverAction.NAME,
             new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
             DownsampleAction.NAME,
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT)
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
@@ -305,7 +310,12 @@ public class DownsampleActionIT extends ESRestTestCase {
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            "warm",
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+        );
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
@@ -353,7 +363,12 @@ public class DownsampleActionIT extends ESRestTestCase {
     public void testILMWaitsForTimeSeriesEndTimeToLapse() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            "warm",
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+        );
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
@@ -396,7 +411,12 @@ public class DownsampleActionIT extends ESRestTestCase {
         // Create the ILM policy
         String phaseName = randomFrom("warm", "cold");
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            phaseName,
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+        );
 
         // Create a non TSDB managed index
         createIndex(index, alias, policy, false);

@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -159,6 +160,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            String type = in.readOptionalString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
         id = in.readOptionalString();
         routing = in.readOptionalString();
         boolean beforeSourceContext = in.getTransportVersion().supports(INDEX_SOURCE) == false;
@@ -212,7 +217,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireDataStream = false;
         }
 
-        includeSourceOnError = in.readBoolean();
+        if (in.getTransportVersion().before(TransportVersions.V_8_17_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                in.readZLong(); // obsolete normalisedBytesParsed
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                in.readBoolean(); // obsolete originatesFromUpdateByScript
+                in.readBoolean(); // obsolete originatesFromUpdateByDoc
+            }
+        }
+
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            includeSourceOnError = in.readBoolean();
+        } // else default value is true
 
         if (in.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             tsid = in.readBytesRefOrNullIfEmpty();
@@ -745,6 +762,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     private void writeBody(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         if (out.getTransportVersion().supports(INDEX_SOURCE)) {
@@ -788,7 +808,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireDataStream);
         }
 
-        out.writeBoolean(includeSourceOnError);
+        if (out.getTransportVersion().before(TransportVersions.V_8_17_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                out.writeZLong(-1);  // obsolete normalisedBytesParsed
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                out.writeBoolean(false); // obsolete originatesFromUpdateByScript
+                out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
+            }
+        }
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            out.writeBoolean(includeSourceOnError);
+        }
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             out.writeBytesRef(tsid);
         }
@@ -895,6 +926,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public int route(IndexRouting indexRouting) {
         return indexRouting.indexShard(this);
+    }
+
+    @Override
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.rerouteToTarget(this);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

@@ -24,7 +24,6 @@
         }
       ]
     },
-    "params": {},
     "body": {
       "description": "The request to create a cross-cluster API key",
       "required": true

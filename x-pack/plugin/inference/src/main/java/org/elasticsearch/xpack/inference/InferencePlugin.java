@@ -331,8 +331,6 @@ public class InferencePlugin extends Plugin
             services.threadPool()
         );
 
-        var eisComponents = new ElasticInferenceServiceComponents(inferenceServiceSettings.getElasticInferenceServiceUrl());
-
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
             new AuthorizationPoller.Parameters(
@@ -340,7 +338,6 @@ public class InferencePlugin extends Plugin
                 authorizationHandler,
                 elasticInferenceServiceFactory.get().createSender(),
                 inferenceServiceSettings,
-                eisComponents,
                 modelRegistry.get(),
                 services.client()
             )

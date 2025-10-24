@@ -27,6 +27,7 @@ import java.util.HashMap;
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.SYNTHETIC_ID;
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.TIMESTAMP;
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.TS_ID;
+import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.TS_ROUTING_HASH;
 
 /**
  * Special codec for time-series datastreams that use synthetic ids.
@@ -83,6 +84,13 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
                 assert false : message;
                 throw new IllegalArgumentException(message);
             }
+            // Ensure _ts_routing_hash exists
+            fi = fieldInfos.fieldInfo(TS_ROUTING_HASH);
+            if (fi == null) {
+                var message = "Field [" + TS_ROUTING_HASH + "] does not exist";
+                assert false : message;
+                throw new IllegalArgumentException(message);
+            }
             // Ensure _id exists and not indexed
             fi = fieldInfos.fieldInfo(SYNTHETIC_ID);
             if (fi == null) {
@@ -102,6 +110,49 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
         @Override
         public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos fieldInfos, IOContext context)
             throws IOException {
+
+            // Change the _id field index options from IndexOptions.DOCS to IndexOptions.NONE
+            final var infos = new FieldInfo[fieldInfos.size()];
+            int i = 0;
+            for (FieldInfo fi : fieldInfos) {
+                if (SYNTHETIC_ID.equals(fi.getName())) {
+                    final var attributes = new HashMap<>(fi.attributes());
+
+                    // Assert that PerFieldPostingsFormat are not present or have the expected format and suffix
+                    assert attributes.get(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY) == null
+                        || TSDBSyntheticIdPostingsFormat.FORMAT_NAME.equals(attributes.get(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY));
+                    assert attributes.get(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY) == null
+                        || TSDBSyntheticIdPostingsFormat.SUFFIX.equals(attributes.get(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY));
+
+                    // Remove attributes if present
+                    attributes.remove(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY);
+                    attributes.remove(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY);
+
+                    fi = new FieldInfo(
+                        fi.getName(),
+                        fi.getFieldNumber(),
+                        fi.hasTermVectors(),
+                        true,
+                        fi.hasPayloads(),
+                        IndexOptions.NONE,
+                        fi.getDocValuesType(),
+                        fi.docValuesSkipIndexType(),
+                        fi.getDocValuesGen(),
+                        attributes,
+                        fi.getPointDimensionCount(),
+                        fi.getPointIndexDimensionCount(),
+                        fi.getPointNumBytes(),
+                        fi.getVectorDimension(),
+                        fi.getVectorEncoding(),
+                        fi.getVectorSimilarityFunction(),
+                        fi.isSoftDeletesField(),
+                        fi.isParentField()
+                    );
+                }
+                infos[i++] = fi;
+            }
+
+            fieldInfos = new FieldInfos(infos);
             ensureSyntheticIdFields(fieldInfos);
             delegate.write(directory, segmentInfo, segmentSuffix, fieldInfos, context);
         }

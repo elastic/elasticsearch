@@ -1067,7 +1067,13 @@ public class InternalEngine extends Engine {
                 directoryReader -> {
                     if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
                         assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
-                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), op.id(), loadSeqNo);
+                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                            directoryReader,
+                            op.uid(),
+                            op.id(),
+                            loadSeqNo,
+                            useTsdbSyntheticId
+                        );
                     } else {
                         return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
                     }
@@ -1859,8 +1865,10 @@ public class InternalEngine extends Engine {
         try {
             final ParsedDocument tombstone = ParsedDocument.deleteTombstone(
                 engineConfig.getIndexSettings().seqNoIndexOptions(),
+                engineConfig.getIndexSettings().useDocValuesSkipper(),
                 useTsdbSyntheticId,
-                delete.id()
+                delete.id(),
+                delete.uid()
             );
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
@@ -1869,6 +1877,7 @@ public class InternalEngine extends Engine {
             assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
                 : "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
             doc.add(softDeletesField);
+            logDocumentsDetails(List.of(doc));
             if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                 indexWriter.addDocument(doc);
             } else {

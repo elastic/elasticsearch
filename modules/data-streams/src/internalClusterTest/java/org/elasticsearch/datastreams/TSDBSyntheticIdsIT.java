@@ -34,15 +34,18 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Random;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,51 +100,56 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     @TestLogging(reason = "debug", value = "org.elasticsearch.index.engine.Engine:TRACE")
     public void testSyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        final var indexName = randomIdentifier();
-        putDataStreamTemplate(random(), indexName);
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 3));
 
+        final var docs = new HashMap<String, String>();
+        final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
         final var timestamp = Instant.now();
 
-        // Index 5 docs in datastream
+        // Index 10 docs in datastream
+        //
+        // For convenience, the metric value maps the index in the bulk response items
         var results = createDocuments(
-            indexName,
-            document(timestamp, "vm-dev01", "cpu-load", 0),                                // will be updated
-            document(timestamp.plusSeconds(2), "vm-dev01", "cpu-load", 1),    // will be deleted
-            document(timestamp, "vm-dev02", "cpu-load", 2),
-            document(timestamp.plusSeconds(2), "vm-dev03", "cpu-load", 3),
-            document(timestamp.plusSeconds(3), "vm-dev03", "cpu-load", 4)
+            dataStreamName,
+            // t + 0s
+            document(timestamp, "vm-dev01", "cpu-load", 0),
+            document(timestamp, "vm-dev02", "cpu-load", 1),
+            // t + 1s
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            // t + 0s out-of-order doc
+            document(timestamp, "vm-dev03", "cpu-load", 4),
+            // t + 2s
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6),
+            // t - 1s out-of-order doc
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7),
+            // t + 3s
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9)
         );
 
-        // Verify documents
-        assertThat(results[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        assertThat(results[0].getVersion(), equalTo(1L));
-
-        assertThat(results[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        assertThat(results[1].getVersion(), equalTo(1L));
-
-        assertThat(results[2].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        assertThat(results[2].getVersion(), equalTo(1L));
-
-        assertThat(results[3].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        assertThat(results[3].getVersion(), equalTo(1L));
-
-        assertThat(results[4].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        assertThat(results[4].getVersion(), equalTo(1L));
-
-        final var docIndex = results[1].getIndex();
-        final var docId = results[1].getId();
+        // Verify that documents are created
+        for (var result : results) {
+            assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(result.getVersion(), equalTo(1L));
+            docs.put(result.getId(), result.getIndex());
+        }
 
         enum Operation {
             FLUSH,
             REFRESH,
             NONE
         }
+
+        // Random flush or refresh or nothing, so that the next GETs are executed on flushed segments or in memory segments.
         switch (randomFrom(Operation.values())) {
             case FLUSH:
-                flush(indexName);
+                flush(dataStreamName);
                 break;
             case REFRESH:
-                refresh(indexName);
+                refresh(dataStreamName);
                 break;
             case NONE:
             default:
@@ -149,46 +157,183 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
 
         // Get by synthetic _id
-        // Note: before synthetic _id this would have required postings on disks
-        var getResponse = client().prepareGet(docIndex, docId).setFetchSource(true).execute().actionGet();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getVersion(), equalTo(1L));
-        var source = asInstanceOf(Map.class, getResponse.getSourceAsMap().get("metric"));
-        assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(1));
+        var randomDocs = randomSubsetOf(randomIntBetween(0, results.length), results);
+        for (var doc : randomDocs) {
+            boolean fetchSource = randomBoolean();
+            var getResponse = client().prepareGet(doc.getIndex(), doc.getId()).setFetchSource(fetchSource).execute().actionGet();
+            assertThat(getResponse.isExists(), equalTo(true));
+            assertThat(getResponse.getVersion(), equalTo(1L));
+
+            if (fetchSource) {
+                var source = asInstanceOf(Map.class, getResponse.getSourceAsMap().get("metric"));
+                assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(doc.getItemId()));
+            }
+        }
 
         // Update by synthetic _id
+        //
         // Note: it doesn't work, is that expected? Is is blocked by IndexRouting.ExtractFromSource.updateShard
+        var updateDocId = randomFrom(docs.keySet());
+        var updateDocIndex = docs.get(updateDocId);
         var exception = expectThrows(IllegalArgumentException.class, () -> {
             var doc = document(timestamp, "vm-dev01", "cpu-load", 10); // update
-            client().prepareUpdate(docIndex, docId).setDoc(doc).get();
+            client().prepareUpdate(updateDocIndex, updateDocId).setDoc(doc).get();
         });
         assertThat(
             exception.getMessage(),
-            containsString("update is not supported because the destination index [" + docIndex + "] is in time_series mode")
+            containsString("update is not supported because the destination index [" + updateDocIndex + "] is in time_series mode")
         );
+
+        // Random flush or refresh or nothing, so that the next DELETEs are executed on flushed segments or in memory segments.
+        switch (randomFrom(Operation.values())) {
+            case FLUSH:
+                flush(dataStreamName);
+                break;
+            case REFRESH:
+                refresh(dataStreamName);
+                break;
+            case NONE:
+            default:
+                break;
+        }
 
         // Delete by synthetic _id
-        var deleteResponse = client().prepareDelete(docIndex, docId).get();
-        assertThat(deleteResponse.getId(), equalTo(docId));
-        assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
-        assertThat(deleteResponse.getVersion(), equalTo(2L));
+        var deletedDocs = randomSubsetOf(randomIntBetween(1, docs.size()), docs.keySet());
+        for (var deletedDocId : deletedDocs) {
+            var deletedDocIndex = docs.get(deletedDocId);
 
-        // Index more docs
-        // TODO Randomize this to have segments only composed of deleted docs
-        createDocuments(
-            indexName,
-            document(timestamp.plusSeconds(4), "vm-dev03", "cpu-load", 5),
-            document(timestamp.plusSeconds(5), "vm-dev03", "cpu-load", 6)
+            // Delete
+            var deleteResponse = client().prepareDelete(deletedDocIndex, deletedDocId).get();
+            assertThat(deleteResponse.getId(), equalTo(deletedDocId));
+            assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
+            assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
+            assertThat(deleteResponse.getVersion(), equalTo(2L));
+
+            // Get returns "not found"
+            var getResponse = client().prepareGet(deletedDocIndex, deletedDocId).get();
+            assertThat(getResponse.getId(), equalTo(deletedDocId));
+            assertThat(getResponse.getIndex(), equalTo(deletedDocIndex));
+            assertThat(getResponse.isExists(), equalTo(false));
+        }
+
+        flushAndRefresh(dataStreamName);
+
+        // Check that synthetic _id field have no postings on disk
+        var indices = new HashSet<>(docs.values());
+        for (var index : indices) {
+            var diskUsage = diskUsage(index);
+            var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
+            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+        }
+
+        /* This does not work :-(
+        assertCheckedResponse(
+            client().prepareSearch(dataStreamName).setTrackTotalHits(true),
+            searchResponse -> {
+                assertHitCount(searchResponse, docs.size() - deletedDocs.size());
+
+                // Verify that search response does not contain deleted docs
+                for (var searchHit : searchResponse.getHits()) {
+                    assertThat(deletedDocs.contains(searchHit.getId()), equalTo(false));
+                }
+            }
+        );*/
+    }
+
+    public void testGetFromTranslogBySyntheticId() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        final var datastreamName = randomIdentifier();
+        putDataStreamTemplate(datastreamName, 1);
+
+        final var docs = new HashMap<String, String>();
+        final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
+        final var timestamp = Instant.now();
+
+        // Index 5 docs in datastream
+        //
+        // For convenience, the metric value maps the index in the bulk response items
+        var results = createDocuments(
+            datastreamName,
+            // t + 0s
+            document(timestamp, "vm-dev01", "cpu-load", 0),
+            document(timestamp, "vm-dev02", "cpu-load", 1),
+            // t + 1s
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            // t + 0s out-of-order doc
+            document(timestamp, "vm-dev03", "cpu-load", 4)
         );
 
-        flushAndRefresh(indexName);
+        // Verify that documents are created
+        for (var result : results) {
+            assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(result.getVersion(), equalTo(1L));
+            docs.put(result.getId(), result.getIndex());
+        }
 
-        // Check that synthetic _id field has no postings on disk
-        var diskUsage = diskUsage(docIndex);
-        var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-        assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+        // Get by synthetic _id
+        //
+        // The documents are in memory buffers: the first GET will trigger the refresh of the internal reader
+        // (see InternalEngine.REAL_TIME_GET_REFRESH_SOURCE) to have an up-to-date searcher to resolve documents ids and versions. It will
+        // also enable the tracking of the locations of documents in the translog (see InternalEngine.trackTranslogLocation) so that next
+        // GETs will be resolved with the translog.
+        var randomDocs = randomSubsetOf(randomIntBetween(1, results.length), results);
+        for (var doc : randomDocs) {
+            var getResponse = client().prepareGet(doc.getIndex(), doc.getId()).setRealtime(true).setFetchSource(true).execute().actionGet();
+            assertThat(getResponse.isExists(), equalTo(true));
+            assertThat(getResponse.getVersion(), equalTo(1L));
 
-        // TODO Search datastream and count hits
+            var source = asInstanceOf(Map.class, getResponse.getSourceAsMap().get("metric"));
+            assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(doc.getItemId()));
+        }
+
+        int metricOffset = results.length;
+
+        // Index 5 more docs
+        results = createDocuments(
+            datastreamName,
+            // t + 2s
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", metricOffset),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", metricOffset + 1),
+            // t - 1s out-of-order doc
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", metricOffset + 2),
+            // t + 3s
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", metricOffset + 3),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", metricOffset + 4)
+        );
+
+        // Verify that documents are created
+        for (var result : results) {
+            assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(result.getVersion(), equalTo(1L));
+            docs.put(result.getId(), result.getIndex());
+        }
+
+        // Get by synthetic _id
+        //
+        // Documents ids and versions are resolved using the translog. Here we exercise the get-from-translog (that uses the
+        // TranslogDirectoryReader) and VersionsAndSeqNoResolver.loadDocIdAndVersionUncached paths.
+        randomDocs = randomSubsetOf(randomIntBetween(1, results.length), results);
+        for (var doc : randomDocs) {
+            var getResponse = client().prepareGet(doc.getIndex(), doc.getId()).setRealtime(true).setFetchSource(true).execute().actionGet();
+            assertThat(getResponse.isExists(), equalTo(true));
+            assertThat(getResponse.getVersion(), equalTo(1L));
+
+            var source = asInstanceOf(Map.class, getResponse.getSourceAsMap().get("metric"));
+            assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(metricOffset + doc.getItemId()));
+        }
+
+        flushAndRefresh(datastreamName);
+
+        // Check that synthetic _id field have no postings on disk
+        var indices = new HashSet<>(docs.values());
+        for (var index : indices) {
+            var diskUsage = diskUsage(index);
+            var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
+            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+        }
+
+        assertHitCount(client().prepareSearch(datastreamName).setSize(0), 10L);
     }
 
     private static XContentBuilder document(Instant timestamp, String hostName, String metricField, Integer metricValue)
@@ -210,7 +355,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return source;
     }
 
-    private static BulkItemResponse[] createDocuments(String indexName, XContentBuilder... docs) throws IOException {
+    private static BulkItemResponse[] createDocuments(String indexName, XContentBuilder... docs) {
         assertThat(docs, notNullValue());
         final var client = client();
         var bulkRequest = client.prepareBulk();
@@ -222,8 +367,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return bulkResponse.getItems();
     }
 
-    private static void putDataStreamTemplate(Random random, String indexPattern) throws IOException {
-        final var settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+    private static void putDataStreamTemplate(String indexPattern, int shards) throws IOException {
+        final var settings = indexSettings(shards, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);

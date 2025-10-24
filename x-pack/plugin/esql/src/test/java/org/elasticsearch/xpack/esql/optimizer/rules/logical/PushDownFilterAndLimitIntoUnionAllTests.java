@@ -16,10 +16,13 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -46,26 +49,27 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlanOptimizerTests {
 
     /*
-     * Limit[1000[INTEGER],false]
-     * \_UnionAll[[_meta_field{r}#44, emp_no{r}#45, first_name{r}#46, gender{r}#47, hire_date{r}#48, job{r}#49, job.raw{r}#50,
-     *                    languages{r}#51, last_name{r}#52, long_noidx{r}#53, salary{r}#54, language_code{r}#55, language_name{r}#56]]
-     *   |_EsqlProject[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14,
-     *                           languages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, language_code{r}#29, language_name{r}#30]]
-     *   | \_Eval[[null[INTEGER] AS language_code#29, null[KEYWORD] AS language_name#30]]
-     *   |   \_Limit[1000[INTEGER],false]
-     *   |     \_Filter[emp_no{f}#5 > 10000[INTEGER]]
-     *   |       \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-     *   |_EsqlProject[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
-     *                           languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21, language_code{r}#31,
-     *                           language_name{r}#32]]
-     *   | \_Eval[[null[INTEGER] AS language_code#31, null[KEYWORD] AS language_name#32]]
+     *Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#45, emp_no{r}#46, first_name{r}#47, gender{r}#48, hire_date{r}#49, job{r}#50, job.raw{r}#51,
+     *                    languages{r}#52, last_name{r}#53, long_noidx{r}#54, salary{r}#55, language_code{r}#56, language_name{r}#57]]
+     *   |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
+     *                           languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, language_code{r}#30,
+     *                           language_name{r}#31]]
+     *   | \_Eval[[null[INTEGER] AS language_code#30, null[KEYWORD] AS language_name#31]]
+     *   |   \_Limit[1000[INTEGER],false,false]
+     *   |     \_Filter[emp_no{f}#6 > 10000[INTEGER]]
+     *   |       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   |_EsqlProject[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
+     *                           languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22, language_code{r}#32,
+     *                           language_name{r}#33]]
+     *   | \_Eval[[null[INTEGER] AS language_code#32, null[KEYWORD] AS language_name#33]]
      *   |   \_Subquery[]
-     *   |     \_Limit[1000[INTEGER],false]
-     *   |       \_Filter[languages{f}#19 > 0[INTEGER] AND emp_no{f}#16 > 10000[INTEGER]]
-     *   |         \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
-     *   \_LocalRelation[[_meta_field{r}#33, emp_no{r}#34, first_name{r}#35, gender{r}#36, hire_date{r}#37, job{r}#38, job.raw{r}#39,
-     *                               languages{r}#40, last_name{r}#41, long_noidx{r}#42, salary{r}#43, language_code{f}#27,
-     *                               language_name{f}#28],EMPTY]
+     *   |     \_Limit[1000[INTEGER],false,false]
+     *   |       \_Filter[languages{f}#20 > 0[INTEGER] AND emp_no{f}#17 > 10000[INTEGER]]
+     *   |         \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *   \_LocalRelation[[_meta_field{r}#34, emp_no{r}#35, first_name{r}#36, gender{r}#37, hire_date{r}#38, job{r}#39, job.raw{r}#40,
+     *                               languages{r}#41, last_name{r}#42, long_noidx{r}#43, salary{r}#44, language_code{f}#28,
+     *                               language_name{f}#29],EMPTY]
      */
     public void testPushDownSimpleFilterPastUnionAll() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -113,19 +117,19 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false]
-     * \_UnionAll[[_meta_field{r}#26, emp_no{r}#27, first_name{r}#28, gender{r}#29, hire_date{r}#30, job{r}#31, job.raw{r}#32,
-     *                    languages{r}#33, last_name{r}#34, long_noidx{r}#35, salary{r}#36]]
-     *   |_EsqlProject[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13,
-     *                           languages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
-     *   \_EsqlProject[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24,
-     *                           languages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
+     *Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#27, emp_no{r}#28, first_name{r}#29, gender{r}#30, hire_date{r}#31, job{r}#32, job.raw{r}#33,
+     *                    languages{r}#34, last_name{r}#35, long_noidx{r}#36, salary{r}#37]]
+     *   |_EsqlProject[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14,
+     *                           languages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10]]
+     *   | \_Limit[1000[INTEGER],false,false]
+     *   |   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsqlProject[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
+     *                            languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21]]
      *     \_Subquery[]
-     *       \_TopN[[Order[emp_no{f}#15,ASC,LAST]],1000[INTEGER]]
-     *         \_Filter[languages{f}#18 > 0[INTEGER]]
-     *           \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *       \_TopN[[Order[emp_no{f}#16,ASC,LAST]],1000[INTEGER],false]
+     *         \_Filter[languages{f}#19 > 0[INTEGER]]
+     *           \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      */
     public void testPushDownLimitPastSubqueryWithSort() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -156,27 +160,20 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false]
-     * \_UnionAll[[_meta_field{r}#45, emp_no{r}#46, first_name{r}#47, gender{r}#48, hire_date{r}#49, job{r}#50, job.raw{r}#51,
-     *                    languages{r}#52, last_name{r}#53, long_noidx{r}#54, salary{r}#55, language_code{r}#56, language_name{r}#57]]
+     *Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
+     *                    languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
      *   |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
-     *                           languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, language_code{r}#30,
-     *                           language_name{r}#31]]
-     *   | \_Eval[[null[INTEGER] AS language_code#30, null[KEYWORD] AS language_name#31]]
-     *   |   \_Limit[1000[INTEGER],false]
-     *   |     \_Filter[emp_no{f}#6 > 10000[INTEGER]]
-     *   |       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     *   |_EsqlProject[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
-     *                           languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22, language_code{r}#32,
-     *                           language_name{r}#33]]
-     *   | \_Eval[[null[INTEGER] AS language_code#32, null[KEYWORD] AS language_name#33]]
-     *   |   \_Subquery[]
-     *   |     \_TopN[[Order[emp_no{f}#17,ASC,LAST]],1000[INTEGER]]
-     *   |       \_Filter[languages{f}#20 > 0[INTEGER] AND emp_no{f}#17 > 10000[INTEGER]]
-     *   |         \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
-     *   \_LocalRelation[[_meta_field{r}#34, emp_no{r}#35, first_name{r}#36, gender{r}#37, hire_date{r}#38, job{r}#39, job.raw{r}#40,
-     *                               languages{r}#41, last_name{r}#42, long_noidx{r}#43, salary{r}#44, language_code{f}#28,
-     *                               language_name{f}#29],EMPTY]
+     *                           languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
+     *   | \_Limit[1000[INTEGER],false,false]
+     *   |   \_Filter[emp_no{f}#6 > 10000[INTEGER]]
+     *   |     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   \_EsqlProject[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
+     *                           languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22]]
+     *     \_Subquery[]
+     *       \_TopN[[Order[emp_no{f}#17,ASC,LAST]],1000[INTEGER],false]
+     *         \_Filter[languages{f}#20 > 0[INTEGER] AND emp_no{f}#17 > 10000[INTEGER]]
+     *           \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      */
     public void testPushDownFilterAndLimitPastSubqueryWithSort() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -220,26 +217,27 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * \_UnionAll[[_meta_field{r}#45, emp_no{r}#46, first_name{r}#47, gender{r}#48, hire_date{r}#49, job{r}#50, job.raw{r}#51,
-     *                    languages{r}#52, last_name{r}#53, long_noidx{r}#54, salary{r}#55, language_code{r}#56, language_name{r}#57]]
-     *   |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
-     *                           languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, language_code{r}#30,
-     *                           language_name{r}#31]]
-     *   | \_Eval[[null[INTEGER] AS language_code#30, null[KEYWORD] AS language_name#31]]
-     *   |   \_Limit[1000[INTEGER],false]
-     *   |     \_Filter[emp_no{f}#6 > 10000[INTEGER] AND salary{f}#11 > 50000[INTEGER]]
-     *   |       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     *   |_EsqlProject[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
-     *                           languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22, language_code{r}#32,
-     *                           language_name{r}#33]]
-     *   | \_Eval[[null[INTEGER] AS language_code#32, null[KEYWORD] AS language_name#33]]
+     *Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#46, emp_no{r}#47, first_name{r}#48, gender{r}#49, hire_date{r}#50, job{r}#51, job.raw{r}#52,
+     *                    languages{r}#53, last_name{r}#54, long_noidx{r}#55, salary{r}#56, language_code{r}#57, language_name{r}#58]]
+     *   |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *                           languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_code{r}#31,
+     *                           language_name{r}#32]]
+     *   | \_Eval[[null[INTEGER] AS language_code#31, null[KEYWORD] AS language_name#32]]
+     *   |   \_Limit[1000[INTEGER],false,false]
+     *   |     \_Filter[emp_no{f}#7 > 10000[INTEGER] AND salary{f}#12 > 50000[INTEGER]]
+     *   |       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   |_EsqlProject[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27,
+     *                           languages{f}#21, last_name{f}#22, long_noidx{f}#28, salary{f}#23, language_code{r}#33,
+     *                           language_name{r}#34]]
+     *   | \_Eval[[null[INTEGER] AS language_code#33, null[KEYWORD] AS language_name#34]]
      *   |   \_Subquery[]
-     *   |     \_Limit[1000[INTEGER],false]
-     *   |       \_Filter[languages{f}#20 > 0[INTEGER] AND emp_no{f}#17 > 10000[INTEGER] AND salary{f}#22 > 50000[INTEGER]]
-     *   |         \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
-     *   \_LocalRelation[[_meta_field{r}#34, emp_no{r}#35, first_name{r}#36, gender{r}#37, hire_date{r}#38, job{r}#39, job.raw{r}#40,
-     *                               languages{r}#41, last_name{r}#42, long_noidx{r}#43, salary{r}#44, language_code{f}#28,
-     *                               language_name{f}#29],EMPTY]
+     *   |     \_Limit[1000[INTEGER],false,false]
+     *   |       \_Filter[languages{f}#21 > 0[INTEGER] AND emp_no{f}#18 > 10000[INTEGER] AND salary{f}#23 > 50000[INTEGER]]
+     *   |         \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *   \_LocalRelation[[_meta_field{r}#35, emp_no{r}#36, first_name{r}#37, gender{r}#38, hire_date{r}#39, job{r}#40, job.raw{r}#41,
+     *                               languages{r}#42, last_name{r}#43, long_noidx{r}#44, salary{r}#45, language_code{f}#29,
+     *                               language_name{f}#30], EMPTY]
      */
     public void testPushDownConjunctiveFilterPastUnionAll() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -299,27 +297,27 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false]
-     * \_UnionAll[[_meta_field{r}#45, emp_no{r}#46, first_name{r}#47, gender{r}#48, hire_date{r}#49, job{r}#50, job.raw{r}#51,
-     *                    languages{r}#52, last_name{r}#53, long_noidx{r}#54, salary{r}#55, language_code{r}#56, language_name{r}#57]]
-     *   |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
-     *                           languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, language_code{r}#30,
-     *                           language_name{r}#31]]
-     *   | \_Eval[[null[INTEGER] AS language_code#30, null[KEYWORD] AS language_name#31]]
-     *   |   \_Limit[1000[INTEGER],false]
-     *   |     \_Filter[emp_no{f}#6 > 10000[INTEGER] OR salary{f}#11 > 50000[INTEGER]]
-     *   |       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     *   |_EsqlProject[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
-     *                           languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22, language_code{r}#32,
-     *                           language_name{r}#33]]
-     *   | \_Eval[[null[INTEGER] AS language_code#32, null[KEYWORD] AS language_name#33]]
+     *Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#46, emp_no{r}#47, first_name{r}#48, gender{r}#49, hire_date{r}#50, job{r}#51, job.raw{r}#52,
+     *                    languages{r}#53, last_name{r}#54, long_noidx{r}#55, salary{r}#56, language_code{r}#57, language_name{r}#58]]
+     *   |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *                           languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_code{r}#31,
+     *                           language_name{r}#32]]
+     *   | \_Eval[[null[INTEGER] AS language_code#31, null[KEYWORD] AS language_name#32]]
+     *   |   \_Limit[1000[INTEGER],false,false]
+     *   |     \_Filter[emp_no{f}#7 > 10000[INTEGER] OR salary{f}#12 > 50000[INTEGER]]
+     *   |       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   |_EsqlProject[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27,
+     *                           languages{f}#21, last_name{f}#22, long_noidx{f}#28, salary{f}#23, language_code{r}#33,
+     *                           language_name{r}#34]]
+     *   | \_Eval[[null[INTEGER] AS language_code#33, null[KEYWORD] AS language_name#34]]
      *   |   \_Subquery[]
-     *   |     \_Limit[1000[INTEGER],false]
-     *   |       \_Filter[languages{f}#20 > 0[INTEGER] AND emp_no{f}#17 > 10000[INTEGER] OR salary{f}#22 > 50000[INTEGER]]
-     *   |         \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
-     *   \_LocalRelation[[_meta_field{r}#34, emp_no{r}#35, first_name{r}#36, gender{r}#37, hire_date{r}#38, job{r}#39, job.raw{r}#40,
-     *                               languages{r}#41, last_name{r}#42, long_noidx{r}#43, salary{r}#44, language_code{f}#28,
-     *                               language_name{f}#29],EMPTY]
+     *   |     \_Limit[1000[INTEGER],false,false]
+     *   |       \_Filter[languages{f}#21 > 0[INTEGER] AND emp_no{f}#18 > 10000[INTEGER] OR salary{f}#23 > 50000[INTEGER]]
+     *   |         \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *   \_LocalRelation[[_meta_field{r}#35, emp_no{r}#36, first_name{r}#37, gender{r}#38, hire_date{r}#39, job{r}#40, job.raw{r}#41,
+     *                              languages{r}#42, last_name{r}#43, long_noidx{r}#44, salary{r}#45, language_code{f}#29,
+     *                              language_name{f}#30],EMPTY]
      */
     public void testPushDownDisjunctiveFilterPastUnionAll() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -379,27 +377,27 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false]
-     * \_UnionAll[[_meta_field{r}#45, emp_no{r}#46, first_name{r}#47, gender{r}#48, hire_date{r}#49, job{r}#50, job.raw{r}#51,
-     *                    languages{r}#52, last_name{r}#53, long_noidx{r}#54, salary{r}#55, language_code{r}#56, language_name{r}#57]]
-     *   |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
-     *                           languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, language_code{r}#30,
-     *                           language_name{r}#31]]
-     *   | \_Eval[[null[INTEGER] AS language_code#30, null[KEYWORD] AS language_name#31]]
-     *   |   \_Limit[1000[INTEGER],false]
-     *   |     \_Filter[emp_no{f}#6 > 10000[INTEGER] AND salary{f}#11 < 50000[INTEGER]]
-     *   |       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     *   |_EsqlProject[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
-     *                           languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22, language_code{r}#32,
-     *                           language_name{r}#33]]
-     *   | \_Eval[[null[INTEGER] AS language_code#32, null[KEYWORD] AS language_name#33]]
+     *Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#46, emp_no{r}#47, first_name{r}#48, gender{r}#49, hire_date{r}#50, job{r}#51, job.raw{r}#52,
+     *                    languages{r}#53, last_name{r}#54, long_noidx{r}#55, salary{r}#56, language_code{r}#57, language_name{r}#58]]
+     *   |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *                           languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_code{r}#31,
+     *                           language_name{r}#32]]
+     *   | \_Eval[[null[INTEGER] AS language_code#31, null[KEYWORD] AS language_name#32]]
+     *   |   \_Limit[1000[INTEGER],false,false]
+     *   |     \_Filter[emp_no{f}#7 > 10000[INTEGER] AND salary{f}#12 < 50000[INTEGER]]
+     *   |       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   |_EsqlProject[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27,
+     *                           languages{f}#21, last_name{f}#22, long_noidx{f}#28, salary{f}#23, language_code{r}#33,
+     *                           language_name{r}#34]]
+     *   | \_Eval[[null[INTEGER] AS language_code#33, null[KEYWORD] AS language_name#34]]
      *   |   \_Subquery[]
-     *   |     \_Limit[1000[INTEGER],false]
-     *   |       \_Filter[salary{f}#22 < 50000[INTEGER] AND emp_no{f}#17 > 10000[INTEGER]]
-     *   |         \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
-     *   \_LocalRelation[[_meta_field{r}#34, emp_no{r}#35, first_name{r}#36, gender{r}#37, hire_date{r}#38, job{r}#39, job.raw{r}#40,
-     *                               languages{r}#41, last_name{r}#42, long_noidx{r}#43, salary{r}#44, language_code{f}#28,
-     *                               language_name{f}#29],EMPTY]
+     *   |     \_Limit[1000[INTEGER],false,false]
+     *   |       \_Filter[salary{f}#23 < 50000[INTEGER] AND emp_no{f}#18 > 10000[INTEGER]]
+     *   |         \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *   \_LocalRelation[[_meta_field{r}#35, emp_no{r}#36, first_name{r}#37, gender{r}#38, hire_date{r}#39, job{r}#40, job.raw{r}#41,
+     *                               languages{r}#42, last_name{r}#43, long_noidx{r}#44, salary{r}#45, language_code{f}#29,
+     *                               language_name{f}#30],EMPTY]
      */
     public void testPushDownFilterPastUnionAllAndCombineWithFilterInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -453,64 +451,63 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Project[[_meta_field{r}#101, emp_no{r}#102, first_name{r}#103, gender{r}#104, hire_date{r}#105, job{r}#106, job.raw{r}#107,
-     *               languages{r}#108, last_name{r}#109, long_noidx{r}#110, salary{r}#111, z{r}#114, language_name{r}#115,
-     *               $$x$converted_to$long{r$}#124 AS x#37, $$y$converted_to$long{r$}#125 AS y#40]]
-     * \_Limit[1000[INTEGER],false]
-     *   \_UnionAll[[_meta_field{r}#101, emp_no{r}#102, first_name{r}#103, gender{r}#104, hire_date{r}#105, job{r}#106, job.raw{r}#107,
-     *                      languages{r}#108, last_name{r}#109, long_noidx{r}#110, salary{r}#111, x{r}#112, $$x$converted_to$long{r$}#124,
-     *                      y{r}#113, $$y$converted_to$long{r$}#125, z{r}#114, language_name{r}#115]]
-     *     |_LocalRelation[[_meta_field{f}#50, emp_no{f}#44, first_name{f}#45, gender{f}#46, hire_date{f}#51, job{f}#52, job.raw{f}#53,
-     *                                 languages{f}#47, last_name{f}#48, long_noidx{f}#54, salary{f}#49, x{r}#81,
-     *                                 $$x$converted_to$long{r}#116, y{r}#126, $$y$converted_to$long{r}#117, z{r}#83,
-     *                                 language_name{r}#84],EMPTY]
-     *     |_EsqlProject[[_meta_field{f}#61, emp_no{f}#55, first_name{f}#56, gender{f}#57, hire_date{f}#62, job{f}#63, job.raw{f}#64,
-     *                             languages{f}#58, last_name{f}#59, long_noidx{f}#65, salary{f}#60, x{r}#4, $$x$converted_to$long{r}#118,
-     *                             y{r}#127, $$y$converted_to$long{r}#119, z{r}#10, language_name{r}#85]]
-     *     | \_Filter[ISNOTNULL($$y$converted_to$long{r}#119)]
-     *     |   \_Eval[[null[KEYWORD] AS language_name#85, 1[LONG] AS $$x$converted_to$long#118,
-     *                      TOLONG(y{r}#7) AS $$y$converted_to$long#119, null[KEYWORD] AS y#127]]
+     *Project[[_meta_field{r}#102, emp_no{r}#103, first_name{r}#104, gender{r}#105, hire_date{r}#106, job{r}#107, job.raw{r}#108,
+     *               languages{r}#109, last_name{r}#110, long_noidx{r}#111, salary{r}#112, z{r}#115, language_name{r}#116,
+     *               $$x$converted_to$long{r$}#125 AS x#38, $$y$converted_to$long{r$}#126 AS y#41]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_UnionAll[[_meta_field{r}#102, emp_no{r}#103, first_name{r}#104, gender{r}#105, hire_date{r}#106, job{r}#107, job.raw{r}#108,
+     *                      languages{r}#109, last_name{r}#110, long_noidx{r}#111, salary{r}#112, x{r}#113, $$x$converted_to$long{r$}#125,
+     *                      y{r}#114, $$y$converted_to$long{r$}#126, z{r}#115, language_name{r}#116]]
+     *     |_LocalRelation[[_meta_field{f}#51, emp_no{f}#45, first_name{f}#46, gender{f}#47, hire_date{f}#52, job{f}#53, job.raw{f}#54,
+     *                                 languages{f}#48, last_name{f}#49, long_noidx{f}#55, salary{f}#50, x{r}#82,
+     *                                 $$x$converted_to$long{r}#117, y{r}#127, $$y$converted_to$long{r}#118, z{r}#84,
+     *                                 language_name{r}#85],EMPTY]
+     *     |_EsqlProject[[_meta_field{f}#62, emp_no{f}#56, first_name{f}#57, gender{f}#58, hire_date{f}#63, job{f}#64, job.raw{f}#65,
+     *                             languages{f}#59, last_name{f}#60, long_noidx{f}#66, salary{f}#61, x{r}#5, $$x$converted_to$long{r}#119,
+     *                             y{r}#128, $$y$converted_to$long{r}#120, z{r}#11, language_name{r}#86]]
+     *     | \_Filter[ISNOTNULL($$y$converted_to$long{r}#120)]
+     *     |   \_Eval[[null[KEYWORD] AS language_name#86, 1[LONG] AS $$x$converted_to$long#119,
+     *                     TOLONG(y{r}#8) AS $$y$converted_to$long#120, null[KEYWORD] AS y#128]]
      *     |     \_Subquery[]
-     *     |       \_Project[[_meta_field{f}#61, emp_no{f}#55, first_name{f}#56, gender{f}#57, hire_date{f}#62, job{f}#63, job.raw{f}#64,
-     *                              languages{f}#58, last_name{f}#59, long_noidx{f}#65, salary{f}#60, x{r}#4, emp_no{f}#55 AS y#7,
-     *                              z{r}#10]]
-     *     |         \_Limit[1000[INTEGER],false]
-     *     |           \_Filter[z{r}#10 > 0[INTEGER]]
-     *     |             \_Eval[[1[INTEGER] AS x#4, emp_no{f}#55 + 1[INTEGER] AS z#10]]
-     *     |               \_Filter[salary{f}#60 < 100000[INTEGER]]
-     *     |                 \_EsRelation[test][_meta_field{f}#61, emp_no{f}#55, first_name{f}#56, ..]
-     *     |_EsqlProject[[_meta_field{r}#86, emp_no{r}#87, first_name{r}#88, gender{r}#89, hire_date{r}#90, job{r}#91, job.raw{r}#92,
-     *                             languages{r}#93, last_name{r}#94, long_noidx{r}#95, salary{r}#96, x{r}#21,
-     *                             $$x$converted_to$long{r}#120, y{r}#128, $$y$converted_to$long{r}#121, z{r}#16, language_name{r}#97]]
-     *     | \_Filter[ISNOTNULL($$y$converted_to$long{r}#121)]
-     *     |   \_Eval[[null[KEYWORD] AS _meta_field#86, null[INTEGER] AS emp_no#87, null[KEYWORD] AS first_name#88,
-     *                      null[TEXT] AS gender#89, null[DATETIME] AS hire_date#90, null[TEXT] AS job#91, null[KEYWORD] AS job.raw#92,
-     *                      null[INTEGER] AS languages#93, null[KEYWORD] AS last_name#94, null[LONG] AS long_noidx#95,
-     *                      null[INTEGER] AS salary#96, null[KEYWORD] AS language_name#97, 1[LONG] AS $$x$converted_to$long#120,
-     *                      TOLONG(y{r}#19) AS $$y$converted_to$long#121, null[KEYWORD] AS y#128]]
+     *     |       \_Project[[_meta_field{f}#62, emp_no{f}#56, first_name{f}#57, gender{f}#58, hire_date{f}#63, job{f}#64, job.raw{f}#65,
+     *                              languages{f}#59, last_name{f}#60, long_noidx{f}#66, salary{f}#61, x{r}#5, emp_no{f}#56 AS y#8, z{r}#11]]
+     *     |         \_Limit[1000[INTEGER],false,false]
+     *     |           \_Filter[z{r}#11 > 0[INTEGER]]
+     *     |             \_Eval[[1[INTEGER] AS x#5, emp_no{f}#56 + 1[INTEGER] AS z#11]]
+     *     |               \_Filter[salary{f}#61 < 100000[INTEGER]]
+     *     |                 \_EsRelation[test][_meta_field{f}#62, emp_no{f}#56, first_name{f}#57, ..]
+     *     |_EsqlProject[[_meta_field{r}#87, emp_no{r}#88, first_name{r}#89, gender{r}#90, hire_date{r}#91, job{r}#92, job.raw{r}#93,
+     *                             languages{r}#94, last_name{r}#95, long_noidx{r}#96, salary{r}#97, x{r}#22, $$x$converted_to$long{r}#121,
+     *                             y{r}#129, $$y$converted_to$long{r}#122, z{r}#17, language_name{r}#98]]
+     *     | \_Filter[ISNOTNULL($$y$converted_to$long{r}#122)]
+     *     |   \_Eval[[null[KEYWORD] AS _meta_field#87, null[INTEGER] AS emp_no#88, null[KEYWORD] AS first_name#89,
+     *                     null[TEXT] AS gender#90, null[DATETIME] AS hire_date#91, null[TEXT] AS job#92, null[KEYWORD] AS job.raw#93,
+     *                     null[INTEGER] AS languages#94, null[KEYWORD] AS last_name#95, null[LONG] AS long_noidx#96,
+     *                     null[INTEGER] AS salary#97, null[KEYWORD] AS language_name#98, 1[LONG] AS $$x$converted_to$long#121,
+     *                     TOLONG(y{r}#20) AS $$y$converted_to$long#122, null[KEYWORD] AS y#129]]
      *     |     \_Subquery[]
-     *     |       \_Eval[[1[INTEGER] AS x#21]]
-     *     |         \_Limit[1000[INTEGER],false]
-     *     |           \_Filter[z{r}#16 > 0[INTEGER]]
-     *     |             \_Aggregate[[language_code{f}#66],[COUNT(*[KEYWORD],true[BOOLEAN]) AS y#19, language_code{f}#66 AS z#16]]
-     *     |               \_EsRelation[languages][language_code{f}#66, language_name{f}#67]
-     *     \_EsqlProject[[_meta_field{f}#74, emp_no{r}#98, first_name{f}#69, gender{f}#70, hire_date{f}#75, job{f}#76, job.raw{f}#77,
-     *                             languages{r}#99, last_name{f}#72, long_noidx{f}#78, salary{r}#100, x{r}#28,
-     *                             $$x$converted_to$long{r}#122, y{r}#129, $$y$converted_to$long{r}#123, z{r}#34, language_name{f}#80]]
-     *       \_Filter[ISNOTNULL($$x$converted_to$long{r}#122) AND ISNOTNULL($$y$converted_to$long{r}#123)]
-     *         \_Eval[[null[INTEGER] AS emp_no#98, null[INTEGER] AS languages#99, null[INTEGER] AS salary#100,
-     *                     TOLONG(x{r}#28) AS $$x$converted_to$long#122,
-     *                     TOLONG(y{r}#31) AS $$y$converted_to$long#123, null[KEYWORD] AS y#129]]
+     *     |       \_Eval[[1[INTEGER] AS x#22]]
+     *     |         \_Limit[1000[INTEGER],false,false]
+     *     |           \_Filter[z{r}#17 > 0[INTEGER]]
+     *     |             \_Aggregate[[language_code{f}#67],[COUNT(*[KEYWORD],true[BOOLEAN]) AS y#20, language_code{f}#67 AS z#17]]
+     *     |               \_EsRelation[languages][language_code{f}#67, language_name{f}#68]
+     *     \_EsqlProject[[_meta_field{f}#75, emp_no{r}#99, first_name{f}#70, gender{f}#71, hire_date{f}#76, job{f}#77, job.raw{f}#78,
+     *                             languages{r}#100, last_name{f}#73, long_noidx{f}#79, salary{r}#101, x{r}#29,
+     *                             $$x$converted_to$long{r}#123, y{r}#130, $$y$converted_to$long{r}#124, z{r}#35, language_name{f}#81]]
+     *       \_Filter[ISNOTNULL($$x$converted_to$long{r}#123) AND ISNOTNULL($$y$converted_to$long{r}#124)]
+     *         \_Eval[[null[INTEGER] AS emp_no#99, null[INTEGER] AS languages#100, null[INTEGER] AS salary#101,
+     *                     TOLONG(x{r}#29) AS $$x$converted_to$long#123, TOLONG(y{r}#32) AS $$y$converted_to$long#124,
+     *                     null[KEYWORD] AS y#130]]
      *           \_Subquery[]
-     *             \_Project[[_meta_field{f}#74, emp_no{f}#68 AS x#28, first_name{f}#69, gender{f}#70, hire_date{f}#75, job{f}#76,
-     *                              job.raw{f}#77, languages{f}#71 AS z#34, last_name{f}#72, long_noidx{f}#78, salary{f}#73 AS y#31,
-     *                              language_name{f}#80]]
-     *               \_Limit[1000[INTEGER],true]
-     *                 \_Join[LEFT,[languages{f}#71],[language_code{f}#79],null]
-     *                   |_Limit[1000[INTEGER],false]
-     *                   | \_Filter[languages{f}#71 > 0[INTEGER]]
-     *                   |   \_EsRelation[test][_meta_field{f}#74, emp_no{f}#68, first_name{f}#69, ..]
-     *                   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#79, language_name{f}#80]
+     *             \_Project[[_meta_field{f}#75, emp_no{f}#69 AS x#29, first_name{f}#70, gender{f}#71, hire_date{f}#76, job{f}#77,
+     *                              job.raw{f}#78, languages{f}#72 AS z#35, last_name{f}#73, long_noidx{f}#79, salary{f}#74 AS y#32,
+     *                              language_name{f}#81]]
+     *               \_Limit[1000[INTEGER],true,false]
+     *                 \_Join[LEFT,[languages{f}#72],[language_code{f}#80],null]
+     *                   |_Limit[1000[INTEGER],false,false]
+     *                   | \_Filter[languages{f}#72 > 0[INTEGER]]
+     *                   |   \_EsRelation[test][_meta_field{f}#75, emp_no{f}#69, first_name{f}#70, ..]
+     *                   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#80, language_name{f}#81]
      */
     public void testPushDownFilterOnReferenceAttributesPastUnionAll() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -636,19 +633,19 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false]
-     * \_UnionAll[[_meta_field{r}#35, emp_no{r}#36, first_name{r}#37, gender{r}#38, hire_date{r}#39, job{r}#40, job.raw{r}#41,
-     *                    languages{r}#42, last_name{r}#43, long_noidx{r}#44, salary{r}#45, x{r}#46, y{r}#47]]
-     *   |_LocalRelation[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
-     *                               languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16, x{r}#33, y{r}#34],EMPTY]
-     *   \_EsqlProject[[_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, gender{f}#24, hire_date{f}#29, job{f}#30, job.raw{f}#31,
-     *                           languages{f}#25, last_name{f}#26, long_noidx{f}#32, salary{f}#27, x{r}#4, y{r}#7]]
+     *Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#36, emp_no{r}#37, first_name{r}#38, gender{r}#39, hire_date{r}#40, job{r}#41, job.raw{r}#42,
+     *                    languages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{r}#46, x{r}#47, y{r}#48]]
+     *   |_LocalRelation[[_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, gender{f}#14, hire_date{f}#19, job{f}#20, job.raw{f}#21,
+     *                               languages{f}#15, last_name{f}#16, long_noidx{f}#22, salary{f}#17, x{r}#34, y{r}#35],EMPTY]
+     *   \_EsqlProject[[_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, gender{f}#25, hire_date{f}#30, job{f}#31, job.raw{f}#32,
+     *                           languages{f}#26, last_name{f}#27, long_noidx{f}#33, salary{f}#28, x{r}#5, y{r}#8]]
      *     \_Subquery[]
-     *       \_Limit[1000[INTEGER],false]
-     *         \_Filter[y{r}#7 > 0[INTEGER]]
-     *           \_Eval[[1[INTEGER] AS x#4, emp_no{f}#22 + 1[INTEGER] AS y#7]]
-     *             \_Filter[salary{f}#27 < 100000[INTEGER] AND emp_no{f}#22 > 0[INTEGER]]
-     *               \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_Filter[y{r}#8 > 0[INTEGER]]
+     *           \_Eval[[1[INTEGER] AS x#5, emp_no{f}#23 + 1[INTEGER] AS y#8]]
+     *             \_Filter[salary{f}#28 < 100000[INTEGER] AND emp_no{f}#23 > 0[INTEGER]]
+     *               \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
      */
     public void testPushDownFilterOnReferenceAttributesAndFieldAttributesPastUnionAll() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -696,55 +693,56 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * TODO push down filters on mixed typed attributes past UnionAll
-     * Project[[_meta_field{r}#66, first_name{r}#68, hire_date{r}#70, job{r}#71, job.raw{r}#72, languages{r}#73, last_name{r}#74,
-     *               long_noidx{r}#75, salary{r}#76, avg_worked_seconds{r}#77, birth_date{r}#78, height{r}#79, height.double{r}#80,
-     *               height.half_float{r}#81, height.scaled_float{r}#82, is_rehired{r}#83, job_positions{r}#84, languages.int{r}#85,
-     *               languages.long{r}#86, languages.short{r}#87, salary_change{r}#88, still_hired{r}#89,
-     *               $$emp_no$converted_to$double{r$}#96 AS x#5, $$emp_no$converted_to$long{r$}#97 AS emp_no#8,
-     *               $$gender$converted_to$keyword{r$}#98 AS gender#11, languages{r}#73 AS y#14]]
-     * \_Limit[1000[INTEGER],false]
-     *   \_Filter[$$emp_no$converted_to$long{r$}#97 > 10000[INTEGER] AND ISNOTNULL($$gender$converted_to$keyword{r$}#98)
-     *               AND languages{r}#73 < 5[INTEGER]]
-     *     \_UnionAll[[_meta_field{r}#66, emp_no{r}#67, $$emp_no$converted_to$double{r$}#96, $$emp_no$converted_to$long{r$}#97,
-     *                        first_name{r}#68, gender{r}#69, $$gender$converted_to$keyword{r$}#98, hire_date{r}#70, job{r}#71,
-     *                        job.raw{r}#72, languages{r}#73, last_name{r}#74, long_noidx{r}#75, salary{r}#76, avg_worked_seconds{r}#77,
-     *                        birth_date{r}#78, height{r}#79, height.double{r}#80, height.half_float{r}#81, height.scaled_float{r}#82,
-     *                        is_rehired{r}#83, job_positions{r}#84, languages.int{r}#85, languages.long{r}#86, languages.short{r}#87,
-     *                        salary_change{r}#88, still_hired{r}#89]]
-     *       |_EsqlProject[[_meta_field{f}#24, emp_no{r}#99, $$emp_no$converted_to$double{r}#90, $$emp_no$converted_to$long{r}#91,
-     *                               first_name{r}#100, gender{f}#20, $$gender$converted_to$keyword{r}#92, hire_date{r}#101, job{f}#26,
-     *                               job.raw{f}#27, languages{f}#21, last_name{r}#102, long_noidx{f}#28, salary{r}#103,
-     *                               avg_worked_seconds{r}#49, birth_date{r}#50, height{r}#51, height.double{r}#52,
-     *                               height.half_float{r}#53, height.scaled_float{r}#54, is_rehired{r}#55, job_positions{r}#56,
-     *                               languages.int{r}#57, languages.long{r}#58, languages.short{r}#59, salary_change{r}#60,
-     *                               still_hired{r}#61]]
-     *       | \_Eval[[null[UNSIGNED_LONG] AS avg_worked_seconds#49, null[DATETIME] AS birth_date#50, null[DOUBLE] AS height#51,
-     *                      null[DOUBLE] AS height.double#52, null[DOUBLE] AS height.half_float#53, null[DOUBLE] AS height.scaled_float#54,
-     *                      null[KEYWORD] AS is_rehired#55, null[TEXT] AS job_positions#56, null[INTEGER] AS languages.int#57,
-     *                      null[LONG] AS languages.long#58, null[INTEGER] AS languages.short#59, null[DOUBLE] AS salary_change#60,
-     *                      null[KEYWORD] AS still_hired#61, TODOUBLE(emp_no{f}#18) AS $$emp_no$converted_to$double#90,
-     *                      TOLONG(emp_no{f}#18) AS $$emp_no$converted_to$long#91,
-     *                      TOSTRING(gender{f}#20) AS $$gender$converted_to$keyword#92, null[KEYWORD] AS emp_no#99,
-     *                      null[KEYWORD] AS first_name#100, TODATENANOS(hire_date{f}#25) AS hire_date#101,
-     *                      null[KEYWORD] AS last_name#102, null[KEYWORD] AS salary#103]]
-     *       |   \_Limit[1000[INTEGER],false]
-     *       |     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
-     *       \_Project[[_meta_field{r}#62, $$emp_no$temp_name$108{r}#109 AS emp_no#104, $$emp_no$converted_to$double{r}#93,
-     *                        emp_no{f}#29 AS $$emp_no$converted_to$long#94, first_name{r}#105, gender{f}#32,
-     *                        $$gender$converted_to$keyword{r}#95, hire_date{f}#34, job{r}#63, job.raw{r}#64, languages{f}#36,
-     *                        last_name{r}#106, long_noidx{r}#65, salary{r}#107, avg_worked_seconds{f}#45, birth_date{f}#33, height{f}#40,
-     *                        height.double{f}#41, height.half_float{f}#43, height.scaled_float{f}#42, is_rehired{f}#47,
-     *                        job_positions{f}#46, languages.int{f}#39, languages.long{f}#37, languages.short{f}#38, salary_change{f}#48,
-     *                        still_hired{f}#44]]
-     *         \_Eval[[null[KEYWORD] AS _meta_field#62, null[TEXT] AS job#63, null[KEYWORD] AS job.raw#64, null[LONG] AS long_noidx#65,
-     *                     TODOUBLE(emp_no{f}#29) AS $$emp_no$converted_to$double#93,
-     *                     TOSTRING(gender{f}#32) AS $$gender$converted_to$keyword#95, null[KEYWORD] AS $$emp_no$temp_name$108#109,
-     *                     null[KEYWORD] AS first_name#105, null[KEYWORD] AS last_name#106, null[KEYWORD] AS salary#107]]
+     * TODO push down filter on mixed typed attributes
+     * Project[[_meta_field{r}#67, first_name{r}#69, hire_date{r}#71, job{r}#72, job.raw{r}#73, languages{r}#74, last_name{r}#75,
+     *              long_noidx{r}#76, salary{r}#77, avg_worked_seconds{r}#78, birth_date{r}#79, height{r}#80, height.double{r}#81,
+     *              height.half_float{r}#82, height.scaled_float{r}#83, is_rehired{r}#84, job_positions{r}#85, languages.int{r}#86,
+     *              languages.long{r}#87, languages.short{r}#88, salary_change{r}#89, still_hired{r}#90,
+     *              $$emp_no$converted_to$double{r$}#97 AS x#6, $$emp_no$converted_to$long{r$}#98 AS emp_no#9,
+     *              $$gender$converted_to$keyword{r$}#99 AS gender#12, languages{r}#74 AS y#15]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[$$emp_no$converted_to$long{r$}#98 > 10000[INTEGER] AND
+     *                ISNOTNULL($$gender$converted_to$keyword{r$}#99) AND
+     *                languages{r}#74 < 5[INTEGER]]
+     *     \_UnionAll[[_meta_field{r}#67, emp_no{r}#68, $$emp_no$converted_to$double{r$}#97, $$emp_no$converted_to$long{r$}#98,
+     *                        first_name{r}#69, gender{r}#70, $$gender$converted_to$keyword{r$}#99, hire_date{r}#71, job{r}#72,
+     *                        job.raw{r}#73, languages{r}#74, last_name{r}#75, long_noidx{r}#76, salary{r}#77, avg_worked_seconds{r}#78,
+     *                        birth_date{r}#79, height{r}#80, height.double{r}#81, height.half_float{r}#82, height.scaled_float{r}#83,
+     *                        is_rehired{r}#84, job_positions{r}#85, languages.int{r}#86, languages.long{r}#87, languages.short{r}#88,
+     *                        salary_change{r}#89, still_hired{r}#90]]
+     *       |_EsqlProject[[_meta_field{f}#25, emp_no{r}#100, $$emp_no$converted_to$double{r}#91, $$emp_no$converted_to$long{r}#92,
+     *                               first_name{r}#101, gender{f}#21, $$gender$converted_to$keyword{r}#93, hire_date{r}#102, job{f}#27,
+     *                               job.raw{f}#28, languages{f}#22, last_name{r}#103, long_noidx{f}#29, salary{r}#104,
+     *                               avg_worked_seconds{r}#50, birth_date{r}#51, height{r}#52, height.double{r}#53,
+     *                               height.half_float{r}#54, height.scaled_float{r}#55, is_rehired{r}#56, job_positions{r}#57,
+     *                               languages.int{r}#58, languages.long{r}#59, languages.short{r}#60, salary_change{r}#61,
+     *                               still_hired{r}#62]]
+     *       | \_Eval[[null[UNSIGNED_LONG] AS avg_worked_seconds#50, null[DATETIME] AS birth_date#51, null[DOUBLE] AS height#52,
+     *                     null[DOUBLE] AS height.double#53, null[DOUBLE] AS height.half_float#54, null[DOUBLE] AS height.scaled_float#55,
+     *                     null[KEYWORD] AS is_rehired#56, null[TEXT] AS job_positions#57, null[INTEGER] AS languages.int#58,
+     *                     null[LONG] AS languages.long#59, null[INTEGER] AS languages.short#60, null[DOUBLE] AS salary_change#61,
+     *                     null[KEYWORD] AS still_hired#62, TODOUBLE(emp_no{f}#19) AS $$emp_no$converted_to$double#91,
+     *                     TOLONG(emp_no{f}#19) AS $$emp_no$converted_to$long#92,
+     *                     TOSTRING(gender{f}#21) AS $$gender$converted_to$keyword#93, null[KEYWORD] AS emp_no#100,
+     *                     null[KEYWORD] AS first_name#101, TODATENANOS(hire_date{f}#26) AS hire_date#102,
+     *                     null[KEYWORD] AS last_name#103, null[KEYWORD] AS salary#104]]
+     *       |   \_Limit[1000[INTEGER],false,false]
+     *       |     \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     *       \_Project[[_meta_field{r}#63, $$emp_no$temp_name$109{r}#110 AS emp_no#105, $$emp_no$converted_to$double{r}#94,
+     *                        emp_no{f}#30 AS $$emp_no$converted_to$long#95, first_name{r}#106, gender{f}#33,
+     *                        $$gender$converted_to$keyword{r}#96, hire_date{f}#35, job{r}#64, job.raw{r}#65, languages{f}#37,
+     *                        last_name{r}#107, long_noidx{r}#66, salary{r}#108, avg_worked_seconds{f}#46, birth_date{f}#34, height{f}#41,
+     *                        height.double{f}#42, height.half_float{f}#44, height.scaled_float{f}#43, is_rehired{f}#48,
+     *                        job_positions{f}#47, languages.int{f}#40, languages.long{f}#38, languages.short{f}#39, salary_change{f}#49,
+     *                        still_hired{f}#45]]
+     *         \_Eval[[null[KEYWORD] AS _meta_field#63, null[TEXT] AS job#64, null[KEYWORD] AS job.raw#65, null[LONG] AS long_noidx#66,
+     *                     TODOUBLE(emp_no{f}#30) AS $$emp_no$converted_to$double#94,
+     *                     TOSTRING(gender{f}#33) AS $$gender$converted_to$keyword#96, null[KEYWORD] AS $$emp_no$temp_name$109#110,
+     *                     null[KEYWORD] AS first_name#106, null[KEYWORD] AS last_name#107, null[KEYWORD] AS salary#108]]
      *           \_Subquery[]
-     *             \_Limit[1000[INTEGER],false]
-     *               \_Filter[languages{f}#36 > 1[INTEGER]]
-     *                 \_EsRelation[test_mixed_types][avg_worked_seconds{f}#45, birth_date{f}#33, emp_no{..]
+     *             \_Limit[1000[INTEGER],false,false]
+     *               \_Filter[languages{f}#37 > 1[INTEGER]]
+     *                 \_EsRelation[test_mixed_types][avg_worked_seconds{f}#46, birth_date{f}#34, emp_no{..]
      */
     public void testFilterOnMixedDataTypesFields() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -798,20 +796,20 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false]
-     * \_UnionAll[[_meta_field{r}#26, emp_no{r}#27, first_name{r}#28, gender{r}#29, hire_date{r}#30, job{r}#31, job.raw{r}#32,
-     *                    languages{r}#33, last_name{r}#34, long_noidx{r}#35, salary{r}#36]]
-     *   |_EsqlProject[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13,
-     *                           languages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_Filter[:(first_name{f}#5,first[KEYWORD])]
-     *   |     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
-     *   \_EsqlProject[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24,
-     *                           languages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#27, emp_no{r}#28, first_name{r}#29, gender{r}#30, hire_date{r}#31, job{r}#32, job.raw{r}#33,
+     *                    languages{r}#34, last_name{r}#35, long_noidx{r}#36, salary{r}#37]]
+     *   |_EsqlProject[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14,
+     *                           languages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10]]
+     *   | \_Limit[1000[INTEGER],false,false]
+     *   |   \_Filter[:(first_name{f}#6,first[KEYWORD])]
+     *   |     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsqlProject[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
+     *                           languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21]]
      *     \_Subquery[]
-     *       \_Limit[1000[INTEGER],false]
-     *         \_Filter[languages{f}#18 > 0[INTEGER] AND :(first_name{f}#16,first[KEYWORD])]
-     *           \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_Filter[languages{f}#19 > 0[INTEGER] AND :(first_name{f}#17,first[KEYWORD])]
+     *           \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      */
     public void testPushDownSingleFullTextFunctionPastUnionAll() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -855,26 +853,27 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false]
-     * \_UnionAll[[_meta_field{r}#27, emp_no{r}#28, first_name{r}#29, gender{r}#30, hire_date{r}#31, job{r}#32, job.raw{r}#33,
-     *                    languages{r}#34, last_name{r}#35, long_noidx{r}#36, salary{r}#37]]
-     *   |_EsqlProject[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14,
-     *                           languages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_Filter[:(first_name{f}#6,first[KEYWORD]) AND MATCH(last_name{f}#9,last[KEYWORD])]
-     *   |     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-     *   \_EsqlProject[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
-     *                           languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21]]
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#26, emp_no{r}#27, first_name{r}#28, gender{r}#29, hire_date{r}#30, job{r}#31, job.raw{r}#32,
+     *                    languages{r}#33, last_name{r}#34, long_noidx{r}#35, salary{r}#36]]
+     *   |_EsqlProject[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13,
+     *                           languages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9]]
+     *   | \_Limit[1000[INTEGER],false,false]
+     *   |   \_Filter[QSTR(first_name:first[KEYWORD]) AND KQL(last_name:last[KEYWORD])]
+     *   |     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
+     *   \_EsqlProject[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24,
+     *                           languages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
      *     \_Subquery[]
-     *       \_Limit[1000[INTEGER],false]
-     *         \_Filter[languages{f}#19 > 0[INTEGER] AND :(first_name{f}#17,first[KEYWORD]) AND MATCH(last_name{f}#20,last[KEYWORD])]
-     *           \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_Filter[languages{f}#18 > 0[INTEGER] AND QSTR(gender:female[KEYWORD]) AND
+     *                      QSTR(first_name:first[KEYWORD]) AND KQL(last_name:last[KEYWORD])]
+     *           \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
-    public void testPushDownConjunctiveFullTextFunctionPastUnionAll() {
+    public void testPushDownFullTextFunctionNoFieldRequiredPastUnionAll() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
-            FROM test, (FROM test | WHERE languages > 0)
-            | WHERE first_name:"first" and match(last_name, "last")
+            FROM test, (FROM test | WHERE languages > 0 AND qstr("gender:female"))
+            | WHERE qstr("first_name:first") == true AND kql("last_name:last") == false
             """);
 
         Limit limit = as(plan, Limit.class);
@@ -885,6 +884,78 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         Limit childLimit = as(child1.child(), Limit.class);
         Filter childFilter = as(childLimit.child(), Filter.class);
         And and = as(childFilter.condition(), And.class);
+        QueryString queryString = as(and.left(), QueryString.class);
+        Literal queryStringLiteral = as(queryString.query(), Literal.class);
+        assertEquals(new BytesRef("first_name:first"), queryStringLiteral.value());
+        Not not = as(and.right(), Not.class);
+        Kql kql = as(not.negate(), Kql.class);
+        Literal kqlLiteral = as(kql.query(), Literal.class);
+        assertEquals(new BytesRef("last_name:last"), kqlLiteral.value());
+        EsRelation relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+
+        EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
+        Subquery subquery = as(child2.child(), Subquery.class);
+        childLimit = as(subquery.child(), Limit.class);
+        childFilter = as(childLimit.child(), Filter.class);
+        and = as(childFilter.condition(), And.class);
+        And subqueryAnd = as(and.left(), And.class);
+        GreaterThan greaterThan = as(subqueryAnd.left(), GreaterThan.class);
+        FieldAttribute languages = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
+        Literal right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
+        queryString = as(subqueryAnd.right(), QueryString.class);
+        queryStringLiteral = as(queryString.query(), Literal.class);
+        assertEquals(new BytesRef("gender:female"), queryStringLiteral.value());
+        and = as(and.right(), And.class);
+        queryString = as(and.left(), QueryString.class);
+        queryStringLiteral = as(queryString.query(), Literal.class);
+        assertEquals(new BytesRef("first_name:first"), queryStringLiteral.value());
+        not = as(and.right(), Not.class);
+        Kql kqlFunction = as(not.negate(), Kql.class);
+        kqlLiteral = as(kqlFunction.query(), Literal.class);
+        assertEquals(new BytesRef("last_name:last"), kqlLiteral.value());
+        relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
+     *                    languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
+     *   |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
+     *                           languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
+     *   | \_Limit[1000[INTEGER],false,false]
+     *   |   \_Filter[:(first_name{f}#7,first[KEYWORD]) AND MATCH(last_name{f}#10,last[KEYWORD]) AND QSTR(gender:female[KEYWORD])]
+     *   |     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   \_EsqlProject[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
+     *                           languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22]]
+     *     \_Subquery[]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_Filter[languages{f}#20 > 0[INTEGER] AND :(first_name{f}#18,first[KEYWORD]) AND
+     *                      MATCH(last_name{f}#21,last[KEYWORD]) AND QSTR(gender:female[KEYWORD])]
+     *           \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     */
+    public void testPushDownConjunctiveFullTextFunctionPastUnionAll() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (FROM test | WHERE languages > 0)
+            | WHERE first_name:"first" and match(last_name, "last") and qstr("gender:female")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
+        Limit childLimit = as(child1.child(), Limit.class);
+        Filter childFilter = as(childLimit.child(), Filter.class);
+        And and = as(childFilter.condition(), And.class);
+        QueryString queryString = as(and.right(), QueryString.class);
+        Literal queryStringLiteral = as(queryString.query(), Literal.class);
+        assertEquals(new BytesRef("gender:female"), queryStringLiteral.value());
+        and = as(and.left(), And.class);
         MatchOperator matchOperator = as(and.left(), MatchOperator.class);
         FieldAttribute first_name = as(matchOperator.field(), FieldAttribute.class);
         assertEquals("first_name", first_name.name());
@@ -909,6 +980,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         right = as(greaterThan.right(), Literal.class);
         assertEquals(0, right.value());
         and = as(and.right(), And.class);
+        queryString = as(and.right(), QueryString.class);
+        queryStringLiteral = as(queryString.query(), Literal.class);
+        assertEquals(new BytesRef("gender:female"), queryStringLiteral.value());
+        and = as(and.left(), And.class);
         matchOperator = as(and.left(), MatchOperator.class);
         first_name = as(matchOperator.field(), FieldAttribute.class);
         assertEquals("first_name", first_name.name());
@@ -924,27 +999,27 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false]
-     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
-     *                    languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
-     *   |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
-     *                           languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
-     *   | \_Limit[1000[INTEGER],false]
-     *   |   \_Filter[:(first_name{f}#7,first[KEYWORD]) OR MatchPhrase(last_name{f}#10,last[KEYWORD])]
-     *   |     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     *   \_EsqlProject[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
-     *                           languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22]]
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#29, emp_no{r}#30, first_name{r}#31, gender{r}#32, hire_date{r}#33, job{r}#34, job.raw{r}#35,
+     *                    languages{r}#36, last_name{r}#37, long_noidx{r}#38, salary{r}#39]]
+     *   |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *                           languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *   | \_Limit[1000[INTEGER],false,false]
+     *   |   \_Filter[:(first_name{f}#8,first[KEYWORD]) OR MatchPhrase(last_name{f}#11,last[KEYWORD]) OR KQL(gender:female[KEYWORD])]
+     *   |     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   \_EsqlProject[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27,
+     *                           languages{f}#21, last_name{f}#22, long_noidx{f}#28, salary{f}#23]]
      *     \_Subquery[]
-     *       \_Limit[1000[INTEGER],false]
-     *         \_Filter[languages{f}#20 > 0[INTEGER] AND MATCH(gender{f}#19,F[KEYWORD]) AND :(first_name{f}#18,first[KEYWORD])
-     *                      OR MatchPhrase(last_name{f}#21,last[KEYWORD])]
-     *           \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_Filter[languages{f}#21 > 0[INTEGER] AND MATCH(gender{f}#20,F[KEYWORD]) AND :(first_name{f}#19,first[KEYWORD]) OR
+     *                     MatchPhrase(last_name{f}#22,last[KEYWORD]) OR KQL(gender:female[KEYWORD])]
+     *           \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testPushDownDisjunctiveFullTextFunctionPastUnionAll() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | WHERE languages > 0 and match(gender , "F"))
-            | WHERE first_name:"first" or match_phrase(last_name, "last")
+            | WHERE first_name:"first" or match_phrase(last_name, "last") or kql("gender:female")
             """);
 
         Limit limit = as(plan, Limit.class);
@@ -955,6 +1030,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         Limit childLimit = as(child1.child(), Limit.class);
         Filter childFilter = as(childLimit.child(), Filter.class);
         Or or = as(childFilter.condition(), Or.class);
+        Kql kql = as(or.right(), Kql.class);
+        Literal kqlLiteral = as(kql.query(), Literal.class);
+        assertEquals(new BytesRef("gender:female"), kqlLiteral.value());
+        or = as(or.left(), Or.class);
         MatchOperator matchOperator = as(or.left(), MatchOperator.class);
         FieldAttribute first_name = as(matchOperator.field(), FieldAttribute.class);
         assertEquals("first_name", first_name.name());
@@ -974,6 +1053,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         childFilter = as(childLimit.child(), Filter.class);
         And and = as(childFilter.condition(), And.class);
         or = as(and.right(), Or.class);
+        kql = as(or.right(), Kql.class);
+        kqlLiteral = as(kql.query(), Literal.class);
+        assertEquals(new BytesRef("gender:female"), kqlLiteral.value());
+        or = as(or.left(), Or.class);
         matchOperator = as(or.left(), MatchOperator.class);
         first_name = as(matchOperator.field(), FieldAttribute.class);
         assertEquals("first_name", first_name.name());
@@ -999,6 +1082,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals("test", relation.indexPattern());
     }
 
+    /*
+     * If the field used in the full text function is not present in any of the indices in the UnionAll branches,
+     * the full text function cannot be pushed down.
+     */
     public void testFullTextFunctionCannotBePushedDownPastUnionAll() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""

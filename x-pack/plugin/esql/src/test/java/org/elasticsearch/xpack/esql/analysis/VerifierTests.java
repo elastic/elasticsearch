@@ -3116,6 +3116,25 @@ public class VerifierTests extends ESTestCase {
         assertThat(errorMessage, containsString("line 5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"));
     }
 
+    // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet
+    // FTF on the join(after subquery) on condition is not visible inside subquery yet. FTF after Fork fails with a similar error.
+    public void testSubqueryInFromWithLookupJoinOnFullTextFunction() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String errorMessage = error("""
+            FROM test, (FROM test_mixed_types
+                                 | WHERE languages > 0
+                                 | EVAL emp_no = emp_no::int
+                                 | KEEP emp_no, languages)
+            | LOOKUP JOIN languages_lookup ON languages == language_code AND MATCH(language_name,"English")
+            | KEEP emp_no, languages, language_name
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+        assertThat(errorMessage, containsString("5:3: [MATCH] function cannot be used after test, (FROM test_mixed_types"));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

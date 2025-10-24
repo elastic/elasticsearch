@@ -9592,6 +9592,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(attribute.name(), equalTo("@timestamp"));
     }
 
+    /*
+     * Nested subqueries are not supported yet.
+     */
     public void testNestedSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
@@ -9604,6 +9607,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertEquals("1:18: Nested subqueries are not supported", e.getMessage().substring(header.length()));
     }
 
+    /*
+     * FORK inside subquery is not supported yet.
+     */
     public void testForkInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""

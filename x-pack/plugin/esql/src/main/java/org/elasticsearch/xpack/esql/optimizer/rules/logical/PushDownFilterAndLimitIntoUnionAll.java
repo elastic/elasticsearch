@@ -327,19 +327,27 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
     }
 
     /**
-     * Attempts to resolve all pushable expressions against the given output attributes.
-     * Returns a fully resolved list if successful, or null if any expression cannot be resolved.
+     * Resolve the pushable predicates against the output of UnionAll, so that the attributes in the predicates can be matched by
+     * the attributes in the UnionAll child. If the pushable predicates have no references, they are considered pushable as is,
+     * for example some full text functions like QSTR and KQL do not reference any field or reference attribute.
      */
     private static List<Expression> resolvePushableAgainstOutput(List<Expression> pushable, List<? extends NamedExpression> output) {
         List<Expression> resolved = new ArrayList<>();
         for (Expression exp : pushable) {
-            Expression replaced = resolveUnionAllOutputByName(exp, output);
-            // Make sure the pushable predicates can find their corresponding attributes in the output
-            if (replaced == null || replaced == exp) {
+            // Some full text functions may not have references like QSTR and KQL, if not, it is pushable as is.
+            // Limiting the check to full text function is not enough, as there could be a full text function could be under a Not
+            if (exp.references().isEmpty()) {
+                resolved.add(exp);
+                continue;
+            }
+            Expression resolvedExp = resolveUnionAllOutputByName(exp, output);
+            // Make sure the pushable predicates can find their corresponding attributes in the output,
+            // if there is any predicate that cannot be resolved, return null to indicate the whole filter push down cannot be done.
+            if (resolvedExp == null || resolvedExp == exp) {
                 // cannot find the attribute in the child project, cannot push down this filter
                 return null;
             }
-            resolved.add(replaced);
+            resolved.add(resolvedExp);
         }
         // If some pushable predicates cannot be resolved against the output, cannot push filter down.
         // This should not happen, however we need to be cautious here, if the predicate is removed from

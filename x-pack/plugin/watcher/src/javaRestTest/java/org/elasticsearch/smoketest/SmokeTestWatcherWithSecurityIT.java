@@ -11,13 +11,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.watcher.WatcherRestTestCase;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,10 +30,18 @@ import static org.hamcrest.Matchers.is;
 
 public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
 
-    private static final String TEST_ADMIN_USERNAME = "test_admin";
-    private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
-
     private String watchId = randomAlphaOfLength(20);
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = watcherClusterSpec().setting("xpack.security.enabled", "true")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user(WATCHER_USER, TEST_PASSWORD, "watcher_manager", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Before
     public void beforeTest() throws Exception {
@@ -51,18 +58,6 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
         Request createNotAllowedDoc = new Request("PUT", "/index_not_allowed_to_read/_doc/1");
         createNotAllowedDoc.setJsonEntity("{\"foo\":\"bar\"}");
         adminClient().performRequest(createNotAllowedDoc);
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("watcher_manager", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @Override
-    protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testSearchInputHasPermissions() throws Exception {

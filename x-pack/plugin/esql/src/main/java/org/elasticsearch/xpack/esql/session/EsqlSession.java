@@ -856,8 +856,8 @@ public class EsqlSession {
                     default -> requestFilter;
                 },
                 indexMode == IndexMode.TIME_SERIES,
-                preAnalysis.supportsAggregateMetricDouble(),
-                preAnalysis.supportsDenseVector(),
+                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                preAnalysis.useDenseVectorWhenNotSupported(),
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     l.onResponse(

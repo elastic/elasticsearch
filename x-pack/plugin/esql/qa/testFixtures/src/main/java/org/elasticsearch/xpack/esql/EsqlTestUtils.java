@@ -62,9 +62,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -449,7 +449,7 @@ public final class EsqlTestUtils {
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
-    public static AnalyzerContext testAnalyzerContext(
+    public static MutableAnalyzerContext testAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
         Map<IndexPattern, IndexResolution> indexResolutions,
@@ -462,7 +462,7 @@ public final class EsqlTestUtils {
     /**
      * Analyzer context for a random (but compatible) minimum transport version.
      */
-    public static AnalyzerContext testAnalyzerContext(
+    public static MutableAnalyzerContext testAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
         Map<IndexPattern, IndexResolution> indexResolutions,
@@ -470,7 +470,7 @@ public final class EsqlTestUtils {
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution
     ) {
-        return new AnalyzerContext(
+        return new MutableAnalyzerContext(
             configuration,
             functionRegistry,
             indexResolutions,

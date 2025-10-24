@@ -37,7 +37,7 @@ public class OpenShiftAiEmbeddingsRequest implements Request {
      *
      * @param truncator the truncator to handle input truncation
      * @param input the input to be truncated
-     * @param model the OpenShiftId embeddings model to be used for the request
+     * @param model the OpenShift AI embeddings model to be used for the request
      */
     public OpenShiftAiEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, OpenShiftAiEmbeddingsModel model) {
         this.model = model;

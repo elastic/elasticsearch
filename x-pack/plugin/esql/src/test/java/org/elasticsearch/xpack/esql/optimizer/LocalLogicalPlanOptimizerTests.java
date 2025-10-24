@@ -1111,7 +1111,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
             """;
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), new EsqlTestUtils.TestSearchStats());
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
         // EsqlProject[[!alias_integer, boolean{f}#7, byte{f}#8, ... s{r}#5]]
         var project = as(plan, EsqlProject.class);
@@ -1121,7 +1121,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Eval[[$$dense_vector$DOTPRODUCT$27{f}#27 AS s#5]]
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().get(0), Alias.class);
+        var alias = as(eval.fields().getFirst(), Alias.class);
         assertThat(alias.name(), equalTo("s"));
 
         // Check replaced field attribute
@@ -1159,7 +1159,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             | keep s
             """;
 
-        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), new EsqlTestUtils.TestSearchStats());
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
         // EsqlProject[[s{r}#4]]
         var project = as(plan, EsqlProject.class);
@@ -1169,7 +1169,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(project.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(1));
         assertThat(topN.order().size(), is(1));
-        var order = as(topN.order().get(0), Order.class);
+        var order = as(topN.order().getFirst(), Order.class);
         assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
         assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
         assertThat(Expressions.name(order.child()), equalTo("s"));
@@ -1177,7 +1177,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Eval[[$$dense_vector$replaced$28{t}#28 AS s#4]]
         var eval = as(topN.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().get(0), Alias.class);
+        var alias = as(eval.fields().getFirst(), Alias.class);
         assertThat(alias.name(), equalTo("s"));
 
         // Check replaced field attribute
@@ -1190,7 +1190,50 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
 
         // EsRelation[types]
-        as(eval.child(), EsRelation.class);
+        var esRelation = as(eval.child(), EsRelation.class);
+        assertTrue(esRelation.output().contains(fieldAttr));
+    }
+
+    public void testVectorFunctionsNotPushedDownWhenNotIndexed() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            from types
+            | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
+            | sort s desc
+            | limit 1
+            | keep s
+            """;
+
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean isIndexed(FieldAttribute.FieldName field) {
+                return field.string().equals("dense_vector") == false;
+            }
+        });
+
+        // EsqlProject[[s{r}#4]]
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), contains("s"));
+
+        // TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
+        var topN = as(project.child(), TopN.class);
+
+        // Eval[[$$dense_vector$replaced$28{t}#28 AS s#4]]
+        var eval = as(topN.child(), Eval.class);
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), equalTo("s"));
+
+        // Check similarly function field attribute is NOT replaced
+        as(alias.child(), DotProduct.class);
+
+        // EsRelation does not contain a FunctionEsField
+        var esRelation = as(eval.child(), EsRelation.class);
+        assertTrue(
+            esRelation.output()
+                .stream()
+                .anyMatch(att -> (att instanceof FieldAttribute fieldAttr)
+                    && fieldAttr.field() instanceof FunctionEsField) == false
+        );
     }
 
     private IsNotNull isNotNull(Expression field) {

@@ -3,6 +3,7 @@
  similarityWithVectorField
  required_capability: dot_product_vector_similarity_function
  required_capability: dense_vector_field_type_released
+ required_capability: vector_similarity_functions_pushdown
  
 // tag::vector-dot-product[]
  from colors
@@ -15,22 +16,23 @@
  
 // tag::vector-dot-product-result[]
 color:text | similarity:double
-azure      | 65025.5
-cyan       | 65025.5
-white      | 65025.5
-mint cream | 64388.0
-snow       | 63750.5
-honeydew   | 63113.0
-ivory      | 63113.0
-sea shell  | 61583.0
-lavender   | 61200.5
-old lace   | 60563.0
+azure      | 130050.0
+cyan       | 130050.0
+white      | 130050.0
+mint cream | 128775.0
+snow       | 127500.0
+honeydew   | 126225.0
+ivory      | 126225.0
+sea shell  | 123165.0
+lavender   | 122400.0
+old lace   | 121125.0
 // end::vector-dot-product-result[] 
 ;
 
 similarityAsPartOfExpression
 required_capability: dot_product_vector_similarity_function
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval score = round((1 + v_dot_product(rgb_vector, [0, 255, 255]) / 2), 3) 
@@ -40,21 +42,22 @@ from colors
 ;
 
 color:text | score:double
-azure      | 32513.75
-cyan       | 32513.75
-white      | 32513.75
-mint cream | 32195.0
-snow       | 31876.25
-honeydew   | 31557.5
-ivory      | 31557.5
-sea shell  | 30792.5
-lavender   | 30601.25
-old lace   | 30282.5
+azure      | 65026.0
+cyan       | 65026.0
+white      | 65026.0
+mint cream | 64388.5
+snow       | 63751.0
+honeydew   | 63113.5
+ivory      | 63113.5
+sea shell  | 61583.5
+lavender   | 61201.0
+old lace   | 60563.5
 ;
 
 similarityWithLiteralVectors
 required_capability: dot_product_vector_similarity_function
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row a = 1
 | eval similarity = round(v_dot_product([1, 2, 3], [0, 1, 2]), 3) 
@@ -62,12 +65,13 @@ row a = 1
 ;
 
 similarity:double
-4.5
+8.0
 ;
 
 similarityWithStats
 required_capability: dot_product_vector_similarity_function
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = round(v_dot_product(rgb_vector, [0, 255, 255]), 3) 
@@ -75,13 +79,14 @@ from colors
 ;
 
 avg:double | min:double | max:double
-39519.017  | 0.5        | 65025.5
+79037.034  | 0.0        | 130050.0
 ;
 
 similarityWithNull
 required_capability: dot_product_vector_similarity_function
 required_capability: vector_similarity_functions_support_null
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = v_dot_product(rgb_vector, null) 
@@ -97,19 +102,21 @@ similarityWithRow
 required_capability: dot_product_vector_similarity_function
 required_capability: to_dense_vector_function
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row vector = to_dense_vector([1, 2, 3])
 | eval similarity = round(v_dot_product(vector, [0, 1, 2]), 3) 
 ;
 
-vector: dense_vector | similarity:double
-[1.0, 2.0, 3.0]      | 4.5
+vector:dense_vector | similarity:double
+[1.0, 2.0, 3.0]     | 8.0
 ;
 
 similarityWithVectorField
 required_capability: dot_product_vector_similarity_function
 required_capability: to_dense_vector_function
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval query = to_dense_vector([0, 255, 255])
@@ -120,14 +127,14 @@ from colors
 ;
 
 color:text | similarity:double
-azure      | 65025.5
-cyan       | 65025.5
-white      | 65025.5
-mint cream | 64388.0
-snow       | 63750.5
-honeydew   | 63113.0
-ivory      | 63113.0
-sea shell  | 61583.0
-lavender   | 61200.5
-old lace   | 60563.0
+azure      | 130050.0
+cyan       | 130050.0
+white      | 130050.0
+mint cream | 128775.0
+snow       | 127500.0
+honeydew   | 126225.0
+ivory      | 126225.0
+sea shell  | 123165.0
+lavender   | 122400.0
+old lace   | 121125.0
 ;

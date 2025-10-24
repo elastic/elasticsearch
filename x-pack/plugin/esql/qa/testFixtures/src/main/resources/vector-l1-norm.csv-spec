@@ -1,17 +1,18 @@
- # Tests for l1_norm similarity function
- 
- similarityWithVectorField
- required_capability: l1_norm_vector_similarity_function
- required_capability: dense_vector_field_type_released
- 
+# Tests for l1_norm similarity function
+
+similarityWithVectorField
+required_capability: l1_norm_vector_similarity_function
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
 // tag::vector-l1-norm[]
- from colors
- | eval similarity = v_l1_norm(rgb_vector, [0, 255, 255]) 
- | sort similarity desc, color asc 
+from colors
+| eval similarity = v_l1_norm(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
 // end::vector-l1-norm[]
- | limit 10
- | keep color, similarity
- ;
+| limit 10
+| keep color, similarity
+;
  
 // tag::vector-l1-norm-result[]
 color:text | similarity:double
@@ -31,6 +32,7 @@ gold       | 550.0
 similarityAsPartOfExpression
 required_capability: l1_norm_vector_similarity_function
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval score = round((1 + v_l1_norm(rgb_vector, [0, 255, 255]) / 2), 3) 
@@ -55,6 +57,7 @@ gold       | 276.0
 similarityWithLiteralVectors
 required_capability: l1_norm_vector_similarity_function
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row a = 1
 | eval similarity = round(v_l1_norm([1, 2, 3], [0, 1, 2]), 3) 
@@ -68,6 +71,7 @@ similarity:double
 similarityWithStats
 required_capability: l1_norm_vector_similarity_function
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = round(v_l1_norm(rgb_vector, [0, 255, 255]), 3) 
@@ -82,6 +86,7 @@ similarityWithNull
 required_capability: l1_norm_vector_similarity_function
 required_capability: vector_similarity_functions_support_null
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = v_l1_norm(rgb_vector, null) 
@@ -96,6 +101,7 @@ similarityWithRow
 required_capability: l1_norm_vector_similarity_function
 required_capability: to_dense_vector_function
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row vector = to_dense_vector([1, 2, 3]) 
 | eval similarity = round(v_l1_norm(vector, [0, 1, 2]), 3) 
@@ -109,6 +115,7 @@ similarityWithVectorField
 required_capability: l1_norm_vector_similarity_function
 required_capability: to_dense_vector_function
 required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval query = to_dense_vector([0, 255, 255])

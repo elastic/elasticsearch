@@ -12,6 +12,11 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 
 import java.util.Map;
 
+/**
+ * EsField that represents a function being applied to a field on extraction. It receives a
+ * {@link org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderFunctionConfig} that will be passed down to the block loading process
+ * to apply the function at data load time.
+ */
 public class FunctionEsField extends EsField {
 
     // Not serialized as it will be created on the data node

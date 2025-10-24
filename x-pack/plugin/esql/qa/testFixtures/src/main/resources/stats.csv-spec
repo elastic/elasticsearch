@@ -3344,3 +3344,37 @@ VALUES(color):keyword | color:keyword
                yellow | yellow
 // end::mv-group-values-expand-result[]
 ;
+
+fixClassCastBug
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x), d = count(*)
+;
+
+a:long | b:long | c:long | d:long
+891    | 1782   | 8      | 891
+;
+
+fixClassCastBug2
+required_capability: fix_stats_classcast_exception
+
+ROW x = [1,2,3] 
+| STATS a = MV_COUNT(VALUES(x)), b = VALUES(x), c = SUM(x)
+;
+
+a:integer | b:integer | c:long
+3         | [1, 2, 3] | 6
+;
+
+fixClassCastBug3
+required_capability: fix_stats_classcast_exception
+
+ROW x = 1 
+| STATS a = 2*COUNT_DISTINCT(x), b = COUNT_DISTINCT(x), c = MAX(x)
+;
+
+a:long | b:long | c:integer
+2      | 1      | 1
+;

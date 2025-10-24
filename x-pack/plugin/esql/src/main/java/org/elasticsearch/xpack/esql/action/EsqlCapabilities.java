@@ -1280,7 +1280,12 @@ public class EsqlCapabilities {
          * e.g. STATS SUM(1) WHERE x==3 is replaced by
          *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
          */
-        STATS_WITH_FILTERED_SURROGATE_FIXED;
+        STATS_WITH_FILTERED_SURROGATE_FIXED,
+
+        /**
+         * Fix for ClassCastException in STATS
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION;
 
         private final boolean enabled;
 

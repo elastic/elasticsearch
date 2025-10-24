@@ -29,13 +29,13 @@ public class L2Norm extends VectorSimilarityFunction {
 
     public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
-        public float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
-            return (float) Math.sqrt(VectorUtil.squareDistance(leftScratch, rightScratch));
+        public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
+            return (float) Math.sqrt(VectorUtil.squareDistance(leftVector, rightVector));
         }
 
         @Override
-        public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
-            return (float) Math.sqrt(VectorUtil.squareDistance(leftScratch, rightScratch));
+        public float calculateSimilarity(float[] leftVector, float[] rightVector) {
+            return (float) Math.sqrt(VectorUtil.squareDistance(leftVector, rightVector));
         }
     };
 

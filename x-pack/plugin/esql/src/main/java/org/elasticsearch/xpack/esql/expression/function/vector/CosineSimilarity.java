@@ -32,13 +32,13 @@ public class CosineSimilarity extends VectorSimilarityFunction {
     );
     public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
-        public float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
-            return VectorUtil.cosine(leftScratch, rightScratch);
+        public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
+            return VectorUtil.cosine(leftVector, rightVector);
         }
 
         @Override
-        public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
-            return VectorUtil.cosine(leftScratch, rightScratch);
+        public float calculateSimilarity(float[] leftVector, float[] rightVector) {
+            return VectorUtil.cosine(leftVector, rightVector);
         }
     };
 

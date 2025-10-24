@@ -3164,9 +3164,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public interface SimilarityFunction {
-        float calculateSimilarity(float[] v1, float[] v2);
+        float calculateSimilarity(float[] leftVector, float[] rightVector);
 
-        float calculateSimilarity(byte[] v1, byte[] v2);
+        float calculateSimilarity(byte[] leftVector, byte[] rightVector);
     }
 
     /**

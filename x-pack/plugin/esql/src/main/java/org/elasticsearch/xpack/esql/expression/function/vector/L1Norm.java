@@ -27,25 +27,25 @@ public class L1Norm extends VectorSimilarityFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "L1Norm", L1Norm::new);
     public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
-        public float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
-            if (leftScratch.length != rightScratch.length) {
-                throw new IllegalArgumentException("vector dimensions differ:" + leftScratch.length + "!=" + rightScratch.length);
+        public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
+            if (leftVector.length != rightVector.length) {
+                throw new IllegalArgumentException("vector dimensions differ:" + leftVector.length + "!=" + rightVector.length);
             }
             float result = 0f;
-            for (int i = 0; i < leftScratch.length; i++) {
-                result += Math.absExact(leftScratch[i] - rightScratch[i]);
+            for (int i = 0; i < leftVector.length; i++) {
+                result += Math.absExact(leftVector[i] - rightVector[i]);
             }
             return result;
         }
 
         @Override
-        public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
-            if (leftScratch.length != rightScratch.length) {
-                throw new IllegalArgumentException("vector dimensions differ:" + leftScratch.length + "!=" + rightScratch.length);
+        public float calculateSimilarity(float[] leftVector, float[] rightVector) {
+            if (leftVector.length != rightVector.length) {
+                throw new IllegalArgumentException("vector dimensions differ:" + leftVector.length + "!=" + rightVector.length);
             }
             float result = 0f;
-            for (int i = 0; i < leftScratch.length; i++) {
-                result += Math.abs(leftScratch[i] - rightScratch[i]);
+            for (int i = 0; i < leftVector.length; i++) {
+                result += Math.abs(leftVector[i] - rightVector[i]);
             }
             return result;
         }

@@ -715,6 +715,9 @@ public class TestBlock implements BlockLoader.Block {
             assert count == encodedHistograms.values.size();
 
             return new TestBlock(IntStream.range(0, count).mapToObj(i -> {
+                if (encodedHistograms.get(i) == null) {
+                    return null;
+                }
                 CompressedExponentialHistogram result = new CompressedExponentialHistogram();
                 try {
                     result.reset(

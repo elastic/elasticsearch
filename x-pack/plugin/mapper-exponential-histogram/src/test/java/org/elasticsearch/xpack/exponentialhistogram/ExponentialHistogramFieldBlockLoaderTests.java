@@ -14,6 +14,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
@@ -85,20 +86,7 @@ public class ExponentialHistogramFieldBlockLoaderTests extends BlockLoaderTestCa
 
     private static Map<String,?> createRandomHistogramJsonValue() {
         try {
-            int numBuckets = ESTestCase.randomIntBetween(1, 200);
-            int numValues = ESTestCase.randomIntBetween(0, 10_000);
-            double[] values = IntStream.range(0, numValues)
-                .mapToDouble(i -> Math.pow(100_000,randomDouble()))
-                .map(val -> ESTestCase.randomBoolean() ? val : -val)
-                .toArray();
-            double smallestAbs = Arrays.stream(values).map(Math::abs).min().orElse(1.0);
-
-            ExponentialHistogram histo = ExponentialHistogram.create(numBuckets, ExponentialHistogramCircuitBreaker.noop(), values);
-            if (randomBoolean()) {
-                histo = ExponentialHistogram.builder(histo, ExponentialHistogramCircuitBreaker.noop())
-                    .zeroBucket(ZeroBucket.create(smallestAbs, randomIntBetween(0, 12)))
-                    .build();
-            }
+            ExponentialHistogram histo = ExponentialHistogramTestUtils.randomHistogram();
             return convertToMap(histo);
         } catch (IOException e) {
             throw new RuntimeException(e);

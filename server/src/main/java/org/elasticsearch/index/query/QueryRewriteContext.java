@@ -36,7 +36,6 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentParser;
@@ -50,12 +49,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -404,19 +404,17 @@ public class QueryRewriteContext {
                 action.accept(client, internalListener);
             }
 
-            try (ExecutorService remoteExecutor = client.threadPool().executor(ThreadPool.Names.SEARCH)) {
-                for (var entry : remoteAsyncActions.entrySet()) {
-                    String clusterAlias = entry.getKey();
-                    List<BiConsumer<RemoteClusterClient, ActionListener<?>>> remoteBiConsumers = entry.getValue();
+            for (var entry : remoteAsyncActions.entrySet()) {
+                String clusterAlias = entry.getKey();
+                List<BiConsumer<RemoteClusterClient, ActionListener<?>>> remoteBiConsumers = entry.getValue();
 
-                    RemoteClusterClient remoteClient = client.getRemoteClusterClient(
-                        clusterAlias,
-                        remoteExecutor,
-                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
-                    );
-                    for (BiConsumer<RemoteClusterClient, ActionListener<?>> action : remoteBiConsumers) {
-                        action.accept(remoteClient, internalListener);
-                    }
+                RemoteClusterClient remoteClient = client.getRemoteClusterClient(
+                    clusterAlias,
+                    DIRECT_EXECUTOR_SERVICE,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                );
+                for (BiConsumer<RemoteClusterClient, ActionListener<?>> action : remoteBiConsumers) {
+                    action.accept(remoteClient, internalListener);
                 }
             }
             remoteAsyncActions.clear();

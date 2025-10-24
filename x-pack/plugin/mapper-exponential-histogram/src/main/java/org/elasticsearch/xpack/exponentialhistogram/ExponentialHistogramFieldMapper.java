@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -306,26 +307,26 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            DoublesBlockLoader minimaLoader = new DoublesBlockLoader(
+                valuesMinSubFieldName(name()),
+                NumericUtils::sortableLongToDouble
+            );
+            DoublesBlockLoader maximaLoader = new DoublesBlockLoader(
+                valuesMaxSubFieldName(name()),
+                NumericUtils::sortableLongToDouble
+            );
+            DoublesBlockLoader sumsLoader = new DoublesBlockLoader(
+                valuesSumSubFieldName(name()),
+                NumericUtils::sortableLongToDouble
+            );
+            LongsBlockLoader valueCountsLoader = new LongsBlockLoader(valuesCountSubFieldName(name()));
+            DoublesBlockLoader zeroThresholdsLoader = new DoublesBlockLoader(
+                zeroThresholdSubFieldName(name()),
+                NumericUtils::sortableLongToDouble
+            );
+            BytesRefsFromBinaryBlockLoader bytesLoader = new BytesRefsFromBinaryBlockLoader(name());
+
             return new BlockDocValuesReader.DocValuesBlockLoader() {
-
-                final DoublesBlockLoader minimaLoader = new DoublesBlockLoader(
-                    valuesMinSubFieldName(name()),
-                    NumericUtils::sortableLongToDouble
-                );
-                final DoublesBlockLoader maximaLoader = new DoublesBlockLoader(
-                    valuesMaxSubFieldName(name()),
-                    NumericUtils::sortableLongToDouble
-                );
-                final DoublesBlockLoader sumsLoader = new DoublesBlockLoader(
-                    valuesSumSubFieldName(name()),
-                    NumericUtils::sortableLongToDouble
-                );
-                final LongsBlockLoader valueCountsLoader = new LongsBlockLoader(valuesCountSubFieldName(name()));
-                final DoublesBlockLoader zeroThresholdsLoader = new DoublesBlockLoader(
-                    zeroThresholdSubFieldName(name()),
-                    NumericUtils::sortableLongToDouble
-                );
-
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
                     return factory.exponentialHistogramBlockBuilder(expectedCount);
@@ -333,15 +334,13 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
                 @Override
                 public AllReader reader(LeafReaderContext context) throws IOException {
-                    //TODO: what if context.reader().getBinaryDocValues(name()) is null?
-                    AllReader encodedBytesReader = new BytesRefsFromBinaryReader(
-                        context.reader().getBinaryDocValues(name())
-                    );
+                    AllReader bytesReader = bytesLoader.reader(context);
                     BlockLoader.AllReader minimaReader = minimaLoader.reader(context);
                     BlockLoader.AllReader maximaReader = maximaLoader.reader(context);
                     AllReader sumsReader = sumsLoader.reader(context);
                     AllReader valueCountsReader = valueCountsLoader.reader(context);
                     AllReader zeroThresholdsReader = zeroThresholdsLoader.reader(context);
+
                     return new AllReader() {
                         @Override
                         public boolean canReuse(int startingDocID) {
@@ -350,7 +349,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                                 && sumsReader.canReuse(startingDocID)
                                 && valueCountsReader.canReuse(startingDocID)
                                 && zeroThresholdsReader.canReuse(startingDocID)
-                                && encodedBytesReader.canReuse(startingDocID);
+                                && bytesReader.canReuse(startingDocID);
                         }
 
                         @Override
@@ -366,6 +365,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                             Block valueCounts = null;
                             Block zeroThresholds = null;
                             Block encodedBytes = null;
+                            Block result;
                             boolean success = false;
                             try {
                                 minima = minimaReader.read(factory, docs, offset, nullsFiltered);
@@ -373,21 +373,22 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                                 sums = sumsReader.read(factory, docs, offset, nullsFiltered);
                                 valueCounts = valueCountsReader.read(factory, docs, offset, nullsFiltered);
                                 zeroThresholds = zeroThresholdsReader.read(factory, docs, offset, nullsFiltered);
-                                encodedBytes = encodedBytesReader.read(factory, docs, offset, nullsFiltered);
+                                encodedBytes = bytesReader.read(factory, docs, offset, nullsFiltered);
+                                result = factory.buildExponentialHistogramBlockDirect(
+                                    minima,
+                                    maxima,
+                                    sums,
+                                    valueCounts,
+                                    zeroThresholds,
+                                    encodedBytes
+                                );
                                 success = true;
                             } finally {
                                 if (success == false) {
                                     Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedBytes);
                                 }
                             }
-                            return factory.buildExponentialHistogramBlockDirect(
-                                minima,
-                                maxima,
-                                sums,
-                                valueCounts,
-                                zeroThresholds,
-                                encodedBytes
-                            );
+                            return result;
                         }
 
                         @Override
@@ -398,7 +399,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                             sumsReader.read(docId, storedFields, histogramBuilder.sums());
                             valueCountsReader.read(docId, storedFields, histogramBuilder.valueCounts());
                             zeroThresholdsReader.read(docId, storedFields, histogramBuilder.zeroThresholds());
-                            encodedBytesReader.read(docId, storedFields, histogramBuilder.encodedHistograms());
+                            bytesReader.read(docId, storedFields, histogramBuilder.encodedHistograms());
                         }
                     };
                 }

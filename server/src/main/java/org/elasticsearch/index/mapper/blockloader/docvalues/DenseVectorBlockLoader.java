@@ -183,7 +183,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
     private static class FloatDenseVectorNormalizedValuesBlockReader<B extends BlockLoader.Builder> extends
         FloatDenseVectorValuesBlockReader<B> {
-        private final VectorNormalizer normalizer;
+        private final NumericDocValues magnitudeDocValues;
 
         FloatDenseVectorNormalizedValuesBlockReader(
             FloatVectorValues floatVectorValues,
@@ -192,14 +192,24 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
             NumericDocValues magnitudeDocValues
         ) {
             super(floatVectorValues, dimensions, processor);
-            this.normalizer = new VectorNormalizer(magnitudeDocValues);
+            this.magnitudeDocValues = magnitudeDocValues;
         }
 
         @Override
         protected void processCurrentVector(B builder) throws IOException {
             assertDimensions();
             float[] vector = vectorValues.vectorValue(iterator.index());
-            vector = normalizer.normalize(vector, iterator.docID());
+
+            // Normalize the vector by multiplying each element by the stored magnitude.
+            // If all vectors are normalized or the magnitude is not stored for this doc,
+            // the vector remains unchanged.
+            if (magnitudeDocValues != null && magnitudeDocValues.advanceExact(iterator.docID())) {
+                float magnitude = Float.intBitsToFloat((int) magnitudeDocValues.longValue());
+                for (int i = 0; i < vector.length; i++) {
+                    vector[i] *= magnitude;
+                }
+            }
+
             processor.process(vector, builder);
         }
 

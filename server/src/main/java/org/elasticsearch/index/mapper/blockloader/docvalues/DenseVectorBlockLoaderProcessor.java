@@ -15,9 +15,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import java.io.IOException;
 
 /**
- * Strategy interface for processing vector values and appending them to a builder.
- * Different implementations can either output raw vectors or compute derived values
- * like similarity scores.
+ * Processes vector values from doc values and appends them to a builder.
  *
  * @param <B> The type of builder to append results to
  */
@@ -27,7 +25,7 @@ public interface DenseVectorBlockLoaderProcessor<B extends BlockLoader.Builder> 
      * Creates a builder for the given expected count.
      * @param factory the block factory
      * @param expectedCount the expected number of values
-     * @param dimensions the vector dimensions (only used for vector output processors)
+     * @param dimensions the vector dimensions
      * @return the builder
      */
     B createBuilder(BlockLoader.BlockFactory factory, int expectedCount, int dimensions);
@@ -50,7 +48,7 @@ public interface DenseVectorBlockLoaderProcessor<B extends BlockLoader.Builder> 
     }
 
     /**
-     * Processor that appends raw float vectors to a FloatBuilder.
+     * Processor that appends raw float vectors to a FloatBuilder as multi values.
      */
     class DenseVectorLoaderProcessor implements DenseVectorBlockLoaderProcessor<BlockLoader.FloatBuilder> {
 

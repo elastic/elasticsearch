@@ -34,9 +34,15 @@ public class FunctionEsField extends EsField {
         );
     }
 
-    private FunctionEsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable,
-                           boolean isAlias, TimeSeriesFieldType timeSeriesFieldType,
-                            MappedFieldType.BlockLoaderFunctionConfig functionConfig) {
+    private FunctionEsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean aggregatable,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType,
+        MappedFieldType.BlockLoaderFunctionConfig functionConfig
+    ) {
         super(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType);
         this.functionConfig = functionConfig;
     }

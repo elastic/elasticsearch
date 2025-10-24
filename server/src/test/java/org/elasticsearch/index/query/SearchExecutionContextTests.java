@@ -8,10 +8,12 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -231,6 +233,8 @@ public class SearchExecutionContextTests extends ESTestCase {
             runtimeField("4", (leafLookup, docId) -> {
                 if (docId == 0) {
                     return "escape!";
+                } else if (docId == 1) {
+                    return "escape2!";
                 }
                 return leafLookup.doc().get("4").get(0).toString();
             })
@@ -776,10 +780,24 @@ public class SearchExecutionContextTests extends ESTestCase {
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext, Query query) throws IOException {
         List<String> result = new ArrayList<>();
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-            indexWriter.addDocument(List.of(new StringField("indexed_field", "first", Field.Store.NO)));
-            indexWriter.addDocument(List.of(new StringField("indexed_field", "second", Field.Store.NO)));
+            indexWriter.addDocument(List.of(new StringField("indexed_field", "first", Field.Store.YES)));
+            indexWriter.addDocument(List.of(new StringField("indexed_field", "second", Field.Store.YES)));
             try (DirectoryReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
+                var indexReader = searcher.getIndexReader();
+                var leaves = indexReader.leaves();
+                for (var leaf : leaves) {
+                    int max;
+                    try (LeafReader leafReader = leaf.reader()) {
+                        max = leafReader.maxDoc();
+                        Map<Integer, Document> documents = new HashMap<>();
+                        for (int i = 0; i < max; i++) {
+                            documents.put(i, leafReader.storedFields().document(i, Set.of("indexed_field")));
+                        }
+                        System.out.println(documents);
+                    }
+                }
+
                 MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {

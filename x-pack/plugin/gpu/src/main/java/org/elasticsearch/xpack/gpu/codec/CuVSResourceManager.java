@@ -192,6 +192,10 @@ public interface CuVSResourceManager {
         }
 
         private long estimateRequiredMemory(int numVectors, int dims, CuVSMatrix.DataType dataType) {
+            // for large vector sets, we use IVF+PQ or similar, so we don't skip blocking based on memory usage
+            if (numVectors >= 1e6) {
+                return 0;
+            }
             int elementTypeBytes = switch (dataType) {
                 case FLOAT -> Float.BYTES;
                 case INT, UINT -> Integer.BYTES;

@@ -327,14 +327,24 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             }
         };
 
-        // TODO: expose cagra index params for algorithm, NNDescentNumIterations
-        CagraIndexParams params = new CagraIndexParams.Builder().withNumWriterThreads(1) // TODO: how many CPU threads we can use?
-            .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
-            .withGraphDegree(M)
-            .withIntermediateGraphDegree(beamWidth)
-            .withNNDescentNumIterations(5)
-            .withMetric(distanceType)
-            .build();
+        final CagraIndexParams params;
+        int numCPUThreads = 1;  // TODO: how many CPU threads we can use?
+        if (dataset.size() < 1e6) {
+            params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
+                .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
+                .withGraphDegree(M)
+                .withIntermediateGraphDegree(beamWidth)
+                .withNNDescentNumIterations(5)
+                .withMetric(distanceType)
+                .build();
+        } else {
+            var ivfPqParams = CuVSIvfPqParamsFactory.create(dataset, distanceType);
+            params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
+                .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ)
+                .withCuVSIvfPqParams(ivfPqParams)
+                .withMetric(distanceType)
+                .build();
+        }
 
         long startTime = System.nanoTime();
         var indexBuilder = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(params);

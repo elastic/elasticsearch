@@ -1,0 +1,5 @@
+pr: 137126
+summary: Use IVF_PQ for GPU index build for large datasets
+area: Vector Search
+type: enhancement
+issues: []

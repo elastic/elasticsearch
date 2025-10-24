@@ -53,7 +53,7 @@ Dense vector fields can be used to rank documents in [`script_score` queries](/r
 
 In many cases, a brute-force kNN search is not efficient enough. For this reason, the `dense_vector` type supports indexing vectors into a specialized data structure to support fast kNN retrieval through the [`knn` option](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) in the search API
 
-Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similariy of `cosine`. You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
+Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similarity of `cosine`. You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
 
 Indexing is enabled by default for dense vector fields and indexed as `bbq_hnsw` if dimensions are greater than or equal to 384, otherwise they are indexed as `int8_hnsw`. {applies_to}`stack: ga 9.1`
 
@@ -121,6 +121,7 @@ To retrieve vector values explicitly, you can use:
     "fields": ["my_vector"]
   }
   ```
+  % TEST[continued]
 
 - The `_source.exclude_vectors` flag to re-enable vector inclusion in `_source` responses:
 
@@ -132,6 +133,11 @@ To retrieve vector values explicitly, you can use:
     }
   }
   ```
+  % TEST[continued]
+
+:::{tip}
+For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
+:::
 
 ### Storage behavior and `_source`
 
@@ -353,7 +359,7 @@ $$$dense-vector-index-options$$$
     * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatic scalar quantization. Only supports `element_type` of `float`.
     * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatic half-byte scalar quantization. Only supports `element_type` of `float`.
     * `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatic binary quantization. Only supports `element_type` of `float`.
-    * {applies_to}`stack: ga 9.2` `bbq_disk` - This utilizes a variant of [k-means clustering algorithm](https://en.wikipedia.org/wiki/K-means_clustering) in addition to automatic binary quantization to partition vectors and search subspaces rather than an entire graph structure as in with HNSW. Only supports `element_type` of `float`.  This combines the benefits of BBQ quantization with partitioning to further reduces the required memory overhead when compared with HNSW and can effectively be run at the smallest possible RAM and heap sizes when HNSW would otherwise cause swapping and grind to a halt.  DiskBBQ largely scales linearlly with the total RAM.  And search performance is enhanced at scale as a subset of the total vector space is loaded.
+    * {applies_to}`stack: ga 9.2` `bbq_disk` - This utilizes a variant of [k-means clustering algorithm](https://en.wikipedia.org/wiki/K-means_clustering) in addition to automatic binary quantization to partition vectors and search subspaces rather than an entire graph structure as in with HNSW. Only supports `element_type` of `float`.  This combines the benefits of BBQ quantization with partitioning to further reduces the required memory overhead when compared with HNSW and can effectively be run at the smallest possible RAM and heap sizes when HNSW would otherwise cause swapping and grind to a halt.  DiskBBQ largely scales linearly with the total RAM.  And search performance is enhanced at scale as a subset of the total vector space is loaded.
 
 `m`
 :   (Optional, integer) The number of neighbors each node will be connected to in the HNSW graph. Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
@@ -412,7 +418,7 @@ When comparing these two bit, vectors, we first take the [`hamming` distance](ht
 1111111010000001000000010010101101010101
 ```
 
-Then, we gather the count of `1` bits in the `xor` result: `18`. To scale for scoring, we subtract from the total number of bits and divide by the total number of bits: `(40 - 18) / 40 = 0.55`. This would be the `_score` betwee these two vectors.
+Then, we gather the count of `1` bits in the `xor` result: `18`. To scale for scoring, we subtract from the total number of bits and divide by the total number of bits: `(40 - 18) / 40 = 0.55`. This would be the `_score` between these two vectors.
 
 Here is an example of indexing and searching bit vectors:
 
@@ -441,6 +447,7 @@ POST /my-bit-vectors/_bulk?refresh
 {"index": {"_id" : "2"}}
 {"my_vector": "8100012a7f"} <2>
 ```
+% TEST[continued]
 
 1. 5 bytes representing the 40 bit dimensioned vector
 2. A hexidecimal string representing the 40 bit dimensioned vector
@@ -459,35 +466,36 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
   }
 }
 ```
+% TEST[continued]
 
 ```console-result
 {
-    "hits": {
-        "hits": [
-            {
-                "_index": "my-bit-vectors",
-                "_id": "1",
-                "_score": 1.0,
-                "_source": {
-                    "my_vector": [
-                        127,
-                        -127,
-                        0,
-                        1,
-                        42
-                    ]
-                }
-            },
-            {
-                "_index": "my-bit-vectors",
-                "_id": "2",
-                "_score": 0.55,
-                "_source": {
-                    "my_vector": "8100012a7f"
-                }
-            }
-        ]
-    }
+  "hits": {
+    "hits": [
+      {
+        "_index": "my-bit-vectors",
+        "_id": "1",
+        "_score": 1,
+        "_source": {
+          "my_vector": [
+            127,
+            -127,
+            0,
+            1,
+            42
+          ]
+        }
+      },
+      {
+        "_index": "my-bit-vectors",
+        "_id": "2",
+        "_score": 0.55,
+        "_source": {
+          "my_vector": "8100012a7f"
+        }
+      }
+    ]
+  }
 }
 ```
 
@@ -550,6 +558,7 @@ PUT /my-index-000001/_mapping
     }
 }
 ```
+% TEST[setup:my_index]
 
 Vectors indexed before this change will keep using the `flat` type (raw float32 representation and brute force search for KNN queries).
 

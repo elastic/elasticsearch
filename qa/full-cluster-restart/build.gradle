@@ -23,10 +23,20 @@ buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
 }
 
 tasks.register("luceneBwcTest", StandaloneRestIntegTestTask) {
-  // We use a phony version here as the real version is provided via `tests.bwc.main.version` system property
-  usesBwcDistribution(Version.fromString("0.0.0"))
-  systemProperty("tests.old_cluster_version", "0.0.0")
-  onlyIf("tests.bwc.main.version system property exists") { System.getProperty("tests.bwc.main.version") != null }
+  project.gradle.taskGraph.whenReady { allTasks ->
+    if (allTasks.hasTask(getPath())) {
+      if (System.getProperty("tests.bwc.refspec.main") == null) {
+        throw new GradleException("You must set the `tests.bwc.refspec.main` system property to run luceneBwcTest")
+      }
+      if (System.getProperty("tests.bwc.main.version") == null) {
+        throw new GradleException("You must set the `tests.bwc.main.version` system property to run luceneBwcTest")
+      }
+    }
+  }
+  if (System.getProperty("tests.bwc.refspec.main") != null && System.getProperty("tests.bwc.main.version") != null) {
+    usesBwcDistributionFromRef(System.getProperty("tests.bwc.refspec.main"), Version.fromString(System.getProperty("tests.bwc.main.version")))
+    systemProperty("tests.old_cluster_version", System.getProperty("tests.bwc.main.version"))
+  }
 }
 
 tasks.named("bcUpgradeTest").configure {

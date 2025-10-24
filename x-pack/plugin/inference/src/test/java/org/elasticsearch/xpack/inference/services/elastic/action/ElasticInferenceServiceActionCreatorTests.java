@@ -20,9 +20,9 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -81,7 +81,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -144,7 +144,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             // This will fail because the expected output is {"data": [{...}]}
             String responseJson = """
@@ -192,7 +192,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -264,7 +264,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -298,8 +298,8 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result, instanceOf(TextEmbeddingFloatResults.class));
-            var textEmbeddingResults = (TextEmbeddingFloatResults) result;
+            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
             assertThat(textEmbeddingResults.embeddings(), hasSize(2));
 
             var firstEmbedding = textEmbeddingResults.embeddings().get(0);
@@ -326,7 +326,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -354,8 +354,8 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result, instanceOf(TextEmbeddingFloatResults.class));
-            var textEmbeddingResults = (TextEmbeddingFloatResults) result;
+            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
             assertThat(textEmbeddingResults.embeddings(), hasSize(1));
 
             var embedding = textEmbeddingResults.embeddings().get(0);
@@ -383,7 +383,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             // This will fail because the expected output is {"data": [[...]]}
             String responseJson = """
@@ -428,7 +428,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -447,8 +447,8 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result, instanceOf(TextEmbeddingFloatResults.class));
-            var textEmbeddingResults = (TextEmbeddingFloatResults) result;
+            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
             assertThat(textEmbeddingResults.embeddings(), hasSize(0));
 
             assertThat(webServer.requests(), hasSize(1));
@@ -463,7 +463,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJsonContentTooLarge = """
                 {
@@ -534,7 +534,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {

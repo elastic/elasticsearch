@@ -36,6 +36,7 @@
           "false",
           "wait_for"
         ],
+        "default": "false",
         "description": "If `true` then refresh the affected shards to make this operation visible to search, if `wait_for` (the default) then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
       }
     }

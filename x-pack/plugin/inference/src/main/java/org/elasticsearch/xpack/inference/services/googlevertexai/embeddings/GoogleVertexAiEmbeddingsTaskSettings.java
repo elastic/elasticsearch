@@ -95,9 +95,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     public GoogleVertexAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
         this.autoTruncate = in.readOptionalBoolean();
-
         var inputType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) ? in.readOptionalEnum(InputType.class) : null;
-
         validateInputType(inputType);
         this.inputType = inputType;
     }

@@ -44,7 +44,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -186,13 +185,8 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
 
         // validate index:
         var getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index)).actionGet();
-        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
-            assertThat(getIndexResponse.getSettings().get(index).get("index.dimensions"), equalTo("[attributes.*]"));
-            assertThat(getIndexResponse.getSettings().get(index).get("index.routing_path"), nullValue());
-        } else {
-            assertThat(getIndexResponse.getSettings().get(index).get("index.dimensions"), nullValue());
-            assertThat(getIndexResponse.getSettings().get(index).get("index.routing_path"), equalTo("[attributes.*]"));
-        }
+        assertThat(getIndexResponse.getSettings().get(index).get("index.dimensions"), equalTo("[attributes.*]"));
+        assertThat(getIndexResponse.getSettings().get(index).get("index.routing_path"), nullValue());
         // validate mapping
         var mapping = getIndexResponse.mappings().get(index).getSourceAsMap();
         assertMap(

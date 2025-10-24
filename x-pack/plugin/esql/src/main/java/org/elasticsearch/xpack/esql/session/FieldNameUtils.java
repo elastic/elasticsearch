@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
@@ -57,7 +57,10 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
 
-    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(TBucket.NAME.toLowerCase(Locale.ROOT));
+    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(
+        TBucket.NAME.toLowerCase(Locale.ROOT),
+        TRange.NAME.toLowerCase(Locale.ROOT)
+    );
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches) {
 
@@ -147,9 +150,7 @@ public class FieldNameUtils {
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
                 referencesBuilder.get().addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
-                if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
-                    joinRefs.addAll(usingJoinType.columns());
-                }
+                joinRefs.addAll(join.config().leftFields());
                 if (keepRefs.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
@@ -244,7 +245,9 @@ public class FieldNameUtils {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
-            return new PreAnalysisResult(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()), wildcardJoinIndices);
+            HashSet<String> allFields = new HashSet<>(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()));
+            allFields.add(MetadataAttribute.INDEX);
+            return new PreAnalysisResult(allFields, wildcardJoinIndices);
         }
     }
 

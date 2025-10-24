@@ -17,7 +17,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -151,7 +150,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         );
     }
 
-    private void configureClusters() throws IOException {
+    private void configureClusters() throws Exception {
         final String commonInferenceId = "common-inference-id";
         final String localInferenceId = "local-inference-id";
         final String remoteInferenceId = "remote-inference-id";

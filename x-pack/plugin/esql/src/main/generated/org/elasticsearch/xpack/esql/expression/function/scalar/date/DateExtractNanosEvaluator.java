@@ -79,27 +79,27 @@ public final class DateExtractNanosEvaluator implements EvalOperator.ExpressionE
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valueBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valueBlock.getValueCount(p) != 1) {
-          if (valueBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (chronoFieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (chronoFieldBlock.getValueCount(p) != 1) {
-          if (chronoFieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (chronoFieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
         BytesRef chronoField = chronoFieldBlock.getBytesRef(chronoFieldBlock.getFirstValueIndex(p), chronoFieldScratch);

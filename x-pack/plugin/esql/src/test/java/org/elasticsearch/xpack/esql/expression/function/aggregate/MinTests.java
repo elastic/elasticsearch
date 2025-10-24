@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -47,6 +48,7 @@ public class MinTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
@@ -179,11 +181,26 @@ public class MinTests extends AbstractAggregationTestCase {
                         DataType.VERSION,
                         equalTo(value)
                     );
+                }),
+                new TestCaseSupplier(List.of(DataType.AGGREGATE_METRIC_DOUBLE), () -> {
+                    var value = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                        randomDouble(),
+                        randomDouble(),
+                        randomDouble(),
+                        randomNonNegativeInt()
+                    );
+                    return new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.AGGREGATE_METRIC_DOUBLE, "field")),
+                        standardAggregatorName("Min", DataType.AGGREGATE_METRIC_DOUBLE),
+                        DataType.DOUBLE,
+                        equalTo(value.min())
+                    );
+
                 })
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
     }
 
     @Override
@@ -195,16 +212,29 @@ public class MinTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
-            var expected = fieldTypedData.multiRowData()
-                .stream()
-                .map(v -> (Comparable<? super Comparable<?>>) v)
-                .min(Comparator.naturalOrder())
-                .orElse(null);
+            Comparable<? super Comparable<?>> expected;
+
+            if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
+                expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(
+                        v -> (Comparable<
+                            ? super Comparable<?>>) ((Object) ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).min())
+                    )
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+            } else {
+                expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(v -> (Comparable<? super Comparable<?>>) v)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+            }
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Min", fieldSupplier.type()),
-                fieldSupplier.type(),
+                fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE ? DataType.DOUBLE : fieldSupplier.type(),
                 equalTo(expected)
             );
         });

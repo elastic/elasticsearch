@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -29,7 +30,9 @@ public class BlobCacheMetrics {
     public static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "reason";
     public static final String CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY = "source";
     public static final String LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY = "file_extension";
+    public static final String ES_EXECUTOR_ATTRIBUTE_KEY = "executor";
     public static final String NON_LUCENE_EXTENSION_TO_RECORD = "other";
+    public static final String NON_ES_EXECUTOR_TO_RECORD = "other";
     public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
     public static final String SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME = "es.blob_cache.search_origin.download_took_time.total";
 
@@ -198,13 +201,16 @@ public class BlobCacheMetrics {
     ) {
         LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(fileName);
         String luceneFileExt = luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
+        String executorName = EsExecutors.executorName(Thread.currentThread());
         Map<String, Object> metricAttributes = Map.of(
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason.name(),
             CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
             cachePopulationSource.name(),
             LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY,
-            luceneFileExt
+            luceneFileExt,
+            ES_EXECUTOR_ATTRIBUTE_KEY,
+            executorName != null ? executorName : NON_ES_EXECUTOR_TO_RECORD
         );
         assert bytesCopied > 0 : "We shouldn't be recording zero-sized copies";
         cachePopulationBytes.incrementBy(bytesCopied, metricAttributes);

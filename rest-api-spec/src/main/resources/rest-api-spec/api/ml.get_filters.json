@@ -36,10 +36,12 @@
     "params": {
       "from": {
         "type": "int",
+        "default": 0,
         "description": "skips a number of filters"
       },
       "size": {
         "type": "int",
+        "default": 100,
         "description": "specifies a max number of filters to get"
       }
     }

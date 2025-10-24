@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -87,7 +89,7 @@ dependencies {
   api "net.jcip:jcip-annotations:1.0"
   api "net.minidev:json-smart:2.5.2"
   api "net.minidev:accessors-smart:2.5.2"
-  api "org.ow2.asm:asm:9.8"
+  api "org.ow2.asm:asm:9.9"
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
@@ -172,7 +174,7 @@ tasks.named('assemble').configure {
   dependsOn tasks.named('jar')
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /bc.*/, to: 'bouncycastle'

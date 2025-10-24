@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.synonyms;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -31,6 +31,9 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
     }
 
     public static class Request extends LegacyActionRequest {
+
+        private static final TransportVersion SYNONYMS_REFRESH_PARAM = TransportVersion.fromName("synonyms_refresh_param");
+
         private final String synonymsSetId;
         private final String synonymRuleId;
         private final boolean refresh;
@@ -39,7 +42,7 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             super(in);
             this.synonymsSetId = in.readString();
             this.synonymRuleId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+            if (in.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
                 this.refresh = in.readBoolean();
             } else {
                 this.refresh = true;
@@ -70,7 +73,7 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             super.writeTo(out);
             out.writeString(synonymsSetId);
             out.writeString(synonymRuleId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+            if (out.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
                 out.writeBoolean(refresh);
             }
         }
@@ -92,12 +95,14 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(synonymsSetId, request.synonymsSetId) && Objects.equals(synonymRuleId, request.synonymRuleId);
+            return Objects.equals(synonymsSetId, request.synonymsSetId)
+                && Objects.equals(synonymRuleId, request.synonymRuleId)
+                && refresh == request.refresh;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(synonymsSetId, synonymRuleId);
+            return Objects.hash(synonymsSetId, synonymRuleId, refresh);
         }
     }
 }

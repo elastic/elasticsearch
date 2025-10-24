@@ -77,7 +77,6 @@ public class CrossClusterApiKeySignatureManager {
                     true
                 ) ? wrapInDiagnosticTrustManager(trustConfig.createTrustManager()) : trustConfig.createTrustManager();
 
-                trustConfig.createTrustManager();
                 if (newTrustManager.getAcceptedIssuers().length == 0) {
                     logger.warn("Cross cluster API Key trust configuration [{}] has no accepted certificate issuers", trustConfig);
                     trustManager.set(null);
@@ -160,13 +159,13 @@ public class CrossClusterApiKeySignatureManager {
     }
 
     public Signer signerForClusterAlias(String clusterAlias) {
-        return new Signer(clusterAlias);
+        return keyPairByClusterAlias.containsKey(clusterAlias) ? new Signer(clusterAlias) : null;
     }
 
     public class Verifier {
         private Verifier() {}
 
-        public boolean verify(X509CertificateSignature signature, String... headers) {
+        public boolean verify(X509CertificateSignature signature, String... headers) throws GeneralSecurityException {
             assert signature.certificates().length > 0 : "Signature not valid without trusted certificate chain";
 
             var authTrustManager = trustManager.get();
@@ -177,33 +176,27 @@ public class CrossClusterApiKeySignatureManager {
                 );
             }
 
-            try {
-                // Make sure the provided certificate chain is trusted
-                var leaf = signature.certificates()[0];
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "checking signing chain (len={}) [{}] with leaf subject [{}] using algorithm [{}]",
-                        signature.certificates().length,
-                        Arrays.stream(signature.certificates())
-                            .map(CrossClusterApiKeySignatureManager::calculateFingerprint)
-                            .collect(Collectors.joining(",")),
-                        leaf.getSubjectX500Principal().getName(X500Principal.RFC2253),
-                        leaf.getPublicKey().getAlgorithm()
-                    );
-                }
-                authTrustManager.checkClientTrusted(signature.certificates(), signature.certificates()[0].getPublicKey().getAlgorithm());
-
-                // TODO Make sure the signing certificate belongs to the correct DN (the configured api key cert identity)
-                // TODO Make sure the signing certificate is valid
-                // Make sure signature is correct
-                final Signature signer = Signature.getInstance(signature.algorithm());
-                signer.initVerify(signature.certificates()[0]);
-                signer.update(getSignableBytes(headers));
-                return signer.verify(signature.signature().array());
-            } catch (GeneralSecurityException e) {
-                logger.debug("failed certificate validation for Signature [" + signature + "]", e);
-                throw new ElasticsearchSecurityException("Failed to verify signature from [{}]", signature.certificates()[0], e);
+            // Make sure the provided certificate chain is trusted
+            var leaf = signature.leafCertificate();
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "checking signing chain (len={}) [{}] with leaf subject [{}] using algorithm [{}]",
+                    signature.certificates().length,
+                    Arrays.stream(signature.certificates())
+                        .map(CrossClusterApiKeySignatureManager::calculateFingerprint)
+                        .collect(Collectors.joining(",")),
+                    leaf.getSubjectX500Principal().getName(X500Principal.RFC2253),
+                    leaf.getPublicKey().getAlgorithm()
+                );
             }
+
+            authTrustManager.checkClientTrusted(signature.certificates(), leaf.getPublicKey().getAlgorithm());
+            signature.leafCertificate().checkValidity();
+
+            final Signature signer = Signature.getInstance(signature.algorithm());
+            signer.initVerify(leaf);
+            signer.update(getSignableBytes(headers));
+            return signer.verify(signature.signature().array());
         }
     }
 

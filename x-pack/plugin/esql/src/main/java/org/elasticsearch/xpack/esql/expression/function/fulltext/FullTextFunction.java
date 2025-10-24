@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
@@ -187,34 +190,11 @@ public abstract class FullTextFunction extends Function
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Failures failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-
-            if (condition instanceof Score) {
-                failures.add(fail(condition, "[SCORE] function can't be used in WHERE"));
-            }
-
-            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
-                // Check for limitations of QSTR and KQL function.
-                checkCommandsBeforeExpression(
-                    plan,
-                    condition,
-                    functionClass,
-                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
-                    failures
-                );
-            });
-
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                FullTextFunction.class,
-                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
-                m -> "[" + m.functionName() + "] " + m.functionType(),
-                failures
-            );
-            checkFullTextFunctionsParents(condition, failures);
+            checkFullTextQueryFunctionForCondition(plan, failures, condition, false);
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
+        } else if (plan instanceof LookupJoin lookupJoin) {
+            checkFullTextQueryFunctionForCondition(plan, failures, lookupJoin.config().joinOnConditions(), true);
         } else {
             List<FullTextFunction> scoredFTFs = new ArrayList<>();
             plan.forEachExpression(Score.class, scoreFunction -> {
@@ -235,6 +215,43 @@ public abstract class FullTextFunction extends Function
                 }
             });
         }
+    }
+
+    private static void checkFullTextQueryFunctionForCondition(
+        LogicalPlan plan,
+        Failures failures,
+        Expression condition,
+        boolean isLookupJoinOnCondition
+    ) {
+        if (condition == null) {
+            return;
+        }
+        if (condition instanceof Score) {
+            failures.add(fail(condition, "[SCORE] function can't be used in WHERE or LOOKUP JOIN ON conditions"));
+        }
+        if (isLookupJoinOnCondition == false) {
+            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+                // Check for limitations of QSTR and KQL function.
+                checkCommandsBeforeExpression(
+                    plan,
+                    condition,
+                    functionClass,
+                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                    failures
+                );
+            });
+        }
+
+        checkCommandsBeforeExpression(
+            plan,
+            condition,
+            FullTextFunction.class,
+            lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+            m -> "[" + m.functionName() + "] " + m.functionType(),
+            failures
+        );
+        checkFullTextFunctionsParents(condition, failures);
     }
 
     private static void checkScoreFunction(LogicalPlan plan, Failures failures, Score scoreFunction) {
@@ -340,6 +357,11 @@ public abstract class FullTextFunction extends Function
     }
 
     public static void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+        // Only run the check if the current node contains the full-text function
+        // This is to avoid running the check multiple times in the same plan
+        if (isInCurrentNode(plan, function) == false) {
+            return;
+        }
         var fieldAttribute = fieldAsFieldAttribute(field);
         if (fieldAttribute == null) {
             plan.forEachExpression(function.getClass(), m -> {
@@ -356,6 +378,12 @@ public abstract class FullTextFunction extends Function
                 }
             });
         } else {
+            if (plan instanceof LookupJoin) {
+                // Full Text Functions are allowed in LOOKUP JOIN ON conditions
+                // We are only running this code for the node containing the Full Text Function
+                // So if it is a Lookup Join we know the function is in the join on condition
+                return;
+            }
             // Traverse the plan to find the EsRelation outputting the field
             plan.forEachDown(p -> {
                 if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
@@ -380,13 +408,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
-        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
-        int i = 0;
-        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(evaluatorQueryBuilder()), shardContext.searcher());
-        }
-        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+        return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(toEvaluator.shardContexts()));
     }
 
     /**
@@ -402,13 +424,11 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
-        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toScorer.shardContexts();
-        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
-        int i = 0;
-        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(evaluatorQueryBuilder()), shardContext.searcher());
-        }
-        return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
+        return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(toScorer.shardContexts()));
+    }
+
+    private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
+        return contexts.map(sc -> new ShardConfig(sc.toQuery(evaluatorQueryBuilder()), sc.searcher()));
     }
 
     // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks
@@ -434,5 +454,18 @@ public abstract class FullTextFunction extends Function
     @Override
     public void postOptimizationVerification(Failures failures) {
         resolveTypeQuery(query(), sourceText(), forPostOptimizationValidation(query(), failures));
+    }
+
+    /**
+     * Check if the full-text function exists only in the current node (not in child nodes)
+     */
+    private static boolean isInCurrentNode(LogicalPlan plan, FullTextFunction function) {
+        final Holder<Boolean> found = new Holder<>(false);
+        plan.forEachExpression(FullTextFunction.class, ftf -> {
+            if (ftf == function) {
+                found.set(true);
+            }
+        });
+        return found.get();
     }
 }

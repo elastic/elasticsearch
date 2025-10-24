@@ -45,6 +45,10 @@ public class IrateLongAggregator {
         current.append(groupId, timestamp, value);
     }
 
+    public static String describe() {
+        return "instant change of longs";
+    }
+
     public static void combineIntermediate(
         LongIrateGroupingState current,
         int groupId,

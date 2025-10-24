@@ -24,6 +24,10 @@ public class StatsGenerator implements CommandGenerator {
     public static final String STATS = "stats";
     public static final CommandGenerator INSTANCE = new StatsGenerator();
 
+    public String commandName() {
+        return STATS;
+    }
+
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
@@ -38,7 +42,9 @@ public class StatsGenerator implements CommandGenerator {
         if (nonNull.isEmpty()) {
             return EMPTY_DESCRIPTION;
         }
-        StringBuilder cmd = new StringBuilder(" | stats ");
+        StringBuilder cmd = new StringBuilder(" | ");
+        cmd.append(commandName());
+        cmd.append(" ");
         int nStats = randomIntBetween(1, 5);
         for (int i = 0; i < nStats; i++) {
             String name;
@@ -65,7 +71,7 @@ public class StatsGenerator implements CommandGenerator {
                 cmd.append(" by " + col);
             }
         }
-        return new CommandDescription(STATS, this, cmd.toString(), Map.of());
+        return new CommandDescription(commandName(), this, cmd.toString(), Map.of());
     }
 
     @Override

@@ -19,6 +19,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -161,7 +162,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.ERROR_TRACE_IN_TRANSPORT_HEADER;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -603,7 +603,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Lifecycle lifecycle
     ) {
         final boolean header;
-        if (version.onOrAfter(ERROR_TRACE_IN_TRANSPORT_HEADER) && threadPool.getThreadContext() != null) {
+        if (version.supports(TransportVersions.V_8_18_0) && threadPool.getThreadContext() != null) {
             header = getErrorTraceHeader(threadPool);
         } else {
             header = true;
@@ -1442,6 +1442,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // during rewrite and normalized / evaluate templates etc.
             SearchExecutionContext context = new SearchExecutionContext(searchContext.getSearchExecutionContext());
             Rewriteable.rewrite(request.getRewriteable(), context, true);
+            if (context.getTimeRangeFilterFromMillis() != null) {
+                // range queries may get rewritten to match_all or a range with open bounds. Rewriting in that case is the only place
+                // where we parse the date and set it to the context. We need to propagate it back from the clone into the original context
+                searchContext.getSearchExecutionContext().setTimeRangeFilterFromMillis(context.getTimeRangeFilterFromMillis());
+            }
             assert searchContext.getSearchExecutionContext().isCacheable();
             success = true;
         } finally {

@@ -161,7 +161,8 @@
                 }
             },
             "required": [
-                "description"
+                "description",
+                "required"
             ],
             "title": "API request Body",
             "description": "The request body for the API. Does not detail the structure, only whether the API accepts a body and its format"

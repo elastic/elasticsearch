@@ -63,6 +63,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -312,6 +313,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
             MapperRegistry mapperRegistry = new IndicesModule(
                 plugins.stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList()),
+                plugins.stream()
+                    .filter(p -> p instanceof InternalVectorFormatProviderPlugin)
+                    .map(p -> (InternalVectorFormatProviderPlugin) p)
+                    .collect(toList()),
                 namespaceValidator
             ).getMapperRegistry();
 

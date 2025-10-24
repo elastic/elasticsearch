@@ -41,14 +41,17 @@
     "params": {
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "ignore_throttled": {
         "type": "boolean",
+        "default": true,
         "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled"
       },
       "allow_no_indices": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
@@ -85,14 +88,17 @@
       },
       "explain": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether to return detailed information about score computation as part of a hit"
       },
       "profile": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether to profile the query execution"
       },
       "typed_keys": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
       },
       "rest_total_hits_as_int": {
@@ -103,7 +109,7 @@
       "ccs_minimize_roundtrips": {
         "type": "boolean",
         "description": "Indicates whether network round-trips should be minimized as part of cross-cluster search requests execution",
-        "default": "true"
+        "default": true
       },
       "project_routing": {
         "type": "string",

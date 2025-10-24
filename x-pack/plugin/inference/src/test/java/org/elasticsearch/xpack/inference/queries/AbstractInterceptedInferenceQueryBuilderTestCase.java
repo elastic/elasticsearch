@@ -67,7 +67,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS;
 import static org.elasticsearch.TransportVersions.V_8_15_0;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
@@ -106,6 +105,8 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         DENSE_INFERENCE_ID,
         DENSE_INFERENCE_ID_SETTINGS
     );
+
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
 
     private NamedWriteableRegistry namedWriteableRegistry = null;
 

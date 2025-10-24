@@ -297,6 +297,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             parser,
             context,
             DateFieldMapper.Resolution.MILLISECONDS,
+            name(),
             (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
         );
     }

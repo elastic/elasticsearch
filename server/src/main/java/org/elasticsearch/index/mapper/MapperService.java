@@ -157,6 +157,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+    public static final Setting<Boolean> INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING = Setting.boolSetting(
+        "index.mapping.field_name_length.ignore_dynamic_beyond_limit",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Long> INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.dimension_fields.limit",
         32_768,
@@ -246,6 +252,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper,
             bitSetProducer,
+            mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator()
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());

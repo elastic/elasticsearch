@@ -1,0 +1,126 @@
+clamp_of_double_no_grouping
+required_capability: ts_command_v0
+required_capability: clamp_functions
+// tag::clamp-min[]
+FROM k8s
+| STATS full_clamped_cost=sum(clamp(network.cost, 1, 2)), clamped_cost=sum(clamp_max(network.cost, 1)), clamped_min_cost=sum(clamp_min(network.cost, 10)) BY time_bucket = bucket(@timestamp,1minute)
+// end::clamp-min[]
+| SORT full_clamped_cost DESC, time_bucket DESC | LIMIT 10;
+
+// tag::clamp-min-result[]
+full_clamped_cost:double | clamped_cost:double | clamped_min_cost:double | time_bucket:datetime
+39.0                     | 20.0                | 206.25                  | 2024-05-10T00:09:00.000Z
+29.125                   | 15.5                | 173.0                   | 2024-05-10T00:18:00.000Z
+28.0                     | 14.125              | 155.625                 | 2024-05-10T00:17:00.000Z
+23.25                    | 12.0                | 124.875                 | 2024-05-10T00:08:00.000Z
+// end::clamp-min-result[]
+20.625                   | 11.0                | 113.5                   | 2024-05-10T00:15:00.000Z
+19.0                     | 9.625               | 105.375                 | 2024-05-10T00:06:00.000Z
+17.75                    | 9.0                 | 91.625                  | 2024-05-10T00:22:00.000Z
+17.625                   | 9.0                 | 91.25                   | 2024-05-10T00:13:00.000Z
+16.375                   | 8.625               | 100.0                   | 2024-05-10T00:20:00.000Z
+16.0                     | 8.125               | 91.25                   | 2024-05-10T00:14:00.000Z
+
+;
+
+clamp_of_double_no_grouping
+required_capability: ts_command_v0
+required_capability: clamp_functions
+// tag::clamp-max[]
+TS k8s
+| STATS full_clamped_cost=sum(clamp(network.cost, 1, 2)), clamped_cost=sum(clamp_max(network.cost, 1)), clamped_min_cost=sum(clamp_min(network.cost, 10)) BY time_bucket = bucket(@timestamp,1minute)
+// end::clamp-max[]
+| SORT full_clamped_cost DESC, time_bucket DESC | LIMIT 10;
+
+// tag::clamp-max-result[]
+full_clamped_cost:double | clamped_cost:double | clamped_min_cost:double | time_bucket:datetime
+18.0                     | 9.0                 | 94.875                  | 2024-05-10T00:09:00.000Z
+15.25                    | 8.0                 | 84.125                  | 2024-05-10T00:08:00.000Z
+15.0                     | 8.0                 | 83.5                    | 2024-05-10T00:15:00.000Z
+13.75                    | 7.0                 | 71.625                  | 2024-05-10T00:22:00.000Z
+13.125                   | 7.5                 | 90.5                    | 2024-05-10T00:18:00.000Z
+// end::clamp-max-result[]
+13.0                     | 6.5                 | 75.625                  | 2024-05-10T00:17:00.000Z
+12.0                     | 5.875               | 70.0                    | 2024-05-10T00:20:00.000Z
+12.0                     | 6.125               | 70.0                    | 2024-05-10T00:14:00.000Z
+12.0                     | 6.0                 | 61.25                   | 2024-05-10T00:13:00.000Z
+12.0                     | 6.0                 | 60.0                    | 2024-05-10T00:02:00.000Z
+
+;
+
+clamp_of_long
+required_capability: ts_command_v0
+required_capability: clamp_functions
+// tag::clamp[]
+TS k8s 
+| STATS bytes_in = sum(network.bytes_in),
+        // our network cards are rate-limited to 200bps so we clamp to that (just an example)
+        clamped_network_bytes_in = sum(clamp(network.bytes_in, 0, 200))
+        BY time_bucket = bucket(@timestamp,1minute)
+// end::clamp[]
+| SORT time_bucket, bytes_in DESC | LIMIT 10;
+
+// tag::clamp-result[]
+bytes_in:long | clamped_network_bytes_in:long | time_bucket:datetime
+1849          | 600                           | 2024-05-10T00:00:00.000Z
+2334          | 800                           | 2024-05-10T00:01:00.000Z
+3487          | 1178                          | 2024-05-10T00:02:00.000Z
+2941          | 861                           | 2024-05-10T00:03:00.000Z
+// end::clamp-result[]
+1557          | 403                           | 2024-05-10T00:04:00.000Z
+1144          | 434                           | 2024-05-10T00:05:00.000Z
+3594          | 1200                          | 2024-05-10T00:06:00.000Z
+1353          | 401                           | 2024-05-10T00:07:00.000Z
+3188          | 1295                          | 2024-05-10T00:08:00.000Z
+3850          | 1468                          | 2024-05-10T00:09:00.000Z
+
+;
+
+clamp_without_stats_command
+required_capability: clamp_functions
+// tag::clamp[]
+TS k8s
+| EVAL full_clamped_cost = clamp(network.cost, 1, 20)
+| KEEP full_clamped_cost, @timestamp
+// end::clamp[]
+| SORT full_clamped_cost DESC, @timestamp | LIMIT 10;
+
+// tag::clamp-result[]
+full_clamped_cost:double | @timestamp:datetime
+12.5                     | 2024-05-10T00:09:52.000Z
+12.375                   | 2024-05-10T00:01:29.000Z
+12.375                   | 2024-05-10T00:06:42.000Z
+12.375                   | 2024-05-10T00:17:12.000Z
+// end::clamp-result[]
+12.25                    | 2024-05-10T00:19:48.000Z
+12.125                   | 2024-05-10T00:00:57.000Z
+12.125                   | 2024-05-10T00:03:26.000Z
+12.125                   | 2024-05-10T00:07:19.000Z
+12.125                   | 2024-05-10T00:17:39.000Z
+12.0                     | 2024-05-10T00:08:08.000Z
+;
+
+clamp_without_stats_using_column
+required_capability: clamp_functions
+// tag::clamp[]
+TS k8s
+| EVAL full_clamped_cost = clamp(network.cost, clamp_max(network.bytes_in, 5), network.bytes_in / 100)
+| KEEP full_clamped_cost, @timestamp
+// end::clamp[]
+| SORT full_clamped_cost DESC, @timestamp | LIMIT 10;
+
+// tag::clamp-result[]
+full_clamped_cost:double | @timestamp:datetime
+10.0                     | 2024-05-10T00:18:33.000Z
+9.0                      | 2024-05-10T00:04:49.000Z
+9.0                      | 2024-05-10T00:15:51.000Z
+9.0                      | 2024-05-10T00:17:12.000Z
+9.0                      | 2024-05-10T00:20:46.000Z
+// end::clamp-result[]
+9.0                      | 2024-05-10T00:22:54.000Z
+8.625                    | 2024-05-10T00:11:53.000Z
+8.625                    | 2024-05-10T00:17:20.000Z
+8.625                    | 2024-05-10T00:19:36.000Z
+8.375                    | 2024-05-10T00:03:26.000Z
+;
+

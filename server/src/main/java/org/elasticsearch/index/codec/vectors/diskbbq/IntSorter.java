@@ -12,12 +12,12 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 
-class IntSorter extends IntroSorter {
+public class IntSorter extends IntroSorter {
     int pivot = -1;
     private final int[] arr;
     private final IntToIntFunction func;
 
-    IntSorter(int[] arr, IntToIntFunction func) {
+    public IntSorter(int[] arr, IntToIntFunction func) {
         this.arr = arr;
         this.func = func;
     }

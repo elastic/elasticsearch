@@ -48,7 +48,9 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
         );
 
         expectedCrossClusterAccessSubjectInfo.writeToContext(ctx);
-        final CrossClusterAccessSubjectInfo actual = CrossClusterAccessSubjectInfo.readFromContext(ctx);
+        final CrossClusterAccessSubjectInfo actual = CrossClusterAccessSubjectInfo.decode(
+            ctx.getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
+        );
 
         assertThat(actual.getAuthentication(), equalTo(expectedCrossClusterAccessSubjectInfo.getAuthentication()));
         final List<Set<RoleDescriptor>> roleDescriptorsList = new ArrayList<>();
@@ -68,17 +70,6 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
             BytesReference.bytes(builder)
         ).toRoleDescriptors();
         assertThat(actualRoleDescriptors, equalTo(expectedRoleDescriptors));
-    }
-
-    public void testThrowsOnMissingEntry() {
-        var actual = expectThrows(
-            IllegalArgumentException.class,
-            () -> CrossClusterAccessSubjectInfo.readFromContext(new ThreadContext(Settings.EMPTY))
-        );
-        assertThat(
-            actual.getMessage(),
-            equalTo("cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required")
-        );
     }
 
     public void testCleanWithValidationForApiKeys() {

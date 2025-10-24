@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -37,6 +36,9 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<
     SparseVectorQueryBuilder> {
+
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
+
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         List<Plugin> plugins = new ArrayList<>(super.getPlugins());
@@ -82,7 +84,7 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         QueryRewriteContext queryRewriteContext
     ) {
         assertThat(original, instanceOf(SparseVectorQueryBuilder.class));
-        if (transportVersion.onOrAfter(TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+        if (transportVersion.supports(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
             assertThat(rewritten, instanceOf(InterceptedInferenceSparseVectorQueryBuilder.class));
 
             InterceptedInferenceSparseVectorQueryBuilder intercepted = (InterceptedInferenceSparseVectorQueryBuilder) rewritten;

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -30,6 +31,7 @@ import java.util.Set;
 public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
+    private final IgnoredSourceFormat ignoredSourceFormat;
 
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context) {
         this(fieldName, context, null);
@@ -43,15 +45,17 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
         this.sourcePaths = context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet();
         this.nullValue = nullValue;
+        this.ignoredSourceFormat = context.getIndexSettings().getIgnoredSourceFormat();
     }
 
     /**
      * @param sourcePaths   The paths to pull source values from
      * @param nullValue     An optional substitute value if the _source value is `null`
      */
-    public ArraySourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+    public ArraySourceValueFetcher(Set<String> sourcePaths, Object nullValue, IgnoredSourceFormat ignoredSourceFormat) {
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
+        this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
     @Override
@@ -76,7 +80,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.NEEDS_SOURCE;
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourcePaths);
     }
 
     /**

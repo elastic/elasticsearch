@@ -14,7 +14,7 @@ import java.io.IOException;
 /**
  * An interface for that supply centroids.
  */
-interface CentroidSupplier {
+public interface CentroidSupplier {
     CentroidSupplier EMPTY = new CentroidSupplier() {
         @Override
         public int size() {

@@ -63,11 +63,46 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         return new DenseVectorFieldMapper.RescoreVector(randomBoolean() ? 0 : randomFloatBetween(1.0F, 10.0F, false));
     }
 
-    private DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsNonQuantized() {
+    private static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsNonQuantized() {
         return randomFrom(
             new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
             new DenseVectorFieldMapper.FlatIndexOptions()
         );
+    }
+
+    public static DenseVectorFieldMapper.DenseVectorIndexOptions randomFlatIndexOptions() {
+        return randomFrom(
+            new DenseVectorFieldMapper.FlatIndexOptions(),
+            new DenseVectorFieldMapper.Int8FlatIndexOptions(
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+            ),
+            new DenseVectorFieldMapper.Int4FlatIndexOptions(
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+            )
+        );
+    }
+
+    public static DenseVectorFieldMapper.DenseVectorIndexOptions randomGpuSupportedIndexOptions() {
+        return randomFrom(
+            new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 3199)),
+            new DenseVectorFieldMapper.Int8HnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 3199),
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+            )
+        );
+    }
+
+    public static DenseVectorFieldMapper.VectorSimilarity randomGPUSupportedSimilarity(
+        DenseVectorFieldMapper.VectorIndexType vectorIndexType
+    ) {
+        if (vectorIndexType == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
+            return randomFrom(VectorSimilarity.L2_NORM, VectorSimilarity.COSINE, VectorSimilarity.DOT_PRODUCT);
+        }
+        return randomFrom(VectorSimilarity.values());
     }
 
     public static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsAll() {
@@ -110,7 +145,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             new DenseVectorFieldMapper.BBQIVFIndexOptions(
                 randomIntBetween(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 randomFloatBetween(0.0f, 100.0f, true),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
+                randomBoolean()
             )
         );
 
@@ -176,11 +212,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertFalse(bft.hasDocValues());
     }
 
-    public void testIsIndexed() {
+    public void testIndexType() {
         DenseVectorFieldType fft = createFloatFieldType();
-        assertEquals(indexed, fft.isIndexed());
+        assertEquals(indexed, fft.indexType().hasVectors());
         DenseVectorFieldType bft = createByteFieldType();
-        assertTrue(bft.isIndexed());
+        assertTrue(bft.indexType().hasVectors());
     }
 
     public void testIsSearchable() {

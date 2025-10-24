@@ -1,6 +1,5 @@
 absent_over_time_events_received
 required_capability: ts_command_v0
-required_capability: absent_over_time
 
 TS k8s 
 | WHERE cluster == "prod" AND pod == "two" 
@@ -23,7 +22,6 @@ false                    | two         | 2024-05-10T00:22:00.000Z
 
 absent_over_time_of_long
 required_capability: ts_command_v0
-required_capability: absent_over_time
 TS k8s | STATS is_present = max(absent_over_time(network.bytes_in)) BY cluster, time_bucket = tbucket(10minute) | SORT cluster, time_bucket | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -40,8 +38,6 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_boolean
 required_capability: ts_command_v0
-required_capability: absent_over_time
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS is_present = max(absent_over_time(network.eth0.up)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -58,8 +54,6 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_date_nanos
 required_capability: ts_command_v0
-required_capability: absent_over_time
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS is_present = max(absent_over_time(network.eth0.last_up)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -76,8 +70,6 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_date
 required_capability: ts_command_v0
-required_capability: absent_over_time
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS is_present = max(absent_over_time(to_datetime(network.eth0.last_up))) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -94,8 +86,6 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_version
 required_capability: ts_command_v0
-required_capability: absent_over_time
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS is_present = max(absent_over_time(network.eth0.firmware_version)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -112,8 +102,6 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_integer
 required_capability: ts_command_v0
-required_capability: absent_over_time
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS is_present = max(absent_over_time(network.eth0.currently_connected_clients)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean     | cluster:keyword | time_bucket:datetime
@@ -130,7 +118,6 @@ false                  | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_text
 required_capability: ts_command_v0
-required_capability: absent_over_time
 TS k8s | STATS is_present = max(absent_over_time(event_log)) BY cluster, time_bucket = tbucket(10minute) | SORT cluster, time_bucket | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -147,9 +134,7 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_keyword
 required_capability: ts_command_v0
-required_capability: absent_over_time
-required_capability: k8s_dataset_additional_fields
-TS k8s | STATS is_present = max(absent_over_time(pod)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
+TS k8s | STATS is_present = max(absent_over_time(network.eth0.tx)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
 false              | prod            | 2024-05-10T00:00:00.000Z
@@ -165,7 +150,7 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_aggregate_metric_double
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | STATS is_present = max(absent_over_time(network.eth0.tx)) BY cluster, time_bucket = tbucket(10 minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -182,8 +167,6 @@ false              | staging         | 2024-05-09T23:50:00.000Z
 
 absent_over_time_of_geopoint
 required_capability: ts_command_v0
-required_capability: absent_over_time
-required_capability: k8s_datasets_geospatial_fields
 TS k8s | STATS is_present = max(absent_over_time(event_city)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -200,8 +183,6 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_geoshape
 required_capability: ts_command_v0
-required_capability: absent_over_time
-required_capability: k8s_datasets_geospatial_fields
 TS k8s | STATS is_present = max(absent_over_time(event_city_boundary)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -218,8 +199,6 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_shape
 required_capability: ts_command_v0
-required_capability: absent_over_time
-required_capability: k8s_datasets_geospatial_fields
 TS k8s | STATS is_present = max(absent_over_time(event_shape)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -236,8 +215,6 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_point
 required_capability: ts_command_v0
-required_capability: absent_over_time
-required_capability: k8s_datasets_geospatial_fields
 TS k8s | STATS is_present = max(absent_over_time(event_location)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -254,7 +231,6 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_with_filtering
 required_capability: ts_command_v0
-required_capability: absent_over_time
 TS k8s | WHERE pod != "three" | STATS is_present = max(absent_over_time(network.bytes_in)) BY cluster, time_bucket = tbucket(10 minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -271,7 +247,7 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_older_than_10d
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS is_present = max(absent_over_time(network.eth0.rx)) BY pod, time_bucket = tbucket(10 minute) | SORT time_bucket, pod | LIMIT 5;
 
 is_present:boolean | pod:keyword | time_bucket:datetime
@@ -284,7 +260,6 @@ false              | three       | 2024-05-09T23:40:00.000Z
 
 eval_on_absent_over_time
 required_capability: ts_command_v0
-required_capability: absent_over_time
 TS k8s | STATS is_present = max(absent_over_time(network.bytes_in)) BY pod, time_bucket = tbucket(10 minute) | EVAL int = to_integer(is_present) | LIMIT 10 | SORT time_bucket, pod;
 
 is_present:boolean | pod:keyword | time_bucket:datetime     | int:integer
@@ -301,7 +276,6 @@ false              | two         | 2024-05-10T00:20:00.000Z | 0
 
 absent_over_time_events_received_as_integer
 required_capability: ts_command_v0
-required_capability: absent_over_time
 
 TS k8s 
 | WHERE cluster == "prod" AND pod == "two" 
@@ -320,4 +294,24 @@ events_received:integer | pod:keyword | time_bucket:datetime
 1                       | two         | 2024-05-10T00:18:00.000Z
 0                       | two         | 2024-05-10T00:20:00.000Z
 0                       | two         | 2024-05-10T00:22:00.000Z
+;
+
+trange_absolute_epoch_millis_with_aggregations
+required_capability: ts_command_v0
+required_capability: fn_trange
+
+TS k8s 
+| WHERE TRANGE("2024-05-10T00:20:00.000Z", "2024-05-10T00:25:00.000Z") 
+| STATS events_received = max(absent_over_time(events_received)) BY pod, time_bucket = tbucket(1 minute) 
+| SORT time_bucket
+| LIMIT 5
+;
+ignoreOrder:true
+
+events_received:boolean | pod:keyword | time_bucket:datetime
+false                   | one         | 2024-05-10T00:20:00.000Z
+false                   | three       | 2024-05-10T00:20:00.000Z
+false                   | three       | 2024-05-10T00:21:00.000Z
+false                   | two         | 2024-05-10T00:20:00.000Z
+true                    | one         | 2024-05-10T00:21:00.000Z
 ;

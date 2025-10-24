@@ -347,7 +347,7 @@ public final class MappingLookup {
         }
     }
 
-    private void checkFieldNameLengthLimit(long limit) {
+    void checkFieldNameLengthLimit(long limit) {
         validateMapperNameIn(objectMappers.values(), limit);
         validateMapperNameIn(fieldMappers.values(), limit);
     }
@@ -538,7 +538,8 @@ public final class MappingLookup {
     public boolean hasTimestampField() {
         final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TIMESTAMP_FIELD_NAME);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateMappedFieldType) {
-            return dateMappedFieldType.hasDocValues() && (dateMappedFieldType.isIndexed() || dateMappedFieldType.hasDocValuesSkipper());
+            IndexType indexType = dateMappedFieldType.indexType();
+            return indexType.hasPoints() || indexType.hasDocValuesSkipper();
         } else {
             return false;
         }

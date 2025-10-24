@@ -393,6 +393,12 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
         return map;
     }
 
+    public static <E> AttributeMap<E> mapAll(Collection<? extends E> collection, Function<E, Attribute> keyMapper) {
+        final AttributeMap<E> map = new AttributeMap<>();
+        collection.forEach(e -> map.add(keyMapper.apply(e), e));
+        return map;
+    }
+
     public static <E> Builder<E> builder() {
         return new Builder<>(new AttributeMap<>());
     }

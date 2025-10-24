@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -77,7 +78,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlActionTaskIT.class);
 
-    private boolean nodeLevelReduction;
+    private Boolean nodeLevelReduction;
 
     /**
      * Number of docs released by {@link #startEsql}.
@@ -87,7 +88,6 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     @Before
     public void setup() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        nodeLevelReduction = randomBoolean();
     }
 
     public void testTaskContents() throws Exception {
@@ -267,6 +267,9 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             // Report the status after every action
             .put("status_interval", "0ms");
 
+        if (nodeLevelReduction == null) {
+            nodeLevelReduction = randomBoolean();
+        }
         if (nodeLevelReduction) {
             // explicitly set the default (true) or don't
             if (randomBoolean()) {
@@ -506,12 +509,30 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         }
     }
 
-    public void testTaskContentsForTopNQuery() throws Exception {
+    public void testTaskContentsForTopNQueryWithNoReduction() throws Exception {
+        testTaskContentsForTopNQueryWithReductionHelper(false);
+    }
+
+    public void testTaskContentsForTopNQueryWithReduction() throws Exception {
+        testTaskContentsForTopNQueryWithReductionHelper(true);
+    }
+
+    private void testTaskContentsForTopNQueryWithReductionHelper(boolean nodeLevelReduction) throws Exception {
+        this.nodeLevelReduction = nodeLevelReduction;
+        var dataNodeProjectString = nodeLevelReduction ? "0, 1" : "1";
+        var nodeReduceString = nodeLevelReduction
+            ? """
+                \\_TopNOperator[count=1000, elementTypes=[DOC, LONG], encoders=[DocVectorEncoder, DefaultSortable], \
+                sortOrders=[SortOrder[channel=1, asc=true, nullsFirst=false]]]
+                \\_ProjectOperator[projection = [1]]
+                """
+            : "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n";
         ActionFuture<EsqlQueryResponse> response = startEsql("from test | sort pause_me | keep pause_me");
         try {
             getTasksStarting();
             logger.info("unblocking script");
-            scriptPermits.release(pageSize());
+            scriptPermits.release(numberOfDocs() + pageSize());
             List<TaskInfo> tasks = getTasksRunning();
             String sortStatus = """
                 [{"pause_me":{"order":"asc","missing":"_last","unmapped_type":"long"}}]""";
@@ -519,29 +540,23 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 + pageSize()
                 + ", limit = 1000, needsScore = false, sorts = "
                 + sortStatus;
-            assertThat(dataTasks(tasks).get(0).description(), equalTo("""
-                \\_LuceneTopNSourceOperator[sourceStatus]
+            assertThat(dataTasks(tasks).getFirst().description(), equalTo(Strings.format("""
+                \\_LuceneTopNSourceOperator[%s]
                 \\_ValuesSourceReaderOperator[fields = [pause_me]]
-                \\_ProjectOperator[projection = [1]]
-                \\_ExchangeSinkOperator""".replace("sourceStatus", sourceStatus)));
+                \\_ProjectOperator[projection = [%s]]
+                \\_ExchangeSinkOperator""", sourceStatus, dataNodeProjectString)));
             assertThat(
-                nodeReduceTasks(tasks).get(0).description(),
-                nodeLevelReduceDescriptionMatcher(
-                    tasks,
-                    "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
-                        + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n"
-                )
+                nodeReduceTasks(tasks).getFirst().description(),
+                nodeLevelReduction
+                    ? nodeLevelReduceDescriptionMatcher(nodeReduceString)
+                    : nodeLevelReduceDescriptionMatcher(tasks, nodeReduceString)
             );
-            assertThat(
-                coordinatorTasks(tasks).get(0).description(),
-                equalTo(
-                    "\\_ExchangeSourceOperator[]\n"
-                        + "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
-                        + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n"
-                        + "\\_ProjectOperator[projection = [0]]\n"
-                        + "\\_OutputOperator[columns = [pause_me]]"
-                )
-            );
+            assertThat(coordinatorTasks(tasks).getFirst().description(), equalTo("""
+                \\_ExchangeSourceOperator[]
+                \\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], \
+                sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]
+                \\_ProjectOperator[projection = [0]]
+                \\_OutputOperator[columns = [pause_me]]"""));
         } finally {
             // each scripted field "emit" is called by LuceneTopNSourceOperator and by ValuesSourceReaderOperator
             scriptPermits.release(2 * numberOfDocs());
@@ -627,7 +642,12 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         boolean matchNodeReduction = nodeLevelReduction
             // If the data node and the coordinator are the same node then we don't reduce aggs in it.
             && false == dataTasks(tasks).get(0).node().equals(coordinatorTasks(tasks).get(0).node());
-        return equalTo("\\_ExchangeSourceOperator[]\n" + (matchNodeReduction ? nodeReduce : "") + "\\_ExchangeSinkOperator");
+        return nodeLevelReduceDescriptionMatcher(matchNodeReduction ? nodeReduce : "");
+    }
+
+    /** Unlike the above, will always use the {@code nodeReduce} string. */
+    private static Matcher<String> nodeLevelReduceDescriptionMatcher(String nodeReduce) {
+        return equalTo("\\_ExchangeSourceOperator[]\n" + nodeReduce + "\\_ExchangeSinkOperator");
     }
 
     @Override

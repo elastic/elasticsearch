@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -79,7 +80,7 @@ public final class MlIndexAndAlias {
     private static final Predicate<String> IS_ANOMALIES_SHARED_INDEX = Pattern.compile(
         AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "-\\d{6}"
     ).asMatchPredicate();
-    private static final String ROLLOVER_ALIAS_SUFFIX = ".rollover_alias";
+    public static final String ROLLOVER_ALIAS_SUFFIX = ".rollover_alias";
 
     static final Comparator<String> INDEX_NAME_COMPARATOR = (index1, index2) -> {
         String[] index1Parts = index1.split("-");
@@ -577,18 +578,20 @@ public final class MlIndexAndAlias {
     }
 
     public static Tuple<String, String> createRolloverAliasAndNewIndexName(String index) {
+        String indexName = Objects.requireNonNull(index);
+
         // Create an alias specifically for rolling over.
         // The ml-anomalies index has aliases for each job, any
         // of which could be used but that means one alias is
         // treated differently.
-        // Using a `.` in the alias name avoids any conflicts
+        // ROLLOVER_ALIAS_SUFFIX puts a `.` in the alias name to avoid any conflicts
         // as AD job Ids cannot start with `.`
-        String rolloverAlias = index + ROLLOVER_ALIAS_SUFFIX;
+        String rolloverAlias = indexName + ROLLOVER_ALIAS_SUFFIX;
 
         // If the index does not end in a digit then rollover does not know
         // what to name the new index so it must be specified in the request.
         // Otherwise leave null and rollover will calculate the new name
-        String newIndexName = MlIndexAndAlias.has6DigitSuffix(index) ? null : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
+        String newIndexName = MlIndexAndAlias.has6DigitSuffix(index) ? null : indexName + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
 
         return new Tuple<>(rolloverAlias, newIndexName);
     }

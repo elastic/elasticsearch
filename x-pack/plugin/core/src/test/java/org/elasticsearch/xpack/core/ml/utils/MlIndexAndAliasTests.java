@@ -404,6 +404,37 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertFalse(MlIndexAndAlias.has6DigitSuffix("index000001"));
     }
 
+    public void testIsAnomaliesSharedIndex() {
+        assertTrue(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-shared-000001"));
+        assertTrue(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-shared-000007"));
+        assertTrue(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-shared-100000"));
+        assertTrue(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-shared-999999"));
+        assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-shared-1000000"));
+        assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-shared-00001"));
+        assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-custom-fred-000007"));
+        assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex("shared-000007"));
+        assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-shared"));
+        assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-shared000007"));
+        assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-state-000007"));
+        assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-annotations-000007"));
+        assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-stats-000007"));
+    }
+
+    public void testCreateRolloverAliasAndNewIndexName() {
+        var alias_index1 = MlIndexAndAlias.createRolloverAliasAndNewIndexName("fred");
+        assertThat(alias_index1.v1(), equalTo("fred" + MlIndexAndAlias.ROLLOVER_ALIAS_SUFFIX));
+        assertThat(alias_index1.v2(), equalTo("fred" + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX));
+
+        var alias_index2 = MlIndexAndAlias.createRolloverAliasAndNewIndexName("derf" + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX);
+        assertThat(
+            alias_index2.v1(),
+            equalTo("derf" + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX + MlIndexAndAlias.ROLLOVER_ALIAS_SUFFIX)
+        );
+        assertThat(alias_index2.v2(), equalTo(null));
+
+        assertThrows(NullPointerException.class, () -> MlIndexAndAlias.createRolloverAliasAndNewIndexName(null));
+    }
+
     public void testLatestIndexMatchingBaseName_isLatest() {
         Metadata.Builder metadata = Metadata.builder();
         metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo", IndexVersion.current(), List.of("job1")));

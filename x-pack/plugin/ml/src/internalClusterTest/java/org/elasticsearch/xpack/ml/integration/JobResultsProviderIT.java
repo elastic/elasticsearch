@@ -155,7 +155,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // Put fist job. This should create the results index as it's the first job.
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job1)).actionGet();
 
-        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         Map<String, Object> mappingProperties = getIndexMappingProperties(sharedResultsIndex);
 
         // Assert mappings have a few fields from the template

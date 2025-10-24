@@ -436,6 +436,12 @@ class IndicesAndAliasesResolver {
                         : "resolving cross-project request but authorized project is local only";
 
                     final var resolvedProjects = crossProjectRoutingResolver.resolve(replaceable.getProjectRouting(), authorizedProjects);
+                    logger.debug(
+                        "routing [{}] resolved projects from [{}] to [{}]",
+                        replaceable.getProjectRouting(),
+                        authorizedProjects,
+                        resolvedProjects
+                    );
 
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),

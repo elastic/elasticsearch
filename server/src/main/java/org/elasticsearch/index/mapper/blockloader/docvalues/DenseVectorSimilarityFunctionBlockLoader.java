@@ -75,7 +75,7 @@ public class DenseVectorSimilarityFunctionBlockLoader extends BlockDocValuesRead
         return new ConstantNullsReader();
     }
 
-    private abstract static class DenseVectorSimilarityFunctionReader<T extends KnnVectorValues, U> extends BlockDocValuesReader {
+    private abstract static class DenseVectorSimilarityFunctionReader<T extends KnnVectorValues> extends BlockDocValuesReader {
         protected final T vectorValues;
         protected final KnnVectorValues.DocIndexIterator iterator;
         protected final DenseVectorFieldMapper.VectorSimilarityFunctionConfig config;
@@ -121,7 +121,7 @@ public class DenseVectorSimilarityFunctionBlockLoader extends BlockDocValuesRead
         }
     }
 
-    private static class FloatDenseVectorSimilarityFunctionReader extends DenseVectorSimilarityFunctionReader<FloatVectorValues, float[]> {
+    private static class FloatDenseVectorSimilarityFunctionReader extends DenseVectorSimilarityFunctionReader<FloatVectorValues> {
 
         FloatDenseVectorSimilarityFunctionReader(
             FloatVectorValues vectorValues,
@@ -170,9 +170,7 @@ public class DenseVectorSimilarityFunctionBlockLoader extends BlockDocValuesRead
         }
     }
 
-    private static class ByteDenseVectorFunctionLoaderValueFunctionReader extends DenseVectorSimilarityFunctionReader<
-        ByteVectorValues,
-        byte[]> {
+    private static class ByteDenseVectorFunctionLoaderValueFunctionReader extends DenseVectorSimilarityFunctionReader<ByteVectorValues> {
 
         ByteDenseVectorFunctionLoaderValueFunctionReader(
             ByteVectorValues vectorValues,

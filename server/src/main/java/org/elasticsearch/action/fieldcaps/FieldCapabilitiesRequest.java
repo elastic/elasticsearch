@@ -11,9 +11,9 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
@@ -64,6 +64,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
      * This flag is only used locally on the coordinating node for index grouping and does not need to be serialized.
      */
     private transient boolean returnLocalAll = true;
+
+    /**
+     * This flag configures FC to return all failures using {@link FieldCapabilitiesResponse#getFailures()}.
+     */
+    private transient boolean summarizeFailures = false;
 
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
@@ -228,6 +233,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return this;
     }
 
+    public FieldCapabilitiesRequest summarizeFailures(boolean summarizeFailures) {
+        this.summarizeFailures = summarizeFailures;
+        return this;
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -258,6 +268,10 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
 
     public boolean returnLocalAll() {
         return returnLocalAll;
+    }
+
+    public boolean summarizeFailures() {
+        return summarizeFailures;
     }
 
     public boolean includeEmptyFields() {

@@ -363,32 +363,29 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.size() > 0) {
+        if (indexResponses.isEmpty() == false || request.summarizeFailures()) {
             if (request.isMergeResults()) {
                 ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures));
             } else {
                 listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
             }
-        } else {
-            // we have no responses at all, maybe because of errors
-            if (indexFailures.isEmpty() == false) {
-                /*
-                 * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
-                 * Instead, they should always be passed through the response object, as part of "failures".
-                 */
-                if (failures.stream()
-                    .anyMatch(
-                        failure -> failure.getException() instanceof IllegalStateException ise
-                            && ise.getCause() instanceof ElasticsearchTimeoutException
-                    )) {
-                    listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
-                } else {
-                    // throw back the first exception
-                    listener.onFailure(failures.get(0).getException());
-                }
+        } else if (indexFailures.isEmpty() == false) {
+            /*
+             * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
+             * Instead, they should always be passed through the response object, as part of "failures".
+             */
+            if (failures.stream()
+                .anyMatch(
+                    failure -> failure.getException() instanceof IllegalStateException ise
+                        && ise.getCause() instanceof ElasticsearchTimeoutException
+                )) {
+                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
             } else {
-                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
+                // throw back the first exception
+                listener.onFailure(failures.get(0).getException());
             }
+        } else {
+            listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
         }
     }
 

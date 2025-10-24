@@ -124,11 +124,6 @@ public enum ErrorTraceHelper {
             );
     }
 
-    public static void clearExpectations(InternalTestCluster internalCluster) {
-        internalCluster.getDataNodeInstances(TransportService.class)
-            .forEach(ts -> asInstanceOf(MockTransportService.class, ts).clearAllRules());
-    }
-
     /**
      * Adds expectations for debug logging of a message and exception on each shard of the given index.
      *

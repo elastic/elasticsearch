@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.injection.api.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
@@ -22,6 +22,7 @@ import java.util.Map;
 public class TransportGetInferenceFieldsAction extends HandledTransportAction<
     GetInferenceFieldsAction.Request,
     GetInferenceFieldsAction.Response> {
+
     private final Client client;
 
     @Inject

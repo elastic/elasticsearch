@@ -20,6 +20,7 @@ including [KNN](dense-vector-functions.md#esql-knn), please refer to
 the [Dense vector functions](dense-vector-functions.md) documentation.
 :::
 
+Use these functions for [full-text search](docs-content://solutions/search/full-text.md) 
 and [semantic search](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md).
 
 Full text functions can be used to

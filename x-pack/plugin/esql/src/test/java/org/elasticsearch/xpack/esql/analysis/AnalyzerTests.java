@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
@@ -131,10 +132,12 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -142,6 +145,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -160,18 +164,15 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
+/**
+ * Parses a plan, builds an AST for it, runs logical analysis.
+ * So if we don't error out in the process, analysis was successful
+ * Use this class if you want to test analysis phase
+ * and especially if you expect to get a VerificationException during analysis
+ */
 public class AnalyzerTests extends ESTestCase {
 
-    private static final UnresolvedRelation UNRESOLVED_RELATION = new UnresolvedRelation(
-        EMPTY,
-        new IndexPattern(EMPTY, "idx"),
-        false,
-        List.of(),
-        IndexMode.STANDARD,
-        null,
-        "FROM"
-    );
-
+    private static final UnresolvedRelation UNRESOLVED_RELATION = unresolvedRelation("idx");
     private static final int MAX_LIMIT = AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
     private static final int DEFAULT_LIMIT = AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY);
     private static final int DEFAULT_TIMESERIES_LIMIT = AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(
@@ -188,7 +189,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFailOnUnresolvedIndex() {
-        Analyzer analyzer = analyzer(IndexResolution.invalid("Unknown index [idx]"));
+        Analyzer analyzer = analyzer(Map.of(new IndexPattern(Source.EMPTY, "idx"), IndexResolution.invalid("Unknown index [idx]")));
 
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(UNRESOLVED_RELATION));
 
@@ -199,7 +200,7 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex idx = new EsIndex("cluster:idx", Map.of());
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
-        var plan = analyzer.analyze(UNRESOLVED_RELATION);
+        var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
         var limit = as(plan, Limit.class);
 
         assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
@@ -268,7 +269,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(
             new Eval(
                 EMPTY,
-                new Row(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, DataType.INTEGER)))),
+                new Row(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, INTEGER)))),
                 List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))
             )
         );
@@ -410,16 +411,16 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 """,
             DataType.KEYWORD,
-            DataType.INTEGER,
+            INTEGER,
             DataType.KEYWORD,
             DataType.TEXT,
             DATETIME,
             DataType.TEXT,
             DataType.KEYWORD,
-            DataType.INTEGER,
+            INTEGER,
             DataType.KEYWORD,
             DataType.LONG,
-            DataType.INTEGER
+            INTEGER
         );
     }
 
@@ -1687,7 +1688,7 @@ public class AnalyzerTests extends ESTestCase {
         AnalyzerContext context = testAnalyzerContext(
             configuration("from test"),
             new EsqlFunctionRegistry(),
-            testIndex,
+            indexResolutions(testIndex),
             enrichResolution,
             emptyInferenceResolution()
         );
@@ -1843,7 +1844,7 @@ public class AnalyzerTests extends ESTestCase {
         AnalyzerContext context = testAnalyzerContext(
             configuration(query),
             new EsqlFunctionRegistry(),
-            testIndex,
+            indexResolutions(testIndex),
             enrichResolution,
             emptyInferenceResolution()
         );
@@ -1924,7 +1925,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRegularStats() {
         var plan = analyze("""
-            from tests
+            from test
             | stats by salary
             """);
 
@@ -2644,7 +2645,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(projection.dataType(), DataType.DOUBLE);
         projection = as(projections.get(1), ReferenceAttribute.class);
         assertEquals(projection.name(), "y");
-        assertEquals(projection.dataType(), DataType.INTEGER);
+        assertEquals(projection.dataType(), INTEGER);
         projection = as(projections.get(2), ReferenceAttribute.class);
         assertEquals(projection.name(), "z");
         assertEquals(projection.dataType(), DataType.LONG);
@@ -3053,7 +3054,7 @@ public class AnalyzerTests extends ESTestCase {
             | EVAL x = to_string(languages)
             | ENRICH _any:languages ON x
             | WHERE first_name: "Anna"
-            """, "mapping-default.json");
+            """, "*:test", "mapping-default.json");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var match = as(filter.condition(), MatchOperator.class);
@@ -3062,7 +3063,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(enrich.policy().getMatchField(), "language_code");
         var eval = as(enrich.child(), Eval.class);
         var esRelation = as(eval.child(), EsRelation.class);
-        assertEquals(esRelation.indexPattern(), "test");
+        assertEquals(esRelation.indexPattern(), "*:test"); // This tests nothing, as whatever appears here comes from the test itself
     }
 
     public void testFunctionNamedParamsAsFunctionArgument() {
@@ -3120,7 +3121,7 @@ public class AnalyzerTests extends ESTestCase {
 
         Attribute last = plan.output().getLast();
         assertThat(last.name(), is("emp_no"));
-        assertThat(last.dataType(), is(DataType.INTEGER));
+        assertThat(last.dataType(), is(INTEGER));
         assertThat(
             plan.output()
                 .stream()
@@ -3157,22 +3158,20 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("keyword")),
                         fieldCapabilitiesIndexResponse("bar", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
 
         String query = "FROM foo, bar | INSIST_🐔 message";
-        var plan = analyze(query, analyzer(resolution, TEST_VERIFIER, configuration(query)));
+        var plan = analyze(query, analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query)));
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
@@ -3184,17 +3183,15 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
                         fieldCapabilitiesIndexResponse("bar", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3212,8 +3209,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
@@ -3221,9 +3218,7 @@ public class AnalyzerTests extends ESTestCase {
                         fieldCapabilitiesIndexResponse("bazz", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3240,17 +3235,15 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
                         fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3265,8 +3258,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
@@ -3275,9 +3268,7 @@ public class AnalyzerTests extends ESTestCase {
                         fieldCapabilitiesIndexResponse("qux", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3294,8 +3285,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
@@ -3303,14 +3294,12 @@ public class AnalyzerTests extends ESTestCase {
                         fieldCapabilitiesIndexResponse("bazz", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> analyze("FROM multi_index | INSIST_🐔 message | EVAL message = message :: keyword", analyzer(resolution, TEST_VERIFIER))
+            () -> analyze("FROM foo, bar | INSIST_🐔 message | EVAL message = message :: keyword", analyzer(resolution, TEST_VERIFIER))
         );
         // This isn't the most informative error, but it'll do for now.
         assertThat(
@@ -3325,13 +3314,19 @@ public class AnalyzerTests extends ESTestCase {
             List.of()
         );
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
         }
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, false));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
@@ -3349,7 +3344,10 @@ public class AnalyzerTests extends ESTestCase {
             List.of()
         );
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(
@@ -3358,7 +3356,10 @@ public class AnalyzerTests extends ESTestCase {
             );
         }
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, false, true));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
@@ -3808,9 +3809,9 @@ public class AnalyzerTests extends ESTestCase {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
-        IndexResolver.FieldsInfo caps = new IndexResolver.FieldsInfo(new FieldCapabilitiesResponse(idxResponses, List.of()), true, true);
+        IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
         IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
-        var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
+        var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }
 
@@ -4427,7 +4428,7 @@ public class AnalyzerTests extends ESTestCase {
         // Validate if a union typed field is cast to a type explicitly, implicit casting won't be applied again, and include some cases of
         // nested casting as well.
         LogicalPlan plan = analyze("""
-            FROM tests
+            FROM index*
             | Eval a = date_and_date_nanos, b = date_and_date_nanos::datetime, c = date_and_date_nanos::date_nanos,
                    d = date_and_date_nanos::datetime::datetime, e = date_and_date_nanos::datetime::date_nanos,
                    f = date_and_date_nanos::date_nanos::datetime, g = date_and_date_nanos::date_nanos::date_nanos,
@@ -4535,7 +4536,7 @@ public class AnalyzerTests extends ESTestCase {
         fa = as(toDateNanos.field(), FieldAttribute.class);
         verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$long", LONG, fa);
         EsRelation esRelation = as(eval.child(), EsRelation.class);
-        assertEquals("test*", esRelation.indexPattern());
+        assertEquals("index*", esRelation.indexPattern());
     }
 
     public void testGroupingOverridesInStats() {
@@ -4628,12 +4629,11 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
             Set.of()
         );
-        var indexResolution = IndexResolution.valid(esIndex);
         var analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                indexResolution,
+                indexResolutions(esIndex),
                 defaultEnrichResolution(),
                 defaultInferenceResolution()
             ),
@@ -4697,6 +4697,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static Literal literal(int value) {
-        return new Literal(EMPTY, value, DataType.INTEGER);
+        return new Literal(EMPTY, value, INTEGER);
+    }
+
+    static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
     }
 }

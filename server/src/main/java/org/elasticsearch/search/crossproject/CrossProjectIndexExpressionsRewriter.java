@@ -94,10 +94,11 @@ public class CrossProjectIndexExpressionsRewriter {
         @Nullable String originProjectAlias,
         Set<String> allProjectAliases
     ) {
-        assert originProjectAlias != null || allProjectAliases.isEmpty() == false
-            : "either origin project or linked projects must be in project target set";
-
         maybeThrowOnUnsupportedResource(indexExpression);
+
+        if (originProjectAlias == null && allProjectAliases.isEmpty()) {
+            return IndexRewriteResult.EMPTY;
+        }
 
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
         final IndexRewriteResult rewrittenExpression;
@@ -211,6 +212,9 @@ public class CrossProjectIndexExpressionsRewriter {
      * A container for a local expression and a list of remote expressions.
      */
     public record IndexRewriteResult(@Nullable String localExpression, Set<String> remoteExpressions) {
+
+        public static final IndexRewriteResult EMPTY = new IndexRewriteResult(null, Set.of());
+
         public IndexRewriteResult(String localExpression) {
             this(localExpression, Set.of());
         }

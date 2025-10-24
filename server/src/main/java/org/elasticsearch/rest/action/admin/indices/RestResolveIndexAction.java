@@ -58,6 +58,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("name"));
         String modeParam = request.param("mode");
         final boolean crossProjectEnabled = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
+        String projectRouting = null;
         if (crossProjectEnabled) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
@@ -75,7 +76,8 @@ public class RestResolveIndexAction extends BaseRestHandler {
                 ? null
                 : Arrays.stream(modeParam.split(","))
                     .map(IndexMode::fromString)
-                    .collect(() -> EnumSet.noneOf(IndexMode.class), EnumSet::add, EnumSet::addAll)
+                    .collect(() -> EnumSet.noneOf(IndexMode.class), EnumSet::add, EnumSet::addAll),
+            projectRouting
         );
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }

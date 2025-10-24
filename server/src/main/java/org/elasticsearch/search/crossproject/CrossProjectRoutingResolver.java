@@ -24,7 +24,7 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
  * Resolves a single entry _alias for a cross-project request specifying a project_routing.
  * We currently only support a single entry routing containing either a specific name, a prefix, a suffix, or a match-all (*).
  */
-public class CrossProjectRoutingResolver {
+public class CrossProjectRoutingResolver implements ProjectRoutingResolver {
     private static final String ALIAS = "_alias:";
     private static final String ORIGIN = "_origin";
     private static final int ALIAS_LENGTH = ALIAS.length();
@@ -59,6 +59,28 @@ public class CrossProjectRoutingResolver {
         '/'
     );
 
+    @Override
+    public TargetProjects resolve(String projectRouting, TargetProjects targetProjects) {
+        assert targetProjects != TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED;
+        if (targetProjects.isEmpty()) {
+            return TargetProjects.EMPTY;
+        }
+        final List<ProjectRoutingInfo> projectRoutingInfos = resolve(
+            projectRouting,
+            targetProjects.originProject(),
+            targetProjects.linkedProjects()
+        );
+        if (projectRoutingInfos.isEmpty()) {
+            return TargetProjects.EMPTY;
+        }
+        final ProjectRoutingInfo first = projectRoutingInfos.getFirst();
+        if (targetProjects.originProject().projectAlias().equals(first.projectAlias())) {
+            return new TargetProjects(first, projectRoutingInfos.subList(1, projectRoutingInfos.size()));
+        } else {
+            return new TargetProjects(null, projectRoutingInfos);
+        }
+    }
+
     /**
      * @param projectRouting the project_routing specified in the request object.
      * @param originProject the project alias where this function is being called.
@@ -67,12 +89,14 @@ public class CrossProjectRoutingResolver {
      * @throws ElasticsearchStatusException if the projectRouting is null, empty, does not start with "_alias:", contains more than one
      *                                      entry, or contains an '*' in the middle of a string.
      */
-    public List<ProjectRoutingInfo> resolve(
+    private List<ProjectRoutingInfo> resolve(
         String projectRouting,
         ProjectRoutingInfo originProject,
         List<ProjectRoutingInfo> candidateProjects
     ) {
+        assert originProject != null : "origin project must not be null";
         assert originProject.projectAlias().equalsIgnoreCase(ORIGIN) == false : "origin project alias must not be " + ORIGIN;
+        assert candidateProjects != null : "candidate projects must not be null";
 
         var candidateProjectStream = candidateProjects.stream().peek(candidateProject -> {
             assert candidateProject.projectAlias().equalsIgnoreCase(ORIGIN) == false : "project alias must not be " + ORIGIN;

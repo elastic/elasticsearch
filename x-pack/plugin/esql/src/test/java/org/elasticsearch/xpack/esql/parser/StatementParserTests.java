@@ -1314,7 +1314,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo\" | GROK a \"(?P<justification>.+)\"",
-            "line 1:17: Invalid GROK pattern [(?P<justification>.+)]: [undefined group option]"
+            "line 1:24: Invalid GROK pattern [(?P<justification>.+)]: [undefined group option]"
         );
 
         expectError(
@@ -1325,8 +1325,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo\" | GROK a \"%{WORD:foo}\", \"(?P<justification>.+)\"",
-            "line 1:17: Invalid GROK patterns [%{WORD:foo}, (?P<justification>.+)]: [undefined group option]"
+            "line 1:39: Invalid GROK pattern [(?P<justification>.+)]: [undefined group option]"
         );
+
+        // when combining the pattern, the resulting string could be valid, but the single patterns are invalid
+        expectError("""
+            ROW a = "foo bar"
+            | GROK a "(%{WORD:word}", "x)"
+            """, "line 2:10: Invalid GROK pattern [(%{WORD:word}]: [end pattern with unmatched parenthesis]");
     }
 
     public void testLikeRLike() {

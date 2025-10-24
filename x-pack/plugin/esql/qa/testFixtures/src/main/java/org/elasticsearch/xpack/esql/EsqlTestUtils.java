@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -229,6 +231,19 @@ public final class EsqlTestUtils {
         return new GreaterThanOrEqual(EMPTY, left, right, ESTestCase.randomZone());
     }
 
+    public static FieldAttribute findFieldAttribute(LogicalPlan plan, String name) {
+        Holder<FieldAttribute> result = new Holder<>();
+        plan.forEachDown(EsRelation.class, relation -> {
+            for (Attribute attr : relation.output()) {
+                if (attr.name().equals(name)) {
+                    result.set((FieldAttribute) attr);
+                    return;
+                }
+            }
+        });
+        return result.get();
+    }
+
     public static FieldAttribute getFieldAttribute() {
         return getFieldAttribute("a");
     }
@@ -269,6 +284,14 @@ public final class EsqlTestUtils {
 
     public static ReferenceAttribute referenceAttribute(String name, DataType type) {
         return new ReferenceAttribute(EMPTY, name, type);
+    }
+
+    public static Alias alias(String name, Expression child) {
+        return new Alias(EMPTY, name, child);
+    }
+
+    public static Mul mul(Expression left, Expression right) {
+        return new Mul(EMPTY, left, right);
     }
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {

@@ -54,12 +54,6 @@ public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, Logi
         });
     }
 
-    // TODO: test cases
-    // - chain of aliases pointing to field from previous commands
-    // - chain of aliases pointing to field from eval
-    // in both cases: also include cases where subsequent fields will shadow either the origin attribute, or an attribute somewhere in the
-    // middle of the chain.
-    // Also include cases where the shadowing alias is used in other subsequent fields, so temporarily renaming it needs to be propagated.
     private LogicalPlan rule(Eval eval) {
         LogicalPlan plan = eval;
 

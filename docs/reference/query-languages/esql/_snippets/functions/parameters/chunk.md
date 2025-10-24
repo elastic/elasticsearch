@@ -6,5 +6,5 @@
 :   The input to chunk.
 
 `options`
-:   TODO
+:   Options to customize chunking behavior.
 

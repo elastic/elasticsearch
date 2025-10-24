@@ -8,7 +8,7 @@ stack: preview 9.3.0
 
 ```esql
 FROM books
-| EVAL chunks = CHUNK(description, 1, 20)
+| EVAL chunks = CHUNK(description, {"num_chunks":1, "chunk_size":20})
 ```
 
 | book_no:keyword | title:text | chunks:keyword |

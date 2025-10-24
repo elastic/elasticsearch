@@ -79,7 +79,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                     type = "integer",
                     description = "The size of sentence-based chunks to use. Defaults to " + DEFAULT_CHUNK_SIZE
                 ), },
-            description = "TODO",
+            description = "Options to customize chunking behavior.",
             optional = true
         ) Expression options
     ) {

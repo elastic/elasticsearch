@@ -30,7 +30,7 @@
     }
   ],
   "examples" : [
-    "FROM books\n| EVAL chunks = CHUNK(description, 1, 20)"
+    "FROM books\n| EVAL chunks = CHUNK(description, {\"num_chunks\":1, \"chunk_size\":20})"
   ],
   "preview" : true,
   "snapshot_only" : true

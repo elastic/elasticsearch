@@ -117,6 +117,8 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
                 : "If the local resolution result is SUCCESS, exception must be null";
             Objects.requireNonNull(exception);
 
+            assert this.exception == null : "Exception is already set";
+
             this.exception = exception;
         }
 

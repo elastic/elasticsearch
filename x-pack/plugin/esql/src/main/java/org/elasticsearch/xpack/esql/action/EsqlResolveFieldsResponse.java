@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -20,49 +19,71 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
     public static final TransportVersion RESOLVE_FIELDS_RESPONSE_CREATED_TV = TransportVersion.fromName(
         "esql_resolve_fields_response_created"
     );
+    public static final TransportVersion RESOLVE_FIELDS_RESPONSE_REMOVED_MIN_TV = TransportVersion.fromName(
+        "esql_resolve_fields_response_removed_min_tv"
+    );
 
     private final FieldCapabilitiesResponse caps;
-    private final TransportVersion minTransportVersion;
 
-    public EsqlResolveFieldsResponse(FieldCapabilitiesResponse caps, TransportVersion minTransportVersion) {
+    public EsqlResolveFieldsResponse(FieldCapabilitiesResponse caps) {
         this.caps = caps;
-        this.minTransportVersion = minTransportVersion;
     }
 
     public EsqlResolveFieldsResponse(StreamInput in) throws IOException {
-        caps = new FieldCapabilitiesResponse(in);
-        if (in.getTransportVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) && in.readBoolean()) {
-            minTransportVersion = TransportVersion.readVersion(in);
-        } else {
-            minTransportVersion = null;
-        }
+        this.caps = readMinTransportVersion(new FieldCapabilitiesResponse(in), in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         caps.writeTo(out);
+        writeMinTransportVersion(out);
+    }
+
+    private static FieldCapabilitiesResponse readMinTransportVersion(FieldCapabilitiesResponse caps, StreamInput in) throws IOException {
+        /*
+         * minTransportVersion has a bit of a story.
+         * 1. First we created it to `EsqlResolveFieldsResponse` in
+         *    `EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_CREATED_TV`.
+         * 2. We then added it to `FieldCapsResponse` in `FieldCapsResponse.MIN_TRANSPORT_VERSION`.
+         *    Now we send two copies!
+         * 3. Finally, we removed it from `EsqlResolveFieldsResponse` in
+         *    `EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_REMOVED_MIN_TV`. Now we send one copy.
+         * We handle the transport version that was part of EsqlResolveFieldsResponse here by checking
+         * *our* transport versions in reverse order.
+         */
+        if (in.getTransportVersion().supports(RESOLVE_FIELDS_RESPONSE_REMOVED_MIN_TV)) {
+            // Transport version not sent as part of EsqlResolveFieldResponse, use the one in caps.
+            return caps;
+        }
+        if (in.getTransportVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) && in.readBoolean()) {
+            /*
+             * Transport version sent as part of EsqlResolveFieldResponse.
+             * There could be one in caps if we're after FieldCapsResponse.MIN_TRANSPORT_VERSION.
+             * But we need to read the one that is in EsqlResolveFieldResponse off of the wire anyway, so we just use it.
+             */
+            return caps.withMinTransportVersion(TransportVersion.readVersion(in));
+        }
+        // No transport version sent.
+        return caps;
+    }
+
+    private void writeMinTransportVersion(StreamOutput out) throws IOException {
+        // See big comment in readMinTransportVersion for the story
+        if (out.getTransportVersion().supports(RESOLVE_FIELDS_RESPONSE_REMOVED_MIN_TV)) {
+            // Remote does not expect an optional min transport version so we don't send anything
+            return;
+        }
         if (out.getTransportVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV)) {
-            out.writeBoolean(minTransportVersion != null);
-            if (minTransportVersion != null) {
-                TransportVersion.writeVersion(minTransportVersion, out);
+            // Remote expects to read an optional transport version from EsqlResolveFieldsResponse
+            out.writeBoolean(caps.minTransportVersion() != null);
+            if (caps.minTransportVersion() != null) {
+                TransportVersion.writeVersion(caps.minTransportVersion(), out);
             }
         }
+        // Remote does not expect an optional min transport version so we don't send anything
     }
 
     public FieldCapabilitiesResponse caps() {
         return caps;
-    }
-
-    /**
-     * The minimum {@link TransportVersion} of all clusters against which we resolved
-     * indices.
-     * <p>
-     *     If this is {@code null} then one of the nodes is before {@link #RESOLVE_FIELDS_RESPONSE_CREATED_TV} but
-     *     we have no idea how early it is. Could be back in {@code 8.19.0}.
-     * </p>
-     */
-    @Nullable
-    public TransportVersion minTransportVersion() {
-        return minTransportVersion;
     }
 }

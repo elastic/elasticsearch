@@ -20,8 +20,7 @@
           "path": "/_nodes/shutdown",
           "methods": [
             "GET"
-          ],
-          "parts": {}
+          ]
         },
         {
           "path": "/_nodes/{node_id}/shutdown",

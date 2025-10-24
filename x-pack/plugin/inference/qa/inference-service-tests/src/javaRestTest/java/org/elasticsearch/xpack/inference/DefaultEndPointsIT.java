@@ -44,24 +44,12 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
                     "logger.org.elasticsearch.xpack.ml.packageloader" : "DEBUG"
                 }}""");
         client().performRequest(loggingSettings);
-
-        initInferenceIndices();
     }
 
     @After
     public void tearDown() throws Exception {
         threadPool.close();
         super.tearDown();
-    }
-
-    private static void initInferenceIndices() {
-        try {
-            // Creating an inference endpoint to force the backing indices to be created to reduce the likelihood of the tests failing
-            // because they're trying to interact with the indices while they're being created.
-            putModel("initial-model", mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
-        } catch (IOException e) {
-            // Ignoring exceptions because the model may already exist
-        }
     }
 
     public void testGet() throws IOException {
@@ -206,7 +194,11 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         );
     }
 
-    public void testMultipleInferencesTriggeringDownloadAndDeploy() throws InterruptedException {
+    public void testMultipleInferencesTriggeringDownloadAndDeploy() throws InterruptedException, IOException {
+        // Creating an inference endpoint to force the backing indices to be created to reduce the likelihood of the test failing
+        // because it's trying to interact with the indices while they're being created.
+        putModel("initial-model", mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
+
         int numParallelRequests = 4;
         var latch = new CountDownLatch(numParallelRequests);
         var errors = new ArrayList<Exception>();

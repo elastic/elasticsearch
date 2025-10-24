@@ -711,9 +711,9 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Load values into blocks, using a function to transform the read values before writing them into blocks.
-     * Will be part of the {@link BlockLoaderContext}
-     * A name and a config object are provided to allow the {@link MappedFieldType} to choose the appropriate implementation.
+     * Marker interface that contains the configuration needed to transform loaded values into blocks.
+     * Is retrievable from the {@link BlockLoaderContext}. The {@link MappedFieldType} can use this configuration to choose the appropriate
+     * implementation for transforming loaded values into blocks.
      */
     public interface BlockLoaderFunctionConfig {}
 

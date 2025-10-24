@@ -4363,3 +4363,32 @@ from employees
 c:long
 1
 ;
+
+
+inlineStatsKeepDropCountStar
+required_capability: inline_stats_with_no_columns
+
+from employees
+| keep emp_no
+| drop emp_no
+| inline stats c = count(*)
+| limit 3
+;
+
+c:long
+100
+100
+100
+;
+
+rowInlineStatsKeepDropCountStar
+required_capability: inline_stats_with_no_columns
+
+row a = 1
+| drop a
+| inline stats c = count(*)
+;
+
+c:long
+1
+;

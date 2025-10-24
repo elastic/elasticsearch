@@ -19,5 +19,8 @@
 :::{include} ../types/chunk.md
 :::
 
+:::{include} ../functionNamedParams/chunk.md
+:::
+
 :::{include} ../examples/chunk.md
 :::

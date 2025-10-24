@@ -2813,21 +2813,39 @@ public class VerifierTests extends ESTestCase {
             can only be used after STATS when used with TS command"""));
     }
 
-    public void testChunkFunctionWithNullInputs() {
-        query("from test | eval chunks = chunk(body, null, 20)", fullTextAnalyzer);
-        query("from test | eval chunks = chunk(body, 5, null)", fullTextAnalyzer);
-        query("from test | eval chunks = chunk(null, 5, 20)", fullTextAnalyzer);
-    }
-
     public void testChunkFunctionInvalidInputs() {
         if (EsqlCapabilities.Cap.CHUNK_FUNCTION.isEnabled()) {
             assertThat(
-                error("from test | EVAL chunks = CHUNK(body, \"foo\", 20)", fullTextAnalyzer),
-                equalTo("1:39: Cannot convert string [foo] to [INTEGER], error [Cannot parse number [foo]]")
+                error(
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": null, \"chunk_size\": 20})",
+                    fullTextAnalyzer,
+                    ParsingException.class
+                ),
+                equalTo("1:39: Invalid named parameter [\"num_chunks\":null], NULL is not supported")
             );
             assertThat(
-                error("from test | EVAL chunks = CHUNK(body, 5, \"foo\")", fullTextAnalyzer),
-                equalTo("1:42: Cannot convert string [foo] to [INTEGER], error [Cannot parse number [foo]]")
+                error(
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": 3, \"chunk_size\": null})",
+                    fullTextAnalyzer,
+                    ParsingException.class
+                ),
+                equalTo("1:39: Invalid named parameter [\"chunk_size\":null], NULL is not supported")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":\"foo\"})", fullTextAnalyzer),
+                equalTo("1:27: Invalid option [num_chunks] in [CHUNK(body, {\"num_chunks\":\"foo\"})], cannot cast [foo] to [integer]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":\"foo\"})", fullTextAnalyzer),
+                equalTo("1:27: Invalid option [chunk_size] in [CHUNK(body, {\"chunk_size\":\"foo\"})], cannot cast [foo] to [integer]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":-1})", fullTextAnalyzer),
+                equalTo("1:27: [num_chunks] cannot be negative, found [-1]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":-1})", fullTextAnalyzer),
+                equalTo("1:27: [chunk_size] cannot be negative, found [-1]")
             );
         }
     }

@@ -18,38 +18,44 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.Chunker;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
-public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
+public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chunk", Chunk::new);
 
     public static final int DEFAULT_NUM_CHUNKS = Integer.MAX_VALUE;
     public static final int DEFAULT_CHUNK_SIZE = 300;
 
-    private final Expression field, numChunks, chunkSize;
+    private final Expression field, options;
+
+    static final String NUM_CHUNKS = "num_chunks";
+    static final String CHUNK_SIZE = "chunk_size";
+
+    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(NUM_CHUNKS, DataType.INTEGER, CHUNK_SIZE, DataType.INTEGER);
 
     @FunctionInfo(returnType = "keyword", preview = true, description = """
         Use `CHUNK` to split a text field into smaller chunks.""", detailedDescription = """
@@ -60,30 +66,43 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
     public Chunk(
         Source source,
         @Param(name = "field", type = { "keyword", "text" }, description = "The input to chunk.") Expression field,
-        @Param(
-            optional = true,
-            name = "num_chunks",
-            type = { "integer" },
-            description = "The number of chunks to return. Defaults to return all chunks."
-        ) Expression numChunks,
-        @Param(
-            optional = true,
-            name = "chunk_size",
-            type = { "integer" },
-            description = "The size of sentence-based chunks to use. Defaults to " + DEFAULT_CHUNK_SIZE
-        ) Expression chunkSize
+        @MapParam(
+            name = "options",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = "num_chunks",
+                    type = "integer",
+                    description = "The number of chunks to return. Defaults to return all chunks."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "chunk_size",
+                    type = "integer",
+                    description = "The size of sentence-based chunks to use. Defaults to " + DEFAULT_CHUNK_SIZE
+                ), },
+            description = "TODO",
+            optional = true
+        ) Expression options
     ) {
-        super(source, fields(field, numChunks, chunkSize));
+        super(source, options == null ? List.of(field) : List.of(field, options));
         this.field = field;
-        this.numChunks = numChunks;
-        this.chunkSize = chunkSize;
+        this.options = options;
+    }
+
+    private Chunk(
+        Source source,
+        Expression field,
+        Expression options,
+        boolean unused // dummy parameter to differentiate constructors
+    ) {
+        super(source, options == null ? List.of(field) : List.of(field, options));
+        this.field = field;
+        this.options = options;
     }
 
     public Chunk(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class)
         );
     }
@@ -92,8 +111,7 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
-        out.writeOptionalNamedWriteable(numChunks);
-        out.writeOptionalNamedWriteable(chunkSize);
+        out.writeOptionalNamedWriteable(options);
     }
 
     @Override
@@ -111,27 +129,28 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
+        return isString(field(), sourceText(), FIRST).and(Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS, this::verifyOptions));
+    }
 
-        TypeResolution resolution = isString(field(), sourceText(), FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
+    private void verifyOptions(Map<String, Object> optionsMap) {
+        if (options == null) {
+            return;
         }
 
-        if (numChunks() != null) {
-            resolution = TypeResolutions.isType(numChunks(), dt -> dt == INTEGER, sourceText(), SECOND, "integer");
-            if (resolution.unresolved()) {
-                return resolution;
-            }
+        Integer numChunks = (Integer) optionsMap.get(NUM_CHUNKS);
+        if (numChunks != null && numChunks < 0) {
+            throw new InvalidArgumentException("[{}] cannot be negative, found [{}]", NUM_CHUNKS, numChunks);
+        }
+        Integer chunkSize = (Integer) optionsMap.get(CHUNK_SIZE);
+        if (chunkSize != null && chunkSize < 0) {
+            throw new InvalidArgumentException("[{}] cannot be negative, found [{}]", CHUNK_SIZE, chunkSize);
         }
 
-        return chunkSize() == null
-            ? TypeResolution.TYPE_RESOLVED
-            : TypeResolutions.isType(chunkSize(), dt -> dt == INTEGER, sourceText(), THIRD, "integer");
     }
 
     @Override
     public boolean foldable() {
-        return field().foldable() && (numChunks() == null || numChunks().foldable()) && (chunkSize() == null || chunkSize().foldable());
+        return field().foldable() && (options() == null || options().foldable());
     }
 
     @Override
@@ -139,37 +158,25 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
         return new Chunk(
             source(),
             newChildren.get(0), // field
-            numChunks == null ? null : newChildren.get(1),
-            chunkSize == null ? null : newChildren.get(2)
+            newChildren.size() > 1 ? newChildren.get(1) : null // options
         );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Chunk::new, field, numChunks, chunkSize);
+        return NodeInfo.create(this, Chunk::new, field, options);
     }
 
     Expression field() {
         return field;
     }
 
-    Expression numChunks() {
-        return numChunks;
-    }
-
-    Expression chunkSize() {
-        return chunkSize;
+    Expression options() {
+        return options;
     }
 
     @Evaluator(extraName = "BytesRef")
     static void process(BytesRefBlock.Builder builder, BytesRef str, int numChunks, int chunkSize) {
-        if (numChunks < 0) {
-            throw new IllegalArgumentException("Num chunks parameter cannot be negative, found [" + numChunks + "]");
-        }
-        if (chunkSize < 0) {
-            throw new IllegalArgumentException("Chunk size parameter cannot be negative, found [" + chunkSize + "]");
-        }
-
         String content = str.utf8ToString();
 
         ChunkingSettings settings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
@@ -202,38 +209,27 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         Chunk chunk = (Chunk) o;
-        return Objects.equals(field(), chunk.field())
-            && Objects.equals(numChunks(), chunk.numChunks())
-            && Objects.equals(chunkSize(), chunk.chunkSize());
+        return Objects.equals(field(), chunk.field()) && Objects.equals(options(), chunk.options());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), numChunks(), chunkSize());
-    }
-
-    private static List<Expression> fields(Expression field, Expression numChunks, Expression chunkSize) {
-        List<Expression> list = new ArrayList<>(4);
-        list.add(field);
-        if (numChunks != null) {
-            list.add(numChunks);
-        }
-        if (chunkSize != null) {
-            list.add(chunkSize);
-        }
-        return list;
+        return Objects.hash(field(), options());
     }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+
+        MapExpression optionsMap = options() != null ? (MapExpression) options() : null;
+
         return new ChunkBytesRefEvaluator.Factory(
             source(),
             toEvaluator.apply(field),
-            numChunks != null
-                ? toEvaluator.apply(numChunks)
+            optionsMap != null && optionsMap.containsKey("num_chunks")
+                ? toEvaluator.apply(optionsMap.get("num_chunks"))
                 : toEvaluator.apply(new Literal(source(), DEFAULT_NUM_CHUNKS, DataType.INTEGER)),
-            chunkSize != null
-                ? toEvaluator.apply(chunkSize)
+            optionsMap != null && optionsMap.containsKey("chunk_size")
+                ? toEvaluator.apply(optionsMap.get("chunk_size"))
                 : toEvaluator.apply(new Literal(source(), DEFAULT_CHUNK_SIZE, DataType.INTEGER))
         );
     }

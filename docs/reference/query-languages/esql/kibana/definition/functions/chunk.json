@@ -11,18 +11,6 @@
           "type" : "keyword",
           "optional" : false,
           "description" : "The input to chunk."
-        },
-        {
-          "name" : "num_chunks",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "The number of chunks to return. Defaults to return all chunks."
-        },
-        {
-          "name" : "chunk_size",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "The size of sentence-based chunks to use. Defaults to 300"
         }
       ],
       "variadic" : false,
@@ -35,18 +23,6 @@
           "type" : "text",
           "optional" : false,
           "description" : "The input to chunk."
-        },
-        {
-          "name" : "num_chunks",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "The number of chunks to return. Defaults to return all chunks."
-        },
-        {
-          "name" : "chunk_size",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "The size of sentence-based chunks to use. Defaults to 300"
         }
       ],
       "variadic" : false,

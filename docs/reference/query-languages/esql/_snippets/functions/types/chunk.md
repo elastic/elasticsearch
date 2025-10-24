@@ -2,8 +2,8 @@
 
 **Supported types**
 
-| field | num_chunks | chunk_size | result |
-| --- | --- | --- | --- |
-| keyword | integer | integer | keyword |
-| text | integer | integer | keyword |
+| field | options | result |
+| --- | --- | --- |
+| keyword | | keyword |
+| text | | keyword |
 

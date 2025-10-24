@@ -7,7 +7,7 @@ required_capability: chunk_function
 
 // tag::chunk-with-field[]
 FROM books
-| EVAL chunks = CHUNK(description, 1, 20)
+| EVAL chunks = CHUNK(description, {"num_chunks":1, "chunk_size":20})
 // end::chunk-with-field[]
 | KEEP book_no, title, chunks
 | SORT book_no
@@ -47,7 +47,7 @@ required_capability: chunk_function
 
 FROM books 
 | WHERE MATCH(title, "Return")
-| EVAL chunks = CHUNK(description, 1, 20)
+| EVAL chunks = CHUNK(description, {"num_chunks":1, "chunk_size":20})
 | KEEP book_no, title, chunks;
 ignoreOrder:true
 
@@ -61,7 +61,7 @@ required_capability: chunk_function
 
 FROM books 
 | WHERE MATCH(title, "Return")
-| EVAL chunks = CHUNK(description, 3, 20)
+| EVAL chunks = CHUNK(description, {"num_chunks":3, "chunk_size":20})
 | KEEP book_no, title, chunks;
 ignoreOrder:true
 
@@ -75,7 +75,7 @@ required_capability: chunk_function
 
 FROM books 
 | WHERE MATCH(title, "Return")
-| EVAL chunks = CHUNK(description, 3, 20)
+| EVAL chunks = CHUNK(description, {"num_chunks":3, "chunk_size":20})
 | MV_EXPAND chunks
 | KEEP book_no, title, chunks;
 ignoreOrder:true

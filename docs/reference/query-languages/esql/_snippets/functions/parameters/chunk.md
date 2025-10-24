@@ -5,9 +5,6 @@
 `field`
 :   The input to chunk.
 
-`num_chunks`
-:   The number of chunks to return. Defaults to return all chunks.
-
-`chunk_size`
-:   The size of sentence-based chunks to use. Defaults to 300
+`options`
+:   TODO
 

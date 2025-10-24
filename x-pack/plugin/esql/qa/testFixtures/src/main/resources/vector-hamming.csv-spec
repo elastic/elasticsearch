@@ -110,3 +110,53 @@ row vector = to_dense_vector([1, 2, 3])
 vector: dense_vector | similarity:double
 [1.0, 2.0, 3.0]      | 4.0
 ;
+
+multipleEvalSimilarityWithVectorFields
+required_capability: hamming_vector_similarity_function
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval similarity1 = v_hamming(rgb_byte_vector, [0, 127, 127]), similarity2 = v_hamming(rgb_byte_vector, [127, 0, 127]) / 2 + 1
+| sort similarity1 desc, similarity2 desc, color asc 
+| limit 10
+| keep color, similarity1, similarity2
+;
+
+color:text | similarity1:double | similarity2:double
+red        | 23.0               | 5.5
+indigo     | 19.0               | 6.5
+orange     | 19.0               | 6.5
+black      | 17.0               | 9.5
+gold       | 17.0               | 7.5
+chartreuse | 16.0               | 9.0
+green      | 16.0               | 9.0
+maroon     | 16.0               | 9.0
+navy       | 16.0               | 9.0
+bisque     | 16.0               | 5.0  
+;
+
+multipleSimilarityWithVectorFields
+required_capability: hamming_vector_similarity_function
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval similarity = v_hamming(rgb_byte_vector, [0, 127, 127]) / 2 + v_hamming(rgb_byte_vector, [127, 0, 127]) / 2 + 1
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+color:text | similarity:double
+black      | 18.0
+chartreuse | 17.0
+green      | 17.0
+lime       | 17.0
+maroon     | 17.0
+navy       | 17.0
+red        | 17.0
+cyan       | 16.0
+gold       | 16.0
+indigo     | 16.0
+;

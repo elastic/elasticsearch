@@ -114,3 +114,55 @@ row vector = to_dense_vector([1, 2, 3])
 vector:dense_vector | similarity:double
 [1.0, 2.0, 3.0]     | 0.956
 ;
+
+multipleEvalSimilarityWithVectorFields
+required_capability: cosine_vector_similarity_function
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| where color != "black" 
+| eval similarity1 = v_cosine(rgb_vector, [0, 255, 255]), similarity2 = v_cosine(rgb_vector, [255, 0, 255]) / 2 + 1
+| sort similarity1 desc, similarity2 desc, color asc 
+| limit 10
+| keep color, similarity1, similarity2
+;
+
+color:text  | similarity1:double | similarity2:double
+cyan        | 1.0                | 1.25
+teal        | 1.0                | 1.25
+turquoise   | 0.9781067967414856 | 1.307922512292862
+aqua marine | 0.929924726486206  | 1.3375208377838135
+azure       | 0.8324936032295227 | 1.4040042459964752
+lavender    | 0.827340304851532  | 1.413670152425766
+mint cream  | 0.8245516419410706 | 1.404111921787262
+honeydew    | 0.8244848847389221 | 1.3997502326965332
+gainsboro   | 0.8164966106414795 | 1.4082483053207397
+gray        | 0.8164966106414795 | 1.4082483053207397
+;
+
+multipleSimilarityWithVectorFields
+required_capability: cosine_vector_similarity_function
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| where color != "black" 
+| eval similarity = v_cosine(rgb_vector, [0, 255, 255]) / 2 + v_cosine(rgb_vector, [255, 0, 255]) / 2 + 1
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+color:text | similarity:double
+plum       | 1.8287146389484406
+lavender   | 1.827340304851532
+violet     | 1.8270123302936554
+orchid     | 1.8236639499664307
+thistle    | 1.8233629763126373
+azure      | 1.8202510476112366
+gainsboro  | 1.8164966106414795
+gray       | 1.8164966106414795
+silver     | 1.8164966106414795
+white      | 1.8164966106414795
+;

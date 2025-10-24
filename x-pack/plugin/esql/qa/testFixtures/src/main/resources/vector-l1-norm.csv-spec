@@ -110,3 +110,53 @@ row vector = to_dense_vector([1, 2, 3])
 vector: dense_vector | similarity:double
 [1.0, 2.0, 3.0]      | 3.0
 ;
+
+multipleEvalSimilarityWithVectorFields
+required_capability: l1_norm_vector_similarity_function
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval similarity1 = v_l1_norm(rgb_vector, [0, 255, 255]), similarity2 = v_l1_norm(rgb_vector, [255, 0, 255]) / 2 + 1
+| sort similarity1 desc, similarity2 desc, color asc 
+| limit 10
+| keep color, similarity1, similarity2
+;
+
+color:text | similarity1:double | similarity2:double
+red        | 765.0              | 128.5
+crimson    | 650.0              | 126.0
+maroon     | 638.0              | 192.0
+firebrick  | 620.0              | 167.0
+orange     | 600.0              | 211.0
+tomato     | 595.0              | 142.5
+brown      | 591.0              | 173.5
+chocolate  | 585.0              | 188.5
+coral      | 558.0              | 152.0
+gold       | 550.0              | 236.0
+;
+
+multipleSimilarityWithVectorFields
+required_capability: l1_norm_vector_similarity_function
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval similarity = v_l1_norm(rgb_vector, [0, 255, 255]) / 2 + v_l1_norm(rgb_vector, [255, 0, 255]) / 2 + 1
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+color:text | similarity:double
+black      | 511.0
+chartreuse | 511.0
+gold       | 511.0
+green      | 511.0
+lime       | 511.0
+maroon     | 511.0
+olive      | 511.0
+orange     | 511.0
+red        | 511.0
+yellow     | 511.0
+;

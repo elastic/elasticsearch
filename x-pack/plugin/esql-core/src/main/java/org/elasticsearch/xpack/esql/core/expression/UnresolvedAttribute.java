@@ -31,9 +31,9 @@ import java.util.Objects;
  */
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final boolean customMessage;
-    private final String unresolvedMsg;
+    protected final String unresolvedMsg;
     // TODO: unused and always null, remove this.
-    private final Object resolutionMetadata;
+    protected final Object resolutionMetadata;
 
     // TODO: Check usage of constructors without qualifiers, that's likely where qualifiers need to be plugged into resolution logic.
     public UnresolvedAttribute(Source source, String name) {
@@ -86,7 +86,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected NodeInfo<UnresolvedAttribute> info() {
+    protected NodeInfo<? extends UnresolvedAttribute> info() {
         return NodeInfo.create(this, UnresolvedAttribute::new, qualifier(), name(), id(), unresolvedMsg, resolutionMetadata);
     }
 

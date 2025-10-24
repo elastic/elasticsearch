@@ -551,7 +551,8 @@ public class EsqlSession {
         );
 
         SubscribableListener.<PreAnalysisResult>newForked(
-            // The main index pattern dictates on which nodes the query can be executed, so we use the minimum transport version from this field
+            // The main index pattern dictates on which nodes the query can be executed, so we use the minimum transport version from this
+            // field
             // caps request.
             l -> preAnalyzeMainIndices(preAnalysis.indexes().entrySet().iterator(), preAnalysis, executionInfo, result, requestFilter, l)
         ).andThenApply(r -> {

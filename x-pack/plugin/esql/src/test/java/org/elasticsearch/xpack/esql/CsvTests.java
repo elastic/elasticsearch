@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
@@ -389,7 +391,7 @@ public class CsvTests extends ESTestCase {
 
             var log = logResults() ? LOGGER : null;
             assertResults(expected, actualResults, testCase.ignoreOrder, log);
-            assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
+            assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()), actualResults);
         } finally {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
             // Give the breaker service some time to clear in case we got results before the rest of the driver had cleaned up
@@ -414,6 +416,16 @@ public class CsvTests extends ESTestCase {
         CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
     }
 
+    private static Map<IndexPattern, IndexResolution> loadIndexResolution(
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
+    ) {
+        Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
+        for (var entry : datasets.entrySet()) {
+            indexResolutions.put(entry.getKey(), loadIndexResolution(entry.getValue()));
+        }
+        return indexResolutions;
+    }
+
     private static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
         var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
         Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
@@ -429,21 +441,30 @@ public class CsvTests extends ESTestCase {
 
     private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
         var mapping = new TreeMap<>(loadMapping(dataset.mappingFileName()));
-        if (dataset.typeMapping() == null) {
-            return mapping;
+        if (dataset.typeMapping() != null) {
+            for (var entry : dataset.typeMapping().entrySet()) {
+                if (mapping.containsKey(entry.getKey())) {
+                    DataType dataType = DataType.fromTypeName(entry.getValue());
+                    EsField field = mapping.get(entry.getKey());
+                    EsField editedField = new EsField(
+                        field.getName(),
+                        dataType,
+                        field.getProperties(),
+                        field.isAggregatable(),
+                        field.getTimeSeriesFieldType()
+                    );
+                    mapping.put(entry.getKey(), editedField);
+                }
+            }
         }
-        for (var entry : dataset.typeMapping().entrySet()) {
-            if (mapping.containsKey(entry.getKey())) {
-                DataType dataType = DataType.fromTypeName(entry.getValue());
-                EsField field = mapping.get(entry.getKey());
-                EsField editedField = new EsField(
-                    field.getName(),
-                    dataType,
-                    field.getProperties(),
-                    field.isAggregatable(),
-                    field.getTimeSeriesFieldType()
-                );
-                mapping.put(entry.getKey(), editedField);
+        // Add dynamic mappings, but only if they are not already mapped
+        if (dataset.dynamicTypeMapping() != null) {
+            for (var entry : dataset.dynamicTypeMapping().entrySet()) {
+                if (mapping.containsKey(entry.getKey()) == false) {
+                    DataType dataType = DataType.fromTypeName(entry.getValue());
+                    EsField editedField = new EsField(entry.getKey(), dataType, Map.of(), false, EsField.TimeSeriesFieldType.NONE);
+                    mapping.put(entry.getKey(), editedField);
+                }
             }
         }
         return mapping;
@@ -526,7 +547,7 @@ public class CsvTests extends ESTestCase {
 
     private LogicalPlan analyzedPlan(
         LogicalPlan parsed,
-        CsvTestsDataLoader.MultiIndexTestDataset datasets,
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
         TransportVersion minimumVersion
     ) {
         var indexResolution = loadIndexResolution(datasets);
@@ -549,46 +570,65 @@ public class CsvTests extends ESTestCase {
         return plan;
     }
 
-    private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
+    private Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> testDatasets(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
-        if (preAnalysis.indexPattern() == null) {
+        if (preAnalysis.indexes().isEmpty()) {
             // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
-            return CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET_MAP.get("employees"));
+            return Map.of(
+                new IndexPattern(Source.EMPTY, "employees"),
+                CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET_MAP.get("employees"))
+            );
         }
 
-        String indexName = preAnalysis.indexPattern().indexPattern();
-        List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
-        if (indexName.endsWith("*")) {
-            String indexPrefix = indexName.substring(0, indexName.length() - 1);
-            for (var entry : CSV_DATASET_MAP.entrySet()) {
-                if (entry.getKey().startsWith(indexPrefix)) {
-                    datasets.add(entry.getValue());
+        List<String> missing = new ArrayList<>();
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> all = new HashMap<>();
+        for (IndexPattern indexPattern : preAnalysis.indexes().keySet()) {
+            List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
+            String indexName = indexPattern.indexPattern();
+            if (indexName.endsWith("*")) {
+                String indexPrefix = indexName.substring(0, indexName.length() - 1);
+                for (var entry : CSV_DATASET_MAP.entrySet()) {
+                    if (entry.getKey().startsWith(indexPrefix)) {
+                        datasets.add(entry.getValue());
+                    }
+                }
+            } else {
+                for (String index : indexName.split(",")) {
+                    var dataset = CSV_DATASET_MAP.get(index);
+                    if (dataset == null) {
+                        throw new IllegalArgumentException("unknown CSV dataset for table [" + index + "]");
+                    }
+                    datasets.add(dataset);
                 }
             }
-        } else {
-            for (String index : indexName.split(",")) {
-                var dataset = CSV_DATASET_MAP.get(index);
-                if (dataset == null) {
-                    throw new IllegalArgumentException("unknown CSV dataset for table [" + index + "]");
-                }
-                datasets.add(dataset);
+            if (datasets.isEmpty() == false) {
+                all.put(indexPattern, new CsvTestsDataLoader.MultiIndexTestDataset(indexName, datasets));
+            } else {
+                missing.add(indexName);
             }
         }
-        if (datasets.isEmpty()) {
-            throw new IllegalArgumentException("unknown CSV dataset for table [" + indexName + "]");
+        if (all.isEmpty()) {
+            throw new IllegalArgumentException("Found no CSV datasets for table [" + preAnalysis.indexes() + "]");
         }
-        return new CsvTestsDataLoader.MultiIndexTestDataset(indexName, datasets);
+        if (missing.isEmpty() == false) {
+            throw new IllegalArgumentException("Did not find datasets for tables: " + missing);
+        }
+        return all;
     }
 
     private static TestPhysicalOperationProviders testOperationProviders(
         FoldContext foldCtx,
-        CsvTestsDataLoader.MultiIndexTestDataset datasets
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets
     ) throws Exception {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
-        for (CsvTestsDataLoader.TestDataset dataset : datasets.datasets()) {
-            var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
-            Set<String> mappedFields = loadMapping(dataset.mappingFileName()).keySet();
-            indexPages.add(new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2(), mappedFields));
+        for (CsvTestsDataLoader.MultiIndexTestDataset datasets : allDatasets.values()) {
+            for (CsvTestsDataLoader.TestDataset dataset : datasets.datasets()) {
+                var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
+                Set<String> mappedFields = loadMapping(dataset.mappingFileName()).keySet();
+                indexPages.add(
+                    new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2(), mappedFields)
+                );
+            }
         }
         return TestPhysicalOperationProviders.create(foldCtx, indexPages);
     }
@@ -677,7 +717,7 @@ public class CsvTests extends ESTestCase {
         SerializationTestUtils.assertSerialization(plan, configuration);
     }
 
-    private void assertWarnings(List<String> warnings) {
+    private void assertWarnings(List<String> warnings, Object context) {
         List<String> normalized = new ArrayList<>(warnings.size());
         for (String w : warnings) {
             String normW = HeaderWarning.extractWarningValueFromWarningHeader(w, false);
@@ -686,7 +726,7 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        testCase.assertWarnings(false).assertWarnings(normalized);
+        testCase.assertWarnings(false).assertWarnings(normalized, context);
     }
 
     PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {

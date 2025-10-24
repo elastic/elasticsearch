@@ -1,6 +1,0 @@
-pr: 136214
-summary: Using index setting providers for data stream setting validation
-area: Data streams
-type: bug
-issues:
- - 136166

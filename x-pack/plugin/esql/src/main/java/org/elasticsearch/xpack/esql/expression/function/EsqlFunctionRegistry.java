@@ -1248,11 +1248,7 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
     }
 
-    protected static <T extends Function> FunctionDefinition defTS(
-        Class<T> function,
-        BinaryBuilder<T> ctorRef,
-        String... names
-    ) {
+    protected static <T extends Function> FunctionDefinition defTS(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
         checkIsTimestampAware(function);
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsUniFunction(children.size());

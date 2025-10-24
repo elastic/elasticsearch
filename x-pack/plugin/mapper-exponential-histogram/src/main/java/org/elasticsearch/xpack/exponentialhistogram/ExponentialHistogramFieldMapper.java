@@ -22,14 +22,17 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -42,6 +45,9 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -297,6 +303,107 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 "[" + CONTENT_TYPE + "] field do not support searching, " + "use dedicated aggregations instead: [" + name() + "]"
             );
         }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new BlockDocValuesReader.DocValuesBlockLoader() {
+
+                final DoublesBlockLoader minimaLoader = new DoublesBlockLoader(
+                    valuesMinSubFieldName(name()),
+                    NumericUtils::sortableLongToDouble
+                );
+                final DoublesBlockLoader maximaLoader = new DoublesBlockLoader(
+                    valuesMaxSubFieldName(name()),
+                    NumericUtils::sortableLongToDouble
+                );
+                final DoublesBlockLoader sumsLoader = new DoublesBlockLoader(
+                    valuesSumSubFieldName(name()),
+                    NumericUtils::sortableLongToDouble
+                );
+                final LongsBlockLoader valueCountsLoader = new LongsBlockLoader(valuesCountSubFieldName(name()));
+                final DoublesBlockLoader zeroThresholdsLoader = new DoublesBlockLoader(
+                    zeroThresholdSubFieldName(name()),
+                    NumericUtils::sortableLongToDouble
+                );
+
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.exponentialHistogramBlockBuilder(expectedCount);
+                }
+
+                @Override
+                public AllReader reader(LeafReaderContext context) throws IOException {
+                    //TODO: what if context.reader().getBinaryDocValues(name()) is null?
+                    AllReader encodedBytesReader = new BytesRefsFromBinaryReader(
+                        context.reader().getBinaryDocValues(name())
+                    );
+                    BlockLoader.AllReader minimaReader = minimaLoader.reader(context);
+                    BlockLoader.AllReader maximaReader = maximaLoader.reader(context);
+                    AllReader sumsReader = sumsLoader.reader(context);
+                    AllReader valueCountsReader = valueCountsLoader.reader(context);
+                    AllReader zeroThresholdsReader = zeroThresholdsLoader.reader(context);
+                    return new AllReader() {
+                        @Override
+                        public boolean canReuse(int startingDocID) {
+                            return minimaReader.canReuse(startingDocID)
+                                && maximaReader.canReuse(startingDocID)
+                                && sumsReader.canReuse(startingDocID)
+                                && valueCountsReader.canReuse(startingDocID)
+                                && zeroThresholdsReader.canReuse(startingDocID)
+                                && encodedBytesReader.canReuse(startingDocID);
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "BlockDocValuesReader.ExponentialHistogram";
+                        }
+
+                        @Override
+                        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                            Block minima = null;
+                            Block maxima = null;
+                            Block sums = null;
+                            Block valueCounts = null;
+                            Block zeroThresholds = null;
+                            Block encodedBytes = null;
+                            boolean success = false;
+                            try {
+                                minima = minimaReader.read(factory, docs, offset, nullsFiltered);
+                                maxima = maximaReader.read(factory, docs, offset, nullsFiltered);
+                                sums = sumsReader.read(factory, docs, offset, nullsFiltered);
+                                valueCounts = valueCountsReader.read(factory, docs, offset, nullsFiltered);
+                                zeroThresholds = zeroThresholdsReader.read(factory, docs, offset, nullsFiltered);
+                                encodedBytes = encodedBytesReader.read(factory, docs, offset, nullsFiltered);
+                                success = true;
+                            } finally {
+                                if (success == false) {
+                                    Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedBytes);
+                                }
+                            }
+                            return factory.buildExponentialHistogramBlockDirect(
+                                minima,
+                                maxima,
+                                sums,
+                                valueCounts,
+                                zeroThresholds,
+                                encodedBytes
+                            );
+                        }
+
+                        @Override
+                        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                            ExponentialHistogramBuilder histogramBuilder = (ExponentialHistogramBuilder) builder;
+                            minimaReader.read(docId, storedFields, histogramBuilder.minima());
+                            maximaReader.read(docId, storedFields, histogramBuilder.maxima());
+                            sumsReader.read(docId, storedFields, histogramBuilder.sums());
+                            valueCountsReader.read(docId, storedFields, histogramBuilder.valueCounts());
+                            zeroThresholdsReader.read(docId, storedFields, histogramBuilder.zeroThresholds());
+                            encodedBytesReader.read(docId, storedFields, histogramBuilder.encodedHistograms());
+                        }
+                    };
+                }
+            };
+        }
     }
 
     @Override
@@ -423,14 +530,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             valuesSumSubFieldName(fieldName),
             NumericUtils.doubleToSortableLong(sum)
         );
-        NumericDocValuesField minField = null;
-        if (Double.isNaN(min) == false) {
-            minField = new NumericDocValuesField(valuesMinSubFieldName(fieldName), NumericUtils.doubleToSortableLong(min));
-        }
-        NumericDocValuesField maxField = null;
-        if (Double.isNaN(max) == false) {
-            maxField = new NumericDocValuesField(valuesMaxSubFieldName(fieldName), NumericUtils.doubleToSortableLong(max));
-        }
+        NumericDocValuesField minField = new NumericDocValuesField(valuesMinSubFieldName(fieldName), NumericUtils.doubleToSortableLong(min));
+        NumericDocValuesField maxField = new NumericDocValuesField(valuesMaxSubFieldName(fieldName), NumericUtils.doubleToSortableLong(max));
         HistogramDocValueFields docValues = new HistogramDocValueFields(
             histoField,
             zeroThresholdField,

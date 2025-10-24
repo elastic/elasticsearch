@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -177,6 +178,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultAnalyzer;
@@ -5405,6 +5407,82 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
     }
 
+    /**
+     * Expected
+     * <pre>{@code
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[languages{f}#8],[language_code{f}#16],languages{f}#8 == language_code{f}#16 AND language_name{f}#17 == English
+     * [KEYWORD]]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+     * }</pre>
+     */
+    public void testLookupJoinRightFilter() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN languages_lookup ON languages == language_code and language_name == "English"
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, true);
+        var join = as(upperLimit.child(), Join.class);
+        assertEquals("ON languages == language_code and language_name == \"English\"", join.config().joinOnConditions().toString());
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    public void testLookupJoinRightFilterMatch() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN languages_lookup ON languages == language_code and MATCH(language_name,"English")
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, true);
+        var join = as(upperLimit.child(), Join.class);
+        assertEquals("ON languages == language_code and MATCH(language_name,\"English\")", join.config().joinOnConditions().toString());
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_Filter[LIKE(language_name{f}#18, "French*", false)]
+     *   \_Join[LEFT,[languages{f}#9],[language_code{f}#17],languages{f}#9 == language_code{f}#17 AND MATCH(language_name{f}#18,
+     * English[KEYWORD])]
+     *     |_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *     \_Filter[LIKE(language_name{f}#18, "French*", false)]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
+     */
+    public void testLookupJoinRightFilterMatchWithWhereClause() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN languages_lookup ON languages == language_code and MATCH(language_name,"English")
+            | WHERE language_name LIKE "French*"
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, false);
+        var topFilter = as(upperLimit.child(), Filter.class);
+        var join = as(topFilter.child(), Join.class);
+        assertEquals("ON languages == language_code and MATCH(language_name,\"English\")", join.config().joinOnConditions().toString());
+
+        // Check that the LIKE condition is pushed down as a right pre-join filter
+        var rightFilter = as(join.right(), Filter.class);
+        var likeCondition = as(rightFilter.condition(), WildcardLike.class);
+        var field = as(likeCondition.field(), FieldAttribute.class);
+        assertEquals("language_name", field.name());
+        assertEquals("French*", likeCondition.pattern().pattern());
+
+        as(rightFilter.child(), EsRelation.class);
+    }
+
     // https://github.com/elastic/elasticsearch/issues/104995
     public void testNoWrongIsNotNullPruning() {
         var plan = optimizedPlan("""
@@ -7330,6 +7408,91 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var rightFilter = as(join.right(), Filter.class);
         assertEquals("language_name == \"English\"", rightFilter.condition().toString());
         var rightRel = as(rightFilter.child(), EsRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[emp_no{f}#5],[id{f}#16],emp_no{f}#5 == id{f}#16 AND SPATIALINTERSECTS([1 3 0 0 0 1 0 0 0 5 0 0 0 0 0 0 0 0
+     * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+     * f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0][GEO_SHAPE],shape{f}#19)]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsRelation[spatial_lookup][LOOKUP][contains{f}#18, id{f}#16, intersects{f}#17, shape{f..]
+     */
+    public void testLookupJoinRightFilterSpatialIntersects() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN spatial_lookup ON emp_no == id AND ST_INTERSECTS(TO_GEOSHAPE("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"), shape)
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, true);
+        var join = as(upperLimit.child(), Join.class);
+        assertEquals(
+            "ON emp_no == id AND ST_INTERSECTS(TO_GEOSHAPE(\"POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))\"), shape)",
+            join.config().joinOnConditions().toString()
+        );
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[emp_no{f}#5],[id{f}#16],emp_no{f}#5 == id{f}#16 AND SPATIALINTERSECTS([1 3 0 0 0 1 0 0 0 5 0 0 0 0 0 0 0 0
+     * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+     * f0 3f 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0][GEO_SHAPE],shape{f}#19)]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsRelation[spatial_lookup][LOOKUP][contains{f}#18, id{f}#16, intersects{f}#17, shape{f..]
+     */
+    public void testLookupJoinRightFilterSpatialWithin() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN spatial_lookup ON emp_no == id AND ST_WITHIN(shape, TO_GEOSHAPE("POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))"))
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, true);
+        var join = as(upperLimit.child(), Join.class);
+        assertEquals(
+            "ON emp_no == id AND ST_WITHIN(shape, TO_GEOSHAPE(\"POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))\"))",
+            join.config().joinOnConditions().toString()
+        );
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[emp_no{f}#5],[id{f}#16],emp_no{f}#5 == id{f}#16 AND SPATIALCONTAINS(shape{f}#19,[1 3 0 0 0 1 0 0 0 5 0 0 0
+     * 0 0 0 0 0 0 e0 3f 0 0 0 0 0 0 e0 3f 0 0 0 0 0 0 f8 3f 0 0 0 0 0 0 e0 3f 0 0 0 0 0 0 f8 3f 0 0 0 0 0 0 f8 3f 0 0 0 0 0 0
+     * e0 3f 0 0 0 0 0 0 f8 3f 0 0 0 0 0 0 e0 3f 0 0 0 0 0 0 e0 3f][GEO_SHAPE])]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsRelation[spatial_lookup][LOOKUP][contains{f}#18, id{f}#16, intersects{f}#17, shape{f..]
+     */
+    public void testLookupJoinRightFilterSpatialContains() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | LOOKUP JOIN spatial_lookup
+            ON emp_no == id AND ST_CONTAINS(shape, TO_GEOSHAPE("POLYGON((0.5 0.5, 1.5 0.5, 1.5 1.5, 0.5 1.5, 0.5 0.5))"))
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        var upperLimit = asLimit(plan, 1000, true);
+        var join = as(upperLimit.child(), Join.class);
+        assertEquals(
+            "ON emp_no == id AND ST_CONTAINS(shape, TO_GEOSHAPE(\"POLYGON((0.5 0.5, 1.5 0.5, 1.5 1.5, 0.5 1.5, 0.5 0.5))\"))",
+            join.config().joinOnConditions().toString()
+        );
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
     }
 
     /**

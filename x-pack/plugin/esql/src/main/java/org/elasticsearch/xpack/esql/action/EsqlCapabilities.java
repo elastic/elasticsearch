@@ -1416,7 +1416,11 @@ public class EsqlCapabilities {
          * Allow lookup join on boolean expressions
          */
         LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
-
+        /**
+         * Lookup join with Full Text Function or other Lucene Pushable condition
+         * to be applied to the lookup index used
+         */
+        LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION,
         /**
          * FORK with remote indices
          */
@@ -1483,6 +1487,8 @@ public class EsqlCapabilities {
         INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
 
         DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS,
+
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION,
 
         /**
          * FUSE L2_NORM score normalization support

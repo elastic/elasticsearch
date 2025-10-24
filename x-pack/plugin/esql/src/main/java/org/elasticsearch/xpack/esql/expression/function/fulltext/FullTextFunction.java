@@ -45,6 +45,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
@@ -192,38 +195,11 @@ public abstract class FullTextFunction extends Function
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Failures failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-
-            if (condition instanceof Score) {
-                failures.add(fail(condition, "[SCORE] function can't be used in WHERE"));
-            }
-
-            // Defer the check to children commands to post optimization plan verification,
-            // after the candidate predicates are pushed down into subqueries
-            if (hasSubqueryInChildrenPlans(f) == false) {
-                List.of(QueryString.class, Kql.class).forEach(functionClass -> {
-                    // Check for limitations of QSTR and KQL function.
-                    checkCommandsBeforeExpression(
-                        plan,
-                        condition,
-                        functionClass,
-                        lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                        fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
-                        failures
-                    );
-                });
-
-                checkCommandsBeforeExpression(
-                    plan,
-                    condition,
-                    FullTextFunction.class,
-                    lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
-                    m -> "[" + m.functionName() + "] " + m.functionType(),
-                    failures
-                );
-            }
-            checkFullTextFunctionsParents(condition, failures);
+            checkFullTextQueryFunctionForCondition(plan, failures, condition, false);
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
+        } else if (plan instanceof Join lookupJoin && plan instanceof InlineJoin == false) {
+            checkFullTextQueryFunctionForCondition(plan, failures, lookupJoin.config().joinOnConditions(), true);
         } else {
             List<FullTextFunction> scoredFTFs = new ArrayList<>();
             plan.forEachExpression(Score.class, scoreFunction -> {
@@ -244,6 +220,48 @@ public abstract class FullTextFunction extends Function
                 }
             });
         }
+    }
+
+    private static void checkFullTextQueryFunctionForCondition(
+        LogicalPlan plan,
+        Failures failures,
+        Expression condition,
+        boolean isLookupJoinOnCondition
+    ) {
+        if (condition == null) {
+            return;
+        }
+        if (condition instanceof Score) {
+            failures.add(fail(condition, "[SCORE] function can't be used in WHERE or LOOKUP JOIN ON conditions"));
+        }
+        // Defer the check to children commands to post optimization plan verification,
+        // after the candidate predicates are pushed down into subqueries
+        if (hasSubqueryInChildrenPlans(plan) == false) {
+            if (isLookupJoinOnCondition == false) {
+                List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+                    // Check for limitations of QSTR and KQL function.
+                    checkCommandsBeforeExpression(
+                        plan,
+                        condition,
+                        functionClass,
+                        lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                        fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                        failures
+                    );
+                });
+            }
+
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
+                FullTextFunction.class,
+                lp -> isLookupJoinOnCondition ? lp instanceof Aggregate == false :
+                    (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+                m -> "[" + m.functionName() + "] " + m.functionType(),
+                failures
+            );
+        }
+        checkFullTextFunctionsParents(condition, failures);
     }
 
     private static void checkScoreFunction(LogicalPlan plan, Failures failures, Score scoreFunction) {
@@ -349,11 +367,15 @@ public abstract class FullTextFunction extends Function
     }
 
     public static void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+        // Only run the check if the current node contains the full-text function
+        // This is to avoid running the check multiple times in the same plan
+        if (isInCurrentNode(plan, function) == false) {
+            return;
+        }
         var fieldAttribute = fieldAsFieldAttribute(field);
         if (fieldAttribute == null) {
             plan.forEachExpression(function.getClass(), m -> {
-                // Defer the field check to post optimization plan verification if there are subqueries in the plan
-                if (m.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
+                if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
                     failures.add(
                         fail(
                             field,
@@ -366,6 +388,12 @@ public abstract class FullTextFunction extends Function
                 }
             });
         } else {
+            if (plan instanceof Join  && plan instanceof InlineJoin == false) {
+                // Full Text Functions are allowed in LOOKUP JOIN ON conditions
+                // We are only running this code for the node containing the Full Text Function
+                // So if it is a Lookup Join we know the function is in the join on condition
+                return;
+            }
             // Traverse the plan to find the EsRelation outputting the field
             plan.forEachDown(p -> {
                 if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
@@ -442,6 +470,19 @@ public abstract class FullTextFunction extends Function
     public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
         // check plan again after predicates are pushed down into subqueries
         return postAnalysisPlanVerification();
+    }
+
+    /**
+     * Check if the full-text function exists only in the current node (not in child nodes)
+     */
+    private static boolean isInCurrentNode(LogicalPlan plan, FullTextFunction function) {
+        final Holder<Boolean> found = new Holder<>(false);
+        plan.forEachExpression(FullTextFunction.class, ftf -> {
+            if (ftf == function) {
+                found.set(true);
+            }
+        });
+        return found.get();
     }
 
     private static boolean hasSubqueryInChildrenPlans(LogicalPlan plan) {

@@ -991,16 +991,16 @@ FROM k8s-downsampled, (FROM sample_data metadata _index) metadata _index
 | SORT _index, @timestamp, client.ip, cluster,  network.total_bytes_in
 ;
 
-_index:keyword  | @timestamp:datetime      | client.ip:ip | event_duration:long | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:keyword
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | prod            | 285                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | qa              | 1143                        | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | staging         | 930                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | prod            | 1038                        | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 363                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 1032                        | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.33  | null                | prod            | 210                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | null                | staging         | 821                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | null                | staging         | 838                         | null
+_index:keyword  | @timestamp:datetime      | client.ip:ip | event_duration:long | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:aggregate_metric_double
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | prod            | 285                         | {"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | qa              | 1143                        | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | staging         | 930                         | {"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | prod            | 1038                        | {"min":20.0,"max":190.0,"sum":370.0,"value_count":10}
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 363                         | {"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 1032                        | {"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10}
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.33  | null                | prod            | 210                         | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | null                | staging         | 821                         | {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | null                | staging         | 838                         | {"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
 sample_data     | 2023-10-23T12:15:03.360Z | null         | 3450233             | null            | null                        | null
 sample_data     | 2023-10-23T12:27:28.948Z | null         | 2764889             | null            | null                        | null
 sample_data     | 2023-10-23T13:33:34.937Z | null         | 1232382             | null            | null                        | null

@@ -1,7 +1,0 @@
-pr: 137092
-summary: Fixes `ValuesTests` OOM
-area: ES|QL
-type: bug
-issues:
- - 128649
- - 128709

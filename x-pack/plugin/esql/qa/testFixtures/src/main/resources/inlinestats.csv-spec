@@ -4125,8 +4125,8 @@ from employees
 inlineStatsOnAggregateMetricDouble
 required_capability: inline_stats
 required_capability: aggregate_metric_double_v0
+required_capability: dense_vector_agg_metric_double_if_version
 FROM k8s-downsampled
-| EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)     // Temporary workaround to enable aggregate_metric_double
 | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod
 | SORT @timestamp, cluster, pod
 | KEEP @timestamp, cluster, pod, network.eth0.tx, tx_max
@@ -4150,6 +4150,7 @@ required_capability: inline_stats
 required_capability: fix_join_output_merging
 
 FROM languages_lookup_non_unique_key
+| EVAL country = MV_SORT(country)
 | KEEP country, language_name
 | EVAL language_code = null::integer
 | INLINE STATS MAX(language_code) BY language_code
@@ -4157,7 +4158,7 @@ FROM languages_lookup_non_unique_key
 | LIMIT 5
 ;
 
-country:text      |language_name:keyword |MAX(language_code):integer |language_code:integer
+country:keyword   |language_name:keyword |MAX(language_code):integer |language_code:integer
 Atlantis          |null                  |null                       |null
 [Austria, Germany]|German                |null                       |null
 Canada            |English               |null                       |null

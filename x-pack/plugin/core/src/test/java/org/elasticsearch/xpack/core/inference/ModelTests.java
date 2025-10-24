@@ -122,8 +122,6 @@ public class ModelTests extends ESTestCase {
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, TestServiceSettings.NAME, TestServiceSettings::new)
-        );
+        return List.of(new NamedWriteableRegistry.Entry(ServiceSettings.class, TestServiceSettings.NAME, TestServiceSettings::new));
     }
 }

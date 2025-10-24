@@ -38,7 +38,6 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
-import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
@@ -392,7 +391,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 int lenToCopy = Math.min(numDocsInBlock - batchStart, NUMERIC_BLOCK_SIZE);
                 for (int i = 0; i < lenToCopy; i++) {
                     // convert compressed length to offsets
-                    int docLength  = (int) docLengthDecompBuffer[i];
+                    int docLength = (int) docLengthDecompBuffer[i];
                     uncompressedDocStarts[batchStart + i + 1] = docLength + uncompressedDocStarts[batchStart + i];
                 }
                 batchStart += NUMERIC_BLOCK_SIZE;
@@ -430,7 +429,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
 
             int start = uncompressedDocStarts[idxInBlock];
-            int end = uncompressedDocStarts[idxInBlock  + 1];
+            int end = uncompressedDocStarts[idxInBlock + 1];
             uncompressedBytesRef.offset = start;
             uncompressedBytesRef.length = end - start;
             return uncompressedBytesRef;

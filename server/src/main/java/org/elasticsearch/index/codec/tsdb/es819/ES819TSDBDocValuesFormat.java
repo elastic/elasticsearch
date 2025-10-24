@@ -125,7 +125,12 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT, BinaryDVCompressionMode.COMPRESSED_WITH_ZSTD);
+        this(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            OPTIMIZED_MERGE_ENABLE_DEFAULT,
+            BinaryDVCompressionMode.COMPRESSED_WITH_ZSTD
+        );
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */

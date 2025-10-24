@@ -35,7 +35,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LongsRef;
@@ -538,22 +537,10 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         CompressedBinaryBlockWriter() throws IOException {
             long blockAddressesStart = data.getFilePointer();
-            blockAddressAcc = new DelayedOffsetAccumulator(
-                state.directory,
-                state.context,
-                data,
-                "block_addresses",
-                blockAddressesStart
-            );
+            blockAddressAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block_addresses", blockAddressesStart);
 
             try {
-                blockDocRangeAcc = new DelayedOffsetAccumulator(
-                    state.directory,
-                    state.context,
-                    data,
-                    "block_doc_ranges",
-                    0
-                );
+                blockDocRangeAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block_doc_ranges", 0);
             } catch (IOException e) {
                 blockAddressAcc.close();
                 throw e;
@@ -611,7 +598,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     docLengthCompressBuffer[i] = docLengths[batchStart + i];
                 }
                 if (batchLength < docLengthCompressBuffer.length) {
-                    Arrays.fill(docLengthCompressBuffer, batchLength, docLengthCompressBuffer.length,0);
+                    Arrays.fill(docLengthCompressBuffer, batchLength, docLengthCompressBuffer.length, 0);
                 }
                 encoder.encode(docLengthCompressBuffer, output);
                 batchStart += batchLength;

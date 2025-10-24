@@ -33,13 +33,7 @@ final class DelayedOffsetAccumulator implements Closeable {
     private final IndexOutput tempOutput;
     private final String suffix;
 
-    DelayedOffsetAccumulator(
-        Directory dir,
-        IOContext context,
-        IndexOutput data,
-        String suffix,
-        long startOffset
-    ) throws IOException {
+    DelayedOffsetAccumulator(Directory dir, IOContext context, IndexOutput data, String suffix, long startOffset) throws IOException {
         this.dir = dir;
         this.startOffset = startOffset;
         this.suffix = suffix;
@@ -47,14 +41,9 @@ final class DelayedOffsetAccumulator implements Closeable {
         boolean success = false;
         try {
             tempOutput = dir.createTempOutput(data.getName(), suffix, context);
-            CodecUtil.writeHeader(
-                tempOutput,
-                ES819TSDBDocValuesFormat.META_CODEC + suffix,
-                ES819TSDBDocValuesFormat.VERSION_CURRENT
-            );
+            CodecUtil.writeHeader(tempOutput, ES819TSDBDocValuesFormat.META_CODEC + suffix, ES819TSDBDocValuesFormat.VERSION_CURRENT);
             success = true;
-        }
-        finally {
+        } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(this); // self-close because constructor caller can't
             }

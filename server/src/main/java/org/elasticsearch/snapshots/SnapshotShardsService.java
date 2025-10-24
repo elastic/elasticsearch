@@ -610,16 +610,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             snapshotStatus.ensureNotAborted();
 
             final Repository repository = repositoriesService.repository(snapshot.getProjectId(), snapshot.getRepository());
-            snapshotShardContextFactory.asyncCreate(
-                shardId,
-                snapshot,
-                indexId,
-                snapshotStatus,
-                version,
-                entryStartTime,
-                listener,
-                repository::snapshotShard
-            );
+            snapshotShardContextFactory.asyncCreate(shardId, snapshot, indexId, snapshotStatus, version, entryStartTime, listener)
+                .addListener(ActionListener.wrap(repository::snapshotShard, listener::onFailure));
         });
     }
 

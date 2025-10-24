@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
@@ -24,7 +25,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
 
@@ -39,15 +39,14 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
     }
 
     @Override
-    public void asyncCreate(
+    public SubscribableListener<SnapshotShardContext> asyncCreate(
         ShardId shardId,
         Snapshot snapshot,
         IndexId indexId,
         IndexShardSnapshotStatus snapshotStatus,
         IndexVersion repositoryMetaVersion,
         long snapshotStartTime,
-        ActionListener<ShardSnapshotResult> listener,
-        Consumer<SnapshotShardContext> snapshotShardContextConsumer
+        ActionListener<ShardSnapshotResult> listener
     ) throws IOException {
 
         final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
@@ -73,21 +72,20 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
             final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
             snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
             snapshotStatus.ensureNotAborted();
-            snapshotShardContextConsumer.accept(
-                new LocalPrimarySnapshotShardContext(
-                    indexShard.store(),
-                    indexShard.mapperService(),
-                    snapshot.getSnapshotId(),
-                    indexId,
-                    snapshotIndexCommit,
-                    shardStateId,
-                    snapshotStatus,
-                    repositoryMetaVersion,
-                    snapshotStartTime,
-                    listener
-                )
+            final var snapshotShardContext = new LocalPrimarySnapshotShardContext(
+                indexShard.store(),
+                indexShard.mapperService(),
+                snapshot.getSnapshotId(),
+                indexId,
+                snapshotIndexCommit,
+                shardStateId,
+                snapshotStatus,
+                repositoryMetaVersion,
+                snapshotStartTime,
+                listener
             );
             snapshotIndexCommit = null;
+            return SubscribableListener.newSucceeded(snapshotShardContext);
         } finally {
             if (snapshotIndexCommit != null) {
                 snapshotIndexCommit.closingBefore(new ActionListener<Void>() {

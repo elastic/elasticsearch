@@ -10,13 +10,13 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
-import java.util.function.Consumer;
 
 public interface SnapshotShardContextFactory {
 
@@ -24,14 +24,13 @@ public interface SnapshotShardContextFactory {
         return false;
     }
 
-    void asyncCreate(
+    SubscribableListener<SnapshotShardContext> asyncCreate(
         ShardId shardId,
         Snapshot snapshot,
         IndexId indexId,
         IndexShardSnapshotStatus snapshotStatus,
         IndexVersion repositoryMetaVersion,
         long snapshotStartTime,
-        ActionListener<ShardSnapshotResult> listener,
-        Consumer<SnapshotShardContext> snapshotShardContextConsumer
+        ActionListener<ShardSnapshotResult> listener
     ) throws IOException;
 }

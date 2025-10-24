@@ -43,7 +43,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -94,7 +93,6 @@ public class DesiredBalanceReconciler {
     );
 
     private final TimeProvider timeProvider;
-    private final AtomicLong lastProgressTowardsBalanceTimestampMillis = new AtomicLong(0L);
     private final FrequencyCappedAction undesiredAllocationLogInterval;
     private final FrequencyCappedAction immovableShardsLogInterval;
     private double undesiredAllocationsLogThreshold;
@@ -107,7 +105,6 @@ public class DesiredBalanceReconciler {
         this.timeProvider = timeProvider;
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.timeValueMinutes(5));
         this.immovableShardsLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.ZERO);
-        this.lastProgressTowardsBalanceTimestampMillis.set(timeProvider.relativeTimeInMillis());
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, value -> {
             this.undesiredAllocationLogInterval.setMinInterval(value);
             this.immovableShardsLogInterval.setMinInterval(value);
@@ -613,7 +610,6 @@ public class DesiredBalanceReconciler {
                         shardRouting.currentNodeId(),
                         rebalanceTargetNode.getId()
                     );
-                    lastProgressTowardsBalanceTimestampMillis.set(timeProvider.relativeTimeInMillis());
 
                     routingNodes.relocateShard(
                         shardRouting,

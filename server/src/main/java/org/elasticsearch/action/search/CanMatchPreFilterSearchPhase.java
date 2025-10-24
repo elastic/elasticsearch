@@ -59,6 +59,8 @@ import static org.elasticsearch.core.Types.forciblyCast;
  */
 final class CanMatchPreFilterSearchPhase {
 
+    private static final String PHASE_NAME = "can_match";
+
     private final Logger logger;
     private final SearchRequest request;
     private final List<SearchShardIterator> shardsIts;
@@ -152,7 +154,7 @@ final class CanMatchPreFilterSearchPhase {
             public void onResponse(List<SearchShardIterator> shardsIts) {
                 // searchResponseMetrics is null for node can-match requests
                 if (searchResponseMetrics != null) {
-                    searchResponseMetrics.recordSearchPhaseDuration("can_match", System.nanoTime() - phaseStartTimeInNanos);
+                    searchResponseMetrics.recordSearchPhaseDuration(PHASE_NAME, System.nanoTime() - phaseStartTimeInNanos);
                 }
             }
 
@@ -169,7 +171,7 @@ final class CanMatchPreFilterSearchPhase {
                 if (logger.isDebugEnabled()) {
                     logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
                 }
-                listener.onFailure(new SearchPhaseExecutionException("can_match", "start", e, ShardSearchFailure.EMPTY_ARRAY));
+                listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "start", e, ShardSearchFailure.EMPTY_ARRAY));
             }
 
             @Override
@@ -270,7 +272,7 @@ final class CanMatchPreFilterSearchPhase {
 
     private void checkNoMissingShards(List<SearchShardIterator> shards) {
         assert assertSearchCoordinationThread();
-        SearchPhase.doCheckNoMissingShards("can_match", request, shards);
+        SearchPhase.doCheckNoMissingShards(PHASE_NAME, request, shards);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(List<SearchShardIterator> shards) {
@@ -407,7 +409,7 @@ final class CanMatchPreFilterSearchPhase {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
             }
-            listener.onFailure(new SearchPhaseExecutionException("can_match", "round", e, ShardSearchFailure.EMPTY_ARRAY));
+            listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "round", e, ShardSearchFailure.EMPTY_ARRAY));
         }
     }
 

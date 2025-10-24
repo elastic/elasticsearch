@@ -12,6 +12,7 @@ setup:
                 type: keyword
               vector:
                 type: dense_vector
+                element_type: bfloat16
                 dims: 5
                 index: true
                 similarity: l2_norm
@@ -19,9 +20,9 @@ setup:
                   type: hnsw
                   m: 16
                   ef_construction: 200
-                  element_type: bfloat16
               another_vector:
                 type: dense_vector
+                element_type: bfloat16
                 dims: 5
                 index: true
                 similarity: l2_norm
@@ -29,7 +30,6 @@ setup:
                   type: hnsw
                   m: 16
                   ef_construction: 200
-                  element_type: bfloat16
   - do:
       index:
         index: test

@@ -15,12 +15,12 @@ setup:
             properties:
               vector:
                 type: dense_vector
+                element_type: bfloat16
                 dims: 64
                 index: true
                 similarity: max_inner_product
                 index_options:
                   type: bbq_disk
-                  element_type: bfloat16
 
   - do:
       index:

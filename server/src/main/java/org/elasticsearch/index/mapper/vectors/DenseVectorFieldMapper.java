@@ -1342,14 +1342,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
 
                 int m = XContentMapValues.nodeIntegerValue(mNode, Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
-                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
 
-                return new HnswIndexOptions(m, efConstruction, onDiskRescore);
+                return new HnswIndexOptions(m, efConstruction);
             }
 
             @Override
@@ -2007,31 +2005,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static class HnswIndexOptions extends DenseVectorIndexOptions {
         private final int m;
         private final int efConstruction;
-        private final boolean onDiskRescore;
 
-        HnswIndexOptions(int m, int efConstruction, boolean onDiskRescore) {
+        HnswIndexOptions(int m, int efConstruction) {
             super(VectorIndexType.HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
-            this.onDiskRescore = onDiskRescore;
         }
 
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             return switch (elementType) {
-                case BIT -> new ES93HnswVectorsFormat(m, efConstruction, ES93GenericFlatVectorsFormat.ElementType.BIT, onDiskRescore);
-                case BYTE, FLOAT -> new ES93HnswVectorsFormat(
-                    m,
-                    efConstruction,
-                    ES93GenericFlatVectorsFormat.ElementType.STANDARD,
-                    onDiskRescore
-                );
-                case BFLOAT16 -> new ES93HnswVectorsFormat(
-                    m,
-                    efConstruction,
-                    ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
-                    onDiskRescore
-                );
+                case BIT -> new ES93HnswVectorsFormat(m, efConstruction, ES93GenericFlatVectorsFormat.ElementType.BIT);
+                case BYTE, FLOAT -> new ES93HnswVectorsFormat(m, efConstruction, ES93GenericFlatVectorsFormat.ElementType.STANDARD);
+                case BFLOAT16 -> new ES93HnswVectorsFormat(m, efConstruction, ES93GenericFlatVectorsFormat.ElementType.BFLOAT16);
             };
         }
 
@@ -2056,9 +2042,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
-            if (onDiskRescore) {
-                builder.field("on_disk_rescore", true);
-            }
             builder.endObject();
             return builder;
         }
@@ -2068,12 +2051,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             HnswIndexOptions that = (HnswIndexOptions) o;
-            return m == that.m && efConstruction == that.efConstruction && onDiskRescore == that.onDiskRescore;
+            return m == that.m && efConstruction == that.efConstruction;
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction, onDiskRescore);
+            return Objects.hash(m, efConstruction);
         }
 
         @Override
@@ -2091,7 +2074,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public String toString() {
-            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + ", on_disk_rescore=" + onDiskRescore + "}";
+            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + "}";
         }
     }
 

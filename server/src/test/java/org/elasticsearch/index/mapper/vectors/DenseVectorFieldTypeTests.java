@@ -66,7 +66,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     private static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsNonQuantized() {
         return randomFrom(
-            new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), randomBoolean()),
+            new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
             new DenseVectorFieldMapper.FlatIndexOptions()
         );
     }
@@ -87,7 +87,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public static DenseVectorFieldMapper.DenseVectorIndexOptions randomGpuSupportedIndexOptions() {
         return randomFrom(
-            new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 3199), randomBoolean()),
+            new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 3199)),
             new DenseVectorFieldMapper.Int8HnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 3199),
@@ -109,7 +109,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsAll() {
         List<DenseVectorFieldMapper.DenseVectorIndexOptions> options = new ArrayList<>(
             Arrays.asList(
-                new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), randomBoolean()),
+                new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
                 new DenseVectorFieldMapper.Int8HnswIndexOptions(
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 10_000),

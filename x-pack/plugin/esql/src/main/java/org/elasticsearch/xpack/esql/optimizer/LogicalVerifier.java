@@ -45,7 +45,12 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
                         && (va instanceof PostOptimizationVerificationAware.CoordinatorOnly && isLocal) == false) {
                         va.postOptimizationVerification(failures);
                     }
-                    if (ex instanceof PostOptimizationPlanVerificationAware vpa) {
+                    // Do this verification on coordinator node only, as the score function deals with limit push down differently
+                    // between the coordinator and data nodes. Applying this validation on data nodes would cause
+                    // FullTextFunction.checkFullTextQueryFunctions and PhysicalPlanOptimizerTests to fail, as limit is pushed
+                    // down below eval that has score function on data nodes.
+                    // Refer to the change to PushDownAndCombineLimits in https://github.com/elastic/elasticsearch/pull/136610
+                    if (this.isLocal == false && ex instanceof PostOptimizationPlanVerificationAware vpa) {
                         vpa.postOptimizationPlanVerification().accept(p, failures);
                     }
                 });

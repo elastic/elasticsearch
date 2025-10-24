@@ -25,6 +25,45 @@ null           | null              | 172.21.3.15
 null           | null              | 172.21.3.15
 ;
 
+subqueryInFromWithoutMainIndexPattern
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+
+FROM (FROM employees)
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| KEEP  emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10091          | 3
+10092          | 1
+10093          | 3
+;
+
+subqueryInFromWithoutMainIndexPatternWithMultipleSubqueries
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+
+FROM (FROM employees), (FROM sample_data)
+| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| SORT emp_no, client_ip
+| KEEP  emp_no, languages, client_ip
+;
+
+emp_no:integer | languages:integer | client_ip:ip
+10091          | 3                 | null
+10092          | 1                 | null
+10093          | 3                 | null
+null           | null              | 172.21.0.5
+null           | null              | 172.21.2.113
+null           | null              | 172.21.2.162
+null           | null              | 172.21.3.15
+null           | null              | 172.21.3.15
+null           | null              | 172.21.3.15
+null           | null              | 172.21.3.15
+;
+
 subqueryInFromWithIdenticalIndexPatternsInMainAndSubquery
 required_capability: fork_v9
 required_capability: subquery_in_from_command

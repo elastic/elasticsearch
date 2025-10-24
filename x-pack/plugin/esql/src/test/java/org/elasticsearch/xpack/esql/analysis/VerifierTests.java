@@ -2981,44 +2981,49 @@ public class VerifierTests extends ESTestCase {
      */
     public void testMixedDataTypesInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assertThat(
-            error("""
-                FROM test, (FROM test_mixed_types | WHERE languages > 0)
-                | WHERE emp_no > 10000
-                | SORT is_rehired, still_hired
-                """),
-            equalTo(
-                "1:1: Column [emp_no] has conflicting data types in subqueries: [integer, long]\n"
-                    + "line 1:1: Column [is_rehired] has conflicting data types in subqueries: [boolean, keyword]\n"
-                    + "line 1:1: Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]"
-            )
-        );
+        String errorMessage = error("""
+            FROM test, (FROM test_mixed_types | WHERE languages > 0)
+            | WHERE emp_no > 10000
+            | SORT is_rehired, still_hired
+            """);
+        assertThat(errorMessage, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
+        assertThat(errorMessage, containsString("Column [is_rehired] has conflicting data types in subqueries: [boolean, keyword]"));
+        assertThat(errorMessage, containsString("Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]"));
     }
 
     // Fork inside subquery is tested in LogicalPlanOptimizerTests
     public void testSubqueryInFromWithForkInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assertThat(error("""
+        String errorMessage = error("""
             FROM test, (FROM test_mixed_types
                                  | WHERE languages > 0
                                  | EVAL emp_no = emp_no::int
                                  | KEEP emp_no)
             | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
             | KEEP emp_no
-            """), equalTo("1:6: FORK after subquery is not supported"));
+            """);
+        assertThat(errorMessage, containsString("1:6: FORK after subquery is not supported"));
     }
 
-    // InlineStats inside subquery is supported
+    // InlineStats after subquery is not supported
     public void testSubqueryInFromWithInlineStatsInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assertThat(error("""
+        String errorMessage = error("""
             FROM test, (FROM test_mixed_types
                                  | WHERE languages > 0
                                  | EVAL emp_no = emp_no::int
                                  | KEEP emp_no)
             | INLINE STATS cnt = count(*)
             | SORT emp_no
-            """), containsString("5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command"));
+            """);
+        assertThat(
+            errorMessage,
+            containsString(
+                "1:6: INLINE STATS after subquery is not supported, "
+                    + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
+            )
+        );
+        assertThat(errorMessage, containsString("line 5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"));
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

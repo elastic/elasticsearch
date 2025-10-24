@@ -4741,7 +4741,7 @@ public class AnalyzerTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
-        FieldAttribute language_name = as (isNotNull.field(), FieldAttribute.class);
+        FieldAttribute language_name = as(isNotNull.field(), FieldAttribute.class);
         assertEquals("language_name", language_name.name());
         filter = as(filter.child(), Filter.class);
         GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
@@ -4940,7 +4940,7 @@ public class AnalyzerTests extends ESTestCase {
         subqueryEval = as(subqueryProject.child(), Eval.class);
         aliases = subqueryEval.fields(); // nullEvals from the other legs
         assertEquals(13, aliases.size());
-         subquery = as(subqueryEval.child(), Subquery.class);
+        subquery = as(subqueryEval.child(), Subquery.class);
         rename = as(subquery.child(), EsqlProject.class);
         List<? extends NamedExpression> renameProjections = rename.projections();
         assertEquals(2, renameProjections.size());
@@ -4954,7 +4954,7 @@ public class AnalyzerTests extends ESTestCase {
         greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
         language_code = as(greaterThan.left(), FieldAttribute.class);
         assertEquals("language_code", language_code.name());
-         literal = as(greaterThan.right(), Literal.class);
+        literal = as(greaterThan.right(), Literal.class);
         assertEquals(10, literal.value());
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("languages", subqueryIndex.indexPattern());
@@ -4970,7 +4970,6 @@ public class AnalyzerTests extends ESTestCase {
         Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
         subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
-
 
     }
 
@@ -5087,7 +5086,7 @@ public class AnalyzerTests extends ESTestCase {
         IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
         languages = as(isNotNull.field(), ReferenceAttribute.class);
         assertEquals("languages", languages.name());
-        filter = as (filter.child(), Filter.class);
+        filter = as(filter.child(), Filter.class);
         GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
         emp_no = as(greaterThan.left(), ReferenceAttribute.class);
         assertEquals("emp_no", emp_no.name());

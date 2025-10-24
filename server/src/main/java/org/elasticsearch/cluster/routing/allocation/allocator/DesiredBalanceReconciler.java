@@ -96,7 +96,7 @@ public class DesiredBalanceReconciler {
     private final TimeProvider timeProvider;
     private final AtomicLong lastProgressTowardsBalanceTimestampMillis = new AtomicLong(0L);
     private final FrequencyCappedAction undesiredAllocationLogInterval;
-    private final FrequencyCappedAction noProgressTowardsBalanceLogInterval;
+    private final FrequencyCappedAction immovableShardsLogInterval;
     private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
@@ -106,14 +106,11 @@ public class DesiredBalanceReconciler {
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider) {
         this.timeProvider = timeProvider;
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.timeValueMinutes(5));
-        this.noProgressTowardsBalanceLogInterval = new FrequencyCappedAction(
-            timeProvider::relativeTimeInMillis,
-            TimeValue.timeValueMinutes(5)
-        );
+        this.immovableShardsLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.ZERO);
         this.lastProgressTowardsBalanceTimestampMillis.set(timeProvider.relativeTimeInMillis());
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, value -> {
             this.undesiredAllocationLogInterval.setMinInterval(value);
-            this.noProgressTowardsBalanceLogInterval.setMinInterval(value);
+            this.immovableShardsLogInterval.setMinInterval(value);
         });
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
@@ -660,7 +657,7 @@ public class DesiredBalanceReconciler {
         private void maybeLogImmovableShardsWarning() {
             final long currentTimeMillis = timeProvider.relativeTimeInMillis();
             if (currentTimeMillis - oldestImmovableShardTimestamp() > immovableShardThreshold.millis()) {
-                noProgressTowardsBalanceLogInterval.maybeExecute(this::logDecisionsForImmovableShardsOverThreshold);
+                immovableShardsLogInterval.maybeExecute(this::logDecisionsForImmovableShardsOverThreshold);
             }
         }
 

@@ -21,6 +21,8 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
+  testImplementation(testArtifact(project(xpackModule('inference'))))
+  testImplementation(testArtifact(project(xpackModule('inference')), 'internalClusterTest'))
 
   clusterModules project(':modules:mapper-extras')
   clusterModules project(xpackModule('rank-rrf'))

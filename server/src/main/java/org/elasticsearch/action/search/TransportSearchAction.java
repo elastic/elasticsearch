@@ -21,6 +21,7 @@ import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -62,6 +63,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -442,12 +444,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
-            if (rewritten.indicesOptions().resolveCrossProjectIndexExpression()) {
-                IndicesOptions indicesOptions = IndicesOptions.builder(rewritten.indicesOptions())
-                    .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
-                    .build();
-                rewritten.indicesOptions(indicesOptions);
-            }
 
             final ActionListener<SearchResponse> searchResponseActionListener;
             if (collectSearchTelemetry) {
@@ -572,6 +568,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         transportService,
                         searchResponseActionListener.delegateFailureAndWrap((finalDelegate, searchShardsResponses) -> {
+                            SearchResponse.Clusters participatingProjects = clusters;
+                            if (resolvesCrossProject && rewritten.getResolvedIndexExpressions() != null) {
+                                participatingProjects = reconcileProjects(
+                                    rewritten.getResolvedIndexExpressions(),
+                                    searchShardsResponses,
+                                    participatingProjects
+                                );
+                            }
+
                             final BiFunction<String, String, DiscoveryNode> clusterNodeLookup = getRemoteClusterNodeLookup(
                                 searchShardsResponses
                             );
@@ -605,7 +610,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 clusterNodeLookup,
                                 projectState,
                                 remoteAliasFilters,
-                                clusters,
+                                participatingProjects,
                                 searchPhaseProvider.apply(finalDelegate)
                             );
                         }),
@@ -957,6 +962,81 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
+     * Outside Cross Project Search, we're sure of projects involved and their corresponding indices. However,
+     * in CPS, it may be possible that indices can exist anywhere:
+     * <ul>
+     *     <li>Only on the origin</li>
+     *     <li>Only on the linked project(s)</li>
+     *     <li>Both on the origin and the linked project(s), and,</li>
+     *     <li>Nowhere</li>
+     * </ul>
+     *
+     * Therefore, we only need to include the details of those projects hosting our indices and participating
+     * in the search. Otherwise, we risk unnecessarily including them in the execution metadata and marking
+     * their statuses as "successful", potentially misleading users into believing that they returned results
+     * and participated in the search.
+     *
+     * Note that this code runs after the SearchShards API's responses have been pieced back and the CPS index
+     * validation is complete.
+     * @param originResolvedIdxExpressions The resolution result from origin's Security Action Filter.
+     * @param shardResponses Responses pieced back from SearchShards API.
+     * @param projects Clusters object to build upon.
+     * @return A new Clusters object containing only the Search-participating projects.
+     */
+    static SearchResponse.Clusters reconcileProjects(
+        ResolvedIndexExpressions originResolvedIdxExpressions,
+        Map<String, SearchShardsResponse> shardResponses,
+        SearchResponse.Clusters projects
+    ) {
+        /*
+         * We only fire a SearchShards API for a project if it needs to be searched. This can either mean that it was
+         * part of the search due to the flatworld behaviour, or that it was targeted specifically. If it returns an
+         * empty response, it's because the project does not host any of our specified indices.
+         */
+        Set<String> linkedProjectsWithResponses = shardResponses.entrySet()
+            .stream()
+            .filter(ssr -> ssr.getValue().getGroups().isEmpty() == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+
+        // Same as we do in stateful right now.
+        if (linkedProjectsWithResponses.isEmpty()) {
+            return SearchResponse.Clusters.EMPTY;
+        }
+
+        boolean shouldIncludeOrigin = originResolvedIdxExpressions.expressions()
+            .stream()
+            .anyMatch(
+                expr -> expr.localExpressions().localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+            );
+
+        Map<String, SearchResponse.Cluster> reconciledMap = ConcurrentCollections.newConcurrentMap();
+        for (String project : projects.getClusterAliases()) {
+            SearchResponse.Cluster computedProjectInfo = projects.getCluster(project);
+            /*
+             * Selection criteria for a `project` to be included in the metadata:
+             *   - This is the origin project, and there was a "success"ful resolution by the Security Action Filter,
+             *   - This is a linked project with a non-empty response from SearchShards API, or,
+             *   - There was an issue with this project, so let's carry over the failures and reporting them.
+             */
+            boolean shouldAdd = false;
+            if (shouldIncludeOrigin && project.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                shouldAdd = true;
+            } else if (linkedProjectsWithResponses.contains(project)) {
+                shouldAdd = true;
+            } else if (computedProjectInfo.getFailures().isEmpty() == false) {
+                shouldAdd = true;
+            }
+
+            if (shouldAdd) {
+                reconciledMap.put(project, computedProjectInfo);
+            }
+        }
+
+        return new SearchResponse.Clusters(reconciledMap, false);
+    }
+
+    /**
      * Collect remote search shards that we need to search for potential matches.
      * Used for ccs_minimize_roundtrips=false
      */
@@ -994,28 +1074,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 @Override
                 void innerOnResponse(SearchShardsResponse searchShardsResponse) {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
-                    /*
-                     * This particular linked project returned empty shards and that's because none of the requested
-                     * indices are on it. So we need to prevent it from appearing in the metadata. In case the very
-                     * same indices don't exist on the origin too, we use `CrossProjectIndexResolutionValidator#validate()`
-                     * to throw an error downstream.
-                     *
-                     * TODO: Handle the `total` count that tracks total projects since it populates that info
-                     *  within Cluster#ctor().
-                     */
-                    boolean canPurge = resolvesCrossProject && searchShardsResponse.getGroups().isEmpty();
-                    if (canPurge) {
-                        clusters.swapCluster(clusterAlias, (ignored1, ignored2) -> null);
-                    } else {
-                        ccsClusterInfoUpdate(searchShardsResponse, clusters, clusterAlias, timeProvider);
-                    }
+                    ccsClusterInfoUpdate(searchShardsResponse, clusters, clusterAlias, timeProvider);
                     searchShardsResponses.put(clusterAlias, searchShardsResponse);
                 }
 
                 @Override
                 Map<String, SearchShardsResponse> createFinalResponse() {
-                    // TODO: Perhaps, it's wiser to check for resolvesCrossProject too.
-                    if (originResolvedIdxExpressions != null) {
+                    if (resolvesCrossProject && originResolvedIdxExpressions != null) {
                         Map<String, ResolvedIndexExpressions> resolvedIndexExpressions = new HashMap<>();
                         for (Map.Entry<String, SearchShardsResponse> entry : searchShardsResponses.entrySet()) {
                             if (entry.getValue().getResolvedIndexExpressions() == null) {

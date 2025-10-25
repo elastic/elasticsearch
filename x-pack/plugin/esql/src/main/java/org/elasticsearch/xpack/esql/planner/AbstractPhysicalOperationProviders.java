@@ -276,12 +276,16 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         LocalExecutionPlannerContext context
     ) {
         IntermediateInputs intermediateInputs = mode.isInputPartial() ? new IntermediateInputs(aggregateExec) : null;
+        Set<Expression> seen = new HashSet<>();
         // extract filtering channels - and wrap the aggregation with the new evaluator expression only during the init phase
         for (NamedExpression ne : aggregates) {
             // a filter can only appear on aggregate function, not on the grouping columns
             if (ne instanceof Alias alias) {
                 var child = alias.child();
                 if (child instanceof AggregateFunction aggregateFunction) {
+                    if (mode.isOutputPartial() && seen.add(aggregateFunction) == false) {
+                        continue;
+                    }
                     final List<Attribute> sourceAttr;
                     if (mode.isInputPartial()) {
                         sourceAttr = intermediateInputs.nextInputAttributes(aggregateFunction, grouping);

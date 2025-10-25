@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.matchesRegex;
-import static org.hamcrest.Matchers.startsWith;
 
 public class EvilLoggerTests extends ESTestCase {
 
@@ -250,7 +249,7 @@ public class EvilLoggerTests extends ESTestCase {
         final int expectedLogLines = 3;
         assertThat(events, hasSize(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
-            assertThat("Contents of [" + path + "] are wrong", events.get(i), startsWith("[" + getTestName() + "]" + prefix + " test"));
+            assertThat("Contents of [" + path + "] are wrong", events.get(i), endsWith(prefix + " test"));
         }
     }
 

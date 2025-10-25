@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public abstract class BaseHnswBFloat16VectorsFormatTestCase extends BaseBFloat16KnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

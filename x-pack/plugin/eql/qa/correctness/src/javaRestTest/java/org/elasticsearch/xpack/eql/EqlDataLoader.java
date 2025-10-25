@@ -13,13 +13,11 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -36,8 +34,6 @@ public class EqlDataLoader {
     private static final String PROPERTIES_FILENAME = "config.properties";
 
     public static void main(String[] args) throws IOException {
-        // Need to setup the log configuration properly to avoid messages when creating a new RestClient
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
         final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials("admin", "admin-password"));
         try (

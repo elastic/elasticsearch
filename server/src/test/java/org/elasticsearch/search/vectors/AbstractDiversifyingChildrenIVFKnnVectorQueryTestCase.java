@@ -77,7 +77,6 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
     }
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

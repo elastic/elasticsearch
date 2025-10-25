@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -222,18 +223,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 .map(stringContext -> BytesRefs.toString(visitString(stringContext).fold(patternFoldContext)))
                 .toList();
 
-            String combinePattern = org.elasticsearch.grok.Grok.combinePatterns(patterns);
+            for (int i = 0; i < patterns.size(); i++) {
+                String pattern = patterns.get(i);
 
-            Grok.Parser grokParser;
-            try {
-                grokParser = Grok.pattern(source, combinePattern);
-            } catch (SyntaxException e) {
-                if (patterns.size() == 1) {
-                    throw new ParsingException(source, "Invalid GROK pattern [{}]: [{}]", patterns.getFirst(), e.getMessage());
-                } else {
-                    throw new ParsingException(source, "Invalid GROK patterns {}: [{}]", patterns, e.getMessage());
+                // Validate each pattern individually,
+                // as multiple invalid patterns could be combined to form a valid one
+                // see https://github.com/elastic/elasticsearch/issues/136750
+                try {
+                    Grok.pattern(source, pattern);
+                } catch (SyntaxException e) {
+                    throw new ParsingException(source(ctx.string(i)), "Invalid GROK pattern [{}]: [{}]", pattern, e.getMessage());
                 }
             }
+
+            String combinePattern = org.elasticsearch.grok.Grok.combinePatterns(patterns);
+
+            Grok.Parser grokParser = Grok.pattern(source, combinePattern);
+
             validateGrokPattern(source, grokParser, combinePattern, patterns);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;
@@ -721,7 +727,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
                 throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
             }
-            return new LookupJoin(source, p, right, joinInfo.joinFields(), hasRemotes, Predicates.combineAnd(joinInfo.joinExpressions()));
+            return new LookupJoin(
+                source,
+                p,
+                right,
+                joinInfo.joinFields(),
+                hasRemotes,
+                Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
+            );
         };
     }
 
@@ -734,8 +747,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "JOIN ON clause cannot be empty");
         }
 
-        // inspect the first expression to determine the type of join (field-based or expression-based)
-        boolean isFieldBased = expressions.get(0) instanceof UnresolvedAttribute;
+        // Inspect the first expression to determine the type of join (field-based or expression-based)
+        // We treat literals as field-based as it is more likely the user was trying to write a field name
+        // and so the field based error message is more helpful
+        boolean isFieldBased = expressions.get(0) instanceof UnresolvedAttribute || expressions.get(0) instanceof Literal;
 
         if (isFieldBased) {
             return processFieldBasedJoin(expressions);
@@ -784,26 +799,53 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         expressions = Predicates.splitAnd(expressions.get(0));
         for (var f : expressions) {
-            addJoinExpression(f, joinFields, joinExpressions);
+            addJoinExpression(f, joinFields, joinExpressions, ctx);
+        }
+        if (joinFields.isEmpty()) {
+            throw new ParsingException(
+                source(ctx),
+                "JOIN ON clause with expressions must contain at least one condition relating the left index and the lookup index"
+            );
         }
         return new JoinInfo(joinFields, joinExpressions);
     }
 
-    private void addJoinExpression(Expression exp, List<Attribute> joinFields, List<Expression> joinExpressions) {
+    private void addJoinExpression(
+        Expression exp,
+        List<Attribute> joinFields,
+        List<Expression> joinExpressions,
+        EsqlBaseParser.JoinConditionContext ctx
+    ) {
         exp = handleNegationOfEquals(exp);
+        if (containsBareFieldsInBooleanExpression(exp)) {
+            throw new ParsingException(
+                source(ctx),
+                "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
+                exp.sourceText()
+            );
+        }
         if (exp instanceof EsqlBinaryComparison comparison
             && comparison.left() instanceof UnresolvedAttribute left
             && comparison.right() instanceof UnresolvedAttribute right) {
             joinFields.add(left);
             joinFields.add(right);
-            joinExpressions.add(exp);
-        } else {
-            throw new ParsingException(
-                exp.source(),
-                "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
-                exp.sourceText()
-            );
         }
+        joinExpressions.add(exp);
+    }
+
+    private boolean containsBareFieldsInBooleanExpression(Expression expression) {
+        if (expression instanceof UnresolvedAttribute) {
+            return true; // This is a bare field
+        }
+        if (expression instanceof EsqlBinaryComparison) {
+            return false; // This is a binary comparison, not a bare field
+        }
+        if (expression instanceof BinaryLogic binaryLogic) {
+            // Check if either side contains bare fields
+            return containsBareFieldsInBooleanExpression(binaryLogic.left()) || containsBareFieldsInBooleanExpression(binaryLogic.right());
+        }
+        // For other expression types (functions, constants, etc.), they are not bare fields
+        return false;
     }
 
     private void validateJoinFields(List<Attribute> joinFields) {

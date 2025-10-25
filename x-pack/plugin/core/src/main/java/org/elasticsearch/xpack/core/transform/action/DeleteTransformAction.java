@@ -44,7 +44,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             super(in);
             id = in.readString();
             force = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 deleteDestIndex = in.readBoolean();
             } else {
                 deleteDestIndex = false;
@@ -68,7 +68,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(id);
             out.writeBoolean(force);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(deleteDestIndex);
             }
         }

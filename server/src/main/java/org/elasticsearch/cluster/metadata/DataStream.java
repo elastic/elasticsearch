@@ -300,22 +300,22 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var replicated = in.readBoolean();
         var system = in.readBoolean();
         var allowCustomRouting = in.readBoolean();
-        var indexMode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
-        var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
+        var indexMode = in.getTransportVersion().supports(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
+        var lifecycle = in.getTransportVersion().supports(TransportVersions.V_8_9_X)
             ? in.readOptionalWriteable(DataStreamLifecycle::new)
             : null;
         // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
         var failureStoreEnabled = in.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.V_8_16_0) ? in.readBoolean() : false;
-        var failureIndices = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
+        var failureIndices = in.getTransportVersion().supports(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
             ? readIndices(in)
             : List.<Index>of();
         var failureIndicesBuilder = DataStreamIndices.failureIndicesBuilder(failureIndices);
-        backingIndicesBuilder.setRolloverOnWrite(in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readBoolean() : false);
-        if (in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
+        backingIndicesBuilder.setRolloverOnWrite(in.getTransportVersion().supports(TransportVersions.V_8_13_0) ? in.readBoolean() : false);
+        if (in.getTransportVersion().supports(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
             backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             // Read the rollover on write flag from the stream, but force it on if the failure indices are empty and we're not replicating
             boolean failureStoreRolloverOnWrite = in.readBoolean() || (replicated == false && failureIndices.isEmpty());
             failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite)
@@ -327,7 +327,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite);
         }
         DataStreamOptions dataStreamOptions;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             dataStreamOptions = in.readOptionalWriteable(DataStreamOptions::read);
         } else {
             // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
@@ -1450,10 +1450,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(replicated);
         out.writeBoolean(system);
         out.writeBoolean(allowCustomRouting);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(lifecycle);
         }
         if (out.getTransportVersion()
@@ -1461,20 +1461,20 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
             out.writeBoolean(isFailureStoreExplicitlyEnabled());
         }
-        if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().supports(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
             out.writeCollection(failureIndices.indices);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             out.writeBoolean(backingIndices.rolloverOnWrite);
         }
-        if (out.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
+        if (out.getTransportVersion().supports(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
             out.writeOptionalWriteable(backingIndices.autoShardingEvent);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeBoolean(failureIndices.rolloverOnWrite);
             out.writeOptionalWriteable(failureIndices.autoShardingEvent);
         }
-        if (out.getTransportVersion().onOrAfter(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
+        if (out.getTransportVersion().supports(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         }
         if (out.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {

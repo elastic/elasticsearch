@@ -198,7 +198,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
         final float score = in.readFloat();
         final int rank;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             rank = in.readVInt();
         } else {
             rank = NO_RANK;
@@ -234,7 +234,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         final SearchSortValues sortValues = SearchSortValues.readFrom(in);
 
         final Map<String, Float> matchedQueries;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
         } else {
             int size = in.readVInt();
@@ -312,7 +312,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public void writeTo(StreamOutput out) throws IOException {
         assert hasReferences();
         out.writeFloat(score);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeVInt(rank);
         } else if (rank != NO_RANK) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
@@ -346,7 +346,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
         sortValues.writeTo(out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeMap(matchedQueries, StreamOutput::writeFloat);
         } else {
             out.writeStringCollection(matchedQueries.keySet());

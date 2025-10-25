@@ -133,9 +133,9 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
             this(
                 in.readVLong(),
                 in.readVLong(),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
+                in.getTransportVersion().supports(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
+                in.getTransportVersion().supports(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
@@ -154,7 +154,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(this.totalDataStreamCount);
             out.writeVLong(this.indicesBehindDataStream);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                 out.writeVLong(this.failureStoreExplicitlyEnabledDataStreamCount);
                 if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                     out.writeVLong(failureStoreEffectivelyEnabledDataStreamCount);

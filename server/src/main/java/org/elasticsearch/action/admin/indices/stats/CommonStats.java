@@ -219,13 +219,13 @@ public class CommonStats implements Writeable, ToXContentFragment {
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
         bulk = in.readOptionalWriteable(BulkStats::new);
         shards = in.readOptionalWriteable(ShardCountStats::new);
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
+        if (in.getTransportVersion().supports(VERSION_SUPPORTING_NODE_MAPPINGS)) {
             nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
         }
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
+        if (in.getTransportVersion().supports(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
             denseVectorStats = in.readOptionalWriteable(DenseVectorStats::new);
         }
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
+        if (in.getTransportVersion().supports(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
             sparseVectorStats = in.readOptionalWriteable(SparseVectorStats::new);
         }
     }
@@ -250,13 +250,13 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(recoveryStats);
         out.writeOptionalWriteable(bulk);
         out.writeOptionalWriteable(shards);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
+        if (out.getTransportVersion().supports(VERSION_SUPPORTING_NODE_MAPPINGS)) {
             out.writeOptionalWriteable(nodeMappings);
         }
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
+        if (out.getTransportVersion().supports(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
             out.writeOptionalWriteable(denseVectorStats);
         }
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
+        if (out.getTransportVersion().supports(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
             out.writeOptionalWriteable(sparseVectorStats);
         }
     }

@@ -167,14 +167,14 @@ public class GeoIpStatsAction {
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             downloaderStats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
                 cacheStats = in.readBoolean() ? new CacheStats(in) : null;
             } else {
                 cacheStats = null;
             }
             databases = in.readCollectionAsImmutableSet(StreamInput::readString);
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
-            configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
+            configDatabases = in.getTransportVersion().supports(TransportVersions.V_8_0_0)
                 ? in.readCollectionAsImmutableSet(StreamInput::readString)
                 : null;
         }
@@ -218,7 +218,7 @@ public class GeoIpStatsAction {
             if (downloaderStats != null) {
                 downloaderStats.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
                 out.writeBoolean(cacheStats != null);
                 if (cacheStats != null) {
                     cacheStats.writeTo(out);
@@ -226,7 +226,7 @@ public class GeoIpStatsAction {
             }
             out.writeStringCollection(databases);
             out.writeStringCollection(filesInTemp);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_0_0)) {
                 out.writeStringCollection(configDatabases);
             }
         }

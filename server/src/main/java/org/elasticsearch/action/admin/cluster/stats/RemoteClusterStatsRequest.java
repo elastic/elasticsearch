@@ -36,7 +36,7 @@ public class RemoteClusterStatsRequest extends LegacyActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
+        assert out.getTransportVersion().supports(TransportVersions.V_8_16_0)
             : "RemoteClusterStatsRequest is not supported by the remote cluster";
         if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             throw new UnsupportedOperationException("RemoteClusterStatsRequest is not supported by the remote cluster");

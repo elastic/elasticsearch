@@ -89,10 +89,10 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
                 this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
                 this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
-                this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
+                this.repositoriesHealthInfo = in.getTransportVersion().supports(TransportVersions.V_8_13_0)
                     ? in.readOptionalWriteable(RepositoriesHealthInfo::new)
                     : null;
                 this.fileSettingsHealthInfo = in.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
@@ -140,10 +140,10 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
                 out.writeOptionalWriteable(diskHealthInfo);
                 out.writeOptionalWriteable(dslHealthInfo);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
                     out.writeOptionalWriteable(repositoriesHealthInfo);
                 }
                 if (out.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {

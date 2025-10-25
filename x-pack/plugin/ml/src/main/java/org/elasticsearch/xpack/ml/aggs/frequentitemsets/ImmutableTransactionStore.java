@@ -82,7 +82,7 @@ public final class ImmutableTransactionStore extends TransactionStore {
             }
             this.totalTransactionCount = in.readVLong();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
                 this.filteredTransactionCount = in.readVLong();
             } else {
                 this.filteredTransactionCount = 0;
@@ -158,7 +158,7 @@ public final class ImmutableTransactionStore extends TransactionStore {
             out.writeVLong(transactionCounts.get(i));
         }
         out.writeVLong(totalTransactionCount);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
             out.writeVLong(filteredTransactionCount);
         }
     }

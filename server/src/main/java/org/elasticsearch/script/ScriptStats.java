@@ -130,7 +130,7 @@ public record ScriptStats(
         TimeSeries cacheEvictionsHistory;
         long compilations;
         long cacheEvictions;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
             compilationsHistory = new TimeSeries(in);
             cacheEvictionsHistory = new TimeSeries(in);
             compilations = compilationsHistory.total;
@@ -155,7 +155,7 @@ public record ScriptStats(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
             compilationsHistory.writeTo(out);
             cacheEvictionsHistory.writeTo(out);
         } else {

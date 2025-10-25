@@ -75,7 +75,7 @@ public class RoutingInfo implements ToXContentObject, Writeable {
     }
 
     public RoutingInfo(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             this.currentAllocations = in.readVInt();
             this.targetAllocations = in.readVInt();
         } else {
@@ -120,7 +120,7 @@ public class RoutingInfo implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             out.writeVInt(currentAllocations);
             out.writeVInt(targetAllocations);
         }

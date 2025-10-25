@@ -57,12 +57,12 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         this.responseMap = in.readMap(IndexFieldCapabilities::readFrom);
         this.canMatch = in.readBoolean();
         this.originVersion = in.getTransportVersion();
-        if (in.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
+        if (in.getTransportVersion().supports(MAPPING_HASH_VERSION)) {
             this.indexMappingHash = in.readOptionalString();
         } else {
             this.indexMappingHash = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             this.indexMode = IndexMode.readFrom(in);
         } else {
             this.indexMode = IndexMode.STANDARD;
@@ -74,10 +74,10 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         out.writeString(indexName);
         out.writeMap(responseMap, StreamOutput::writeWriteable);
         out.writeBoolean(canMatch);
-        if (out.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
+        if (out.getTransportVersion().supports(MAPPING_HASH_VERSION)) {
             out.writeOptionalString(indexMappingHash);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             IndexMode.writeTo(indexMode, out);
         }
     }
@@ -94,7 +94,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             responses.add(new FieldCapabilitiesIndexResponse(input));
         }
         final int groups = input.readVInt();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+        if (input.getTransportVersion().supports(TransportVersions.V_8_11_X)) {
             collectCompressedResponses(input, groups, responses);
         } else {
             collectResponsesLegacyFormat(input, groups, responses);
@@ -105,7 +105,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private static void collectCompressedResponses(StreamInput input, int groups, ArrayList<FieldCapabilitiesIndexResponse> responses)
         throws IOException {
         final CompressedGroup[] compressedGroups = new CompressedGroup[groups];
-        final boolean readIndexMode = input.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
+        final boolean readIndexMode = input.getTransportVersion().supports(TransportVersions.V_8_16_0);
         for (int i = 0; i < groups; i++) {
             final String[] indices = input.readStringArray();
             final IndexMode indexMode = readIndexMode ? IndexMode.readFrom(input) : IndexMode.STANDARD;
@@ -154,7 +154,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         }
 
         output.writeCollection(ungroupedResponses);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+        if (output.getTransportVersion().supports(TransportVersions.V_8_11_X)) {
             writeCompressedResponses(output, groupedResponsesMap);
         } else {
             writeResponsesLegacyFormat(output, groupedResponsesMap);
@@ -179,7 +179,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
             o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
             var first = fieldCapabilitiesIndexResponses.get(0);
-            if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (output.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 IndexMode.writeTo(first.indexMode, o);
             }
             o.writeString(first.indexMappingHash);

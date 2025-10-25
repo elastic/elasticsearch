@@ -176,14 +176,14 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
         public Response(StreamInput in) throws IOException {
             segmentGeneration = in.readZLong();
             multiGetShardResponse = new MultiGetShardResponse(in);
-            primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
+            primaryTerm = in.getTransportVersion().supports(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(segmentGeneration);
             multiGetShardResponse.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
                 out.writeVLong(primaryTerm);
             }
         }

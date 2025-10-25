@@ -281,11 +281,27 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         return version1.id > version2.id ? version1 : version2;
     }
 
+    @Override
+    public boolean onOrAfter(TransportVersion version) {
+        throw new UnsupportedOperationException("use TransportVersion.supports instead");
+    }
+
+    @Override
+    public boolean before(TransportVersion version) {
+        return version.id() > id();
+    }
+
+    @Override
+    public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {
+        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
+        return lowerInclusive.id <= id && before(upperExclusive);
+    }
+
     /**
      * Returns {@code true} if the specified version is compatible with this running version of Elasticsearch.
      */
     public static boolean isCompatible(TransportVersion version) {
-        return version.onOrAfter(VersionsHolder.MINIMUM_COMPATIBLE);
+        return version.supports(VersionsHolder.MINIMUM_COMPATIBLE);
     }
 
     /**
@@ -376,7 +392,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * </ul>
      */
     public boolean isPatchFrom(TransportVersion version) {
-        return onOrAfter(version) && id < version.id + 100 - (version.id % 100);
+        return version.id <= id && id < version.id + 100 - (version.id % 100);
     }
 
     /**
@@ -417,7 +433,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * }
      */
     public boolean supports(TransportVersion version) {
-        if (onOrAfter(version)) {
+        if (version.id <= id) {
             return true;
         }
         TransportVersion nextPatchVersion = version.nextPatchVersion;

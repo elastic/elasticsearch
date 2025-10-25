@@ -65,6 +65,6 @@ public class MaxPrimaryShardDocsCondition extends Condition<Long> {
 
     @Override
     boolean includedInVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_2_0);
+        return version.supports(TransportVersions.V_8_2_0);
     }
 }

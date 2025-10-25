@@ -169,7 +169,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         this.format = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             this.includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         } else {
             this.includeExclude = null;
@@ -217,7 +217,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         out.writeOptionalNamedWriteable(filter);
         out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             out.writeOptionalWriteable(includeExclude);
         }
     }

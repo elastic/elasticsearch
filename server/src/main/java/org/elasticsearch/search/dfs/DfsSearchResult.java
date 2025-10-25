@@ -54,15 +54,15 @@ public final class DfsSearchResult extends SearchPhaseResult {
 
         maxDoc = in.readVInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
                 knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
             } else {
                 DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
                 knnResults = results != null ? List.of(results) : List.of();
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
             searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         }
     }
@@ -134,8 +134,8 @@ public final class DfsSearchResult extends SearchPhaseResult {
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
         out.writeOptionalWriteable(getShardSearchRequest());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
                 out.writeOptionalCollection(knnResults);
             } else {
                 if (knnResults != null && knnResults.size() > 1) {
@@ -150,7 +150,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
                 out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
             out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         }
     }

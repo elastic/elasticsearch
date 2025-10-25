@@ -45,7 +45,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     private static boolean includeSha256(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_15_0);
+        return version.supports(TransportVersions.V_8_15_0);
     }
 
     private static final ParseField DATABASES = new ParseField("databases");

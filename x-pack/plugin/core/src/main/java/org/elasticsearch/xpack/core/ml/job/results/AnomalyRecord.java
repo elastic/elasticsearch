@@ -217,7 +217,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             influences = in.readCollectionAsList(Influence::new);
         }
         geoResults = in.readOptionalWriteable(GeoResults::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
             anomalyScoreExplanation = in.readOptionalWriteable(AnomalyScoreExplanation::new);
         }
     }
@@ -264,7 +264,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             out.writeCollection(influences);
         }
         out.writeOptionalWriteable(geoResults);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
             out.writeOptionalWriteable(anomalyScoreExplanation);
         }
     }

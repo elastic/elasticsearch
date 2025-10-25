@@ -1056,14 +1056,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.reason = in.readString();
             this.unassigned = in.readLong();
             this.assigned = in.readLong();
-            if (in.getTransportVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
+            if (in.getTransportVersion().supports(SHARD_IDS_OUTPUT_VERSION)) {
                 unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
                 assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
             } else {
                 unassignedShardIds = Collections.emptySortedSet();
                 assignedShardIds = Collections.emptySortedSet();
             }
-            if (in.getTransportVersion().onOrAfter(UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION)) {
+            if (in.getTransportVersion().supports(UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION)) {
                 unassignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
                 assignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
             } else {
@@ -1111,11 +1111,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             out.writeString(reason);
             out.writeLong(unassigned);
             out.writeLong(assigned);
-            if (out.getTransportVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
+            if (out.getTransportVersion().supports(SHARD_IDS_OUTPUT_VERSION)) {
                 out.writeCollection(unassignedShardIds);
                 out.writeCollection(assignedShardIds);
             }
-            if (out.getTransportVersion().onOrAfter(UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION)) {
+            if (out.getTransportVersion().supports(UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION)) {
                 out.writeMap(unassignedNodeDecisions);
                 out.writeMap(assignedNodeDecisions);
             }

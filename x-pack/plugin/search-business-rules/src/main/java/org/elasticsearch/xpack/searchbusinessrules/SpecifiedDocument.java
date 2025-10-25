@@ -61,7 +61,7 @@ public final class SpecifiedDocument implements ToXContentObject, Writeable {
      * Read from a stream.
      */
     public SpecifiedDocument(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
+        if (in.getTransportVersion().supports(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
             index = in.readOptionalString();
         } else {
             index = in.readString();
@@ -71,7 +71,7 @@ public final class SpecifiedDocument implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
+        if (out.getTransportVersion().supports(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
             out.writeOptionalString(index);
         } else {
             if (index == null) {

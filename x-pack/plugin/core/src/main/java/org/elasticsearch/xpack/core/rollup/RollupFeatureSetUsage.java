@@ -22,7 +22,7 @@ public class RollupFeatureSetUsage extends XPackFeatureUsage {
 
     public RollupFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
-        this.numberOfRollupJobs = input.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? input.readVInt() : 0;
+        this.numberOfRollupJobs = input.getTransportVersion().supports(TransportVersions.V_8_15_0) ? input.readVInt() : 0;
     }
 
     public RollupFeatureSetUsage(int numberOfRollupJobs) {
@@ -37,7 +37,7 @@ public class RollupFeatureSetUsage extends XPackFeatureUsage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeVInt(numberOfRollupJobs);
         }
     }

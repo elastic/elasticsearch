@@ -463,7 +463,7 @@ public final class OutboundHandler {
 
     private boolean assertValidTransportVersion(TransportVersion transportVersion) {
         assert this.version.before(TransportVersion.minimumCompatible()) // running an incompatible-version test
-            || this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
+            || this.version.supports(transportVersion) : this.version + " vs " + transportVersion;
         return true;
     }
 

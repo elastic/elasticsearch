@@ -69,14 +69,14 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.checkForDanglingTasks = in.getTransportVersion().onOrAfter(DANGLING_TASKS) ? in.readBoolean() : true;
-            this.timeout = in.getTransportVersion().onOrAfter(DANGLING_TASKS) ? in.readTimeValue() : LEGACY_TIMEOUT_VALUE;
+            this.checkForDanglingTasks = in.getTransportVersion().supports(DANGLING_TASKS) ? in.readBoolean() : true;
+            this.timeout = in.getTransportVersion().supports(DANGLING_TASKS) ? in.readTimeValue() : LEGACY_TIMEOUT_VALUE;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(DANGLING_TASKS)) {
+            if (out.getTransportVersion().supports(DANGLING_TASKS)) {
                 out.writeBoolean(checkForDanglingTasks);
                 out.writeTimeValue(timeout);
             }
@@ -179,7 +179,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
                 if (in.readBoolean()) {
                     this.errors = in.readCollectionAsList(Error::new);
                 } else {
@@ -240,7 +240,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
                 if (errors != null) {
                     out.writeBoolean(true);
                     out.writeCollection(errors);

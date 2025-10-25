@@ -27,7 +27,7 @@ public class AuthenticateResponse extends ActionResponse implements ToXContent {
 
     public AuthenticateResponse(StreamInput in) throws IOException {
         authentication = new Authentication(in);
-        if (in.getTransportVersion().onOrAfter(VERSION_OPERATOR_FIELD)) {
+        if (in.getTransportVersion().supports(VERSION_OPERATOR_FIELD)) {
             operator = in.readBoolean();
         } else {
             operator = false;
@@ -50,7 +50,7 @@ public class AuthenticateResponse extends ActionResponse implements ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         authentication.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(VERSION_OPERATOR_FIELD)) {
+        if (out.getTransportVersion().supports(VERSION_OPERATOR_FIELD)) {
             out.writeBoolean(operator);
         }
     }

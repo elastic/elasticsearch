@@ -35,7 +35,7 @@ public class RoutingInfoUpdate implements Writeable {
     }
 
     public RoutingInfoUpdate(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             numberOfAllocations = Optional.ofNullable(in.readOptionalVInt());
             stateAndReason = Optional.ofNullable(in.readOptionalWriteable(RoutingStateAndReason::new));
         } else {
@@ -46,7 +46,7 @@ public class RoutingInfoUpdate implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             out.writeOptionalVInt(numberOfAllocations.orElse(null));
             out.writeOptionalWriteable(stateAndReason.orElse(null));
         } else {

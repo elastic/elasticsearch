@@ -35,7 +35,7 @@ public class GetAsyncStatusRequest extends LegacyActionRequest {
     public GetAsyncStatusRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             this.keepAlive = in.readTimeValue();
         }
     }
@@ -44,7 +44,7 @@ public class GetAsyncStatusRequest extends LegacyActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             out.writeTimeValue(keepAlive);
         }
     }

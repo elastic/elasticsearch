@@ -205,7 +205,7 @@ public record Build(
 
     public static Build readBuild(StreamInput in) throws IOException {
         final String flavor;
-        if (in.getTransportVersion().before(TransportVersions.V_8_3_0) || in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_3_0) || in.getTransportVersion().supports(TransportVersions.V_8_10_X)) {
             flavor = in.readString();
         } else {
             flavor = "default";
@@ -220,7 +220,7 @@ public record Build(
         final String minWireVersion;
         final String minIndexVersion;
         final String displayString;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             version = in.readString();
             qualifier = in.readOptionalString();
             snapshot = in.readBoolean();
@@ -235,7 +235,7 @@ public record Build(
             version = versionMatcher.group(1);
             qualifier = versionMatcher.group(2);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_10_X)) {
             minWireVersion = in.readString();
             minIndexVersion = in.readString();
             displayString = in.readString();
@@ -251,14 +251,13 @@ public record Build(
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_3_0)
-            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_3_0) || out.getTransportVersion().supports(TransportVersions.V_8_10_X)) {
             out.writeString(build.flavor());
         }
         out.writeString(build.type().displayName());
         out.writeString(build.hash());
         out.writeString(build.date());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             out.writeString(build.version());
             out.writeOptionalString(build.qualifier());
             out.writeBoolean(build.isSnapshot());
@@ -266,7 +265,7 @@ public record Build(
             out.writeBoolean(build.isSnapshot());
             out.writeString(build.qualifiedVersion());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_10_X)) {
             out.writeString(build.minWireCompatVersion());
             out.writeString(build.minIndexCompatVersion());
             out.writeString(build.displayString());

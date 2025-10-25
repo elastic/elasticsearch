@@ -63,14 +63,14 @@ public final class SearchContextId {
         TransportVersion version,
         ShardSearchFailure[] shardFailures
     ) {
-        assert shardFailures.length == 0 || version.onOrAfter(TransportVersions.V_8_16_0)
+        assert shardFailures.length == 0 || version.supports(TransportVersions.V_8_16_0)
             : "[allow_partial_search_results] cannot be enabled on a cluster that has not been fully upgraded to version ["
                 + TransportVersions.V_8_16_0.toReleaseVersion()
                 + "] or higher.";
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
-            boolean allowNullContextId = out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
+            boolean allowNullContextId = out.getTransportVersion().supports(TransportVersions.V_8_16_0);
             int shardSize = searchPhaseResults.size() + (allowNullContextId ? shardFailures.length : 0);
             out.writeVInt(shardSize);
             for (var searchResult : searchPhaseResults) {

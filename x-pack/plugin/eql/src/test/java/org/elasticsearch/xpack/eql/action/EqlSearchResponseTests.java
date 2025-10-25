@@ -293,7 +293,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                     e.id(),
                     e.source(),
                     e.fetchFields(),
-                    version.onOrAfter(TransportVersions.V_8_10_X) ? e.missing() : e.index().isEmpty()
+                    version.supports(TransportVersions.V_8_10_X) ? e.missing() : e.index().isEmpty()
                 )
             );
         }

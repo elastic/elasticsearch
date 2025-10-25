@@ -61,7 +61,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super(in);
             templateName = in.readOptionalString();
             indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
                 includeDefaults = in.readBoolean();
             }
         }

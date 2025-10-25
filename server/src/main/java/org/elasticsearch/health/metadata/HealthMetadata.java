@@ -52,7 +52,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
     public HealthMetadata(StreamInput in) throws IOException {
         this.diskMetadata = Disk.readFrom(in);
-        this.shardLimitsMetadata = in.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)
+        this.shardLimitsMetadata = in.getTransportVersion().supports(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)
             ? in.readOptionalWriteable(ShardLimits::readFrom)
             : null;
     }
@@ -70,7 +70,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         diskMetadata.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)) {
+        if (out.getTransportVersion().supports(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)) {
             out.writeOptionalWriteable(shardLimitsMetadata);
         }
     }
@@ -253,10 +253,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
                 FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()
             );
             ByteSizeValue frozenFloodStageMaxHeadroom = ByteSizeValue.readFrom(in);
-            ByteSizeValue highMaxHeadroom = in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)
+            ByteSizeValue highMaxHeadroom = in.getTransportVersion().supports(VERSION_SUPPORTING_HEADROOM_FIELDS)
                 ? ByteSizeValue.readFrom(in)
                 : ByteSizeValue.MINUS_ONE;
-            ByteSizeValue floodStageMaxHeadroom = in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)
+            ByteSizeValue floodStageMaxHeadroom = in.getTransportVersion().supports(VERSION_SUPPORTING_HEADROOM_FIELDS)
                 ? ByteSizeValue.readFrom(in)
                 : ByteSizeValue.MINUS_ONE;
             return new Disk(
@@ -275,7 +275,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             out.writeString(describeFloodStageWatermark());
             out.writeString(describeFrozenFloodStageWatermark());
             frozenFloodStageMaxHeadroom.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)) {
+            if (out.getTransportVersion().supports(VERSION_SUPPORTING_HEADROOM_FIELDS)) {
                 highMaxHeadroom.writeTo(out);
                 floodStageMaxHeadroom.writeTo(out);
             }

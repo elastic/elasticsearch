@@ -1370,7 +1370,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
+            final int format = out.getTransportVersion().supports(TransportVersions.V_8_0_0)
                 ? out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS) ? SERIALIZATION_FORMAT : FORMAT_NO_DOC_TYPE
                 : FORMAT_NO_VERSION_TYPE;
             if (format < FORMAT_REORDERED) {
@@ -1572,7 +1572,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
+            final int format = out.getTransportVersion().supports(TransportVersions.V_8_0_0)
                 ? out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS) ? SERIALIZATION_FORMAT : FORMAT_NO_DOC_TYPE
                 : FORMAT_NO_VERSION_TYPE;
             if (format < FORMAT_REORDERED) {
@@ -1781,7 +1781,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (size == 0) {
             return;
         }
-        if (outStream.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (outStream.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(outStream);
             for (Operation op : toWrite) {
                 writeOperationNoSize(checksumStreamOutput, op);

@@ -85,7 +85,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             super(in);
             this.config = new TrainedModelConfig(in);
             this.deferDefinitionDecompression = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 this.waitForCompletion = in.readBoolean();
             } else {
                 this.waitForCompletion = false;
@@ -125,7 +125,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             super.writeTo(out);
             config.writeTo(out);
             out.writeBoolean(deferDefinitionDecompression);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(waitForCompletion);
             }
         }

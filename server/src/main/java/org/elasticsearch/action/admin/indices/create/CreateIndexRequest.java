@@ -94,12 +94,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
         origin = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             requireDataStream = in.readBoolean();
         } else {
             requireDataStream = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             initializeFailureStore = in.readBoolean();
         } else {
             initializeFailureStore = true;
@@ -502,10 +502,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeCollection(aliases);
         waitForActiveShards.writeTo(out);
         out.writeString(origin);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             out.writeBoolean(this.requireDataStream);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeBoolean(this.initializeFailureStore);
         }
     }

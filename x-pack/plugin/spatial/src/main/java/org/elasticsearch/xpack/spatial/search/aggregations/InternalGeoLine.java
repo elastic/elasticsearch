@@ -89,7 +89,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         this.includeSorts = in.readBoolean();
         this.sortOrder = SortOrder.readFromStream(in);
         this.size = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             nonOverlapping = in.readBoolean();
             simplified = in.readBoolean();
         } else {
@@ -106,7 +106,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         out.writeBoolean(includeSorts);
         sortOrder.writeTo(out);
         out.writeVInt(size);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             out.writeBoolean(nonOverlapping);
             out.writeBoolean(simplified);
         }

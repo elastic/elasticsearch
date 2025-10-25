@@ -52,7 +52,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         initialConnectionTimeout = input.readTimeValue();
         clusterAlias = input.readString();
         skipUnavailable = input.readBoolean();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (input.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             hasClusterCredentials = input.readBoolean();
         } else {
             hasClusterCredentials = false;
@@ -82,7 +82,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         out.writeTimeValue(initialConnectionTimeout);
         out.writeString(clusterAlias);
         out.writeBoolean(skipUnavailable);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeBoolean(hasClusterCredentials);
         }
     }

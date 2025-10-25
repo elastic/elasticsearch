@@ -311,7 +311,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertTrue(nodeIsCurrent);
             return true;
         }
-        return testNodeInfo.transportVersion().onOrAfter(transportVersion);
+        return testNodeInfo.transportVersion().supports(transportVersion);
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeDescription, boolean includeManageRoles) {

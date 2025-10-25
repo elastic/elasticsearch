@@ -133,7 +133,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         this.criteria = in.readCollectionAsList(QueryRuleCriteria::new);
         this.actions = in.readGenericMap();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             this.priority = in.readOptionalVInt();
         } else {
             this.priority = null;
@@ -184,7 +184,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         out.writeString(type.toString());
         out.writeCollection(criteria);
         out.writeGenericMap(actions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeOptionalVInt(priority);
         }
     }

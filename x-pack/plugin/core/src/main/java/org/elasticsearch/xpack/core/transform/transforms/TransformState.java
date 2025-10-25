@@ -137,7 +137,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         progress = in.readOptionalWriteable(TransformProgress::new);
         node = in.readOptionalWriteable(NodeAttributes::new);
         shouldStopAtNextCheckpoint = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             authState = in.readOptionalWriteable(AuthorizationState::new);
         } else {
             authState = null;
@@ -234,7 +234,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         out.writeOptionalWriteable(progress);
         out.writeOptionalWriteable(node);
         out.writeBoolean(shouldStopAtNextCheckpoint);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeOptionalWriteable(authState);
         }
     }

@@ -73,7 +73,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
     public QueryRuleCriteria(StreamInput in) throws IOException {
         this.criteriaType = in.readEnum(QueryRuleCriteriaType.class);
-        if (in.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
+        if (in.getTransportVersion().supports(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
             this.criteriaMetadata = in.readOptionalString();
             this.criteriaValues = in.readOptionalCollectionAsList(StreamInput::readGenericValue);
         } else {
@@ -85,7 +85,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(criteriaType);
-        if (out.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().supports(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
             out.writeOptionalString(criteriaMetadata);
             out.writeOptionalCollection(criteriaValues, StreamOutput::writeGenericValue);
         } else {

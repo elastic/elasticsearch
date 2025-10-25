@@ -69,7 +69,7 @@ public class SearchHitCursor implements Cursor {
         extractors = in.readNamedWriteableCollectionAsList(HitExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
-        allowPartialSearchResults = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) && in.readBoolean();
+        allowPartialSearchResults = in.getTransportVersion().supports(TransportVersions.V_8_3_0) && in.readBoolean();
     }
 
     @Override
@@ -80,7 +80,7 @@ public class SearchHitCursor implements Cursor {
         out.writeNamedWriteableCollection(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
             out.writeBoolean(allowPartialSearchResults);
         }
     }

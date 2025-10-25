@@ -44,7 +44,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             isSimulated = in.readBoolean();
         } else {
             isSimulated = false;
@@ -166,7 +166,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         }
         super.writeTo(out);
         out.writeArray((o, item) -> o.writeOptional(BulkItemRequest.THIN_WRITER, item), items);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeBoolean(isSimulated);
         }
     }

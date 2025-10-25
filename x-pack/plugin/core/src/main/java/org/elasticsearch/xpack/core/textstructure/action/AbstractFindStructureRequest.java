@@ -81,7 +81,7 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_5_0)) {
             ecsCompatibility = in.readOptionalString();
         } else {
             ecsCompatibility = null;
@@ -327,7 +327,7 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_5_0)) {
             out.writeOptionalString(ecsCompatibility);
         }
         out.writeOptionalString(timestampFormat);

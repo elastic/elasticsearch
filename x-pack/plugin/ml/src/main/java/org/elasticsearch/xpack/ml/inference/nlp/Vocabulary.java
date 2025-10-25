@@ -64,12 +64,12 @@ public class Vocabulary implements Writeable, ToXContentObject {
     public Vocabulary(StreamInput in) throws IOException {
         vocab = in.readStringCollectionAsList();
         modelId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
             merges = in.readStringCollectionAsList();
         } else {
             merges = List.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             scores = in.readCollectionAsList(StreamInput::readDouble);
         } else {
             scores = List.of();
@@ -92,10 +92,10 @@ public class Vocabulary implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(vocab);
         out.writeString(modelId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
             out.writeStringCollection(merges);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             out.writeCollection(scores, StreamOutput::writeDouble);
         }
     }

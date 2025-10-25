@@ -130,7 +130,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
             fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             maxSamplesPerKey = in.readInt();
         }
         if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
@@ -488,7 +488,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
             out.writeCollection(fetchFields);
         }
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             out.writeInt(maxSamplesPerKey);
         }
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {

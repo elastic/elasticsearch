@@ -197,7 +197,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             this.settings = Settings.readSettingsFromStream(in);
             this.parameters = new FollowParameters(in);
             waitForActiveShards(ActiveShardCount.readFrom(in));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 this.dataStreamName = in.readOptionalString();
             }
         }
@@ -211,7 +211,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             settings.writeTo(out);
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 out.writeOptionalString(this.dataStreamName);
             }
         }

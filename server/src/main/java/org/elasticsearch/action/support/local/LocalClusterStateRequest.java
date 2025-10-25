@@ -55,7 +55,7 @@ public abstract class LocalClusterStateRequest extends LegacyActionRequest {
     protected LocalClusterStateRequest(StreamInput in, boolean readLocal) throws IOException {
         super(in);
         masterTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             in.readVLong();
         }
         if (readLocal) {

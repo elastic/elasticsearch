@@ -393,7 +393,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertTrue(nodeIsCurrent);
             return true;
         }
-        return testNodeInfo.transportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
+        return testNodeInfo.transportVersion().supports(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {

@@ -1703,7 +1703,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             settingsVersion = in.readVLong();
             aliasesVersion = in.readVLong();
             state = State.fromId(in.readByte());
-            if (in.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
+            if (in.getTransportVersion().supports(SETTING_DIFF_VERSION)) {
                 settings = null;
                 settingsDiff = Settings.readSettingsDiffFromStream(in);
             } else {
@@ -1712,7 +1712,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             primaryTerms = in.readVLongArray();
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
                 inferenceFields = DiffableUtils.readImmutableOpenMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -1733,14 +1733,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getStringKeySerializer(),
                 ROLLOVER_INFO_DIFF_VALUE_READER
             );
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                 mappingsUpdatedVersion = IndexVersion.readVersion(in);
             } else {
                 mappingsUpdatedVersion = IndexVersions.ZERO;
             }
             isSystem = in.readBoolean();
             timestampRange = IndexLongFieldRange.readFrom(in);
-            if (in.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+            if (in.getTransportVersion().supports(STATS_AND_FORECAST_ADDED)) {
                 stats = in.readOptionalWriteable(IndexMetadataStats::new);
                 indexWriteLoadForecast = in.readOptionalDouble();
                 shardSizeInBytesForecast = in.readOptionalLong();
@@ -1749,7 +1749,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexWriteLoadForecast = null;
                 shardSizeInBytesForecast = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                 eventIngestedRange = IndexLongFieldRange.readFrom(in);
             } else {
                 eventIngestedRange = IndexLongFieldRange.UNKNOWN;
@@ -1772,26 +1772,26 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeByte(state.id);
             assert settings != null
                 : "settings should always be non-null since this instance is not expected to have been read from another node";
-            if (out.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
+            if (out.getTransportVersion().supports(SETTING_DIFF_VERSION)) {
                 settingsDiff.writeTo(out);
             } else {
                 settings.writeTo(out);
             }
             out.writeVLongArray(primaryTerms);
             mappings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
                 inferenceFields.writeTo(out);
             }
             aliases.writeTo(out);
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                 IndexVersion.writeVersion(mappingsUpdatedVersion, out);
             }
             out.writeBoolean(isSystem);
             timestampRange.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+            if (out.getTransportVersion().supports(STATS_AND_FORECAST_ADDED)) {
                 out.writeOptionalWriteable(stats);
                 out.writeOptionalDouble(indexWriteLoadForecast);
                 out.writeOptionalLong(shardSizeInBytesForecast);
@@ -1867,7 +1867,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(new MappingMetadata(in));
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             var fields = in.readCollectionAsImmutableList(InferenceFieldMetadata::new);
             fields.stream().forEach(f -> builder.putInferenceField(f));
         }
@@ -1892,13 +1892,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (int i = 0; i < rolloverAliasesSize; i++) {
             builder.putRolloverInfo(new RolloverInfo(in));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             builder.mappingsUpdatedVersion(IndexVersion.readVersion(in));
         }
         builder.system(in.readBoolean());
         builder.timestampRange(IndexLongFieldRange.readFrom(in));
 
-        if (in.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+        if (in.getTransportVersion().supports(STATS_AND_FORECAST_ADDED)) {
             builder.stats(in.readOptionalWriteable(IndexMetadataStats::new));
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
@@ -1934,7 +1934,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping.writeTo(out);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             out.writeCollection(inferenceFields.values());
         }
         out.writeCollection(aliases.values());
@@ -1945,12 +1945,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
         );
         out.writeCollection(rolloverInfos.values());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             IndexVersion.writeVersion(mappingsUpdatedVersion, out);
         }
         out.writeBoolean(isSystem);
         timestampRange.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
+        if (out.getTransportVersion().supports(STATS_AND_FORECAST_ADDED)) {
             out.writeOptionalWriteable(stats);
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);

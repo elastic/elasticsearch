@@ -61,10 +61,10 @@ public record ScriptContextStats(
         var compilationLimitTriggered = in.readVLong();
         TimeSeries compilationsHistory;
         TimeSeries cacheEvictionsHistory;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
             compilationsHistory = new TimeSeries(in);
             cacheEvictionsHistory = new TimeSeries(in);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+        } else if (in.getTransportVersion().supports(TransportVersions.V_8_0_0)) {
             compilationsHistory = new TimeSeries(in).withTotal(compilations);
             cacheEvictionsHistory = new TimeSeries(in).withTotal(cacheEvictions);
         } else {
@@ -99,7 +99,7 @@ public record ScriptContextStats(
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
         out.writeVLong(compilationLimitTriggered);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_0_0)) {
             compilationsHistory.writeTo(out);
             cacheEvictionsHistory.writeTo(out);
         }

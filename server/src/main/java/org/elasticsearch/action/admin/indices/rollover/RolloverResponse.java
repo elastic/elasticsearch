@@ -59,7 +59,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         dryRun = in.readBoolean();
         rolledOver = in.readBoolean();
         shardsAcknowledged = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             lazy = in.readBoolean();
         } else {
             lazy = false;
@@ -142,7 +142,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         out.writeBoolean(dryRun);
         out.writeBoolean(rolledOver);
         out.writeBoolean(shardsAcknowledged);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             out.writeBoolean(lazy);
         }
     }

@@ -78,7 +78,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
     public static DesiredNodeWithStatus readFrom(StreamInput in) throws IOException {
         final var desiredNode = DesiredNode.readFrom(in);
         final Status status;
-        if (in.getTransportVersion().onOrAfter(STATUS_TRACKING_SUPPORT_VERSION)) {
+        if (in.getTransportVersion().supports(STATUS_TRACKING_SUPPORT_VERSION)) {
             status = Status.fromValue(in.readShort());
         } else {
             // During upgrades, we consider all desired nodes as PENDING
@@ -94,7 +94,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         desiredNode.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(STATUS_TRACKING_SUPPORT_VERSION)) {
+        if (out.getTransportVersion().supports(STATUS_TRACKING_SUPPORT_VERSION)) {
             out.writeShort(status.value);
         }
     }

@@ -211,7 +211,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             payloads = in.readVLong();
             termVectors = in.readVLong();
             points = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
                 knnVectors = in.readVLong();
             } else {
                 knnVectors = 0;
@@ -233,7 +233,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             out.writeVLong(payloads);
             out.writeVLong(termVectors);
             out.writeVLong(points);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
                 out.writeVLong(knnVectors);
             }
         }

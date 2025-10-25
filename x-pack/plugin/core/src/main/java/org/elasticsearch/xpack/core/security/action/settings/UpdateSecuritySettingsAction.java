@@ -135,7 +135,7 @@ public class UpdateSecuritySettingsAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                 super.writeTo(out);
             }
             out.writeGenericMap(this.mainIndexSettings);

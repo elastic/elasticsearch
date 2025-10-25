@@ -84,7 +84,7 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
     }
 
     public NlpConfigUpdate(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
             tokenizationUpdate = in.readOptionalNamedWriteable(TokenizationUpdate.class);
         } else {
             tokenizationUpdate = null;
@@ -93,7 +93,7 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
             out.writeOptionalNamedWriteable(tokenizationUpdate);
         }
     }

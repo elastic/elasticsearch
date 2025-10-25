@@ -259,7 +259,7 @@ public class SnapshotsServiceUtils {
     }
 
     public static boolean supportsNodeRemovalTracking(ClusterState clusterState) {
-        return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
+        return clusterState.getMinTransportVersion().supports(TransportVersions.V_8_13_0);
     }
 
     /**

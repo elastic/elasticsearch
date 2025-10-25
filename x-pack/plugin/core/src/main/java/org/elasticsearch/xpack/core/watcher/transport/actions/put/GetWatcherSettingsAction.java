@@ -47,7 +47,7 @@ public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsActio
          */
         @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public static Request readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                 return new Request(in);
             } else {
                 return new Request(TimeValue.THIRTY_SECONDS);

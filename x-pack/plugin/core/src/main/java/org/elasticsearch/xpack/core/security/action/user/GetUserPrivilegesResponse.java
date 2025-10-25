@@ -51,12 +51,12 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         index = in.readCollectionAsImmutableSet(Indices::new);
         application = in.readCollectionAsImmutableSet(RoleDescriptor.ApplicationResourcePrivileges::new);
         runAs = in.readCollectionAsImmutableSet(StreamInput::readString);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             remoteIndex = in.readCollectionAsImmutableSet(RemoteIndices::new);
         } else {
             remoteIndex = Set.of();
         }
-        if (in.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+        if (in.getTransportVersion().supports(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions = new RemoteClusterPermissions(in);
         } else {
             remoteClusterPermissions = RemoteClusterPermissions.NONE;
@@ -124,7 +124,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeStringCollection(runAs);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeCollection(remoteIndex);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
@@ -135,7 +135,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                     + "]"
             );
         }
-        if (out.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+        if (out.getTransportVersion().supports(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions.writeTo(out);
         } else if (hasRemoteClusterPrivileges()) {
             throw new IllegalArgumentException(

@@ -77,7 +77,7 @@ public final class RRFRankDoc extends RankDoc {
         } else {
             positions = in.readIntArray();
             scores = in.readFloatArray();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 this.rankConstant = in.readVInt();
             } else {
                 this.rankConstant = DEFAULT_RANK_CONSTANT;
@@ -146,7 +146,7 @@ public final class RRFRankDoc extends RankDoc {
         } else {
             out.writeIntArray(positions == null ? new int[0] : positions);
             out.writeFloatArray(scores == null ? new float[0] : scores);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 out.writeVInt(rankConstant == null ? DEFAULT_RANK_CONSTANT : rankConstant);
             }
         }

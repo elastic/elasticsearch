@@ -153,7 +153,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         final var settings = Settings.readSettingsFromStream(in);
         final Processors processors;
         final ProcessorsRange processorsRange;
-        if (in.getTransportVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
+        if (in.getTransportVersion().supports(RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
             processors = in.readOptionalWriteable(Processors::readFrom);
             processorsRange = in.readOptionalWriteable(ProcessorsRange::readFrom);
         } else {
@@ -171,7 +171,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         settings.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().supports(RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
             out.writeOptionalWriteable(processors);
             out.writeOptionalWriteable(processorsRange);
         } else {

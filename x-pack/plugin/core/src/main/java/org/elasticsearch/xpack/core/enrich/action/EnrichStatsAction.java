@@ -222,9 +222,9 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                     in.readVLong(),
                     in.readVLong(),
                     in.readVLong(),
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readLong() : -1,
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readLong() : -1,
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readLong() : -1
+                    in.getTransportVersion().supports(TransportVersions.V_8_15_0) ? in.readLong() : -1,
+                    in.getTransportVersion().supports(TransportVersions.V_8_15_0) ? in.readLong() : -1,
+                    in.getTransportVersion().supports(TransportVersions.V_8_16_0) ? in.readLong() : -1
                 );
             }
 
@@ -248,11 +248,11 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 out.writeVLong(hits);
                 out.writeVLong(misses);
                 out.writeVLong(evictions);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+                if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                     out.writeLong(hitsTimeInMillis);
                     out.writeLong(missesTimeInMillis);
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                     out.writeLong(cacheSizeInBytes);
                 }
             }

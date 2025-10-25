@@ -32,7 +32,7 @@ final class ResponseRewriter {
         String[] filters,
         String[] allowedTypes
     ) {
-        if (version.onOrAfter(TransportVersions.V_8_2_0)) {
+        if (version.supports(TransportVersions.V_8_2_0)) {
             return input;   // nothing needs to be done
         }
         Function<IndexFieldCapabilities, IndexFieldCapabilities> transformer = buildTransformer(input, filters, allowedTypes);

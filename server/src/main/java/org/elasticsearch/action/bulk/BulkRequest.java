@@ -107,7 +107,7 @@ public class BulkRequest extends LegacyActionRequest
         for (DocWriteRequest<?> request : requests) {
             indices.add(Objects.requireNonNull(request.index(), "request index must not be null"));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             incrementalState = new BulkRequest.IncrementalState(in);
         } else {
             incrementalState = BulkRequest.IncrementalState.EMPTY;
@@ -478,7 +478,7 @@ public class BulkRequest extends LegacyActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             incrementalState.writeTo(out);
         }
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {

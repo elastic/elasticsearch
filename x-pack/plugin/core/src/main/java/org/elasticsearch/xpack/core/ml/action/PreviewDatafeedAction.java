@@ -86,7 +86,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             datafeedId = in.readString();
             datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
             jobConfig = in.readOptionalWriteable(Job.Builder::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
                 this.startTime = in.readOptionalLong();
                 this.endTime = in.readOptionalLong();
             } else {
@@ -164,7 +164,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             out.writeString(datafeedId);
             out.writeOptionalWriteable(datafeedConfig);
             out.writeOptionalWriteable(jobConfig);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
                 out.writeOptionalLong(startTime);
                 out.writeOptionalLong(endTime);
             }

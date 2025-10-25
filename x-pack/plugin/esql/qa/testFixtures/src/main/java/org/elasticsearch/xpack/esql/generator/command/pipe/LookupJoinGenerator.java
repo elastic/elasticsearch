@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,8 +40,8 @@ public class LookupJoinGenerator implements CommandGenerator {
         String lookupIdxName = lookupIdx.idxName();
         int joinColumnsCount = randomInt(lookupIdx.keys().size() - 1) + 1; // at least one column must be used for the join
         List<LookupIdxColumn> joinColumns = ESTestCase.randomSubsetOf(joinColumnsCount, lookupIdx.keys());
-        List<String> keyNames = new ArrayList<>();
-        List<String> joinOn = new ArrayList<>();
+        List<String> joinOnLeft = new ArrayList<>();
+        List<String> joinOnRight = new ArrayList<>();
         Set<String> usedColumns = new HashSet<>();
         for (LookupIdxColumn joinColumn : joinColumns) {
             String idxKey = joinColumn.name();
@@ -57,24 +58,85 @@ public class LookupJoinGenerator implements CommandGenerator {
                 usedColumns.add(key.name());
                 usedColumns.add(idxKey);
             }
-            keyNames.add(key.name());
-            joinOn.add(idxKey);
+            joinOnLeft.add(key.name());
+            joinOnRight.add(idxKey);
         }
-        if (keyNames.isEmpty()) {
+        if (joinOnLeft.isEmpty()) {
             return EMPTY_DESCRIPTION;
         }
         StringBuilder stringBuilder = new StringBuilder();
-        for (int i = 0; i < keyNames.size(); i++) {
-            stringBuilder.append("| rename ");
-            stringBuilder.append(keyNames.get(i));
-            stringBuilder.append(" as ");
-            stringBuilder.append(joinOn.get(i));
-        }
-        stringBuilder.append(" | lookup join ").append(lookupIdxName).append(" on ");
-        for (int i = 0; i < keyNames.size(); i++) {
-            stringBuilder.append(joinOn.get(i));
-            if (i < keyNames.size() - 1) {
-                stringBuilder.append(", ");
+
+        // Randomly choose between field-based join and expression-based join
+        boolean useExpressionJoin = ESTestCase.randomBoolean();
+
+        if (useExpressionJoin) {
+            // Get all right side column names (from lookup index)
+            Set<String> allRightColumnNames = lookupIdx.keys()
+                .stream()
+                .map(LookupIdxColumn::name)
+                .collect(java.util.stream.Collectors.toSet());
+
+            // Generate rename commands for ALL left columns that exist in right side
+            Set<String> allLeftColumnNames = previousOutput.stream().map(Column::name).collect(java.util.stream.Collectors.toSet());
+            Map<String, String> leftColumnName2Renamed = new HashMap<>();
+            // Rename due to co1 == col2, the conflict is on col2 name
+            for (String leftColumnName : allLeftColumnNames) {
+                if (joinOnRight.contains(leftColumnName)) {
+                    String renamedColumn = leftColumnName + "_left";
+                    stringBuilder.append("| rename ");
+                    stringBuilder.append(leftColumnName);
+                    stringBuilder.append(" as ");
+                    stringBuilder.append(renamedColumn);
+                    leftColumnName2Renamed.put(leftColumnName, renamedColumn);
+                }
+            }
+
+            // Rename due to co1 == col2, the conflict is on col1 name
+            // but only rename if it wasn't renamed already
+            for (String rightColumnName : allRightColumnNames) {
+                if (joinOnLeft.contains(rightColumnName) && leftColumnName2Renamed.containsKey(rightColumnName) == false) {
+                    String renamedColumn = rightColumnName + "_left";
+                    stringBuilder.append("| rename ");
+                    stringBuilder.append(rightColumnName);
+                    stringBuilder.append(" as ");
+                    stringBuilder.append(renamedColumn);
+                    leftColumnName2Renamed.put(rightColumnName, renamedColumn);
+                }
+            }
+
+            // Generate expression join syntax
+            stringBuilder.append(" | lookup join ").append(lookupIdxName).append(" on ");
+
+            // Add join conditions for all columns
+            for (int i = 0; i < joinOnLeft.size(); i++) {
+                String leftColumnName = joinOnLeft.get(i);
+                String rightColumnName = joinOnRight.get(i);
+
+                // Only == and != are allowed, as the rest of the operators don's support all types
+                String[] booleanOperators = { "==", "!=" };
+                String operator = randomFrom(booleanOperators);
+
+                // Use renamed column if it was renamed, otherwise use original
+                String finalLeftColumnName = leftColumnName2Renamed.getOrDefault(leftColumnName, leftColumnName);
+                if (i > 0) {
+                    stringBuilder.append(" AND ");
+                }
+                stringBuilder.append(finalLeftColumnName).append(" ").append(operator).append(" ").append(rightColumnName);
+            }
+        } else {
+            // Generate field-based join (original behavior)
+            for (int i = 0; i < joinOnLeft.size(); i++) {
+                stringBuilder.append("| rename ");
+                stringBuilder.append(joinOnLeft.get(i));
+                stringBuilder.append(" as ");
+                stringBuilder.append(joinOnRight.get(i));
+            }
+            stringBuilder.append(" | lookup join ").append(lookupIdxName).append(" on ");
+            for (int i = 0; i < joinOnLeft.size(); i++) {
+                stringBuilder.append(joinOnRight.get(i));
+                if (i < joinOnLeft.size() - 1) {
+                    stringBuilder.append(", ");
+                }
             }
         }
         String cmdString = stringBuilder.toString();

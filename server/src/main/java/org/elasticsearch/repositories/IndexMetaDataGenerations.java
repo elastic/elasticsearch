@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -45,12 +46,20 @@ public final class IndexMetaDataGenerations {
      */
     final Map<String, String> identifiers;
 
+    /**
+     * Map of blob uuid to index metadata identifier. This is a reverse lookup of the identifiers map.
+     */
+    final Map<String, String> blobUuidToIndexMetadataMap;
+
     IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
         assert identifiers.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet()))
             : "identifier mappings " + identifiers + " don't track the same blob ids as the lookup map " + lookup;
         assert lookup.values().stream().noneMatch(Map::isEmpty) : "Lookup contained empty map [" + lookup + "]";
         this.lookup = Map.copyOf(lookup);
         this.identifiers = Map.copyOf(identifiers);
+        this.blobUuidToIndexMetadataMap = identifiers.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getValue, Map.Entry::getKey));
     }
 
     public boolean isEmpty() {
@@ -154,7 +163,7 @@ public final class IndexMetaDataGenerations {
 
     @Override
     public int hashCode() {
-        return Objects.hash(identifiers, lookup);
+        return Objects.hash(identifiers, lookup, blobUuidToIndexMetadataMap);
     }
 
     @Override
@@ -166,12 +175,20 @@ public final class IndexMetaDataGenerations {
             return false;
         }
         final IndexMetaDataGenerations other = (IndexMetaDataGenerations) that;
-        return lookup.equals(other.lookup) && identifiers.equals(other.identifiers);
+        return lookup.equals(other.lookup)
+            && identifiers.equals(other.identifiers)
+            && blobUuidToIndexMetadataMap.equals(other.blobUuidToIndexMetadataMap);
     }
 
     @Override
     public String toString() {
-        return "IndexMetaDataGenerations{lookup:" + lookup + "}{identifier:" + identifiers + "}";
+        return "IndexMetaDataGenerations{lookup:"
+            + lookup
+            + "}{identifier:"
+            + identifiers
+            + "}{blobUuidToIndexMetadataMap:"
+            + blobUuidToIndexMetadataMap
+            + "}";
     }
 
     /**
@@ -183,6 +200,7 @@ public final class IndexMetaDataGenerations {
      * @return identifier string
      */
     public static String buildUniqueIdentifier(IndexMetadata indexMetaData) {
+        // If modifying this identifier, then also extend the getIndexUUIDFromBlobId function below
         return indexMetaData.getIndexUUID()
             + "-"
             + indexMetaData.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)
@@ -192,5 +210,31 @@ public final class IndexMetaDataGenerations {
             + indexMetaData.getMappingVersion()
             + "-"
             + indexMetaData.getAliasesVersion();
+    }
+
+    /**
+     * Given a blobId, returns the index UUID associated with it.
+     * <p>
+     * If the blobId is not found, returns null.
+     * <p>
+     * If the index UUID is _na_ {@code ClusterState.UNKNOWN_UUID}
+     * @param blobId The blob ID
+     */
+    @Nullable
+    public String getIndexUUIDFromBlobId(String blobId) {
+        // Find the unique identifier for this blobId
+        String uniqueIdentifier = blobUuidToIndexMetadataMap.get(blobId);
+        if (uniqueIdentifier == null) {
+            return null;
+        }
+
+        // The uniqueIdentifier is built in {@code buildUniqueIdentifier}, and is prefixed with indexUUID
+        // The indexUUID is either a UUID of length 22, or _na_
+        boolean na = uniqueIdentifier.startsWith(ClusterState.UNKNOWN_UUID + "-");
+        if (na) {
+            return ClusterState.UNKNOWN_UUID;
+        }
+        assert uniqueIdentifier.length() >= 22;
+        return uniqueIdentifier.substring(0, 22);
     }
 }

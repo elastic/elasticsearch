@@ -1288,6 +1288,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             private final IndexId indexId;
             private final Set<SnapshotId> snapshotsWithIndex;
             private final BlobContainer indexContainer;
+            private final Set<String> indexUUIDs = new HashSet<>();
 
             IndexSnapshotsDeletion(IndexId indexId) {
                 this.indexId = indexId;
@@ -1311,34 +1312,43 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             private void determineShardCount(ActionListener<Void> listener) {
                 try (var listeners = new RefCountingListener(listener)) {
-                    for (final var indexMetaGeneration : snapshotIds.stream()
+                    for (final var blobId : snapshotIds.stream()
                         .filter(snapshotsWithIndex::contains)
                         .map(id -> originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
                         .collect(Collectors.toSet())) {
                         // NB since 7.9.0 we deduplicate index metadata blobs, and one of the components of the deduplication key is the
                         // index UUID; the shard count is going to be the same for all metadata with the same index UUID, so it is
                         // unnecessary to read multiple metadata blobs corresponding to the same index UUID.
-                        // TODO Skip this unnecessary work? Maybe track the shard count in RepositoryData?
-                        snapshotExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> getOneShardCount(indexMetaGeneration)));
-                    }
-                }
-            }
+                        // NB if the index metadata blob is in the pre-7.9.0 format then this will return null
+                        String indexUUID = originalRepositoryData.indexMetaDataGenerations().getIndexUUIDFromBlobId(blobId);
 
-            private void getOneShardCount(String indexMetaGeneration) {
-                try {
-                    updateShardCount(
-                        INDEX_METADATA_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry)
-                            .getNumberOfShards()
-                    );
-                } catch (Exception ex) {
-                    logger.warn(() -> format("[%s] [%s] failed to read metadata for index", indexMetaGeneration, indexId.getName()), ex);
-                    // Definitely indicates something fairly badly wrong with the repo, but not immediately fatal here: we might get the
-                    // shard count from another metadata blob, or we might just not process these shards. If we skip these shards then the
-                    // repository will technically enter an invalid state (these shards' index-XXX blobs will refer to snapshots that no
-                    // longer exist) and may contain dangling blobs too. A subsequent delete that hits this index may repair the state if
-                    // the metadata read error is transient, but if not then the stale indices cleanup will eventually remove this index
-                    // and all its extra data anyway.
-                    // TODO: Should we fail the delete here? See https://github.com/elastic/elasticsearch/issues/100569.
+                        // Without an index UUID, we don't know if we've encountered this index before and must read it's IndexMetadata
+                        // from heap. If this is a new index UUID, with a possibly higher shard count, then we also need to read
+                        // it's IndexMetadata from heap
+                        if (indexUUID == null || indexUUIDs.add(indexUUID)) {
+                            snapshotExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
+                                try {
+                                    IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.read(
+                                        getProjectRepo(),
+                                        indexContainer,
+                                        blobId,
+                                        namedXContentRegistry
+                                    );
+                                    updateShardCount(indexMetadata.getNumberOfShards());
+                                } catch (Exception ex) {
+                                    logger.warn(() -> format("[%s] [%s] failed to read metadata for index", blobId, indexId.getName()), ex);
+                                    // Definitely indicates something fairly badly wrong with the repo, but not immediately fatal here: we
+                                    // might get the shard count from another metadata blob, or we might just not process these shards.
+                                    // If we skip these shards then the repository will technically enter an invalid state
+                                    // (these shards' index-XXX blobs will refer to snapshots that no longer exist) and may contain dangling
+                                    // blobs too. A subsequent delete that hits this index may repair the state if the metadata read error
+                                    // is transient, but if not then the stale indices cleanup will eventually remove this index and all its
+                                    // extra data anyway.
+                                    // TODO: Should we fail the delete here? See https://github.com/elastic/elasticsearch/issues/100569.
+                                }
+                            }));
+                        }
+                    }
                 }
             }
 

@@ -28,6 +28,12 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
         "value of [" + SHARED_CACHE_SIZE_SETTING.getKey() + "] on this node is not known yet"
     );
 
+    private static final Decision NO_STILL_FETCHING = Decision.single(
+        Decision.Type.NO,
+        NAME,
+        "Shard movement is not allowed in simulation when value of [" + SHARED_CACHE_SIZE_SETTING.getKey() + "] on this node is not known"
+    );
+
     private static final Decision HAS_FROZEN_CACHE = Decision.single(
         Decision.Type.YES,
         NAME,
@@ -48,6 +54,12 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
         "there was an error fetching the searchable snapshot shared cache state from this node"
     );
 
+    private static final Decision UNKNOWN_NODE = Decision.single(
+        Decision.Type.NO,
+        NAME,
+        "this node is unknown to the searchable snapshot shared cache state"
+    );
+
     private final FrozenCacheInfoService frozenCacheService;
 
     public HasFrozenCacheAllocationDecider(FrozenCacheInfoService frozenCacheService) {
@@ -56,25 +68,25 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(allocation.metadata().indexMetadata(shardRouting.index()), node.node());
+        return canAllocateToNode(allocation.metadata().indexMetadata(shardRouting.index()), node.node(), allocation);
     }
 
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(indexMetadata, node.node());
+        return canAllocateToNode(indexMetadata, node.node(), allocation);
     }
 
     @Override
     public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(indexMetadata, node.node());
+        return canAllocateToNode(indexMetadata, node.node(), allocation);
     }
 
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(indexMetadata, node);
+        return canAllocateToNode(indexMetadata, node, allocation);
     }
 
-    private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
+    private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode, RoutingAllocation allocation) {
         if (indexMetadata.isPartialSearchableSnapshot() == false) {
             return Decision.ALWAYS;
         }
@@ -83,7 +95,8 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
             case HAS_CACHE -> HAS_FROZEN_CACHE;
             case NO_CACHE -> NO_FROZEN_CACHE;
             case FAILED -> UNKNOWN_FROZEN_CACHE;
-            default -> STILL_FETCHING;
+            case FETCHING -> allocation.isSimulating() ? NO_STILL_FETCHING : STILL_FETCHING;
+            case UNKNOWN -> UNKNOWN_NODE;
         };
     }
 

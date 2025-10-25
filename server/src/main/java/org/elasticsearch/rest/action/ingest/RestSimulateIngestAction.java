@@ -29,6 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -105,6 +106,7 @@ public class RestSimulateIngestAction extends BaseRestHandler {
             true,
             true,
             request.getXContentType(),
+            RestBulkAction.BulkFormat.MARKER_SUFFIX,
             request.getRestApiVersion()
         );
         return channel -> client.execute(SimulateBulkAction.INSTANCE, bulkRequest, new SimulateIngestRestToXContentListener(channel));

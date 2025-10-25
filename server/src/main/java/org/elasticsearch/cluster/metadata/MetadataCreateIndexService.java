@@ -1928,7 +1928,7 @@ public class MetadataCreateIndexService {
     }
 
     public static boolean useRefreshBlock(Settings settings) {
-        return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, false);
+        return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, true);
     }
 
     static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {

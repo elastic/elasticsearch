@@ -531,6 +531,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:lookup-join-expression.LookupJoinExpressionWithTerm}
   issue: https://github.com/elastic/elasticsearch/issues/137160
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testCanRemainNotPreferredIsIgnoredWhenAllOtherNodesReturnNotPreferred
+  issue: https://github.com/elastic/elasticsearch/issues/137162
 
 # Examples:
 #

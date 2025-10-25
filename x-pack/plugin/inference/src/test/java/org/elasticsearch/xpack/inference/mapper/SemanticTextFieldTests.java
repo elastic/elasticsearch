@@ -192,6 +192,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
                 case FLOAT -> randomChunkedInferenceEmbeddingFloat(model, inputs);
                 case BIT, BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
+                case BFLOAT16 -> throw new AssertionError();
             };
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
@@ -222,7 +223,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
         DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
-        assert elementType == DenseVectorFieldMapper.ElementType.FLOAT;
+        assert elementType == DenseVectorFieldMapper.ElementType.FLOAT || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
@@ -272,7 +273,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     ) throws IOException {
         ChunkedInference results = switch (model.getTaskType()) {
             case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
-                case FLOAT -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+                case FLOAT, BFLOAT16 -> randomChunkedInferenceEmbeddingFloat(model, inputs);
                 case BIT, BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
             };
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
@@ -417,6 +418,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         EmbeddingResults.Embedding<?> embedding = switch (elementType) {
                             case FLOAT -> new DenseEmbeddingFloatResults.Embedding(FloatConversionUtils.floatArrayOf(values));
                             case BYTE, BIT -> new DenseEmbeddingByteResults.Embedding(byteArrayOf(values));
+                            case BFLOAT16 -> throw new AssertionError();
                         };
                         chunks.add(new EmbeddingResults.Chunk(embedding, offset));
                     }

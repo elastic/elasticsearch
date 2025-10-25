@@ -23,7 +23,6 @@ import java.util.Map;
 
 public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
-    // TODO: replace with DenseVectorFieldMapper.ElementType
     public enum ElementType {
         STANDARD,
         BIT,        // only supports byte[]

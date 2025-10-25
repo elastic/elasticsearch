@@ -29,24 +29,17 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD, random().nextBoolean());
+        return new ES93HnswVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD);
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, ES93GenericFlatVectorsFormat.ElementType.STANDARD, random().nextBoolean());
+        return new ES93HnswVectorsFormat(maxConn, beamWidth, ES93GenericFlatVectorsFormat.ElementType.STANDARD);
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES93HnswVectorsFormat(
-            maxConn,
-            beamWidth,
-            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
-            random().nextBoolean(),
-            numMergeWorkers,
-            service
-        );
+        return new ES93HnswVectorsFormat(maxConn, beamWidth, ES93GenericFlatVectorsFormat.ElementType.STANDARD, numMergeWorkers, service);
     }
 
     public void testToString() {

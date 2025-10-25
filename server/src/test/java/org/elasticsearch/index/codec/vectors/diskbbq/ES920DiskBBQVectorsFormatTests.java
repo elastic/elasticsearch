@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
@@ -36,11 +35,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
@@ -51,8 +51,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.hasToString;
 
 public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
@@ -70,6 +69,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                DenseVectorFieldMapper.ElementType.FLOAT,
                 random().nextBoolean()
             );
         } else {
@@ -77,6 +77,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
+                DenseVectorFieldMapper.ElementType.FLOAT,
                 random().nextBoolean()
             );
         }
@@ -102,7 +103,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
 
     @Override
     public void testSearchWithVisitedLimit() {
-        // ivf doesn't enforce visitation limit
+        throw new AssumptionViolatedException("ivf doesn't enforce visitation limit");
     }
 
     @Override
@@ -135,17 +136,9 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     }
 
     public void testToString() {
-        FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
-            @Override
-            public KnnVectorsFormat knnVectorsFormat() {
-                return new ES920DiskBBQVectorsFormat(128, 4);
-            }
-        };
-        String expectedPattern = "ES920DiskBBQVectorsFormat(vectorPerCluster=128)";
+        KnnVectorsFormat format = new ES920DiskBBQVectorsFormat(128, 4);
 
-        var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
-        var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
-        assertThat(customCodec.knnVectorsFormat().toString(), is(oneOf(defaultScorer, memSegScorer)));
+        assertThat(format, hasToString("ES920DiskBBQVectorsFormat(vectorPerCluster=128)"));
     }
 
     public void testLimits() {

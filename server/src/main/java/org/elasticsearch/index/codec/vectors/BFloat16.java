@@ -29,6 +29,10 @@ public final class BFloat16 {
         return (short) (Float.floatToIntBits(f) >>> 16);
     }
 
+    public static float truncateToBFloat16(float f) {
+        return Float.intBitsToFloat(Float.floatToIntBits(f) & 0xffff0000);
+    }
+
     public static float bFloat16ToFloat(short bf) {
         return Float.intBitsToFloat(bf << 16);
     }

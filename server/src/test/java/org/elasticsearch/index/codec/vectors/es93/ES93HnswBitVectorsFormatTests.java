@@ -36,9 +36,7 @@ public class ES93HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCa
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(
-            new ES93HnswVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BIT, random().nextBoolean())
-        );
+        return TestUtil.alwaysKnnVectorsFormat(new ES93HnswVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BIT));
     }
 
     @Before

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Deriv;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
@@ -531,6 +532,7 @@ public class EsqlFunctionRegistry {
                 def(Irate.class, uni(Irate::new), "irate"),
                 def(Idelta.class, uni(Idelta::new), "idelta"),
                 def(Delta.class, uni(Delta::new), "delta"),
+                def(Deriv.class, uni(Deriv::new), "deriv"),
                 def(Increase.class, uni(Increase::new), "increase"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),

@@ -24,6 +24,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -341,6 +342,18 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return this;
     }
 
+    /**
+     * Overridable method to create the rank doc for the result set.
+     *
+     * @param docId the decoded docId
+     * @param hit the SearchHit object
+     * @param shardRequestIndex the shared request index
+     * @return a RankDoc (or subclass)
+     */
+    protected RankDoc createRankDocFromHit(int docId, SearchHit hit, int shardRequestIndex) {
+        return new RankDoc(docId, hit.getScore(), shardRequestIndex);
+    }
+
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {
         int size = searchResponse.getHits().getHits().length;
         RankDoc[] docs = new RankDoc[size];
@@ -349,7 +362,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             long sortValue = (long) hit.getRawSortValues()[hit.getRawSortValues().length - 1];
             int doc = ShardDocSortField.decodeDoc(sortValue);
             int shardRequestIndex = ShardDocSortField.decodeShardRequestIndex(sortValue);
-            docs[i] = new RankDoc(doc, hit.getScore(), shardRequestIndex);
+            docs[i] = createRankDocFromHit(doc, hit, shardRequestIndex);
             docs[i].rank = i + 1;
         }
         return docs;

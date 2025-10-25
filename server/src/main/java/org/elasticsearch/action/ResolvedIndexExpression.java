@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -76,17 +77,78 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
 
     /**
      * Represents local (non-remote) resolution results, including expanded indices, and a {@link LocalIndexResolutionResult}.
-     *
-     * @param indices represents the resolved concrete indices backing the expression
      */
-    public record LocalExpressions(
-        Set<String> indices,
-        LocalIndexResolutionResult localIndexResolutionResult,
-        @Nullable ElasticsearchException exception
-    ) implements Writeable {
-        public LocalExpressions {
+    public static final class LocalExpressions implements Writeable {
+        private final Set<String> indices;
+        private final LocalIndexResolutionResult localIndexResolutionResult;
+        @Nullable
+        private ElasticsearchException exception;
+
+        /**
+         * @param indices represents the resolved concrete indices backing the expression
+         */
+        public LocalExpressions(
+            Set<String> indices,
+            LocalIndexResolutionResult localIndexResolutionResult,
+            @Nullable ElasticsearchException exception
+        ) {
             assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS || exception == null
                 : "If the local resolution result is SUCCESS, exception must be null";
+            this.indices = indices;
+            this.localIndexResolutionResult = localIndexResolutionResult;
+            this.exception = exception;
+        }
+
+        public Set<String> indices() {
+            return indices;
+        }
+
+        public LocalIndexResolutionResult localIndexResolutionResult() {
+            return localIndexResolutionResult;
+        }
+
+        @Nullable
+        public ElasticsearchException exception() {
+            return exception;
+        }
+
+        public void setException(ElasticsearchException exception) {
+            assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS
+                : "If the local resolution result is SUCCESS, exception must be null";
+            Objects.requireNonNull(exception);
+
+            assert this.exception == null : "Exception is already set";
+
+            this.exception = exception;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) return true;
+            if (obj == null || obj.getClass() != this.getClass()) return false;
+            var that = (LocalExpressions) obj;
+            return Objects.equals(this.indices, that.indices)
+                && Objects.equals(this.localIndexResolutionResult, that.localIndexResolutionResult)
+                && Objects.equals(this.exception, that.exception);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(indices, localIndexResolutionResult, exception);
+        }
+
+        @Override
+        public String toString() {
+            return "LocalExpressions["
+                + "indices="
+                + indices
+                + ", "
+                + "localIndexResolutionResult="
+                + localIndexResolutionResult
+                + ", "
+                + "exception="
+                + exception
+                + ']';
         }
 
         // Singleton for the case where all expressions in a ResolvedIndexExpression instance are remote

@@ -228,3 +228,21 @@ host.name pass-through:
   - match: { hits.hits.0.fields.kubernetes\.node\.uid : ["myNodeUid"] }
   - match: { hits.hits.0.fields.kubernetes\.node\.hostname : ["myNodeHostname"] }
   - match: { hits.hits.0.fields.orchestrator\.cluster\.name : ["myClusterName"] }
+---
+"@timestamp field should have type date_nanos":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-10-22T12:00:00.123456789Z","data_stream":{"dataset":"generic.otel","namespace":"default"},"body":{"text":"test log message"}}'
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: logs-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: timestamp_index }
+  - do:
+      indices.get_mapping:
+        index: $timestamp_index
+  - match: { .$timestamp_index.mappings.properties.@timestamp.type: "date_nanos" }

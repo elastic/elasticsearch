@@ -207,7 +207,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                           "task_types": ["embed/text/dense"]
                         },
                         {
-                          "model_name": "rerank-v1",
+                          "model_name": "elastic-rerank-v1",
                           "task_types": ["rerank/text/text-similarity"]
                         }
                     ]
@@ -244,7 +244,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                             service
                         ),
                         new InferenceService.DefaultConfigId(
-                            ".rerank-v1-elastic",
+                            ".elastic-rerank-v1",
                             MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
                             service
                         )
@@ -257,13 +257,13 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
                 PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
                 service.defaultConfigs(listener);
-                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".elastic-rerank-v1"));
+                assertThat(listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
                 assertThat(
-                    listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(),
+                    listener.actionGet(TIMEOUT).get(2).getConfigurations().getInferenceEntityId(),
                     is(".multilingual-embed-v1-elastic")
                 );
-                assertThat(listener.actionGet(TIMEOUT).get(2).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
-                assertThat(listener.actionGet(TIMEOUT).get(3).getConfigurations().getInferenceEntityId(), is(".rerank-v1-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(3).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 // persists the default endpoints
@@ -283,7 +283,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                           "task_types": ["embed/text/sparse"]
                         },
                         {
-                          "model_name": "rerank-v1",
+                          "model_name": "elastic-rerank-v1",
                           "task_types": ["rerank/text/text-similarity"]
                         },
                         {
@@ -319,7 +319,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                             service
                         ),
                         new InferenceService.DefaultConfigId(
-                            ".rerank-v1-elastic",
+                            ".elastic-rerank-v1",
                             MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
                             service
                         )

@@ -243,6 +243,7 @@ public class EsqlSession {
                                 executionInfo,
                                 planRunner,
                                 p,
+                                logicalPlanOptimizer,
                                 configuration,
                                 foldContext,
                                 minimumVersion,
@@ -264,6 +265,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
         LogicalPlan optimizedPlan,
+        LogicalPlanOptimizer logicalPlanOptimizer,
         Configuration configuration,
         FoldContext foldContext,
         TransportVersion minimumVersion,
@@ -295,7 +297,17 @@ public class EsqlSession {
             // TODO: this could be snuck into the underlying listener
             EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
             // execute any potential subplans
-            executeSubPlans(optimizedPlan, configuration, foldContext, planRunner, executionInfo, request, physicalPlanOptimizer, listener);
+            executeSubPlans(
+                optimizedPlan,
+                configuration,
+                foldContext,
+                planRunner,
+                executionInfo,
+                request,
+                logicalPlanOptimizer,
+                physicalPlanOptimizer,
+                listener
+            );
         }
     }
 
@@ -306,6 +318,7 @@ public class EsqlSession {
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
+        LogicalPlanOptimizer logicalPlanOptimizer,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         ActionListener<Result> listener
     ) {
@@ -325,6 +338,7 @@ public class EsqlSession {
                 runner,
                 request,
                 subPlansResults,
+                logicalPlanOptimizer,
                 physicalPlanOptimizer,
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
@@ -346,12 +360,18 @@ public class EsqlSession {
         PlanRunner runner,
         EsqlQueryRequest request,
         Set<LocalRelation> subPlansResults,
+        LogicalPlanOptimizer logicalPlanOptimizer,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         ActionListener<Result> listener
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlans.stubReplacedSubPlan());
         // Create a physical plan out of the logical sub-plan
-        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request, physicalPlanOptimizer);
+        // var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request, physicalPlanOptimizer);
+        var physicalSubPlan = logicalPlanToPhysicalPlan(
+            logicalPlanOptimizer.optimize(subPlans.stubReplacedSubPlan()),
+            request,
+            physicalPlanOptimizer
+        );
 
         executionInfo.startSubPlans();
 
@@ -373,7 +393,8 @@ public class EsqlSession {
                     ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
                 );
                 // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
-                newLogicalPlan.setOptimized();
+                // newLogicalPlan.setOptimized();
+                newLogicalPlan = logicalPlanOptimizer.optimize(newLogicalPlan);
                 LOGGER.trace("Main plan change after previous subplan execution:\n{}", NodeUtils.diffString(optimizedPlan, newLogicalPlan));
 
                 // look for the next inlinejoin plan
@@ -405,6 +426,7 @@ public class EsqlSession {
                         runner,
                         request,
                         subPlansResults,
+                        logicalPlanOptimizer,
                         physicalPlanOptimizer,
                         releasingNext
                     );

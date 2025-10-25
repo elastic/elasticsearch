@@ -9,6 +9,8 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.operator.DriverContext;
 
+import java.util.List;
+
 public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends GroupingAggregatorEvaluationContext {
     public TimeSeriesGroupingAggregatorEvaluationContext(DriverContext driverContext) {
         super(driverContext);
@@ -17,4 +19,7 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
     public abstract long rangeStartInMillis(int groupId);
 
     public abstract long rangeEndInMillis(int groupId);
+
+    public abstract List<Integer> groupIdsFromWindow(int groupId, long windowInterval);
+
 }

@@ -63,11 +63,11 @@ public class MinOverTime extends TimeSeriesAggregateFunction {
                 "version" }
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public MinOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public MinOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private MinOverTime(StreamInput in) throws IOException {
@@ -81,17 +81,17 @@ public class MinOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public MinOverTime withFilter(Expression filter) {
-        return new MinOverTime(source(), field(), filter);
+        return new MinOverTime(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<MinOverTime> info() {
-        return NodeInfo.create(this, MinOverTime::new, field(), filter());
+        return NodeInfo.create(this, MinOverTime::new, field(), filter(), window());
     }
 
     @Override
     public MinOverTime replaceChildren(List<Expression> newChildren) {
-        return new MinOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new MinOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -106,6 +106,6 @@ public class MinOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public Min perTimeSeriesAggregation() {
-        return new Min(source(), field(), filter());
+        return new Min(source(), field(), filter(), window());
     }
 }

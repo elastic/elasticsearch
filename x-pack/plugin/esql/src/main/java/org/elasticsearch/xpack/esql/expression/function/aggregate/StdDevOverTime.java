@@ -43,11 +43,11 @@ public class StdDevOverTime extends TimeSeriesAggregateFunction {
             description = "Expression that outputs values to calculate the standard deviation of."
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public StdDevOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public StdDevOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     @Override
@@ -67,21 +67,21 @@ public class StdDevOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     protected NodeInfo<StdDevOverTime> info() {
-        return NodeInfo.create(this, StdDevOverTime::new, field(), filter());
+        return NodeInfo.create(this, StdDevOverTime::new, field(), filter(), window());
     }
 
     @Override
     public StdDevOverTime replaceChildren(List<Expression> newChildren) {
-        return new StdDevOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new StdDevOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public StdDevOverTime withFilter(Expression filter) {
-        return new StdDevOverTime(source(), field(), filter);
+        return new StdDevOverTime(source(), field(), filter, window());
     }
 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
-        return new StdDev(source(), field(), filter());
+        return new StdDev(source(), field(), filter(), window());
     }
 }

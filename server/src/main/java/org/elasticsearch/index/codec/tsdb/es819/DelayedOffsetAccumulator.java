@@ -14,8 +14,8 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.core.IOUtils;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;

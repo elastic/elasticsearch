@@ -73,6 +73,7 @@ public final class IndicesPermission {
     private final RestrictedIndices restrictedIndices;
     private final Group[] groups;
     private final boolean hasFieldOrDocumentLevelSecurity;
+    private final boolean hasAllIndicesPermissions;
 
     public static class Builder {
 
@@ -105,6 +106,7 @@ public final class IndicesPermission {
         this.groups = groups;
         this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::isTotal)
             && Arrays.stream(groups).anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
+        this.hasAllIndicesPermissions = Arrays.stream(groups).anyMatch(Group::isTotal);
     }
 
     /**
@@ -147,6 +149,10 @@ public final class IndicesPermission {
 
     public boolean hasFieldOrDocumentLevelSecurity() {
         return hasFieldOrDocumentLevelSecurity;
+    }
+
+    public boolean hasAllIndicesPermissions() {
+        return hasAllIndicesPermissions;
     }
 
     private IsResourceAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
@@ -585,10 +591,8 @@ public final class IndicesPermission {
         FieldPermissionsCache fieldPermissionsCache
     ) {
         // Short circuit if the indicesPermission allows all access to every index
-        for (Group group : groups) {
-            if (group.isTotal()) {
-                return IndicesAccessControl.allowAll();
-            }
+        if (hasAllIndicesPermissions()) {
+            return IndicesAccessControl.allowAll();
         }
 
         final Map<String, IndexResource> resources = Maps.newMapWithExpectedSize(requestedIndicesOrAliases.size());

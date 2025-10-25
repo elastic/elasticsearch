@@ -1,0 +1,5 @@
+pr: 136828
+summary: Can match phase coordinator duration APM metric
+area: Search
+type: enhancement
+issues: []

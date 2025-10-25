@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -58,6 +59,8 @@ import static org.elasticsearch.core.Types.forciblyCast;
  */
 final class CanMatchPreFilterSearchPhase {
 
+    private static final String PHASE_NAME = "can_match";
+
     private final Logger logger;
     private final SearchRequest request;
     private final List<SearchShardIterator> shardsIts;
@@ -90,7 +93,8 @@ final class CanMatchPreFilterSearchPhase {
         SearchTask task,
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-        ActionListener<List<SearchShardIterator>> listener
+        ActionListener<List<SearchShardIterator>> listener,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -136,12 +140,30 @@ final class CanMatchPreFilterSearchPhase {
         TransportSearchAction.SearchTimeProvider timeProvider,
         SearchTask task,
         boolean requireAtLeastOneMatch,
-        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         if (shardsIts.isEmpty()) {
             return SubscribableListener.newSucceeded(List.of());
         }
         final SubscribableListener<List<SearchShardIterator>> listener = new SubscribableListener<>();
+        long phaseStartTimeInNanos = System.nanoTime();
+
+        listener.addListener(new ActionListener<>() {
+            @Override
+            public void onResponse(List<SearchShardIterator> shardsIts) {
+                // searchResponseMetrics is null for node can-match requests
+                if (searchResponseMetrics != null) {
+                    searchResponseMetrics.recordSearchPhaseDuration(PHASE_NAME, System.nanoTime() - phaseStartTimeInNanos);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // do not record duration of failed phases
+            }
+        });
+
         // Note that the search is failed when this task is rejected by the executor
         executor.execute(new AbstractRunnable() {
             @Override
@@ -149,7 +171,7 @@ final class CanMatchPreFilterSearchPhase {
                 if (logger.isDebugEnabled()) {
                     logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
                 }
-                listener.onFailure(new SearchPhaseExecutionException("can_match", "start", e, ShardSearchFailure.EMPTY_ARRAY));
+                listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "start", e, ShardSearchFailure.EMPTY_ARRAY));
             }
 
             @Override
@@ -168,7 +190,8 @@ final class CanMatchPreFilterSearchPhase {
                     task,
                     requireAtLeastOneMatch,
                     coordinatorRewriteContextProvider,
-                    listener
+                    listener,
+                    searchResponseMetrics
                 ).runCoordinatorRewritePhase();
             }
         });
@@ -249,7 +272,7 @@ final class CanMatchPreFilterSearchPhase {
 
     private void checkNoMissingShards(List<SearchShardIterator> shards) {
         assert assertSearchCoordinationThread();
-        SearchPhase.doCheckNoMissingShards("can_match", request, shards);
+        SearchPhase.doCheckNoMissingShards(PHASE_NAME, request, shards);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(List<SearchShardIterator> shards) {
@@ -386,7 +409,7 @@ final class CanMatchPreFilterSearchPhase {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
             }
-            listener.onFailure(new SearchPhaseExecutionException("can_match", "round", e, ShardSearchFailure.EMPTY_ARRAY));
+            listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "round", e, ShardSearchFailure.EMPTY_ARRAY));
         }
     }
 

@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.sort.BytesRefBucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -122,7 +121,9 @@ class TopBytesRefAggregator {
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory());
+            try (var intValues = driverContext.blockFactory().newConstantIntVector(0, 1)) {
+                internalState.toIntermediate(blocks, offset, intValues, driverContext);
+            }
         }
 
         Block toBlock(BlockFactory blockFactory) {

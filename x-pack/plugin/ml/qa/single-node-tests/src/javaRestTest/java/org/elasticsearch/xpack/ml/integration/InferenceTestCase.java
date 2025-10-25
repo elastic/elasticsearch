@@ -33,7 +33,7 @@ public abstract class InferenceTestCase extends ESRestTestCase {
         }
         createdPipelines.clear();
         waitForStats();
-        adminClient().performRequest(new Request("POST", "/_features/_reset"));
+        performPostFeaturesReset(adminClient());
     }
 
     void deletePipeline(String pipelineId) throws IOException {

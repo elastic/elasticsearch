@@ -29,3 +29,7 @@
         op_type:  index
 
   - match:   { result: updated }
+
+  - do:
+      indices.delete:
+        index: test_index

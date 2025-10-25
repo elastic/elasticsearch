@@ -723,22 +723,43 @@ mx:integer | tbucket:datetime
 
 derivative_of_gauge_metric
 required_capability: ts_command_v0
+required_capability: ts_linreg
 
 TS k8s
+| WHERE pod == "three"
 | STATS max_deriv = max(deriv(network.cost)) BY time_bucket = bucket(@timestamp,5minute), pod
+| EVAL max_deriv = ROUND(max_deriv,6)
+| KEEP max_deriv, time_bucket, pod
 | SORT pod, time_bucket
-| LIMIT 10
+| LIMIT 5
 ;
 
-max_deriv:double       | time_bucket:datetime     | pod:keyword
-2.7573529411764707E-5  | 2024-05-10T00:00:00.000Z | one
--9.657960185083621E-6  | 2024-05-10T00:05:00.000Z | one
-2.6771965095388827E-5  | 2024-05-10T00:10:00.000Z | one
-4.405946549223768E-5   | 2024-05-10T00:15:00.000Z | one
-8.564814814814814E-5   | 2024-05-10T00:20:00.000Z | one
-9.27740599107712E-5    | 2024-05-10T00:00:00.000Z | three
-3.80263223304832E-5    | 2024-05-10T00:05:00.000Z | three
--1.9699890788329952E-5 | 2024-05-10T00:10:00.000Z | three
--1.2087599544937429E-6 | 2024-05-10T00:15:00.000Z | three
-NaN                    | 2024-05-10T00:20:00.000Z | three
+max_deriv:double | time_bucket:datetime     | pod:keyword
+9.3E-5           | 2024-05-10T00:00:00.000Z | three
+3.8E-5           | 2024-05-10T00:05:00.000Z | three
+-2.0E-5          | 2024-05-10T00:10:00.000Z | three
+-1.0E-6          | 2024-05-10T00:15:00.000Z | three
+0.0              | 2024-05-10T00:20:00.000Z | three
+
+;
+
+derivative_compared_to_rate
+required_capability: ts_command_v0
+required_capability: ts_linreg
+
+TS k8s
+| STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| EVAL max_deriv = ROUND(max_deriv,6), max_rate = ROUND(max_rate,6)
+| KEEP max_deriv, max_rate, time_bucket, cluster
+| SORT cluster, time_bucket
+| LIMIT 5
+;
+
+max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
+0.0855           | 8.120833        | 2024-05-10T00:00:00.000Z | prod
+0.004933         | 6.451737        | 2024-05-10T00:05:00.000Z | prod
+0.008922         | 11.562738       | 2024-05-10T00:10:00.000Z | prod
+0.016623         | 11.860806       | 2024-05-10T00:15:00.000Z | prod
+0.0              | 6.980661        | 2024-05-10T00:20:00.000Z | prod
+
 ;

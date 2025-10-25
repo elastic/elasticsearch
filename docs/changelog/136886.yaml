@@ -1,0 +1,5 @@
+pr: 136886
+summary: Fix ML calendar event update scalability issues
+area: Machine Learning
+type: bug
+issues: []

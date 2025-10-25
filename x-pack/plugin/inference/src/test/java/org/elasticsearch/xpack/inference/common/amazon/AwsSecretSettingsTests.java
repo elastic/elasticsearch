@@ -118,10 +118,17 @@ public class AwsSecretSettingsTests extends AbstractBWCWireSerializationTestCase
 
     @Override
     protected AwsSecretSettings mutateInstance(AwsSecretSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AwsSecretSettingsTests::createRandom);
+        if (randomBoolean()) {
+            return new AwsSecretSettings(new SecureString(randomAlphaOfLength(10).toCharArray()), instance.secretKey());
+        } else {
+            return new AwsSecretSettings(instance.accessKey(), new SecureString(randomAlphaOfLength(10).toCharArray()));
+        }
     }
 
     private static AwsSecretSettings createRandom() {
-        return new AwsSecretSettings(new SecureString(randomAlphaOfLength(10)), new SecureString(randomAlphaOfLength(10)));
+        return new AwsSecretSettings(
+            new SecureString(randomAlphaOfLength(10).toCharArray()),
+            new SecureString(randomAlphaOfLength(10).toCharArray())
+        );
     }
 }

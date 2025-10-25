@@ -183,7 +183,13 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     @Override
     protected VoyageAIEmbeddingsTaskSettings mutateInstance(VoyageAIEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, VoyageAIEmbeddingsTaskSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var inputType = randomValueOtherThan(instance.getInputType(), () -> randomFrom(randomWithIngestAndSearch(), null));
+            return new VoyageAIEmbeddingsTaskSettings(inputType, instance.getTruncation());
+        } else {
+            var truncation = randomValueOtherThan(instance.getTruncation(), () -> randomFrom(randomBoolean(), null));
+            return new VoyageAIEmbeddingsTaskSettings(instance.getInputType(), truncation);
+        }
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

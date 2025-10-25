@@ -25,9 +25,11 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -346,7 +348,26 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CohereServiceSettings mutateInstance(CohereServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CohereServiceSettingsTests::createRandom);
+        URI uri = instance.uri();
+        var uriString = uri == null ? null : uri.toString();
+        var similarity = instance.similarity();
+        var dimensions = instance.dimensions();
+        var maxInputTokens = instance.maxInputTokens();
+        var modelId = instance.modelId();
+        var rateLimitSettings = instance.rateLimitSettings();
+        var apiVersion = instance.apiVersion();
+        switch (randomInt(6)) {
+            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomFrom(randomAlphaOfLength(15), null));
+            case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomInt(), null));
+            case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 4 -> modelId = randomValueOtherThan(modelId, () -> randomFrom(randomAlphaOfLength(15), null));
+            case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 6 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomFrom(CohereServiceSettings.CohereApiVersion.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new CohereServiceSettings(uriString, similarity, dimensions, maxInputTokens, modelId, rateLimitSettings, apiVersion);
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {

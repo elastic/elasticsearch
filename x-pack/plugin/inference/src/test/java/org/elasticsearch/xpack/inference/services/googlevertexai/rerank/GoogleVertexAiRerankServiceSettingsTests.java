@@ -108,7 +108,17 @@ public class GoogleVertexAiRerankServiceSettingsTests extends AbstractBWCWireSer
 
     @Override
     protected GoogleVertexAiRerankServiceSettings mutateInstance(GoogleVertexAiRerankServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, GoogleVertexAiRerankServiceSettingsTests::createRandom);
+        var projectId = instance.projectId();
+        var modelId = instance.modelId();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(2)) {
+            case 0 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(10));
+            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomFrom(randomAlphaOfLength(10), null));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new GoogleVertexAiRerankServiceSettings(projectId, modelId, rateLimitSettings);
     }
 
     @Override

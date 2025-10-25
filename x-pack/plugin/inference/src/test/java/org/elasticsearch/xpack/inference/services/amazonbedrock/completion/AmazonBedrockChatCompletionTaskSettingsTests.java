@@ -280,15 +280,34 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
 
     @Override
     protected AmazonBedrockChatCompletionTaskSettings mutateInstance(AmazonBedrockChatCompletionTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AmazonBedrockChatCompletionTaskSettingsTests::createRandom);
+        var temperature = instance.temperature();
+        var topP = instance.topP();
+        var topK = instance.topK();
+        var maxNewTokens = instance.maxNewTokens();
+        switch (randomInt(3)) {
+            case 0 -> temperature = randomValueOtherThan(temperature, AmazonBedrockChatCompletionTaskSettingsTests::randomDoubleOrNull);
+            case 1 -> topP = randomValueOtherThan(topP, AmazonBedrockChatCompletionTaskSettingsTests::randomDoubleOrNull);
+            case 2 -> topK = randomValueOtherThan(topK, AmazonBedrockChatCompletionTaskSettingsTests::randomDoubleOrNull);
+            case 3 -> maxNewTokens = randomValueOtherThan(maxNewTokens, AmazonBedrockChatCompletionTaskSettingsTests::randomIntegerOrNull);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AmazonBedrockChatCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
     }
 
     private static AmazonBedrockChatCompletionTaskSettings createRandom() {
         return new AmazonBedrockChatCompletionTaskSettings(
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Integer[] { null, randomNonNegativeInt() })
+            randomDoubleOrNull(),
+            randomDoubleOrNull(),
+            randomDoubleOrNull(),
+            randomIntegerOrNull()
         );
+    }
+
+    private static Double randomDoubleOrNull() {
+        return randomFrom(new Double[] { null, randomDouble() });
+    }
+
+    private static Integer randomIntegerOrNull() {
+        return randomFrom(new Integer[] { null, randomNonNegativeInt() });
     }
 }

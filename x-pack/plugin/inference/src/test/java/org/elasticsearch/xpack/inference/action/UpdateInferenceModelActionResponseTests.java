@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
@@ -32,7 +33,8 @@ public class UpdateInferenceModelActionResponseTests extends AbstractWireSeriali
 
     @Override
     protected UpdateInferenceModelAction.Response mutateInstance(UpdateInferenceModelAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        ModelConfigurations newModel = randomValueOtherThan(instance.getModel(), ModelConfigurationsTests::createRandomInstance);
+        return new UpdateInferenceModelAction.Response(newModel);
     }
 
     @Override

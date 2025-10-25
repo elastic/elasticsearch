@@ -136,7 +136,8 @@ public class AzureAiStudioEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
 
     @Override
     protected AzureAiStudioEmbeddingsTaskSettings mutateInstance(AzureAiStudioEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureAiStudioEmbeddingsTaskSettingsTests::createRandom);
+        String newUser = randomValueOtherThan(instance.user(), () -> randomFrom(new String[] { null, randomAlphaOfLength(15) }));
+        return new AzureAiStudioEmbeddingsTaskSettings(newUser);
     }
 
     @Override

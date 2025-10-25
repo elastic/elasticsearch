@@ -114,7 +114,13 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     @Override
     protected HuggingFaceRerankTaskSettings mutateInstance(HuggingFaceRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, HuggingFaceRerankTaskSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var topNDocumentsOnly = randomValueOtherThan(instance.getTopNDocumentsOnly(), () -> randomFrom(randomIntBetween(1, 10), null));
+            return new HuggingFaceRerankTaskSettings(topNDocumentsOnly, instance.getReturnDocuments());
+        } else {
+            var returnDocuments = randomValueOtherThan(instance.getReturnDocuments(), () -> randomFrom(randomBoolean(), null));
+            return new HuggingFaceRerankTaskSettings(instance.getTopNDocumentsOnly(), returnDocuments);
+        }
     }
 
     @Override

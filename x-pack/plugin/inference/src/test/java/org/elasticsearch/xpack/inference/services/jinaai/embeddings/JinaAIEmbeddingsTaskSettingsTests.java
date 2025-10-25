@@ -155,7 +155,8 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     @Override
     protected JinaAIEmbeddingsTaskSettings mutateInstance(JinaAIEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, JinaAIEmbeddingsTaskSettingsTests::createRandom);
+        InputType inputType = randomValueOtherThan(instance.getInputType(), () -> randomFrom(randomWithoutUnspecified(), null));
+        return new JinaAIEmbeddingsTaskSettings(inputType);
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -77,6 +78,18 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
 
     @Override
     protected AzureOpenAiCompletionServiceSettings mutateInstance(AzureOpenAiCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureOpenAiCompletionServiceSettingsTests::createRandom);
+        var resourceName = instance.resourceName();
+        var deploymentId = instance.deploymentId();
+        var apiVersion = instance.apiVersion();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(3)) {
+            case 0 -> resourceName = randomValueOtherThan(resourceName, () -> randomAlphaOfLength(8));
+            case 1 -> deploymentId = randomValueOtherThan(deploymentId, () -> randomAlphaOfLength(8));
+            case 2 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
+            case 3 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, rateLimitSettings);
     }
 }

@@ -93,17 +93,31 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     );
 
     public ModelRegistryMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {
-        final var existing = modelMap.get(inferenceEntityId);
-        if (existing != null && settings.equals(existing)) {
+        return withAddedModels(List.of(new ModelRegistry.ModelAndSettings(inferenceEntityId, settings)));
+    }
+
+    public ModelRegistryMetadata withAddedModels(List<ModelRegistry.ModelAndSettings> models) {
+        var modifiedMap = false;
+        ImmutableOpenMap.Builder<String, MinimalServiceSettings> settingsBuilder = ImmutableOpenMap.builder(modelMap);
+
+        for (var model : models) {
+            if (model.settings().equals(modelMap.get(model.inferenceEntityId())) == false) {
+                modifiedMap = true;
+
+                settingsBuilder.fPut(model.inferenceEntityId(), model.settings());
+            }
+        }
+
+        if (modifiedMap == false) {
             return this;
         }
-        var settingsBuilder = ImmutableOpenMap.builder(modelMap);
-        settingsBuilder.fPut(inferenceEntityId, settings);
+
         if (isUpgraded) {
             return new ModelRegistryMetadata(settingsBuilder.build());
         }
+
         var newTombstone = new HashSet<>(tombstones);
-        newTombstone.remove(inferenceEntityId);
+        models.forEach(existing -> newTombstone.remove(existing.inferenceEntityId()));
         return new ModelRegistryMetadata(settingsBuilder.build(), newTombstone);
     }
 
@@ -260,7 +274,9 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
             return false;
         }
         ModelRegistryMetadata other = (ModelRegistryMetadata) obj;
-        return Objects.equals(this.modelMap, other.modelMap) && isUpgraded == other.isUpgraded;
+        return Objects.equals(this.modelMap, other.modelMap)
+            && isUpgraded == other.isUpgraded
+            && Objects.equals(this.tombstones, other.tombstones);
     }
 
     @Override

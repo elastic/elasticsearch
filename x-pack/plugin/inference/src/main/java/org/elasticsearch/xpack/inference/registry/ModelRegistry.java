@@ -17,10 +17,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -46,6 +44,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
@@ -662,161 +661,284 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     private void storeModel(Model model, boolean updateClusterState, ActionListener<Boolean> listener, TimeValue timeout) {
-        ActionListener<BulkResponse> bulkResponseActionListener = getStoreIndexListener(model, updateClusterState, listener, timeout);
-        String inferenceEntityId = model.getConfigurations().getInferenceEntityId();
-        var configRequestBuilder = createIndexRequestBuilder(
-            inferenceEntityId,
-            InferenceIndex.INDEX_NAME,
-            model.getConfigurations(),
-            false,
-            client
-        );
-        var secretsRequestBuilder = createIndexRequestBuilder(
-            inferenceEntityId,
-            InferenceSecretsIndex.INDEX_NAME,
-            model.getSecrets(),
-            false,
-            client
-        );
-
-        client.prepareBulk()
-            .add(configRequestBuilder)
-            .add(secretsRequestBuilder)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .execute(bulkResponseActionListener);
-    }
-
-    private ActionListener<BulkResponse> getStoreIndexListener(
-        Model model,
-        boolean updateClusterState,
-        ActionListener<Boolean> listener,
-        TimeValue timeout
-    ) {
-        // If there was a partial failure in writing to the indices, we need to clean up
-        AtomicBoolean partialFailure = new AtomicBoolean(false);
-        var cleanupListener = listener.delegateResponse((delegate, ex) -> {
-            if (partialFailure.get()) {
-                deleteModel(model.getInferenceEntityId(), ActionListener.running(() -> delegate.onFailure(ex)));
-            } else {
-                delegate.onFailure(ex);
+        storeModels(List.of(model), updateClusterState, listener.delegateFailureAndWrap((delegate, responses) -> {
+            var firstFailureResponse = responses.stream().filter(ModelStoreResponse::failed).findFirst();
+            if (firstFailureResponse.isPresent() == false) {
+                delegate.onResponse(Boolean.TRUE);
+                return;
             }
-        });
-        return ActionListener.wrap(bulkItemResponses -> {
-            var inferenceEntityId = model.getInferenceEntityId();
 
-            if (bulkItemResponses.getItems().length == 0) {
-                logger.warn(
-                    format("Storing inference endpoint [%s] failed, no items were received from the bulk response", inferenceEntityId)
-                );
-
-                cleanupListener.onFailure(
+            var failureItem = firstFailureResponse.get();
+            if (ExceptionsHelper.unwrapCause(failureItem.failureCause()) instanceof VersionConflictEngineException) {
+                delegate.onFailure(
                     new ElasticsearchStatusException(
-                        format(
-                            "Failed to store inference endpoint [%s], invalid bulk response received. Try reinitializing the service",
-                            inferenceEntityId
-                        ),
-                        RestStatus.INTERNAL_SERVER_ERROR
+                        "Inference endpoint [{}] already exists",
+                        RestStatus.BAD_REQUEST,
+                        failureItem.failureCause(),
+                        failureItem.inferenceId()
                     )
                 );
                 return;
             }
 
-            BulkItemResponse.Failure failure = getFirstBulkFailure(bulkItemResponses);
-
-            if (failure == null) {
-                if (updateClusterState) {
-                    var storeListener = getStoreMetadataListener(inferenceEntityId, cleanupListener);
-                    try {
-                        metadataTaskQueue.submitTask(
-                            "add model [" + inferenceEntityId + "]",
-                            new AddModelMetadataTask(
-                                ProjectId.DEFAULT,
-                                inferenceEntityId,
-                                new MinimalServiceSettings(model),
-                                storeListener
-                            ),
-                            timeout
-                        );
-                    } catch (Exception exc) {
-                        storeListener.onFailure(exc);
-                    }
-                } else {
-                    cleanupListener.onResponse(Boolean.TRUE);
-                }
-                return;
-            }
-
-            for (BulkItemResponse aResponse : bulkItemResponses.getItems()) {
-                logBulkFailure(inferenceEntityId, aResponse);
-                partialFailure.compareAndSet(false, aResponse.isFailed() == false);
-            }
-
-            if (ExceptionsHelper.unwrapCause(failure.getCause()) instanceof VersionConflictEngineException) {
-                cleanupListener.onFailure(new ResourceAlreadyExistsException("Inference endpoint [{}] already exists", inferenceEntityId));
-                return;
-            }
-
-            cleanupListener.onFailure(
+            delegate.onFailure(
                 new ElasticsearchStatusException(
-                    format("Failed to store inference endpoint [%s]", inferenceEntityId),
+                    format("Failed to store inference endpoint [%s]", failureItem.inferenceId()),
                     RestStatus.INTERNAL_SERVER_ERROR,
-                    failure.getCause()
+                    failureItem.failureCause()
                 )
             );
+        }), timeout);
+    }
+
+    public record ModelStoreResponse(String inferenceId, RestStatus status, @Nullable Exception failureCause) {
+        public boolean failed() {
+            return failureCause != null;
+        }
+    }
+
+    public void storeModels(List<Model> models, ActionListener<List<ModelStoreResponse>> listener, TimeValue timeout) {
+        storeModels(models, true, listener, timeout);
+    }
+
+    private void storeModels(
+        List<Model> models,
+        boolean updateClusterState,
+        ActionListener<List<ModelStoreResponse>> listener,
+        TimeValue timeout
+    ) {
+        if (models.isEmpty()) {
+            listener.onResponse(List.of());
+            return;
+        }
+
+        var modelsWithoutDuplicates = models.stream().distinct().toList();
+
+        var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (var model : modelsWithoutDuplicates) {
+            bulkRequestBuilder.add(
+                createIndexRequestBuilder(model.getInferenceEntityId(), InferenceIndex.INDEX_NAME, model.getConfigurations(), false, client)
+            );
+
+            bulkRequestBuilder.add(
+                createIndexRequestBuilder(model.getInferenceEntityId(), InferenceSecretsIndex.INDEX_NAME, model.getSecrets(), false, client)
+            );
+        }
+
+        bulkRequestBuilder.execute(getStoreMultipleModelsListener(modelsWithoutDuplicates, updateClusterState, listener, timeout));
+    }
+
+    private ActionListener<BulkResponse> getStoreMultipleModelsListener(
+        List<Model> models,
+        boolean updateClusterState,
+        ActionListener<List<ModelStoreResponse>> listener,
+        TimeValue timeout
+    ) {
+        var cleanupListener = listener.<List<StoreResponseWithIndexInfo>>delegateFailureAndWrap((delegate, responses) -> {
+            var inferenceIdsToBeRemoved = responses.stream()
+                .filter(r -> r.modifiedIndex() && r.modelStoreResponse().failed())
+                .map(r -> r.modelStoreResponse().inferenceId())
+                .collect(Collectors.toSet());
+
+            var storageResponses = responses.stream().map(StoreResponseWithIndexInfo::modelStoreResponse).toList();
+
+            ActionListener<Boolean> deleteListener = ActionListener.wrap(ignored -> delegate.onResponse(storageResponses), e -> {
+                logger.atWarn()
+                    .withThrowable(e)
+                    .log(
+                        "Failed to clean up partially stored inference endpoints {}. "
+                            + "The service may be in an inconsistent state. Please try deleting and re-adding the endpoints.",
+                        inferenceIdsToBeRemoved
+                    );
+                delegate.onResponse(storageResponses);
+            });
+
+            deleteModels(inferenceIdsToBeRemoved, deleteListener);
+        });
+
+        return ActionListener.wrap(bulkItemResponses -> {
+            var docIdToInferenceId = models.stream()
+                .collect(Collectors.toMap(m -> Model.documentId(m.getInferenceEntityId()), Model::getInferenceEntityId, (id1, id2) -> {
+                    logger.warn("Encountered duplicate inference ids when storing endpoints: [{}]", id1);
+                    return id1;
+                }));
+            var inferenceIdToModel = models.stream()
+                .collect(Collectors.toMap(Model::getInferenceEntityId, Function.identity(), (id1, id2) -> id1));
+
+            if (bulkItemResponses.getItems().length == 0) {
+                var inferenceEntityIds = String.join(", ", models.stream().map(Model::getInferenceEntityId).toList());
+                logger.warn("Storing inference endpoints [{}] failed, no items were received from the bulk response", inferenceEntityIds);
+
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Failed to store inference endpoints [{}], empty bulk response received.",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        inferenceEntityIds
+                    )
+                );
+                return;
+            }
+
+            var responseInfo = getResponseInfo(bulkItemResponses, docIdToInferenceId, inferenceIdToModel);
+
+            if (updateClusterState) {
+                updateClusterState(
+                    responseInfo.successfullyStoredModels(),
+                    cleanupListener.delegateFailureIgnoreResponseAndWrap(delegate -> delegate.onResponse(responseInfo.responses())),
+                    timeout
+                );
+            } else {
+                cleanupListener.onResponse(responseInfo.responses());
+            }
         }, e -> {
-            String errorMessage = format("Failed to store inference endpoint [%s]", model.getInferenceEntityId());
+            String errorMessage = format(
+                "Failed to store inference endpoints [%s]",
+                models.stream().map(Model::getInferenceEntityId).collect(Collectors.joining(", "))
+            );
             logger.warn(errorMessage, e);
-            cleanupListener.onFailure(new ElasticsearchStatusException(errorMessage, RestStatus.INTERNAL_SERVER_ERROR, e));
+            listener.onFailure(new ElasticsearchStatusException(errorMessage, RestStatus.INTERNAL_SERVER_ERROR, e));
         });
     }
 
-    private ActionListener<AcknowledgedResponse> getStoreMetadataListener(String inferenceEntityId, ActionListener<Boolean> listener) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse resp) {
-                listener.onResponse(true);
+    private record StoreResponseWithIndexInfo(ModelStoreResponse modelStoreResponse, boolean modifiedIndex) {}
+
+    private record ResponseInfo(List<StoreResponseWithIndexInfo> responses, List<Model> successfullyStoredModels) {}
+
+    private static ResponseInfo getResponseInfo(
+        BulkResponse bulkResponse,
+        Map<String, String> docIdToInferenceId,
+        Map<String, Model> inferenceIdToModel
+    ) {
+        var responses = new ArrayList<StoreResponseWithIndexInfo>();
+        var successfullyStoredModels = new ArrayList<Model>();
+
+        var bulkItems = bulkResponse.getItems();
+        for (int i = 0; i < bulkItems.length; i += 2) {
+            var configurationItem = bulkItems[i];
+            var configStoreResponse = createModelStoreResponse(configurationItem, docIdToInferenceId);
+            var modelFromBulkItem = getModelFromMap(docIdToInferenceId.get(configurationItem.getId()), inferenceIdToModel);
+
+            if (i + 1 >= bulkResponse.getItems().length) {
+                logger.error("Expected an even number of bulk response items, got [{}]", bulkResponse.getItems().length);
+
+                if (configStoreResponse.failed()) {
+                    responses.add(new StoreResponseWithIndexInfo(configStoreResponse, false));
+                } else {
+                    // if we didn't get the last item for some reason, assume it is a failure
+                    responses.add(
+                        new StoreResponseWithIndexInfo(
+                            new ModelStoreResponse(
+                                configStoreResponse.inferenceId(),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                new IllegalStateException("Failed to receive part of bulk response")
+                            ),
+                            true
+                        )
+                    );
+                }
+                return new ResponseInfo(responses, successfullyStoredModels);
             }
 
-            @Override
-            public void onFailure(Exception exc) {
-                logger.warn(
-                    format("Failed to add inference endpoint [%s] minimal service settings to cluster state", inferenceEntityId),
-                    exc
-                );
-                deleteModel(inferenceEntityId, ActionListener.running(() -> {
-                    listener.onFailure(
+            var secretsItem = bulkItems[i + 1];
+            var secretsStoreResponse = createModelStoreResponse(secretsItem, docIdToInferenceId);
+
+            assert secretsStoreResponse.inferenceId().equals(configStoreResponse.inferenceId())
+                : "Mismatched inference ids in bulk response items, configuration id ["
+                    + configStoreResponse.inferenceId()
+                    + "] secrets id ["
+                    + secretsStoreResponse.inferenceId()
+                    + "]";
+
+            if (configStoreResponse.failed()) {
+                responses.add(new StoreResponseWithIndexInfo(configStoreResponse, secretsStoreResponse.failed() == false));
+            } else if (secretsStoreResponse.failed()) {
+                // if we got here that means the configuration store bulk item succeeded, so we did modify an index
+                responses.add(new StoreResponseWithIndexInfo(secretsStoreResponse, true));
+            } else {
+                responses.add(new StoreResponseWithIndexInfo(configStoreResponse, true));
+                if (modelFromBulkItem != null) {
+                    successfullyStoredModels.add(modelFromBulkItem);
+                }
+            }
+        }
+
+        return new ResponseInfo(responses, successfullyStoredModels);
+    }
+
+    private static ModelStoreResponse createModelStoreResponse(BulkItemResponse item, Map<String, String> docIdToInferenceId) {
+        var failure = item.getFailure();
+
+        String inferenceIdOrUnknown = "unknown";
+        var inferenceIdMaybeNull = docIdToInferenceId.get(item.getId());
+        if (inferenceIdMaybeNull == null) {
+            logger.warn("Failed to find inference id for document id [{}]", item.getId());
+        } else {
+            inferenceIdOrUnknown = inferenceIdMaybeNull;
+        }
+
+        if (item.isFailed() && failure != null) {
+            logger.warn(
+                format(
+                    "Failed to store document id: [%s] inference id: [%s] index: [%s] bulk failure message [%s]",
+                    item.getId(),
+                    inferenceIdOrUnknown,
+                    item.getIndex(),
+                    item.getFailureMessage()
+                )
+            );
+
+            return new ModelStoreResponse(inferenceIdOrUnknown, item.status(), failure.getCause());
+        } else {
+            return new ModelStoreResponse(inferenceIdOrUnknown, item.status(), null);
+        }
+    }
+
+    private static Model getModelFromMap(@Nullable String inferenceId, Map<String, Model> inferenceIdToModel) {
+        if (inferenceId != null) {
+            return inferenceIdToModel.get(inferenceId);
+        }
+
+        return null;
+    }
+
+    private void updateClusterState(List<Model> models, ActionListener<AcknowledgedResponse> listener, TimeValue timeout) {
+        var inferenceIdsSet = models.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet());
+        var storeListener = listener.delegateResponse((delegate, exc) -> {
+            logger.warn(format("Failed to add minimal service settings to cluster state for inference endpoints %s", inferenceIdsSet), exc);
+            deleteModels(
+                inferenceIdsSet,
+                ActionListener.running(
+                    () -> delegate.onFailure(
                         new ElasticsearchStatusException(
                             format(
-                                "Failed to add the inference endpoint [%s]. The service may be in an "
-                                    + "inconsistent state. Please try deleting and re-adding the endpoint.",
-                                inferenceEntityId
+                                "Failed to add the inference endpoints %s. The service may be in an "
+                                    + "inconsistent state. Please try deleting and re-adding the endpoints.",
+                                inferenceIdsSet
                             ),
                             RestStatus.INTERNAL_SERVER_ERROR,
                             exc
                         )
-                    );
-                }));
-            }
-        };
-    }
-
-    private static void logBulkFailure(String inferenceEntityId, BulkItemResponse item) {
-        if (item.isFailed()) {
-            logger.warn(
-                format("Failed to store inference endpoint [%s] index: [%s]", inferenceEntityId, item.getIndex()),
-                item.getFailure().getCause()
+                    )
+                )
             );
-        }
-    }
+        });
 
-    private static BulkItemResponse.Failure getFirstBulkFailure(BulkResponse bulkResponse) {
-        for (BulkItemResponse item : bulkResponse.getItems()) {
-            if (item.isFailed()) {
-                return item.getFailure();
-            }
+        try {
+            metadataTaskQueue.submitTask(
+                format("add model metadata for %s", inferenceIdsSet),
+                new AddModelMetadataTask(
+                    ProjectId.DEFAULT,
+                    models.stream()
+                        .map(model -> new ModelAndSettings(model.getInferenceEntityId(), new MinimalServiceSettings(model)))
+                        .toList(),
+                    storeListener
+                ),
+                timeout
+            );
+        } catch (Exception exc) {
+            storeListener.onFailure(exc);
         }
-
-        return null;
     }
 
     public synchronized void removeDefaultConfigs(Set<String> inferenceEntityIds, ActionListener<Boolean> listener) {
@@ -839,6 +961,11 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     private void deleteModels(Set<String> inferenceEntityIds, boolean updateClusterState, ActionListener<Boolean> listener) {
+        if (inferenceEntityIds.isEmpty()) {
+            listener.onResponse(true);
+            return;
+        }
+
         var lockedInferenceIds = new HashSet<>(inferenceEntityIds);
         lockedInferenceIds.retainAll(preventDeletionLock);
 
@@ -937,22 +1064,8 @@ public class ModelRegistry implements ClusterStateListener {
         return request;
     }
 
-    private static IndexRequest createIndexRequest(String docId, String indexName, ToXContentObject body, boolean allowOverwriting) {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            var request = new IndexRequest(indexName);
-            XContentBuilder source = body.toXContent(
-                builder,
-                new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString()))
-            );
-            var operation = allowOverwriting ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE;
-
-            return request.opType(operation).id(docId).source(source);
-        } catch (IOException ex) {
-            throw new ElasticsearchException(format("Unexpected serialization exception for index [%s] doc [%s]", indexName, docId), ex);
-        }
-    }
-
-    static IndexRequestBuilder createIndexRequestBuilder(
+    // public for testing
+    public static IndexRequestBuilder createIndexRequestBuilder(
         String inferenceId,
         String indexName,
         ToXContentObject body,
@@ -1124,24 +1237,19 @@ public class ModelRegistry implements ClusterStateListener {
         }
     }
 
-    private static class AddModelMetadataTask extends MetadataTask {
-        private final String inferenceEntityId;
-        private final MinimalServiceSettings settings;
+    public record ModelAndSettings(String inferenceEntityId, MinimalServiceSettings settings) {}
 
-        AddModelMetadataTask(
-            ProjectId projectId,
-            String inferenceEntityId,
-            MinimalServiceSettings settings,
-            ActionListener<AcknowledgedResponse> listener
-        ) {
+    private static class AddModelMetadataTask extends MetadataTask {
+        private final List<ModelAndSettings> models = new ArrayList<>();
+
+        AddModelMetadataTask(ProjectId projectId, List<ModelAndSettings> models, ActionListener<AcknowledgedResponse> listener) {
             super(projectId, listener);
-            this.inferenceEntityId = inferenceEntityId;
-            this.settings = settings;
+            this.models.addAll(models);
         }
 
         @Override
         ModelRegistryMetadata executeTask(ModelRegistryMetadata current) {
-            return current.withAddedModel(inferenceEntityId, settings);
+            return current.withAddedModels(models);
         }
     }
 

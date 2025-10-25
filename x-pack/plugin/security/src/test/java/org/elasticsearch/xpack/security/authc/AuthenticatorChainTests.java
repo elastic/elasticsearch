@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -104,6 +105,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             operatorPrivilegesService,
             anonymousUser,
             authenticationContextSerializer,
+            Tracer.NOOP,
             pluggableAuthenticatorChain,
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,

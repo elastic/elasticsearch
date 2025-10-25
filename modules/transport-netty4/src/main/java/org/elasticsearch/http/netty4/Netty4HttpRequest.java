@@ -213,6 +213,14 @@ public class Netty4HttpRequest implements HttpRequest {
         return new HttpHeadersMap(httpHeaders);
     }
 
+    @Override
+    public String getSpanId() {
+        if (nettyRequest instanceof TracedHttpRequest) {
+            return ((TracedHttpRequest) nettyRequest).getSpanId();
+        }
+        return "";
+    }
+
     /**
      * A wrapper of {@link HttpHeaders} that implements a map to prevent copying unnecessarily. This class does not support modifications
      * and due to the underlying implementation, it performs case insensitive lookups of key to values.

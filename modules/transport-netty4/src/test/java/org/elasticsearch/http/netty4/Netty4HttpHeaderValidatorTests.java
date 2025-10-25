@@ -27,6 +27,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayDeque;
@@ -50,7 +51,8 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         channel = new EmbeddedChannel(
             new Netty4HttpHeaderValidator(
                 (httpRequest, channel, listener) -> httpValidator.validate(httpRequest, channel, listener),
-                new ThreadContext(Settings.EMPTY)
+                new ThreadContext(Settings.EMPTY),
+                Tracer.NOOP
             )
         );
         channel.config().setAutoRead(false);

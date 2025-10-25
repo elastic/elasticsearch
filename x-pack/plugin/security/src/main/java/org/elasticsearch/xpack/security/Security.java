@@ -105,6 +105,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -1117,7 +1118,7 @@ public class Security extends Plugin
                 serviceAccountService,
                 operatorPrivilegesService.get(),
                 pluggableAuthenticatorChain,
-                telemetryProvider.getMeterRegistry()
+                telemetryProvider
             )
         );
         components.add(authcService.get());
@@ -2298,6 +2299,13 @@ public class Security extends Plugin
                 );
                 if (authenticationThreadContext != null) {
                     authenticationThreadContext.restore();
+                    // We can rely on the fact that by this point, the "authenticate" trace has been ended.
+                    // the restore has brought back some headers related to the "authenticate" trace that we don't want,
+                    // however we do want to still keep the parent going. so we need to remove some trace headers but keep others
+                    threadContext.newStoredContext(
+                        List.of(Task.APM_TRACE_CONTEXT),
+                        List.of(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE)
+                    );
                 } else {
                     // this is an unexpected internal error condition where {@code Netty4HttpHeaderValidator} does not work correctly
                     throw new ElasticsearchSecurityException("Request is not authenticated");

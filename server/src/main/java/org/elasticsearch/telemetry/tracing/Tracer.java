@@ -145,6 +145,7 @@ public interface Tracer {
      * in order to avoid null checks everywhere.
      */
     Tracer NOOP = new Tracer() {
+
         @Override
         public void startTrace(TraceContext traceContext, Traceable traceable, String name, Map<String, Object> attributes) {}
 

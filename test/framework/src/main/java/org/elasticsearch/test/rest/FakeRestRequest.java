@@ -160,6 +160,11 @@ public class FakeRestRequest extends RestRequest {
         public Exception getInboundException() {
             return inboundException;
         }
+
+        @Override
+        public String getSpanId() {
+            return "";
+        }
     }
 
     public static class FakeHttpChannel implements HttpChannel {

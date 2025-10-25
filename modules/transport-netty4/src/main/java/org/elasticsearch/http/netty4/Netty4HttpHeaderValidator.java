@@ -22,9 +22,13 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.Transports;
 
+import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.HashMap;
 
 public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
 
@@ -32,10 +36,12 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
     private final ThreadContext threadContext;
     private State state = State.PASSING;
     private final ArrayDeque<Object> buffer = new ArrayDeque<>();
+    private final Tracer tracer;
 
-    public Netty4HttpHeaderValidator(HttpValidator validator, ThreadContext threadContext) {
+    public Netty4HttpHeaderValidator(HttpValidator validator, ThreadContext threadContext, Tracer tracer) {
         this.validator = validator;
         this.threadContext = threadContext;
+        this.tracer = tracer;
     }
 
     @Override
@@ -51,7 +57,12 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
         if (httpObject.decoderResult().isFailure()) {
             ctx.fireChannelRead(httpObject); // pass-through for decoding failures
         } else if (msg instanceof HttpRequest httpRequest) {
-            validate(ctx, httpRequest);
+            final TracedHttpRequest request = new TracedHttpRequest(httpRequest);
+            try (var ignored = threadContext.clearTraceContext()) {
+                threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(System.currentTimeMillis()));
+                tracer.startTrace(threadContext, request, httpRequest.uri(), new HashMap<>());
+                validate(ctx, request);
+            }
         } else if (state == State.PASSING) {
             assert msg instanceof HttpContent;
             ctx.fireChannelRead(msg);
@@ -104,7 +115,7 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
                 // dispatch back to event loop unless validation completed already in which case we can just continue on this thread
                 // straight away, avoiding the need to buffer any subsequent messages
                 ctx.channel().eventLoop(),
-                null
+                threadContext
             );
     }
 
@@ -123,11 +134,11 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
             assert ctx.channel().eventLoop().inEventLoop();
             assert state == State.PASSING || state == State.DROPPING : state;
             state = State.VALIDATING;
-            try (var ignore = threadContext.newEmptyContext()) {
+            try (var ignore = threadContext.stashContext()) {
                 validator.validate(
                     httpRequest,
                     ctx.channel(),
-                    new ContextPreservingActionListener<>(threadContext::newEmptyContext, listener)
+                    new ContextPreservingActionListener<>(threadContext::stashContext, listener)
                 );
             }
         }

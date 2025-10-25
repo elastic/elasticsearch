@@ -1337,6 +1337,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                 // weight of this index currently on the node
                 float currentWeight = weightFunction.calculateNodeWeightWithIndex(this, node, index);
+                if (Double.isFinite(currentWeight) == false) {
+                    assert false : "Weight function is returning invalid weights: " + currentWeight;
+                    // Default weight to largest finite value
+                    currentWeight = Float.MAX_VALUE;
+                }
                 // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
                 if (currentWeight > minWeight && explain == false) {
                     continue;

@@ -127,10 +127,20 @@ public class PerFieldFormatSupplier {
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
-        if (useTSDBDocValuesFormat(field)) {
+        if (useTSDBDocValuesFormat(field) || isBinaryDocValueField(field)) {
             return tsdbDocValuesFormat;
         }
         return docValuesFormat;
+    }
+
+    boolean isBinaryDocValueField(final String field) {
+        if (mapperService != null) {
+            Mapper mapper = mapperService.mappingLookup().getMapper(field);
+            if (mapper != null && "wildcard".equals(mapper.typeName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     boolean useTSDBDocValuesFormat(final String field) {

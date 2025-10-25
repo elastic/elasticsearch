@@ -27,8 +27,10 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -41,15 +43,20 @@ import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.codec.tsdb.es819.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SORTED_SET;
@@ -65,8 +72,11 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private final int minDocsPerOrdinalForOrdinalRangeEncoding;
     final boolean enableOptimizedMerge;
     private final int primarySortFieldNumber;
+    final SegmentWriteState state;
+    final BinaryDVCompressionMode binaryDVCompressionMode;
 
     ES819TSDBDocValuesConsumer(
+        BinaryDVCompressionMode binaryDVCompressionMode,
         SegmentWriteState state,
         int skipIndexIntervalSize,
         int minDocsPerOrdinalForOrdinalRangeEncoding,
@@ -76,6 +86,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         String metaCodec,
         String metaExtension
     ) throws IOException {
+        this.binaryDVCompressionMode = binaryDVCompressionMode;
+        this.state = state;
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
         this.minDocsPerOrdinalForOrdinalRangeEncoding = minDocsPerOrdinalForOrdinalRangeEncoding;
@@ -315,7 +327,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES819TSDBDocValuesFormat.BINARY);
+        meta.writeByte(binaryDVCompressionMode.code);
+        switch (binaryDVCompressionMode) {
+            case NO_COMPRESS -> doAddUncompressedBinary(field, valuesProducer);
+            case COMPRESSED_WITH_ZSTD -> doAddCompressedBinary(field, valuesProducer);
+        }
+    }
 
+    public void doAddUncompressedBinary(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         if (valuesProducer instanceof TsdbDocValuesProducer tsdbValuesProducer && tsdbValuesProducer.mergeStats.supported()) {
             final int numDocsWithField = tsdbValuesProducer.mergeStats.sumNumDocsWithField();
             final int minLength = tsdbValuesProducer.mergeStats.minLength();
@@ -441,6 +460,185 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 writer.finish();
                 meta.writeLong(data.getFilePointer() - start);
             }
+        }
+    }
+
+    public void doAddCompressedBinary(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+        try (CompressedBinaryBlockWriter blockWriter = new CompressedBinaryBlockWriter()) {
+            BinaryDocValues values = valuesProducer.getBinary(field);
+            long start = data.getFilePointer();
+            meta.writeLong(start); // dataOffset
+            int numDocsWithField = 0;
+            int minLength = Integer.MAX_VALUE;
+            int maxLength = 0;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                numDocsWithField++;
+                BytesRef v = values.binaryValue();
+                blockWriter.addDoc(doc, v);
+                int length = v.length;
+                minLength = Math.min(length, minLength);
+                maxLength = Math.max(length, maxLength);
+            }
+            blockWriter.flushData();
+
+            assert numDocsWithField <= maxDoc;
+            meta.writeLong(data.getFilePointer() - start); // dataLength
+
+            if (numDocsWithField == 0) {
+                meta.writeLong(-2); // docsWithFieldOffset
+                meta.writeLong(0L); // docsWithFieldLength
+                meta.writeShort((short) -1); // jumpTableEntryCount
+                meta.writeByte((byte) -1); // denseRankPower
+            } else if (numDocsWithField == maxDoc) {
+                meta.writeLong(-1); // docsWithFieldOffset
+                meta.writeLong(0L); // docsWithFieldLength
+                meta.writeShort((short) -1); // jumpTableEntryCount
+                meta.writeByte((byte) -1); // denseRankPower
+            } else {
+                long offset = data.getFilePointer();
+                meta.writeLong(offset); // docsWithFieldOffset
+                values = valuesProducer.getBinary(field);
+                final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
+                meta.writeShort(jumpTableEntryCount);
+                meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+            }
+
+            meta.writeInt(numDocsWithField);
+            meta.writeInt(minLength);
+            meta.writeInt(maxLength);
+
+            blockWriter.writeMetaData();
+        }
+    }
+
+    private class CompressedBinaryBlockWriter implements Closeable {
+        static final int MIN_BLOCK_BYTES = 256 * 1024;
+        static final int START_BLOCK_DOCS = 1024;
+        static final int ZSTD_LEVEL = 1;
+
+        final Zstd814StoredFieldsFormat.ZstdCompressor compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(ZSTD_LEVEL);
+
+        final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+        final long[] docOffsetsCompressBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+        int[] docOffsets = new int[START_BLOCK_DOCS];
+
+        int uncompressedBlockLength = 0;
+        int maxUncompressedBlockLength = 0;
+        int numDocsInCurrentBlock = 0;
+
+        byte[] block = BytesRef.EMPTY_BYTES;
+        int totalChunks = 0;
+        long maxPointer = 0;
+        int maxNumDocsInAnyBlock = 0;
+
+        final DelayedOffsetAccumulator blockAddressAcc;
+        final DelayedOffsetAccumulator blockDocRangeAcc;
+
+        CompressedBinaryBlockWriter() throws IOException {
+            long blockAddressesStart = data.getFilePointer();
+            blockAddressAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block_addresses", blockAddressesStart);
+
+            try {
+                blockDocRangeAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block_doc_ranges", 0);
+            } catch (IOException e) {
+                blockAddressAcc.close();
+                throw e;
+            }
+        }
+
+        /**
+         * _docId is unused. This is because docId may not be dense.
+         * But we can guarantee that the lookup value is dense on the range of inserted values.
+         */
+        void addDoc(int _docId, BytesRef v) throws IOException {
+            block = ArrayUtil.grow(block, uncompressedBlockLength + v.length);
+            System.arraycopy(v.bytes, v.offset, block, uncompressedBlockLength, v.length);
+            uncompressedBlockLength += v.length;
+
+            numDocsInCurrentBlock++;
+            docOffsets = ArrayUtil.grow(docOffsets, numDocsInCurrentBlock + 1); // need one extra since writing start for next block
+            docOffsets[numDocsInCurrentBlock] = uncompressedBlockLength;
+
+            if (uncompressedBlockLength > MIN_BLOCK_BYTES) {
+                flushData();
+            }
+        }
+
+        private void flushData() throws IOException {
+            if (numDocsInCurrentBlock > 0) {
+                totalChunks++;
+                long thisBlockStartPointer = data.getFilePointer();
+
+                // write length of string data
+                data.writeInt(uncompressedBlockLength);
+
+                maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
+                maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocsInCurrentBlock);
+
+                compressOffsets(data, numDocsInCurrentBlock);
+                compress(block, uncompressedBlockLength, data);
+
+                blockDocRangeAcc.addDoc(numDocsInCurrentBlock);
+                numDocsInCurrentBlock = 0;
+
+                uncompressedBlockLength = 0;
+                maxPointer = data.getFilePointer();
+                long blockLenBytes = maxPointer - thisBlockStartPointer;
+                blockAddressAcc.addDoc(blockLenBytes);
+            }
+        }
+
+        void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
+            int batchStart = 0;
+            int numOffsets = numDocsInCurrentBlock + 1;
+            while (batchStart < numOffsets) {
+                int batchLength = Math.min(numOffsets - batchStart, NUMERIC_BLOCK_SIZE);
+                for (int i = 0; i < batchLength; i++) {
+                    docOffsetsCompressBuffer[i] = docOffsets[batchStart + i];
+                }
+                if (batchLength < docOffsetsCompressBuffer.length) {
+                    Arrays.fill(docOffsetsCompressBuffer, batchLength, docOffsetsCompressBuffer.length, 0);
+                }
+                encoder.encode(docOffsetsCompressBuffer, output);
+                batchStart += batchLength;
+            }
+        }
+
+        void compress(byte[] data, int uncompressedLength, DataOutput output) throws IOException {
+            ByteBuffer inputBuffer = ByteBuffer.wrap(data, 0, uncompressedLength);
+            ByteBuffersDataInput input = new ByteBuffersDataInput(List.of(inputBuffer));
+            compressor.compress(input, output);
+        }
+
+        void writeMetaData() throws IOException {
+            if (totalChunks == 0) {
+                return;
+            }
+
+            long dataAddressesStart = data.getFilePointer();
+
+            meta.writeLong(dataAddressesStart);
+            meta.writeVInt(totalChunks);
+            meta.writeVInt(maxUncompressedBlockLength);
+            meta.writeVInt(maxNumDocsInAnyBlock);
+            meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
+
+            blockAddressAcc.build(meta, data);
+            long dataDocRangeStart = data.getFilePointer();
+            long addressesLength = dataDocRangeStart - dataAddressesStart;
+            meta.writeLong(addressesLength);
+
+            meta.writeLong(dataDocRangeStart);
+            blockDocRangeAcc.build(meta, data);
+            long docRangesLen = data.getFilePointer() - dataDocRangeStart;
+            meta.writeLong(docRangesLen);
+        }
+
+        @Override
+        public void close() throws IOException {
+            blockDocRangeAcc.close();
+            blockAddressAcc.close();
         }
     }
 

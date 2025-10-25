@@ -15,10 +15,12 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -27,7 +29,9 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.lucene.queries.TimestampQuery;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.internal.CancellableBulkScorer;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -137,7 +141,28 @@ public class QueryToFilterAdapter {
         if (merged != null) {
             return new QueryToFilterAdapter(searcher(), key(), merged);
         }
-
+        if (unwrappedQuery instanceof TimestampQuery first && unwrappedExtraQuery instanceof TimestampQuery second) {
+            // Merge the ranges:
+            long min = Math.min(first.getMinTimestamp(), second.getMinTimestamp());
+            long max = Math.max(first.getMaxTimestamp(), second.getMaxTimestamp());
+            return new QueryToFilterAdapter(searcher(), key(), new TimestampQuery(min, max));
+        } else if ((unwrappedQuery instanceof FieldExistsQuery f1 && DataStream.TIMESTAMP_FIELD_NAME.equals(f1.getField()))
+            || (unwrappedExtraQuery instanceof FieldExistsQuery f2 && DataStream.TIMESTAMP_FIELD_NAME.equals(f2.getField()))) {
+                // just pick the query that is a field exists query:
+                var query = unwrappedQuery instanceof FieldExistsQuery ? unwrappedQuery : unwrappedExtraQuery;
+                return new QueryToFilterAdapter(searcher(), key(), query);
+            } else if (unwrappedQuery instanceof MatchNoDocsQuery || unwrappedExtraQuery instanceof MatchNoDocsQuery) {
+                // Use the query that didn't rewrite to match no docs query:
+                if (unwrappedQuery instanceof MatchNoDocsQuery && unwrappedExtraQuery instanceof MatchNoDocsQuery) {
+                    return new QueryToFilterAdapter(searcher(), key(), unwrappedQuery);
+                } else if (unwrappedQuery instanceof MatchAllDocsQuery) {
+                    return new QueryToFilterAdapter(searcher(), key(), unwrappedExtraQuery);
+                } else if (unwrappedExtraQuery instanceof MatchAllDocsQuery) {
+                    return new QueryToFilterAdapter(searcher(), key(), unwrappedQuery);
+                }
+            } else {
+                // assert false : "unwrapped query: " + unwrappedQuery + ",unwrappedExtraQuery: " + unwrappedExtraQuery;
+            }
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(query, BooleanClause.Occur.FILTER);
         builder.add(extraQuery, BooleanClause.Occur.FILTER);

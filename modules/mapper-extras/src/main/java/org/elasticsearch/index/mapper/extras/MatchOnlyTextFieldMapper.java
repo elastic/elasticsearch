@@ -604,6 +604,28 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 }
             }
 
+            /*
+             * TODO: This duplicates code from TextFieldMapper
+             * If this is a sub-text field try and return the parent's loader. Text
+             * fields will always be slow to load and if the parent is exact then we
+             * should use that instead.
+             */
+            String parentField = blContext.parentField(name());
+            if (parentField != null) {
+                MappedFieldType parent = blContext.lookup().fieldType(parentField);
+                if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
+                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                            @Override
+                            protected String delegatingTo() {
+                                return kwd.name();
+                            }
+                        };
+                    }
+                }
+            }
+
             // fallback to _source (synthetic or not)
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             // MatchOnlyText never has norms, so we have to use the field names field

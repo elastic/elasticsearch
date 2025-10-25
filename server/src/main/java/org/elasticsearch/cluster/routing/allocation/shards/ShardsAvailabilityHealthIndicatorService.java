@@ -607,7 +607,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         Optional<UnassignedInfo> ui = Optional.ofNullable(routing.unassignedInfo());
         return ui.filter(info -> info.failedAllocations() == 0)
-            .filter(info -> info.lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO)
+            .filter(info -> info.lastFailedAllocationStatus() != UnassignedInfo.FailedAllocationStatus.DECIDERS_NO)
             .filter(info -> info.unassignedTimeMillis() > replicaUnassignedCutoffTime)
             .isPresent();
     }
@@ -647,7 +647,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     List<Diagnosis.Definition> diagnoseUnassignedShardRouting(ShardRouting shardRouting, ClusterState state) {
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
-        switch (shardRouting.unassignedInfo().lastAllocationStatus()) {
+        switch (shardRouting.unassignedInfo().lastFailedAllocationStatus()) {
             case NO_VALID_SHARD_COPY -> diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
             case NO_ATTEMPT -> {
                 if (shardRouting.unassignedInfo().delayed()) {

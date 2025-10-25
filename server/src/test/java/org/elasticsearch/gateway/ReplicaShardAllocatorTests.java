@@ -216,7 +216,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 System.nanoTime(),
                 System.currentTimeMillis(),
                 false,
-                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
                 failedNodeIds,
                 null
             );
@@ -435,7 +435,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 System.nanoTime(),
                 System.currentTimeMillis(),
                 false,
-                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
                 Set.of("node-4"),
                 null
             );
@@ -488,7 +488,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             System.nanoTime(),
             System.currentTimeMillis(),
             false,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
             failedNodes,
             null
         );
@@ -548,7 +548,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                         System.nanoTime(),
                                         System.currentTimeMillis(),
                                         delayed,
-                                        UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                                        UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
                                         Collections.emptySet(),
                                         lastAllocatedNodeId
                                     ),

@@ -165,7 +165,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 }
 
                 if (repositoryName == null) {
-                    unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DECIDERS_NO, allocation.changes());
+                    unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.FailedAllocationStatus.DECIDERS_NO, allocation.changes());
                     return;
                 }
 
@@ -263,11 +263,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
         if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
             && allocation.snapshotShardSizeInfo().getShardSize(shardRouting) == null) {
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
+            return AllocateUnassignedDecision.no(UnassignedInfo.FailedAllocationStatus.FETCHING_SHARD_DATA, null);
         }
 
         if (SNAPSHOT_PARTIAL_SETTING.get(indexSettings) && frozenCacheInfoService.isFetching()) {
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
+            return AllocateUnassignedDecision.no(UnassignedInfo.FailedAllocationStatus.FETCHING_SHARD_DATA, null);
         }
 
         final boolean explain = allocation.debugDecision();
@@ -284,12 +284,15 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", shardRouting);
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
+            return AllocateUnassignedDecision.no(
+                UnassignedInfo.FailedAllocationStatus.fromDecision(allocateDecision.type()),
+                result.nodes()
+            );
         }
 
         final AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> fetchedCacheData = fetchData(shardRouting, allocation);
         if (fetchedCacheData.hasData() == false) {
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
+            return AllocateUnassignedDecision.no(UnassignedInfo.FailedAllocationStatus.FETCHING_SHARD_DATA, null);
         }
 
         final MatchingNodes matchingNodes = findMatchingNodes(shardRouting, allocation, fetchedCacheData, explain);
@@ -297,7 +300,10 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
         if (allocateDecision.type() != Decision.Type.YES) {
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
+            return AllocateUnassignedDecision.no(
+                UnassignedInfo.FailedAllocationStatus.fromDecision(allocateDecision.type()),
+                nodeDecisions
+            );
         } else if (matchingNodes.nodeWithHighestMatch() != null) {
             RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.nodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before on NO

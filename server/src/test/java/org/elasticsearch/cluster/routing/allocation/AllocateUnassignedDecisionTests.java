@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Strings;
@@ -46,18 +46,18 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
     }
 
     public void testNoDecision() {
-        final AllocationStatus allocationStatus = randomFrom(
-            AllocationStatus.DELAYED_ALLOCATION,
-            AllocationStatus.NO_VALID_SHARD_COPY,
-            AllocationStatus.FETCHING_SHARD_DATA
+        final FailedAllocationStatus failedAllocationStatus = randomFrom(
+            FailedAllocationStatus.DELAYED_ALLOCATION,
+            FailedAllocationStatus.NO_VALID_SHARD_COPY,
+            FailedAllocationStatus.FETCHING_SHARD_DATA
         );
-        AllocateUnassignedDecision noDecision = AllocateUnassignedDecision.no(allocationStatus, null);
+        AllocateUnassignedDecision noDecision = AllocateUnassignedDecision.no(failedAllocationStatus, null);
         assertTrue(noDecision.isDecisionTaken());
-        assertEquals(AllocationDecision.fromAllocationStatus(allocationStatus), noDecision.getAllocationDecision());
-        assertEquals(allocationStatus, noDecision.getAllocationStatus());
-        if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
+        assertEquals(AllocationDecision.fromAllocationStatus(failedAllocationStatus), noDecision.getAllocationDecision());
+        assertEquals(failedAllocationStatus, noDecision.getAllocationStatus());
+        if (failedAllocationStatus == FailedAllocationStatus.FETCHING_SHARD_DATA) {
             assertEquals(Explanations.Allocation.AWAITING_INFO, noDecision.getExplanation());
-        } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
+        } else if (failedAllocationStatus == FailedAllocationStatus.DELAYED_ALLOCATION) {
             assertThat(noDecision.getExplanation(), equalTo(Strings.format(Explanations.Allocation.DELAYED_WITHOUT_ALTERNATIVE, "0s")));
         } else {
             assertThat(noDecision.getExplanation(), equalTo(Explanations.Allocation.NO_COPIES));
@@ -70,10 +70,10 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 1));
         nodeDecisions.add(new NodeAllocationResult(node2, Decision.NO, 2));
         final boolean reuseStore = randomBoolean();
-        noDecision = AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, nodeDecisions, reuseStore);
+        noDecision = AllocateUnassignedDecision.no(FailedAllocationStatus.DECIDERS_NO, nodeDecisions, reuseStore);
         assertTrue(noDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, noDecision.getAllocationDecision());
-        assertEquals(AllocationStatus.DECIDERS_NO, noDecision.getAllocationStatus());
+        assertEquals(FailedAllocationStatus.DECIDERS_NO, noDecision.getAllocationStatus());
         if (reuseStore) {
             assertEquals(Explanations.Allocation.EXISTING_STORES_FORBIDDEN, noDecision.getExplanation());
         } else {
@@ -96,7 +96,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         AllocateUnassignedDecision throttleDecision = AllocateUnassignedDecision.throttle(nodeDecisions);
         assertTrue(throttleDecision.isDecisionTaken());
         assertEquals(AllocationDecision.THROTTLED, throttleDecision.getAllocationDecision());
-        assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
+        assertEquals(FailedAllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
         assertThat(throttleDecision.getExplanation(), equalTo(Explanations.Allocation.THROTTLED));
         assertEquals(nodeDecisions.stream().sorted().toList(), throttleDecision.getNodeDecisions());
         // node2 should be sorted first b/c a THROTTLE is higher than a NO decision
@@ -123,15 +123,15 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
     }
 
     public void testCachedDecisions() {
-        List<AllocationStatus> cacheableStatuses = Arrays.asList(
-            AllocationStatus.DECIDERS_NO,
-            AllocationStatus.DECIDERS_THROTTLED,
-            AllocationStatus.NO_VALID_SHARD_COPY,
-            AllocationStatus.FETCHING_SHARD_DATA,
-            AllocationStatus.DELAYED_ALLOCATION
+        List<FailedAllocationStatus> cacheableStatuses = Arrays.asList(
+            FailedAllocationStatus.DECIDERS_NO,
+            FailedAllocationStatus.DECIDERS_THROTTLED,
+            FailedAllocationStatus.NO_VALID_SHARD_COPY,
+            FailedAllocationStatus.FETCHING_SHARD_DATA,
+            FailedAllocationStatus.DELAYED_ALLOCATION
         );
-        for (AllocationStatus allocationStatus : cacheableStatuses) {
-            if (allocationStatus == AllocationStatus.DECIDERS_THROTTLED) {
+        for (FailedAllocationStatus failedAllocationStatus : cacheableStatuses) {
+            if (failedAllocationStatus == FailedAllocationStatus.DECIDERS_THROTTLED) {
                 AllocateUnassignedDecision cached = AllocateUnassignedDecision.throttle(null);
                 AllocateUnassignedDecision another = AllocateUnassignedDecision.throttle(null);
                 assertSame(cached, another);
@@ -139,11 +139,11 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
                 another = AllocateUnassignedDecision.throttle(new ArrayList<>());
                 assertNotSame(notCached, another);
             } else {
-                AllocateUnassignedDecision cached = AllocateUnassignedDecision.no(allocationStatus, null);
-                AllocateUnassignedDecision another = AllocateUnassignedDecision.no(allocationStatus, null);
+                AllocateUnassignedDecision cached = AllocateUnassignedDecision.no(failedAllocationStatus, null);
+                AllocateUnassignedDecision another = AllocateUnassignedDecision.no(failedAllocationStatus, null);
                 assertSame(cached, another);
-                AllocateUnassignedDecision notCached = AllocateUnassignedDecision.no(allocationStatus, new ArrayList<>());
-                another = AllocateUnassignedDecision.no(allocationStatus, new ArrayList<>());
+                AllocateUnassignedDecision notCached = AllocateUnassignedDecision.no(failedAllocationStatus, new ArrayList<>());
+                another = AllocateUnassignedDecision.no(failedAllocationStatus, new ArrayList<>());
                 assertNotSame(notCached, another);
             }
         }
@@ -179,7 +179,11 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
             );
         } else {
             decision = AllocateUnassignedDecision.no(
-                randomFrom(AllocationStatus.DELAYED_ALLOCATION, AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA),
+                randomFrom(
+                    FailedAllocationStatus.DELAYED_ALLOCATION,
+                    FailedAllocationStatus.NO_VALID_SHARD_COPY,
+                    FailedAllocationStatus.FETCHING_SHARD_DATA
+                ),
                 nodeDecisions,
                 randomBoolean()
             );

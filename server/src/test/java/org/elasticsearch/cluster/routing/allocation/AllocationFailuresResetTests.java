@@ -76,7 +76,7 @@ public class AllocationFailuresResetTests extends ESTestCase {
             0,
             0,
             false,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
             Set.of(),
             null
         );

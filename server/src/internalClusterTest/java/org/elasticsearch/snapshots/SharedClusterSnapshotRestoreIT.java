@@ -690,7 +690,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             if (shard.primary()) {
                 assertThat(shard.state(), equalTo(ShardRoutingState.UNASSIGNED));
                 assertThat(shard.recoverySource().getType(), equalTo(RecoverySource.Type.SNAPSHOT));
-                assertThat(shard.unassignedInfo().lastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.DECIDERS_NO));
+                assertThat(shard.unassignedInfo().lastFailedAllocationStatus(), equalTo(UnassignedInfo.FailedAllocationStatus.DECIDERS_NO));
                 checkUnassignedInfo.accept(shard.unassignedInfo());
             }
         }

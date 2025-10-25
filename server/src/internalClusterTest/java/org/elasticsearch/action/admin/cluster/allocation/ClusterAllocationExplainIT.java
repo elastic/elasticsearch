@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
@@ -103,8 +103,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertNotNull(unassignedInfo);
         assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
         assertTrue(
-            unassignedInfo.lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA
-                || unassignedInfo.lastAllocationStatus() == AllocationStatus.NO_VALID_SHARD_COPY
+            unassignedInfo.lastFailedAllocationStatus() == FailedAllocationStatus.FETCHING_SHARD_DATA
+                || unassignedInfo.lastFailedAllocationStatus() == FailedAllocationStatus.NO_VALID_SHARD_COPY
         );
 
         // verify cluster info
@@ -192,7 +192,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         // verify unassigned info
         assertNotNull(unassignedInfo);
         assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
-        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.lastAllocationStatus());
+        assertEquals(FailedAllocationStatus.NO_ATTEMPT, unassignedInfo.lastFailedAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
@@ -322,7 +322,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         // verify unassigned info
         assertNotNull(unassignedInfo);
         assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
-        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.lastAllocationStatus());
+        assertEquals(FailedAllocationStatus.NO_ATTEMPT, unassignedInfo.lastFailedAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 3);
@@ -434,7 +434,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         // verify unassigned info
         assertNotNull(unassignedInfo);
         assertEquals(Reason.INDEX_CREATED, unassignedInfo.reason());
-        assertEquals(AllocationStatus.DECIDERS_NO, unassignedInfo.lastAllocationStatus());
+        assertEquals(FailedAllocationStatus.DECIDERS_NO, unassignedInfo.lastFailedAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 2);

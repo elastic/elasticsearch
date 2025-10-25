@@ -139,7 +139,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             final var shardRouting = unassigned.next();
             if (shardRouting.primary() && shardRouting.shardId().id() == 1) {
                 final var unassignedInfo = shardRouting.unassignedInfo();
-                assertThat(unassignedInfo.lastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
+                assertThat(unassignedInfo.lastFailedAllocationStatus(), equalTo(UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT));
                 unassigned.updateUnassigned(
                     new UnassignedInfo(
                         unassignedInfo.reason(),
@@ -149,7 +149,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                         unassignedInfo.unassignedTimeNanos(),
                         unassignedInfo.unassignedTimeMillis(),
                         unassignedInfo.delayed(),
-                        UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED,
+                        UnassignedInfo.FailedAllocationStatus.DECIDERS_THROTTLED,
                         unassignedInfo.failedNodeIds(),
                         unassignedInfo.lastAllocatedNodeId()
                     ),
@@ -171,11 +171,11 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         for (ShardRouting shardRouting : routingAllocation.routingNodes().unassigned()) {
             assertTrue(shardRouting.toString(), shardRouting.unassigned());
             assertThat(
-                shardRouting.unassignedInfo().lastAllocationStatus(),
+                shardRouting.unassignedInfo().lastFailedAllocationStatus(),
                 equalTo(
                     shardRouting.primary() && shardRouting.shardId().id() == 1
-                        ? UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED
-                        : UnassignedInfo.AllocationStatus.NO_ATTEMPT
+                        ? UnassignedInfo.FailedAllocationStatus.DECIDERS_THROTTLED
+                        : UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT
                 )
             );
         }
@@ -197,14 +197,14 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         for (ShardRouting shardRouting : routingAllocation.routingNodes().unassigned()) {
             assertTrue(shardRouting.toString(), shardRouting.unassigned());
             assertThat(
-                shardRouting.unassignedInfo().lastAllocationStatus(),
+                shardRouting.unassignedInfo().lastFailedAllocationStatus(),
                 equalTo(
                     // we only update primaries, and only if currently NO_ATTEMPT
                     shardRouting.primary()
                         ? shardRouting.shardId().id() == 1
-                            ? UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED
-                            : UnassignedInfo.AllocationStatus.DECIDERS_NO
-                        : UnassignedInfo.AllocationStatus.NO_ATTEMPT
+                            ? UnassignedInfo.FailedAllocationStatus.DECIDERS_THROTTLED
+                            : UnassignedInfo.FailedAllocationStatus.DECIDERS_NO
+                        : UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT
                 )
             );
         }
@@ -712,7 +712,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 .replicaShards()
                 .stream()
                 .allMatch(
-                    shardRouting -> shardRouting.unassignedInfo().lastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
+                    shardRouting -> shardRouting.unassignedInfo()
+                        .lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT
                 )
         );
     }
@@ -757,9 +758,9 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var redState = startInitializingShardsAndReroute(allocationService, clusterState);
         assertEquals(
             nonYesDecision == Decision.NO
-                ? UnassignedInfo.AllocationStatus.DECIDERS_NO
-                : UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED,
-            redState.routingTable().shardRoutingTable("index-0", 0).primaryShard().unassignedInfo().lastAllocationStatus()
+                ? UnassignedInfo.FailedAllocationStatus.DECIDERS_NO
+                : UnassignedInfo.FailedAllocationStatus.DECIDERS_THROTTLED,
+            redState.routingTable().shardRoutingTable("index-0", 0).primaryShard().unassignedInfo().lastFailedAllocationStatus()
         );
 
         assignPrimary.set(true);
@@ -768,7 +769,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             startInitializingShardsAndReroute(allocationService, redState)
         );
         for (final var shardRouting : yellowState.routingTable().shardRoutingTable("index-0", 0).replicaShards()) {
-            assertEquals(UnassignedInfo.AllocationStatus.NO_ATTEMPT, shardRouting.unassignedInfo().lastAllocationStatus());
+            assertEquals(UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT, shardRouting.unassignedInfo().lastFailedAllocationStatus());
         }
     }
 

@@ -129,7 +129,7 @@ public class AllocationIdTests extends ESTestCase {
                 System.nanoTime(),
                 System.currentTimeMillis(),
                 false,
-                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
                 Collections.emptySet(),
                 randomAlphaOfLength(10)
             )

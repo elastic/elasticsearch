@@ -170,7 +170,10 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             MoveDecision moveDecision = MoveDecision.rebalance(Decision.YES, Decision.YES, AllocationDecision.NO, null, 3, null);
             shardAllocationDecision = new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, moveDecision);
         } else {
-            AllocateUnassignedDecision allocateDecision = AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, null);
+            AllocateUnassignedDecision allocateDecision = AllocateUnassignedDecision.no(
+                UnassignedInfo.FailedAllocationStatus.DECIDERS_NO,
+                null
+            );
             shardAllocationDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         }
         return new ClusterAllocationExplanation(specificShard, shardRouting, node, null, null, shardAllocationDecision);

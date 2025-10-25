@@ -128,7 +128,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
                 currentInfo.unassignedTimeNanos(),
                 currentInfo.unassignedTimeMillis(),
                 currentInfo.delayed(),
-                currentInfo.lastAllocationStatus(),
+                currentInfo.lastFailedAllocationStatus(),
                 currentInfo.failedNodeIds(),
                 currentInfo.lastAllocatedNodeId()
             );

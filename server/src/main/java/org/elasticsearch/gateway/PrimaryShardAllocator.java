@@ -16,8 +16,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
@@ -83,7 +82,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             if (explain) {
                 nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);
             }
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
+            return AllocateUnassignedDecision.no(FailedAllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
         }
 
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
@@ -93,7 +92,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             if (explain) {
                 nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);
             }
-            return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
+            return AllocateUnassignedDecision.no(FailedAllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
         }
 
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
@@ -143,7 +142,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                     nodeShardsResult.allocationsFound
                 );
                 return AllocateUnassignedDecision.no(
-                    AllocationStatus.NO_VALID_SHARD_COPY,
+                    FailedAllocationStatus.NO_VALID_SHARD_COPY,
                     explain ? buildNodeDecisions(null, shardState, inSyncAllocationIds) : null
                 );
             }
@@ -220,13 +219,13 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             nodeResults = buildNodeDecisions(nodesToAllocate, shardState, inSyncAllocationIds);
         }
         if (allocation.hasPendingAsyncFetch()) {
-            return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeResults);
+            return AllocateUnassignedDecision.no(FailedAllocationStatus.FETCHING_SHARD_DATA, nodeResults);
         } else if (node != null) {
             return AllocateUnassignedDecision.yes(node, allocationId, nodeResults, false);
         } else if (throttled) {
             return AllocateUnassignedDecision.throttle(nodeResults);
         } else {
-            return AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, nodeResults, true);
+            return AllocateUnassignedDecision.no(FailedAllocationStatus.DECIDERS_NO, nodeResults, true);
         }
     }
 

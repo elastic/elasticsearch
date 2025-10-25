@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -190,7 +190,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
-        if (unassignedInfo.lastAllocationStatus() != AllocationStatus.DECIDERS_NO
+        if (unassignedInfo.lastFailedAllocationStatus() != FailedAllocationStatus.DECIDERS_NO
             && unassignedInfo.failedAllocations() == 0
             && (recoveryType == RecoverySource.Type.EMPTY_STORE
                 || recoveryType == RecoverySource.Type.LOCAL_SHARDS

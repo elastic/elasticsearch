@@ -15,7 +15,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AllocationStatusTests extends AbstractXContentSerializingTestCase<AllocationStatus> {
+public class FailedAllocationStatusTests extends AbstractXContentSerializingTestCase<AllocationStatus> {
 
     public static AllocationStatus randomInstance() {
         return new AllocationStatus(randomInt(10), randomIntBetween(1, 10));

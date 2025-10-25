@@ -244,7 +244,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
                 assertThat(
                     Strings.toString(explanation),
                     explanation.getShardAllocationDecision().getAllocateDecision().getAllocationStatus(),
-                    equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
+                    equalTo(UnassignedInfo.FailedAllocationStatus.FETCHING_SHARD_DATA)
                 );
 
             } catch (IndexNotFoundException e) {
@@ -261,7 +261,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         assertThat(
             Strings.toString(explanation),
             explanation.getShardAllocationDecision().getAllocateDecision().getAllocationStatus(),
-            equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
+            equalTo(UnassignedInfo.FailedAllocationStatus.FETCHING_SHARD_DATA)
         );
 
         // Unblock the other new node, but maybe inject a few errors

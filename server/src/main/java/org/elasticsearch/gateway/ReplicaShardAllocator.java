@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
@@ -117,7 +117,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                             allocation.getCurrentNanoTime(),
                             System.currentTimeMillis(),
                             false,
-                            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                            FailedAllocationStatus.NO_ATTEMPT,
                             failedNodeIds,
                             null
                         );
@@ -162,7 +162,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
+            return AllocateUnassignedDecision.no(FailedAllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
 
         AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetchData(unassignedShard, allocation);
@@ -173,7 +173,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             if (explain) {
                 nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);
             }
-            return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
+            return AllocateUnassignedDecision.no(FailedAllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
         }
 
         ShardRouting primaryShard = routingNodes.activePrimary(unassignedShard.shardId());
@@ -181,7 +181,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             assert explain
                 : "primary should only be null here if we are in explain mode, so we didn't "
                     + "exit early when canBeAllocatedToAtLeastOneNode didn't return a YES decision";
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
+            return AllocateUnassignedDecision.no(FailedAllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
         assert primaryShard.currentNodeId() != null;
         final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());
@@ -208,7 +208,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
         if (allocateDecision.type() != Decision.Type.YES) {
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
+            return AllocateUnassignedDecision.no(FailedAllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
         } else if (matchingNodes.nodeWithHighestMatch() != null) {
             RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.nodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before on NO

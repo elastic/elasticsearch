@@ -112,15 +112,15 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
     public void testGatewayAllocatorStillFetching() {
         testAllocate(
             (shardRouting, allocation, unassignedAllocationHandler) -> unassignedAllocationHandler.removeAndIgnore(
-                UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA,
+                UnassignedInfo.FailedAllocationStatus.FETCHING_SHARD_DATA,
                 allocation.changes()
             ),
             routingTable -> {
                 var shardRouting = routingTable.shardRoutingTable("test-index", 0).primaryShard();
                 assertFalse(shardRouting.assignedToNode());
                 assertThat(
-                    shardRouting.unassignedInfo().lastAllocationStatus(),
-                    equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
+                    shardRouting.unassignedInfo().lastFailedAllocationStatus(),
+                    equalTo(UnassignedInfo.FailedAllocationStatus.FETCHING_SHARD_DATA)
                 );
             }
         );
@@ -130,7 +130,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         testAllocate((shardRouting, allocation, unassignedAllocationHandler) -> {}, routingTable -> {
             var shardRouting = routingTable.shardRoutingTable("test-index", 0).primaryShard();
             assertTrue(shardRouting.assignedToNode());// assigned by a followup reconciliation
-            assertThat(shardRouting.unassignedInfo().lastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
+            assertThat(
+                shardRouting.unassignedInfo().lastFailedAllocationStatus(),
+                equalTo(UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT)
+            );
         });
     }
 
@@ -262,7 +265,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             unassignedTimeNanos,
             TimeValue.nsecToMSec(unassignedTimeNanos),
             true,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
             Set.of(),
             "node-3"
         );
@@ -320,7 +323,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             new AllocationDeciders(List.of()),
             createGatewayAllocator(
                 (shardRouting, allocation, unassignedAllocationHandler) -> unassignedAllocationHandler.removeAndIgnore(
-                    UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                    UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
                     allocation.changes()
                 )
             ),
@@ -380,7 +383,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var gatewayAllocator = createGatewayAllocator((shardRouting, allocation, unassignedAllocationHandler) -> {
             if (shardRouting.getIndexName().equals(ignoredIndexName)) {
-                unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT, allocation.changes());
             }
         });
         var shardsAllocator = new ShardsAllocator() {

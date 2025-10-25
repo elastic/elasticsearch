@@ -161,7 +161,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
                 System.nanoTime(),
                 System.currentTimeMillis(),
                 false,
-                shardRouting.unassignedInfo().lastAllocationStatus(),
+                shardRouting.unassignedInfo().lastFailedAllocationStatus(),
                 Collections.emptySet(),
                 null
             );

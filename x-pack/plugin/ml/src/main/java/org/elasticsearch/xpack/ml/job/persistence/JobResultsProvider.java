@@ -307,16 +307,18 @@ public class JobResultsProvider {
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String tempIndexName = job.getInitialResultsIndexName();
+
+        // Ensure the index name is valid
+        tempIndexName = MlIndexAndAlias.ensureValidResultsIndexName(tempIndexName);
+
         // Find all indices starting with this name and pick the latest one
-        String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName + "*");
-        if (concreteIndices.length > 0) {
-            tempIndexName = MlIndexAndAlias.latestIndex(concreteIndices);
-        }
+        tempIndexName = MlIndexAndAlias.latestIndexMatchingBaseName(tempIndexName, resolver, state);
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
         if (state.getMetadata().getProject().hasAlias(tempIndexName)) {
 
+            String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName + "*");
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
             // if it is closed, we bailout and return an error
             if (concreteIndices.length == 0) {

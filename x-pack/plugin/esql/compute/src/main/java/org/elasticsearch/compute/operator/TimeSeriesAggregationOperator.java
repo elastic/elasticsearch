@@ -14,10 +14,12 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.TimeSeriesGroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.BytesRefLongBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -74,11 +76,14 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     }
 
     @Override
-    protected GroupingAggregatorEvaluationContext evaluationContext(Block[] keys) {
+    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {
         if (keys.length < 2) {
-            return super.evaluationContext(keys);
+            return super.evaluationContext(blockHash, keys);
         }
+        final BytesRefLongBlockHash hash = (BytesRefLongBlockHash) blockHash;
+
         final LongBlock timestamps = keys[0].elementType() == ElementType.LONG ? (LongBlock) keys[0] : (LongBlock) keys[1];
+        // block hash so that we can look key
         return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
             @Override
             public long rangeStartInMillis(int groupId) {
@@ -88,6 +93,23 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             @Override
             public long rangeEndInMillis(int groupId) {
                 return timeBucket.nextRoundingValue(timestamps.getLong(groupId));
+            }
+
+            public List<Integer> groupIdsFromWindow(int groupId, long windowInterval) {
+                long ordinal = hash.getBytesRefKeyFromGroup(groupId);
+                long timestamp = hash.getLongKeyFromGroup(groupId);
+                List<Integer> results = new ArrayList<>();
+                long nextTimestamp = timeBucket.nextRoundingValue(rangeStartInMillis(groupId) - windowInterval);
+                while (nextTimestamp < timestamp) {
+                    long nextGroupId = hash.getGroupId(ordinal, nextTimestamp);
+                    if (nextGroupId != -1) {
+                        results.add(Math.toIntExact(nextGroupId));
+                    }
+                    nextTimestamp = timeBucket.nextRoundingValue(nextTimestamp);
+                }
+                assert nextTimestamp == timestamp : "expected to end at the original timestamp bucket";
+                results.add(groupId);
+                return results;
             }
         };
     }

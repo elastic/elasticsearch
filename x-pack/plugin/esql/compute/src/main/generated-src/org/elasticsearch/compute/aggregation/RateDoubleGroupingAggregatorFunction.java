@@ -575,8 +575,8 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
                 for (int i = 1; i < intervals.length; i++) {
                     Interval next = intervals[i - 1]; // reversed
                     Interval prev = intervals[i];
-                    if (prev.v2 > next.v2) {
-                        state.resets += prev.v2;
+                    if (prev.v1 > next.v2) {
+                        state.resets += prev.v1;
                     }
                 }
                 final double rate;

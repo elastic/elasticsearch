@@ -96,11 +96,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             description = "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Count(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Count(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Count(StreamInput in) throws IOException {
@@ -114,17 +114,17 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected NodeInfo<Count> info() {
-        return NodeInfo.create(this, Count::new, field(), filter());
+        return NodeInfo.create(this, Count::new, field(), filter(), window());
     }
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Count(source(), field(), filter);
+        return new Count(source(), field(), filter, window());
     }
 
     @Override
     public Count replaceChildren(List<Expression> newChildren) {
-        return new Count(source(), newChildren.get(0), newChildren.get(1));
+        return new Count(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -161,7 +161,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             return new Sum(
                 s,
                 FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT),
-                filter()
+                filter(),
+                window(),
+                SummationMode.COMPENSATED_LITERAL
             );
         }
 
@@ -179,7 +181,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             return new Mul(
                 s,
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
-                new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter())
+                new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window())
             );
         }
 

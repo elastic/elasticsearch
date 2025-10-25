@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -17,8 +18,8 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class StddevOverTimeTests extends AbstractFunctionTestCase {
-    public StddevOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class StdDevOverTimeTests extends AbstractFunctionTestCase {
+    public StdDevOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         testCase = testCaseSupplier.get();
     }
 
@@ -34,6 +35,6 @@ public class StddevOverTimeTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StdDevOverTime(source, args.get(0));
+        return new StdDevOverTime(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW);
     }
 }

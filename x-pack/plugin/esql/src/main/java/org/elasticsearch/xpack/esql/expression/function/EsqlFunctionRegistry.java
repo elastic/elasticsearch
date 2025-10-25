@@ -527,7 +527,7 @@ public class EsqlFunctionRegistry {
                 def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") },
             // time-series functions
             new FunctionDefinition[] {
-                def(Rate.class, uni(Rate::new), "rate"),
+                def(Rate.class, bi(Rate::new), "rate"),
                 def(Irate.class, uni(Irate::new), "irate"),
                 def(Idelta.class, uni(Idelta::new), "idelta"),
                 def(Delta.class, uni(Delta::new), "delta"),

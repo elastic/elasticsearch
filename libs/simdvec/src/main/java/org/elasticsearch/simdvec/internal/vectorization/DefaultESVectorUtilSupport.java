@@ -322,8 +322,55 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void packDibit(int[] vector, byte[] packed) {
+        packDibitImpl(vector, packed);
+    }
+
+    @Override
     public void packAsBinary(int[] vector, byte[] packed) {
         packAsBinaryImpl(vector, packed);
+    }
+
+    /**
+     * Packs two bit vector (values 0-3) into a byte array with lower bits first.
+     * The striding is similar to transposeHalfByte
+     *
+     * @param vector the input vector with values 0-3
+     * @param packed the output packed byte array
+     */
+    public static void packDibitImpl(int[] vector, byte[] packed) {
+        int limit = vector.length - 7;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 8, index++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            assert vector[i + 1] >= 0 && vector[i + 1] <= 3;
+            assert vector[i + 2] >= 0 && vector[i + 2] <= 3;
+            assert vector[i + 3] >= 0 && vector[i + 3] <= 3;
+            assert vector[i + 4] >= 0 && vector[i + 4] <= 3;
+            assert vector[i + 5] >= 0 && vector[i + 5] <= 3;
+            assert vector[i + 6] >= 0 && vector[i + 6] <= 3;
+            assert vector[i + 7] >= 0 && vector[i + 7] <= 3;
+            int lowerByte = (vector[i] & 1) << 7 | (vector[i + 1] & 1) << 6 | (vector[i + 2] & 1) << 5 | (vector[i + 3] & 1) << 4
+                | (vector[i + 4] & 1) << 3 | (vector[i + 5] & 1) << 2 | (vector[i + 6] & 1) << 1 | (vector[i + 7] & 1);
+            int upperByte = ((vector[i] >> 1) & 1) << 7 | ((vector[i + 1] >> 1) & 1) << 6 | ((vector[i + 2] >> 1) & 1) << 5 | ((vector[i
+                + 3] >> 1) & 1) << 4 | ((vector[i + 4] >> 1) & 1) << 3 | ((vector[i + 5] >> 1) & 1) << 2 | ((vector[i + 6] >> 1) & 1) << 1
+                | ((vector[i + 7] >> 1) & 1);
+            packed[index] = (byte) lowerByte;
+            packed[index + packed.length / 2] = (byte) upperByte;
+        }
+        if (i == vector.length) {
+            return;
+        }
+        int lowerByte = 0;
+        int upperByte = 0;
+        for (int j = 7; i < vector.length; j--, i++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            lowerByte |= (vector[i] & 1) << j;
+            upperByte |= ((vector[i] >> 1) & 1) << j;
+        }
+        packed[index] = (byte) lowerByte;
+        packed[index + packed.length / 2] = (byte) upperByte;
     }
 
     public static void packAsBinaryImpl(int[] vector, byte[] packed) {

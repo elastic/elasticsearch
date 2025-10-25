@@ -11,7 +11,6 @@ package org.elasticsearch.search.diversification.mmr;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.diversification.ResultDiversification;
 import org.elasticsearch.search.diversification.ResultDiversificationContext;
 import org.elasticsearch.search.rank.RankDoc;
@@ -24,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 public class MMRResultDiversification extends ResultDiversification<MMRResultDiversificationContext> {
+
+    private static final VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
     public MMRResultDiversification(MMRResultDiversificationContext context) {
         super(context);
@@ -39,11 +40,6 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         for (int i = 0; i < docs.length; i++) {
             docIdIndexMapping.put(docs[i].doc, i);
         }
-
-        VectorSimilarityFunction similarityFunction = DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT.vectorSimilarityFunction(
-            context.getIndexVersion(),
-            context.getElementType()
-        );
 
         // our chosen DocIDs to keep
         List<Integer> selectedDocIds = new ArrayList<>();
@@ -64,7 +60,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         boolean useFloat = firstVec.isFloat();
 
         // cache the similarity scores for the query vector vs. searchHits
-        Map<Integer, Float> querySimilarity = getQuerySimilarityForDocs(docs, similarityFunction, useFloat, context);
+        Map<Integer, Float> querySimilarity = getQuerySimilarityForDocs(docs, useFloat, context);
 
         Map<Integer, Map<Integer, Float>> cachedSimilarities = new HashMap<>();
         int numCandidates = context.getNumCandidates();
@@ -87,14 +83,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
                 var cachedScoresForDoc = cachedSimilarities.getOrDefault(docId, new HashMap<>());
 
                 // compute MMR scores for remaining searchHits
-                float highestMMRScore = getHighestScoreForSelectedVectors(
-                    docId,
-                    context,
-                    similarityFunction,
-                    useFloat,
-                    thisDocVector,
-                    cachedScoresForDoc
-                );
+                float highestMMRScore = getHighestScoreForSelectedVectors(docId, context, useFloat, thisDocVector, cachedScoresForDoc);
 
                 // compute MMR
                 float querySimilarityScore = querySimilarity.getOrDefault(doc.doc, 0.0f);
@@ -132,7 +121,6 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
     private float getHighestScoreForSelectedVectors(
         int docId,
         MMRResultDiversificationContext context,
-        VectorSimilarityFunction similarityFunction,
         boolean useFloat,
         VectorData thisDocVector,
         Map<Integer, Float> cachedScoresForDoc
@@ -162,12 +150,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         return highestScore;
     }
 
-    protected Map<Integer, Float> getQuerySimilarityForDocs(
-        ScoreDoc[] docs,
-        VectorSimilarityFunction similarityFunction,
-        boolean useFloat,
-        ResultDiversificationContext context
-    ) {
+    protected Map<Integer, Float> getQuerySimilarityForDocs(ScoreDoc[] docs, boolean useFloat, ResultDiversificationContext context) {
         Map<Integer, Float> querySimilarity = new HashMap<>();
 
         VectorData queryVector = context.getQueryVector();

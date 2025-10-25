@@ -10,6 +10,7 @@
 package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
@@ -179,11 +180,12 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
             0.3f
         );
 
-        IllegalStateException missingRewriteEx = assertThrows(
-            IllegalStateException.class,
+        ElasticsearchStatusException missingRewriteEx = assertThrows(
+            ElasticsearchStatusException.class,
             () -> retrieverWithoutRewrite.combineInnerRetrieverResults(List.of(), false)
         );
         assertEquals("diversificationContext is not set. \"doRewrite\" should have been called beforehand.", missingRewriteEx.getMessage());
+        assertEquals(500, missingRewriteEx.status().getStatus());
 
         retrieverWithoutRewrite.doRewrite(queryRewriteContext);
 
@@ -191,13 +193,60 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
         assertEquals(0, emptyDocs.length);
 
         docs.add(hits);
-        IllegalArgumentException exMultipleDocs = assertThrows(
-            IllegalArgumentException.class,
+        ElasticsearchStatusException exMultipleDocs = assertThrows(
+            ElasticsearchStatusException.class,
             () -> retrieverWithoutRewrite.combineInnerRetrieverResults(docs, false)
         );
         assertEquals("rank results must have only one result set", exMultipleDocs.getMessage());
+        assertEquals(400, exMultipleDocs.status().getStatus());
 
-        // clean up
+        cleanDocsAndHits(docs, hits);
+    }
+
+    public void testThrowsExceptionOnBadFieldTypes() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new ResultDiversificationRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            3,
+            new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
+            0.3f
+        );
+
+        // run the rewrite to set the internal diversification context
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = getTestNonVectorSearchHits();
+        docs.add(hits);
+
+        ElasticsearchStatusException badDocFieldEx = assertThrows(
+            ElasticsearchStatusException.class,
+            () -> retriever.combineInnerRetrieverResults(docs, false)
+        );
+        assertEquals("Failed to parse field [dense_vector_field]. Is it a [dense_vector] field?", badDocFieldEx.getMessage());
+        assertEquals(400, badDocFieldEx.status().getStatus());
+
+        cleanDocsAndHits(docs, hits);
+
+        ScoreDoc[] hitsWithNoValues = getTestSearchHitsWithNoValues();
+        docs.add(hitsWithNoValues);
+
+        ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
+            ElasticsearchStatusException.class,
+            () -> retriever.combineInnerRetrieverResults(docs, false)
+        );
+        assertEquals(
+            "Could not retrieve any vectors for field [dense_vector_field]. Is it a populated [dense_vector] field?",
+            docsWithNoValuesEx.getMessage()
+        );
+        assertEquals(400, docsWithNoValuesEx.status().getStatus());
+
+        cleanDocsAndHits(docs, hitsWithNoValues);
+    }
+
+    private void cleanDocsAndHits(List<ScoreDoc[]> docs, ScoreDoc[] hits) {
         docs.clear();
         for (ScoreDoc hit : hits) {
             ((ResultDiversificationRetrieverBuilder.RankDocWithSearchHit) hit).hit().decRef();
@@ -215,9 +264,35 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
             getTestSearchHit(6, 0.8f, new float[] { 0.05f, 0.05f, 0.05f, 0.05f }) };
     }
 
+    private ScoreDoc[] getTestNonVectorSearchHits() {
+        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestNonVectorSearchHit(1, 2.0f),
+            getTestNonVectorSearchHit(2, 1.8f),
+            getTestNonVectorSearchHit(3, 1.8f) };
+    }
+
+    private ScoreDoc[] getTestSearchHitsWithNoValues() {
+        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestSearchHitWithNoValue(1, 2.0f),
+            getTestSearchHitWithNoValue(2, 1.8f),
+            getTestSearchHitWithNoValue(3, 1.8f) };
+    }
+
     private ResultDiversificationRetrieverBuilder.RankDocWithSearchHit getTestSearchHit(int docId, float score, float[] value) {
         SearchHit hit = new SearchHit(docId);
         hit.setDocumentField(new DocumentField("dense_vector_field", List.of(value)));
+        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+    }
+
+    private ResultDiversificationRetrieverBuilder.RankDocWithSearchHit getTestNonVectorSearchHit(int docId, float score) {
+        SearchHit hit = new SearchHit(docId);
+        Object value = randomBoolean() ? randomAlphanumericOfLength(16) : generateRandomStringArray(8, 16, false);
+        hit.setDocumentField(new DocumentField("dense_vector_field", List.of(value)));
+        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+    }
+
+    private ResultDiversificationRetrieverBuilder.RankDocWithSearchHit getTestSearchHitWithNoValue(int docId, float score) {
+        SearchHit hit = new SearchHit(docId);
         return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
     }
 

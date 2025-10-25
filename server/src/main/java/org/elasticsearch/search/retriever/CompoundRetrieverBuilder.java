@@ -168,7 +168,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                     for (int i = 0; i < items.getResponses().length; i++) {
                         var item = items.getResponses()[i];
                         if (item.isFailure()) {
-                            failures.add(item.getFailure());
+                            failures.add(processInnerItemFailureException(item.getFailure()));
                             retrieversWithFailures.add(innerRetrievers.get(i).retriever().getName());
                             if (ExceptionsHelper.status(item.getFailure()).getStatus() > statusCode) {
                                 statusCode = ExceptionsHelper.status(item.getFailure()).getStatus();
@@ -180,21 +180,29 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                             topDocs.add(rankDocs);
                         }
                     }
-                    if (false == failures.isEmpty()) {
-                        assert statusCode != RestStatus.OK.getStatus();
-                        final String errMessage = "["
-                            + getName()
-                            + "] search failed - retrievers '"
-                            + retrieversWithFailures
-                            + "' returned errors. "
-                            + "All failures are attached as suppressed exceptions.";
-                        Exception ex = new ElasticsearchStatusException(errMessage, RestStatus.fromCode(statusCode));
-                        failures.forEach(ex::addSuppressed);
-                        listener.onFailure(ex);
-                    } else {
-                        results.set(combineInnerRetrieverResults(topDocs, ctx.isExplain()));
-                        listener.onResponse(null);
+
+                    if (failures.isEmpty()) {
+                        try {
+                            results.set(combineInnerRetrieverResults(topDocs, ctx.isExplain()));
+                            listener.onResponse(null);
+                            return;
+                        } catch (ElasticsearchStatusException esEx) {
+                            retrieversWithFailures.add(getName());
+                            failures.add(esEx);
+                            statusCode = esEx.status().getStatus();
+                        }
                     }
+
+                    assert statusCode != RestStatus.OK.getStatus();
+                    final String errMessage = "["
+                        + getName()
+                        + "] search failed - retrievers '"
+                        + retrieversWithFailures
+                        + "' returned errors. "
+                        + "All failures are attached as suppressed exceptions.";
+                    Exception ex = new ElasticsearchStatusException(errMessage, RestStatus.fromCode(statusCode));
+                    failures.forEach(ex::addSuppressed);
+                    listener.onFailure(ex);
                 }
 
                 @Override
@@ -211,6 +219,15 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         );
         rankDocsRetrieverBuilder.retrieverName(retrieverName());
         return rankDocsRetrieverBuilder;
+    }
+
+    /**
+     * Overridable method to check or modify any failures from child retrievers if needed
+     * @param ex the exception thrown
+     * @return the failure exception
+     */
+    protected Exception processInnerItemFailureException(Exception ex) {
+        return ex;
     }
 
     @Override

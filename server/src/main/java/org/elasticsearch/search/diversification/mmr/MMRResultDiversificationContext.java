@@ -10,8 +10,6 @@
 package org.elasticsearch.search.diversification.mmr;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.diversification.ResultDiversificationContext;
 import org.elasticsearch.search.vectors.VectorData;
 
@@ -25,12 +23,10 @@ public class MMRResultDiversificationContext extends ResultDiversificationContex
         String field,
         float lambda,
         int numCandidates,
-        DenseVectorFieldMapper fieldMapper,
-        IndexVersion indexVersion,
         @Nullable VectorData queryVector,
         @Nullable Map<Integer, VectorData> fieldVectors
     ) {
-        super(field, numCandidates, fieldMapper, indexVersion, queryVector, fieldVectors);
+        super(field, numCandidates, queryVector, fieldVectors);
         this.lambda = lambda;
     }
 

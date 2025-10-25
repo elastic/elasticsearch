@@ -33,7 +33,6 @@ public class MMRResultDiversificationTests extends ESTestCase {
 
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
         builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
-        DenseVectorFieldMapper fieldMapper = builder.build(context);
 
         var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         Map<Integer, VectorData> fieldVectors = Map.of(
@@ -50,15 +49,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
             6,
             new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f })
         );
-        var diversificationContext = new MMRResultDiversificationContext(
-            "dense_vector_field",
-            0.3f,
-            3,
-            fieldMapper,
-            IndexVersion.current(),
-            queryVectorData,
-            fieldVectors
-        );
+        var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData, fieldVectors);
 
         RankDoc[] docs = new RankDoc[] {
             new RankDoc(1, 2.0f, 1),
@@ -89,18 +80,9 @@ public class MMRResultDiversificationTests extends ESTestCase {
         // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
         builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
-        DenseVectorFieldMapper fieldMapper = builder.build(context);
 
         var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
-        var diversificationContext = new MMRResultDiversificationContext(
-            "dense_vector_field",
-            0.6f,
-            10,
-            fieldMapper,
-            IndexVersion.current(),
-            queryVectorData,
-            new HashMap<>()
-        );
+        var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.6f, 10, queryVectorData, new HashMap<>());
         RankDoc[] emptyDocs = new RankDoc[0];
 
         MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);

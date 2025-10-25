@@ -11,13 +11,13 @@ package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.diversification.mmr.MMRResultDiversificationContext;
@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -52,6 +51,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField NUM_CANDIDATES_FIELD = new ParseField("num_candidates");
     public static final ParseField QUERY_FIELD = new ParseField("query_vector");
     public static final ParseField LAMBDA_FIELD = new ParseField("lambda");
 
@@ -73,7 +73,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
             ResultDiversificationType diversificationType = ResultDiversificationType.fromString((String) args[1]);
             String diversificationField = (String) args[2];
-            int rankWindowSize = args[3] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
+            int numCandidates = (int) args[3];
 
             @SuppressWarnings("unchecked")
             List<Float> queryVectorList = args[4] == null ? null : (List<Float>) args[4];
@@ -91,7 +91,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
                 RetrieverSource.from((RetrieverBuilder) args[0]),
                 diversificationType,
                 diversificationField,
-                rankWindowSize,
+                numCandidates,
                 queryVector,
                 lambda
             );
@@ -105,7 +105,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         }, RETRIEVER_FIELD);
         PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
+        PARSER.declareInt(constructorArg(), NUM_CANDIDATES_FIELD);
         PARSER.declareFloatArray(optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), LAMBDA_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
@@ -121,11 +121,11 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         RetrieverSource innerRetriever,
         ResultDiversificationType diversificationType,
         String diversificationField,
-        int rankWindowSize,
+        int numCandidates,
         @Nullable float[] queryVector,
         @Nullable Float lambda
     ) {
-        super(List.of(innerRetriever), rankWindowSize);
+        super(List.of(innerRetriever), numCandidates);
         this.diversificationType = diversificationType;
         this.diversificationField = diversificationField;
         this.queryVector = queryVector;
@@ -142,11 +142,11 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         List<RetrieverSource> innerRetrievers,
         ResultDiversificationType diversificationType,
         String diversificationField,
-        int rankWindowSize,
+        int numCandidates,
         @Nullable float[] queryVector,
         @Nullable Float lambda
     ) {
-        super(innerRetrievers, rankWindowSize);
+        super(innerRetrievers, numCandidates);
         assert innerRetrievers.size() == 1 : "ResultDiversificationRetrieverBuilder must have a single child retriever";
 
         this.diversificationType = diversificationType;
@@ -208,21 +208,12 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
     @Override
     protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
-        IndexVersion indexVersion = ctx.getIndexSettings().getIndexVersionCreated();
-        Mapper mapper = ctx.getMappingLookup().getMapper(diversificationField);
-        if (mapper instanceof DenseVectorFieldMapper == false) {
-            throw new IllegalArgumentException(
-                "[" + diversificationField + "] is not a supported field type. Valid field types are [dense_vector]"
-            );
-        }
 
         if (diversificationType.equals(ResultDiversificationType.MMR)) {
             diversificationContext = new MMRResultDiversificationContext(
                 diversificationField,
                 lambda == null ? DEFAULT_LAMBDA_VALUE : lambda,
                 rankWindowSize,
-                (DenseVectorFieldMapper) mapper,
-                indexVersion,
                 queryVector == null ? null : new VectorData(queryVector),
                 null
             );
@@ -240,9 +231,33 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     }
 
     @Override
+    protected Exception processInnerItemFailureException(Exception ex) {
+        // since we do not have access to the field types before the search actually executes on the shard,
+        // we need to check for an exception when the field data is gotten and if it's disabled
+        if (ex instanceof SearchPhaseExecutionException spEx) {
+            if (spEx.getCause() instanceof ElasticsearchException iaEx) {
+                // I'm not a fan of checking the message, but there is no other indicator we can use.
+                if (iaEx.getMessage().startsWith("Fielddata is disabled on")) {
+                    return new IllegalArgumentException(
+                        String.format(
+                            "Failed to retrieve values for diversification on field [%s]. Is it a [dense_vector] field?",
+                            diversificationField
+                        ),
+                        ex
+                    );
+                }
+            }
+        }
+        return ex;
+    }
+
+    @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         if (diversificationContext == null) {
-            throw new IllegalStateException("diversificationContext is not set. \"doRewrite\" should have been called beforehand.");
+            throw new ElasticsearchStatusException(
+                "diversificationContext is not set. \"doRewrite\" should have been called beforehand.",
+                RestStatus.INTERNAL_SERVER_ERROR
+            );
         }
 
         if (rankResults.isEmpty()) {
@@ -250,7 +265,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         }
 
         if (rankResults.size() > 1) {
-            throw new IllegalArgumentException("rank results must have only one result set");
+            throw new ElasticsearchStatusException("rank results must have only one result set", RestStatus.BAD_REQUEST);
         }
 
         ScoreDoc[] scoreDocs = rankResults.getFirst();
@@ -274,9 +289,25 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
                     fieldVectors.put(asRankDoc.doc, new VectorData((float[]) field.getValue()));
                 } else if (fieldValue instanceof byte[]) {
                     fieldVectors.put(asRankDoc.doc, new VectorData((byte[]) field.getValue()));
+                } else {
+                    throw new ElasticsearchStatusException(
+                        String.format("Failed to parse field [%s]. Is it a [dense_vector] field?", diversificationField),
+                        RestStatus.BAD_REQUEST
+                    );
                 }
             }
         }
+
+        if (fieldVectors.isEmpty()) {
+            throw new ElasticsearchStatusException(
+                String.format(
+                    "Could not retrieve any vectors for field [%s]. Is it a populated [dense_vector] field?",
+                    diversificationField
+                ),
+                RestStatus.BAD_REQUEST
+            );
+        }
+
         diversificationContext.setFieldVectors(fieldVectors);
 
         try {
@@ -286,7 +317,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
             );
             results = diversification.diversify(results);
         } catch (IOException e) {
-            throw new ElasticsearchException("Result diversification failed", e);
+            throw new ElasticsearchStatusException("Result diversification failed", RestStatus.INTERNAL_SERVER_ERROR, e);
         }
 
         return results;
@@ -307,7 +338,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
         builder.field(TYPE_FIELD.getPreferredName(), diversificationType.value);
         builder.field(FIELD_FIELD.getPreferredName(), diversificationField);
-        builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), rankWindowSize);
 
         if (queryVector != null) {
             builder.array(QUERY_FIELD.getPreferredName(), queryVector);

@@ -10,8 +10,6 @@
 package org.elasticsearch.search.diversification;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.VectorData;
 
 import java.util.HashMap;
@@ -21,23 +19,17 @@ import java.util.Set;
 public abstract class ResultDiversificationContext {
     private final String field;
     private final int numCandidates;
-    private final DenseVectorFieldMapper fieldMapper;
-    private final IndexVersion indexVersion;
     private final VectorData queryVector;
     private Map<Integer, VectorData> fieldVectors;
 
     protected ResultDiversificationContext(
         String field,
         int numCandidates,
-        DenseVectorFieldMapper fieldMapper,
-        IndexVersion indexVersion,
         @Nullable VectorData queryVector,
         @Nullable Map<Integer, VectorData> fieldVectors
     ) {
         this.field = field;
         this.numCandidates = numCandidates;
-        this.fieldMapper = fieldMapper;
-        this.indexVersion = indexVersion;
         this.queryVector = queryVector;
         this.fieldVectors = fieldVectors == null ? new HashMap<>() : fieldVectors;
     }
@@ -48,18 +40,6 @@ public abstract class ResultDiversificationContext {
 
     public int getNumCandidates() {
         return numCandidates;
-    }
-
-    public DenseVectorFieldMapper getFieldMapper() {
-        return fieldMapper;
-    }
-
-    public DenseVectorFieldMapper.ElementType getElementType() {
-        return fieldMapper.fieldType().getElementType();
-    }
-
-    public IndexVersion getIndexVersion() {
-        return indexVersion;
     }
 
     public void setFieldVectors(Map<Integer, VectorData> fieldVectors) {

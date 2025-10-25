@@ -42,8 +42,12 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionCreator;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual.VoyageAIContextualEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual.VoyageAIContextualEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
 
 import java.util.EnumSet;
@@ -67,27 +71,20 @@ public class VoyageAIService extends SenderService implements RerankingInference
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
     private static final Integer DEFAULT_BATCH_SIZE = 7;
-    private static final Map<String, Integer> MODEL_BATCH_SIZES = Map.of(
-        "voyage-multimodal-3",
-        7,
-        "voyage-3-large",
-        7,
-        "voyage-code-3",
-        7,
-        "voyage-3",
-        10,
-        "voyage-3-lite",
-        30,
-        "voyage-finance-2",
-        7,
-        "voyage-law-2",
-        7,
-        "voyage-code-2",
-        7,
-        "voyage-2",
-        72,
-        "voyage-02",
-        72
+    private static final Map<String, Integer> MODEL_BATCH_SIZES = Map.ofEntries(
+        Map.entry("voyage-3.5", 10),
+        Map.entry("voyage-3.5-lite", 30),
+        Map.entry("voyage-context-3", 7),
+        Map.entry("voyage-multimodal-3", 7),
+        Map.entry("voyage-3-large", 7),
+        Map.entry("voyage-code-3", 7),
+        Map.entry("voyage-3", 10),
+        Map.entry("voyage-3-lite", 30),
+        Map.entry("voyage-finance-2", 7),
+        Map.entry("voyage-law-2", 7),
+        Map.entry("voyage-code-2", 7),
+        Map.entry("voyage-2", 72),
+        Map.entry("voyage-02", 72)
     );
 
     private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
@@ -193,15 +190,47 @@ public class VoyageAIService extends SenderService implements RerankingInference
         ConfigurationParseContext context
     ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> new VoyageAIEmbeddingsModel(
-                inferenceEntityId,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
+            case TEXT_EMBEDDING -> {
+                // Determine model type based on model ID (peek without removing from map)
+                String modelId = (String) serviceSettings.get("model_id");
+
+                if (modelId == null) {
+                    throw new ValidationException().addValidationError("model_id is required in service_settings");
+                }
+
+                if (modelId.startsWith("voyage-multimodal")) {
+                    yield new VoyageAIMultimodalEmbeddingsModel(
+                        inferenceEntityId,
+                        NAME,
+                        serviceSettings,
+                        taskSettings,
+                        chunkingSettings,
+                        secretSettings,
+                        context
+                    );
+                } else if (modelId.startsWith("voyage-context")) {
+                    yield new VoyageAIContextualEmbeddingsModel(
+                        inferenceEntityId,
+                        NAME,
+                        serviceSettings,
+                        taskSettings,
+                        chunkingSettings,
+                        secretSettings,
+                        context
+                    );
+                } else {
+                    // Default to text embeddings
+                    yield new VoyageAIEmbeddingsModel(
+                        inferenceEntityId,
+                        NAME,
+                        serviceSettings,
+                        taskSettings,
+                        chunkingSettings,
+                        secretSettings,
+                        context
+                    );
+                }
+            }
             case RERANK -> new VoyageAIRerankModel(inferenceEntityId, NAME, serviceSettings, taskSettings, secretSettings, context);
             default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
         };
@@ -346,6 +375,38 @@ public class VoyageAIService extends SenderService implements RerankingInference
             );
 
             return new VoyageAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else if (model instanceof VoyageAIContextualEmbeddingsModel contextualModel) {
+            var serviceSettings = contextualModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+            var maxInputTokens = serviceSettings.maxInputTokens();
+
+            var updatedServiceSettings = new VoyageAIContextualEmbeddingsServiceSettings(
+                serviceSettings.getCommonSettings(),
+                serviceSettings.getEmbeddingType(),
+                similarityToUse,
+                embeddingSize,
+                maxInputTokens,
+                false  // dimensions not set by user, inferred from API
+            );
+
+            return new VoyageAIContextualEmbeddingsModel(contextualModel, updatedServiceSettings);
+        } else if (model instanceof VoyageAIMultimodalEmbeddingsModel multimodalModel) {
+            var serviceSettings = multimodalModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+            var maxInputTokens = serviceSettings.maxInputTokens();
+
+            var updatedServiceSettings = new VoyageAIMultimodalEmbeddingsServiceSettings(
+                serviceSettings.getCommonSettings(),
+                serviceSettings.getEmbeddingType(),
+                similarityToUse,
+                embeddingSize,
+                maxInputTokens,
+                false  // dimensions not set by user, inferred from API
+            );
+
+            return new VoyageAIMultimodalEmbeddingsModel(multimodalModel, updatedServiceSettings);
         } else {
             throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }

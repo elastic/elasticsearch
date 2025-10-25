@@ -34,6 +34,7 @@ public abstract class VoyageAIModel extends RateLimitGroupingModel {
         Map<String, String> tempMap = new HashMap<>();
         tempMap.put("voyage-3.5", "embed_medium");
         tempMap.put("voyage-3.5-lite", "embed_small");
+        tempMap.put("voyage-context-3", "embed_context");
         tempMap.put("voyage-multimodal-3", "embed_multimodal");
         tempMap.put("voyage-3-large", "embed_large");
         tempMap.put("voyage-code-3", "embed_large");

@@ -51,7 +51,7 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
 
         assertInferenceIdTaskType(allModels, ".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION);
         assertInferenceIdTaskType(allModels, ".elser-2-elastic", TaskType.SPARSE_EMBEDDING);
-        assertInferenceIdTaskType(allModels, ".multilingual-embed-v1-elastic", TaskType.TEXT_EMBEDDING);
+        assertInferenceIdTaskType(allModels, ".jina-embeddings-v3", TaskType.TEXT_EMBEDDING);
         assertInferenceIdTaskType(allModels, ".rerank-v1-elastic", TaskType.RERANK);
     }
 

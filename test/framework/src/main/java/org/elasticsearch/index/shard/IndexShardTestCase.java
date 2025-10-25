@@ -94,6 +94,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -660,6 +661,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 threadPool,
                 threadPoolMergeExecutorService,
                 BigArrays.NON_RECYCLING_INSTANCE,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE,
                 warmer,
                 soListener,
                 Arrays.asList(listeners),

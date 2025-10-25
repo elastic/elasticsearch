@@ -91,7 +91,6 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
@@ -138,6 +137,7 @@ import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -3585,7 +3585,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Path badTranslogLog = createTempDir();
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         Translog translog = new Translog(
-            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
+            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BytesRefRecycler.NON_RECYCLING_INSTANCE),
             badUUID,
             new TranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
@@ -3603,7 +3603,7 @@ public class InternalEngineTests extends EngineTestCase {
             shardId,
             translog.location(),
             config.getIndexSettings(),
-            BigArrays.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
         );
 
         EngineConfig brokenConfig = new EngineConfig(
@@ -7214,7 +7214,7 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getTranslogConfig().getShardId(),
                 createTempDir(),
                 config.getTranslogConfig().getIndexSettings(),
-                config.getTranslogConfig().getBigArrays()
+                config.getTranslogConfig().getBytesRecycler()
             );
             EngineConfig configWithWarmer = new EngineConfig(
                 config.getShardId(),

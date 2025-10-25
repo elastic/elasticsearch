@@ -73,6 +73,7 @@ import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.Setting;
@@ -250,6 +251,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -757,6 +759,7 @@ class NodeConstruction {
         );
         PageCacheRecycler pageCacheRecycler = serviceProvider.newPageCacheRecycler(pluginsService, settings);
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
+        final AtomicReference<VariableRecycler> transportRecycler = new AtomicReference<>();
 
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
         final SnapshotMetrics snapshotMetrics = new SnapshotMetrics(telemetryProvider.getMeterRegistry());
@@ -936,6 +939,7 @@ class NodeConstruction {
             .indexScopedSettings(settingsModule.getIndexScopedSettings())
             .circuitBreakerService(circuitBreakerService)
             .bigArrays(bigArrays)
+            .bytesRecycler(transportRecycler::get)
             .scriptService(scriptService)
             .clusterService(clusterService)
             .projectResolver(projectResolver)
@@ -1159,6 +1163,7 @@ class NodeConstruction {
             linkedProjectConfigService,
             projectResolver
         );
+        transportRecycler.set(transportService.variableRecycler());
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,

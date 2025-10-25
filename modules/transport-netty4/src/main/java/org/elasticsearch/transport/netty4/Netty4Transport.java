@@ -25,14 +25,13 @@ import io.netty.util.AttributeKey;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
-import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -113,7 +112,7 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @Override
-    protected Recycler<BytesRef> createRecycler(Settings settings, PageCacheRecycler pageCacheRecycler) {
+    protected VariableRecycler createRecycler(Settings settings, PageCacheRecycler pageCacheRecycler) {
         return Netty4Utils.createRecycler(settings);
     }
 

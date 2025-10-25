@@ -109,6 +109,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -518,7 +519,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected Translog createTranslog(Path translogPath, LongSupplier primaryTermSupplier) throws IOException {
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         String translogUUID = Translog.createEmptyTranslog(
             translogPath,
             SequenceNumbers.NO_OPS_PERFORMED,
@@ -838,7 +839,12 @@ public abstract class EngineTestCase extends ESTestCase {
         final @Nullable Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
     ) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
-        final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        final TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
         final Engine.EventListener eventListener = new Engine.EventListener() {
         }; // we don't need to notify anybody in this test
         final List<ReferenceManager.RefreshListener> extRefreshListenerList = externalRefreshListener == null
@@ -912,7 +918,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .build()
         );
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),

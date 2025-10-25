@@ -54,6 +54,8 @@
 ## JVM temporary directory
 -Djava.io.tmpdir=${ES_TMPDIR}
 
+-Dio.netty.leakDetection.level=disabled
+
 # Leverages accelerated vector hardware instructions; removing this may
 # result in less optimal vector performance
 20-:--add-modules=jdk.incubator.vector

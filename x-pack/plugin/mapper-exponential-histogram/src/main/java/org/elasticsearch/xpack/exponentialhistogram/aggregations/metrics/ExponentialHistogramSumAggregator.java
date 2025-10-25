@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogr
 import java.io.IOException;
 import java.util.Map;
 
-final class ExponentialHistogramSumAggregator extends NumericMetricsAggregator.SingleValue {
+public final class ExponentialHistogramSumAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ExponentialHistogramValuesSource.ExponentialHistogram valuesSource;
     private final DocValueFormat format;
@@ -35,7 +35,7 @@ final class ExponentialHistogramSumAggregator extends NumericMetricsAggregator.S
     private DoubleArray sums;
     private DoubleArray compensations;
 
-    ExponentialHistogramSumAggregator(
+    public ExponentialHistogramSumAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         AggregationContext context,

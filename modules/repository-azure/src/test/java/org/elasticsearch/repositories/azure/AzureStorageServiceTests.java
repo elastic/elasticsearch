@@ -493,6 +493,23 @@ public class AzureStorageServiceTests extends ESTestCase {
         }
     }
 
+    public void testMaxRetriesIsCorrectlyTranslatedToTries() throws IOException {
+        final int maxRetries = randomIntBetween(1, 10);
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.max_retries", String.valueOf(maxRetries))
+            .build();
+
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureStorageSettings azureStorageSettings = azureStorageService.getStorageSettings().get("azure1");
+            LocationMode locationMode = randomFrom(LocationMode.PRIMARY_ONLY, LocationMode.SECONDARY_ONLY);
+            RequestRetryOptions retryOptions = azureStorageService.getRetryOptions(locationMode, azureStorageSettings);
+
+            assertThat(retryOptions.getMaxTries(), equalTo(maxRetries + 1));
+        }
+    }
+
     public void testInvalidSettingsRetryConfigurationForLocationModeWithSecondaryFallback() throws Exception {
         final String endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net";
         final Settings settings = Settings.builder()

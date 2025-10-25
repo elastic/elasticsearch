@@ -522,6 +522,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.MatchFunctionIT
   method: testMatchWithLookupJoinOnMatch
   issue: https://github.com/elastic/elasticsearch/issues/137137
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join-expression.LookupJoinExpressionWithTerm}
+  issue: https://github.com/elastic/elasticsearch/issues/137157
 
 # Examples:
 #

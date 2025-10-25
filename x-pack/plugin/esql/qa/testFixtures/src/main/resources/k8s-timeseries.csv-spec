@@ -594,6 +594,7 @@ max_cost:integer | pod:keyword | time_bucket:datetime     | max_cluster_cost:int
 973              | two         | 2024-05-10T00:00:00.000Z | 1209                     | staging
 ;
 
+
 max_of_stddev_over_time
 required_capability: ts_command_v0
 required_capability: variance_stddev_over_time
@@ -720,4 +721,24 @@ mx:integer | tbucket:datetime
 1716       | 2024-05-10T00:00:00.000Z
 ;
 
+derivative_of_gauge_metric
+required_capability: ts_command_v0
 
+TS k8s
+| STATS max_deriv = max(deriv(network.cost)) BY time_bucket = bucket(@timestamp,5minute), pod
+| SORT pod, time_bucket
+| LIMIT 10
+;
+
+max_deriv:double       | time_bucket:datetime     | pod:keyword
+2.7573529411764707E-5  | 2024-05-10T00:00:00.000Z | one
+-9.657960185083621E-6  | 2024-05-10T00:05:00.000Z | one
+2.6771965095388827E-5  | 2024-05-10T00:10:00.000Z | one
+4.405946549223768E-5   | 2024-05-10T00:15:00.000Z | one
+8.564814814814814E-5   | 2024-05-10T00:20:00.000Z | one
+9.27740599107712E-5    | 2024-05-10T00:00:00.000Z | three
+3.80263223304832E-5    | 2024-05-10T00:05:00.000Z | three
+-1.9699890788329952E-5 | 2024-05-10T00:10:00.000Z | three
+-1.2087599544937429E-6 | 2024-05-10T00:15:00.000Z | three
+NaN                    | 2024-05-10T00:20:00.000Z | three
+;

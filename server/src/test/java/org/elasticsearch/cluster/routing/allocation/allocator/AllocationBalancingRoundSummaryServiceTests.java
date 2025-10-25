@@ -17,13 +17,19 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME;
 
 public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(AllocationBalancingRoundSummaryServiceTests.class);
@@ -86,7 +92,13 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
      * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_SETTING} defaults to false.
      */
     public void testServiceDisabledByDefault() {
-        var service = new AllocationBalancingRoundSummaryService(testThreadPool, disabledDefaultEmptyClusterSettings);
+        var recordingMeterRegistry = new RecordingMeterRegistry();
+        var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
+        var service = new AllocationBalancingRoundSummaryService(
+            testThreadPool,
+            disabledDefaultEmptyClusterSettings,
+            balancingRoundMetrics
+        );
 
         try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
             /**
@@ -110,11 +122,17 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
+            assertEquals(measurements.size(), 0);
         }
     }
 
     public void testEnabledService() {
-        var service = new AllocationBalancingRoundSummaryService(testThreadPool, enabledClusterSettings);
+        var recordingMeterRegistry = new RecordingMeterRegistry();
+        var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
+        var service = new AllocationBalancingRoundSummaryService(testThreadPool, enabledClusterSettings, balancingRoundMetrics);
+        balancingRoundMetrics.setEnableSending(true);
 
         try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
             /**
@@ -156,6 +174,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
+
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
+            assertEquals(measurements.size(), 2);
         }
     }
 
@@ -163,7 +185,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
      * The service should combine multiple summaries together into a single report when multiple summaries were added since the last report.
      */
     public void testCombinedSummary() {
-        var service = new AllocationBalancingRoundSummaryService(testThreadPool, enabledClusterSettings);
+        var recordingMeterRegistry = new RecordingMeterRegistry();
+        var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
+        var service = new AllocationBalancingRoundSummaryService(testThreadPool, enabledClusterSettings, balancingRoundMetrics);
+        balancingRoundMetrics.setEnableSending(true);
 
         try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
             service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
@@ -182,6 +207,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
+
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
+            assertEquals(measurements.size(), 2);
         }
     }
 
@@ -189,7 +218,9 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
      * The service shouldn't log anything when there haven't been any summaries added since the last report.
      */
     public void testNoSummariesToReport() {
-        var service = new AllocationBalancingRoundSummaryService(testThreadPool, enabledClusterSettings);
+        var recordingMeterRegistry = new RecordingMeterRegistry();
+        var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
+        var service = new AllocationBalancingRoundSummaryService(testThreadPool, enabledClusterSettings, balancingRoundMetrics);
 
         try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
             /**
@@ -229,6 +260,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
+
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
+            assertEquals(measurements.size(), 0);
         }
     }
 

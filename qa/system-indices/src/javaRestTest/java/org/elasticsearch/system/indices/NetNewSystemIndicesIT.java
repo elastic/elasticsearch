@@ -94,6 +94,6 @@ public class NetNewSystemIndicesIT extends AbstractSystemIndicesIT {
 
     @After
     public void resetFeatures() throws Exception {
-        performPostFeaturesReset(client());
+        client().performRequest(new Request("POST", "/_features/_reset"));
     }
 }

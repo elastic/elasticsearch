@@ -648,7 +648,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         ensureNoInitializingShards();
         logAudits();
         if (preserveClusterUponCompletion() == false) {
-            performPostFeaturesReset(adminClient());
+            adminClient().performRequest(new Request("POST", "/_features/_reset"));
         }
     }
 

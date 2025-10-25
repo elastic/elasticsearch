@@ -160,7 +160,12 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 CollectionUtil.timSort(shardIts);
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
                     delegate.onResponse(
-                        new SearchShardsResponse(toGroups(shardIts), project.cluster().nodes().getAllNodes(), aliasFilters)
+                        new SearchShardsResponse(
+                            toGroups(shardIts),
+                            project.cluster().nodes().getAllNodes(),
+                            aliasFilters,
+                            searchShardsRequest.getResolvedIndexExpressions()
+                        )
                     );
                 } else {
                     CanMatchPreFilterSearchPhase.execute(logger, searchTransportService, (clusterAlias, node) -> {
@@ -179,7 +184,12 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     )
                         .addListener(
                             delegate.map(
-                                its -> new SearchShardsResponse(toGroups(its), project.cluster().nodes().getAllNodes(), aliasFilters)
+                                its -> new SearchShardsResponse(
+                                    toGroups(its),
+                                    project.cluster().nodes().getAllNodes(),
+                                    aliasFilters,
+                                    searchShardsRequest.getResolvedIndexExpressions()
+                                )
                             )
                         );
                 }

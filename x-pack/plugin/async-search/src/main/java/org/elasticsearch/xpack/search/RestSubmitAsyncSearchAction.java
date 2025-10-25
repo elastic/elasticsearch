@@ -71,7 +71,8 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         }
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
 
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+        boolean crossProjectEnabled = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
+        if (crossProjectEnabled) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
         }
@@ -82,7 +83,15 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
         // Note that ccs_minimize_roundtrips is also set this way, which is a supported option.
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(submit.getSearchRequest(), request, parser, clusterSupportsFeature, setSize, searchUsageHolder)
+            parser -> parseSearchRequest(
+                submit.getSearchRequest(),
+                request,
+                parser,
+                clusterSupportsFeature,
+                setSize,
+                searchUsageHolder,
+                crossProjectEnabled
+            )
         );
 
         if (request.hasParam("wait_for_completion_timeout")) {

@@ -567,7 +567,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         private void flushData() throws IOException {
             if (numDocsInCurrentBlock > 0) {
-                // Write offset to this block to temporary offsets file
                 totalChunks++;
                 long thisBlockStartPointer = data.getFilePointer();
 

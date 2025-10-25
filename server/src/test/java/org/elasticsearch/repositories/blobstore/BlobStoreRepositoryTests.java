@@ -44,6 +44,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -90,6 +91,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.bytes.ByteSizeConstants.ONE_GIGABYTE_IN_BYTES;
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_FILE_PREFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING;
@@ -113,6 +115,19 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     static final String REPO_TYPE = "fs";
     private static final String TEST_REPO_NAME = "test-repo";
+    /**
+     * The maximum number of threads possible to be used
+     */
+    private static final int THREAD_POOL_MAX_SNAPSHOT_THREADS = 10;
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            .put(super.nodeSettings())
+            // Mimic production
+            .put("thread_pool.snapshot.max", THREAD_POOL_MAX_SNAPSHOT_THREADS)
+            .build();
+    }
 
     public void testRetrieveSnapshots() {
         final Client client = client();
@@ -857,6 +872,40 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().putNull(MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING.getKey()).build())
+            .get();
+    }
+
+    /**
+     * Tests whether we adjust the maximum concurrency when deleting snapshots
+     * according to the size of the heap memory
+     */
+    public void testMaxIndexDeletionConcurrency() {
+        // Randomly generate a heap size up to 10GB.
+        long heapSizeInBytes = randomLongBetween(0, 10L * ONE_GIGABYTE_IN_BYTES);
+        // We expect at most only 10% of the total heap space to be used when loading index metadata
+        long heapAvailableForIndexMetaData = heapSizeInBytes / 10;
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(
+                Settings.builder()
+                    .put("repositories.blobstore.max_heap_size_for_index_metadata", heapAvailableForIndexMetaData + "b")
+                    .build()
+            )
+            .get();
+
+        final var repo = setupRepo();
+
+        // We use 50MB as a heuristic of how many index metadata objects we could load concurrently
+        long maxConcurrentThreads = Math.max(1, ByteSizeValue.of(heapAvailableForIndexMetaData, ByteSizeUnit.BYTES).getMb() / 50);
+
+        assertEquals(Math.min(maxConcurrentThreads, THREAD_POOL_MAX_SNAPSHOT_THREADS), repo.getMaxIndexDeletionConcurrency());
+
+        // reset original default setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().putNull("repositories.blobstore.max_heap_size_for_index_metadata").build())
             .get();
     }
 }

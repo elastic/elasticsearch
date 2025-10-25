@@ -1,0 +1,6 @@
+pr: 136952
+summary: Restricts snapshot concurrency based on available heap memory
+area: Snapshot/Restore
+type: bug
+issues:
+ - 131822

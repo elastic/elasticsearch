@@ -447,6 +447,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
     private volatile int maxHeapSizeForSnapshotDeletion;
 
+    public static final Setting<ByteSizeValue> MAX_HEAP_SIZE_FOR_INDEX_METADATA_SETTING = Setting.memorySizeSetting(
+        "repositories.blobstore.max_heap_size_for_index_metadata",
+        "10%",
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    private volatile int maxIndexDeletionConcurrency;
+
     /**
      * Repository settings that can be updated dynamically without having to create a new repository.
      */
@@ -571,6 +579,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
              */
             this.maxHeapSizeForSnapshotDeletion = Math.toIntExact(
                 Math.min(maxHeapSizeForSnapshotDeletion.getBytes(), Integer.MAX_VALUE - ByteSizeUnit.MB.toBytes(1))
+            );
+        });
+        clusterSettings.initializeAndWatch(MAX_HEAP_SIZE_FOR_INDEX_METADATA_SETTING, maxHeapSizeForIndexMetadata -> {
+            this.maxIndexDeletionConcurrency = Math.toIntExact(
+                Math.min(
+                    // Prevent smaller nodes from loading too many IndexMetadata objects in parallel and going OOMe (ES-12538).
+                    // We use 50MB as an estimate for a large IndexMetadata object to load, and don't want to exceed 10% of total heap space
+                    Math.max(1, maxHeapSizeForIndexMetadata.getMb() / 50),
+                    // Each per-index process needs at least one snapshot thread at all times, so threadPool.info(SNAPSHOT).getMax()
+                    // of them at once is enough to keep the thread pool fully utilized.
+                    threadPool.info(ThreadPool.Names.SNAPSHOT).getMax()
+                )
             );
         });
     }
@@ -890,6 +910,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     protected final boolean isCompress() {
         return compress;
+    }
+
+    /**
+     * @return the maximum concurrency permitted in the SnapshotsDeletion.IndexSnapshotsDeletion object
+     */
+    protected int getMaxIndexDeletionConcurrency() {
+        return this.maxIndexDeletionConcurrency;
     }
 
     /**
@@ -1268,18 +1295,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private void writeUpdatedShardMetadataAndComputeDeletes(ActionListener<Void> listener) {
             // noinspection resource -- closed safely at the end of the iteration
             final var listeners = new RefCountingListener(listener);
-
-            // Each per-index process takes some nonzero amount of working memory to hold the relevant snapshot IDs and metadata generations
-            // etc. which we can keep under tighter limits and release sooner if we limit the number of concurrently processing indices.
-            // Each one needs at least one snapshot thread at all times, so threadPool.info(SNAPSHOT).getMax() of them at once is enough to
-            // keep the threadpool fully utilized.
             ThrottledIterator.run(
                 originalRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds),
                 (ref, indexId) -> ActionListener.run(
                     ActionListener.releaseAfter(listeners.acquire(), ref),
                     l -> new IndexSnapshotsDeletion(indexId).run(l)
                 ),
-                threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+                // Each per-index process takes some nonzero amount of working memory to hold the relevant snapshot IDs
+                // and metadata generations etc. which we can keep under tighter limits and release sooner if we
+                // limit the number of concurrently processing indices.
+                maxIndexDeletionConcurrency,
                 listeners::close
             );
         }

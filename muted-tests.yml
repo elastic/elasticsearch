@@ -525,6 +525,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:lookup-join-expression.LookupJoinExpressionWithTerm}
   issue: https://github.com/elastic/elasticsearch/issues/137157
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join-expression.LookupJoinExpressionWithTerm}
+  issue: https://github.com/elastic/elasticsearch/issues/137157
 
 # Examples:
 #

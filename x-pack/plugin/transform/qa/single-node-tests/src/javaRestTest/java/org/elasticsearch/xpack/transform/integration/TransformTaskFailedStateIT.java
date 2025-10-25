@@ -54,7 +54,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     @After
     public void cleanUpPotentiallyFailedTransform() throws Exception {
-        adminClient().performRequest(new Request("POST", "/_features/_reset"));
+        performPostFeaturesReset(adminClient());
     }
 
     public void testForceStopFailedTransform() throws Exception {

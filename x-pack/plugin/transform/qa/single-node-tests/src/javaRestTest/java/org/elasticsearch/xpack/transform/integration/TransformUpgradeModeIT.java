@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -53,7 +52,7 @@ public class TransformUpgradeModeIT extends TransformRestTestCase {
 
     @After
     public void clearOutTransforms() throws Exception {
-        adminClient().performRequest(new Request("POST", "/_features/_reset"));
+        performPostFeaturesReset(adminClient());
     }
 
     public void testUpgradeMode() throws Exception {

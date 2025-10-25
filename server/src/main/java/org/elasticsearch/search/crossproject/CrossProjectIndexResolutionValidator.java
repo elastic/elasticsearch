@@ -113,9 +113,13 @@ public class CrossProjectIndexResolutionValidator {
             ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
             if (isQualifiedExpression) {
                 ElasticsearchException e = checkResolutionFailure(localExpressions.indices(), result, originalExpression, indicesOptions);
-                logger.info("--> Q for localExpressions [{}] local exception is [{}] has indices [{}] is [{}]",
+                logger.info(
+                    "--> Q for localExpressions [{}] local exception is [{}] has indices [{}] is [{}]",
                     localExpressions,
-                    originalExpression, localExpressions.indices(), e);
+                    originalExpression,
+                    localExpressions.indices(),
+                    e
+                );
                 if (e != null) {
                     return e;
                 }
@@ -140,9 +144,13 @@ public class CrossProjectIndexResolutionValidator {
                     originalExpression,
                     indicesOptions
                 );
-                logger.info("--> for localExpressions [{}] local exception for [{}] has indices [{}] is [{}]",
+                logger.info(
+                    "--> for localExpressions [{}] local exception for [{}] has indices [{}] is [{}]",
                     localExpressions,
-                    originalExpression, localExpressions.indices(), localException);
+                    originalExpression,
+                    localExpressions.indices(),
+                    localException
+                );
                 if (localException == null) {
                     // found locally, continue to next expression
                     continue;

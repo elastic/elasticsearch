@@ -96,8 +96,10 @@ public class CrossProjectIndexExpressionsRewriter {
     ) {
         maybeThrowOnUnsupportedResource(indexExpression);
 
+        // Always 404 when no project is available for index resolution
         if (originProjectAlias == null && allProjectAliases.isEmpty()) {
-            return IndexRewriteResult.EMPTY;
+            // TODO: add project_routing string to the exception message
+            throw new NoMatchingProjectException("no matching project after applying project routing");
         }
 
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
@@ -212,9 +214,6 @@ public class CrossProjectIndexExpressionsRewriter {
      * A container for a local expression and a list of remote expressions.
      */
     public record IndexRewriteResult(@Nullable String localExpression, Set<String> remoteExpressions) {
-
-        public static final IndexRewriteResult EMPTY = new IndexRewriteResult(null, Set.of());
-
         public IndexRewriteResult(String localExpression) {
             this(localExpression, Set.of());
         }

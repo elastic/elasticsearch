@@ -14,6 +14,7 @@ import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -66,11 +67,15 @@ import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.text.ParseException;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import javax.net.ssl.HostnameVerifier;
@@ -213,9 +218,9 @@ public class JwtUtil {
         final String jwkSetConfigKeyPkc,
         final URI jwkSetPathPkcUri,
         final CloseableHttpAsyncClient httpClient,
-        final ActionListener<byte[]> listener
+        final ActionListener<JwksResponse> listener
     ) {
-        JwtUtil.readBytes(
+        JwtUtil.readResponse(
             httpClient,
             jwkSetPathPkcUri,
             ActionListener.wrap(
@@ -318,7 +323,7 @@ public class JwtUtil {
      * @param httpClient Configured HTTP/HTTPS client.
      * @param uri URI to download.
      */
-    public static void readBytes(final CloseableHttpAsyncClient httpClient, final URI uri, ActionListener<byte[]> listener) {
+    public static void readResponse(final CloseableHttpAsyncClient httpClient, final URI uri, ActionListener<JwksResponse> listener) {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             httpClient.execute(new HttpGet(uri), new FutureCallback<>() {
                 @Override
@@ -328,7 +333,12 @@ public class JwtUtil {
                     if (statusCode == 200) {
                         final HttpEntity entity = result.getEntity();
                         try (InputStream inputStream = entity.getContent()) {
-                            listener.onResponse(inputStream.readAllBytes());
+                            listener.onResponse(
+                                new JwksResponse(
+                                    inputStream.readAllBytes(),
+                                    Optional.ofNullable(result.getFirstHeader("Expires")).map(Header::getValue).orElse(null)
+                                )
+                            );
                         } catch (Exception e) {
                             listener.onFailure(e);
                         }
@@ -478,5 +488,29 @@ public class JwtUtil {
             }
         }
         return false;
+    }
+
+    record JwksResponse(byte[] content, Instant expires) {
+        JwksResponse(byte[] content, String expires) {
+            this(content, parseExpires(expires));
+        }
+
+        /**
+         * Parse the Expires header to an Instant.
+         * The Expires header follows RFC 7231 format (e.g., "Thu, 01 Jan 2024 00:00:00 GMT").
+         * @return the parsed Instant, or null if the header is null or cannot be parsed
+         */
+        static Instant parseExpires(String expires) {
+            if (expires == null) {
+                return null;
+            }
+
+            try {
+                // HTTP dates are in RFC 1123 format
+                return ZonedDateTime.parse(expires, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant();
+            } catch (Exception e) {
+                return null;
+            }
+        }
     }
 }

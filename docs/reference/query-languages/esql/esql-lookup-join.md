@@ -41,11 +41,13 @@ The command requires two parameters:
    * A single field name
    * A comma-separated list of field names {applies_to}`stack: ga 9.2`
    * An expression with one or more join conditions linked by `AND`. Each condition compares a field from the left index with a field from the lookup index using [binary operators](/reference/query-languages/esql/functions-operators/operators.md#esql-binary-operators) (`==`, `>=`, `<=`, `>`, `<`, `!=`). Each field name in the join condition must exist in only one of the indexes. Use RENAME to resolve naming conflicts. {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+   * An expression that includes [Full Text Functions](/reference/query-languages/esql/functions-operators/search-functions.md) and other Lucene pushable functions applied to fields from the lookup index. These functions can be combined with binary operators and logical operators (`AND`, `OR`, `NOT`) to create complex join conditions. At least one condition that relates the lookup index fields to the left side of the join fields is still required.{applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 
 ```esql
 LOOKUP JOIN <lookup_index> ON <field_name>  # Join on a single field
 LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>  # Join on multiple fields
 LOOKUP JOIN <lookup_index> ON <left_field1> >= <lookup_field1> AND <left_field2> == <lookup_field2>  # Join on expression
+LOOKUP JOIN <lookup_index> ON MATCH(lookup_field, "search term") AND <left_field> == <lookup_field>  # Join with Full Text Functions
 ```
 
 :::{image} ../images/esql-lookup-join.png

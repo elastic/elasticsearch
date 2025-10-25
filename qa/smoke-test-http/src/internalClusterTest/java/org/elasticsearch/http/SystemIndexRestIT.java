@@ -9,7 +9,7 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -175,7 +175,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 builder.startObject();
                 {
                     builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT.toString());
+                    builder.field("version", Build.current().version());
                     builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                     builder.endObject();
 

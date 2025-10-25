@@ -58,7 +58,7 @@ public class DerivLongGroupingAggregatorFunction implements GroupingAggregatorFu
 
         @Override
         public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new DerivGroupingAggregatorFunction(channels, driverContext);
+            return new DerivLongGroupingAggregatorFunction(channels, driverContext);
         }
 
         @Override

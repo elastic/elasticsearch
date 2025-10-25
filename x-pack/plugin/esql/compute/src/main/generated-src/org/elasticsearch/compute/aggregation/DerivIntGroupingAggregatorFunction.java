@@ -58,7 +58,7 @@ public class DerivIntGroupingAggregatorFunction implements GroupingAggregatorFun
 
         @Override
         public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new DerivGroupingAggregatorFunction(channels, driverContext);
+            return new DerivIntGroupingAggregatorFunction(channels, driverContext);
         }
 
         @Override

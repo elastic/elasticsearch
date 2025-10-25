@@ -129,12 +129,12 @@ public class IndexResolver {
             listener.delegateFailureAndWrap((l, response) -> {
                 FieldsInfo info = new FieldsInfo(
                     response.caps(),
-                    response.minTransportVersion(),
+                    response.caps().minTransportVersion(),
                     Build.current().isSnapshot(),
                     useAggregateMetricDoubleWhenNotSupported,
                     useDenseVectorWhenNotSupported
                 );
-                LOGGER.debug("minimum transport version {} {}", response.minTransportVersion(), info.effectiveMinTransportVersion());
+                LOGGER.debug("minimum transport version {} {}", response.caps().minTransportVersion(), info.effectiveMinTransportVersion());
                 l.onResponse(new Versioned<>(mergedMappings(indexWildcard, info), info.effectiveMinTransportVersion()));
             })
         );
@@ -148,6 +148,11 @@ public class IndexResolver {
      *                            is targeting. It doesn't matter if the node is a data node or an ML node or a unicorn, it's transport
      *                            version counts. BUT if the query doesn't dispatch to that cluster AT ALL, we don't count the versions
      *                            of any nodes in that cluster.
+     *                            <p>
+     *                                If this is {@code null} then one of the nodes is before
+     *                                {@link EsqlResolveFieldsResponse#RESOLVE_FIELDS_RESPONSE_CREATED_TV} but we have no idea how early
+     *                                it is. Could be back in {@code 8.19.0}.
+     *                            </p>
      * @param currentBuildIsSnapshot is the current build a snapshot? Note: This is always {@code Build.current().isSnapshot()} in
      *                               production but tests need more control
      * @param useAggregateMetricDoubleWhenNotSupported does the query itself force us to use {@code aggregate_metric_double} fields

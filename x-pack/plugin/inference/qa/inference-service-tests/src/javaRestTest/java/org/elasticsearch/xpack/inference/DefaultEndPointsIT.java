@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -75,7 +74,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
 
         putModel("my-model", mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
         var registeredModels = getMinimalConfigs();
-        assertThat(registeredModels.size(), equalTo(1));
+        assertThat(registeredModels.size(), is(1));
         assertTrue(registeredModels.containsKey("my-model"));
         assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_E5_ID));
         assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_ELSER_ID));
@@ -194,7 +193,14 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         );
     }
 
-    public void testMultipleInferencesTriggeringDownloadAndDeploy() throws InterruptedException {
+    public void testMultipleInferencesTriggeringDownloadAndDeploy() throws InterruptedException, IOException {
+        var initialEndpointId = "initial-model";
+        // Creating an inference endpoint to force the backing indices to be created to reduce the likelihood of the test failing
+        // because it's trying to interact with the indices while they're being created.
+        putModel(initialEndpointId, mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
+        // delete model so it doesn't affect other tests
+        deleteModel(initialEndpointId);
+
         int numParallelRequests = 4;
         var latch = new CountDownLatch(numParallelRequests);
         var errors = new ArrayList<Exception>();

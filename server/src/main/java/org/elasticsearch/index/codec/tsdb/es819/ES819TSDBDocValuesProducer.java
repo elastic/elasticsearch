@@ -389,7 +389,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int numOffsets = numDocsInBlock + 1;
             while (batchStart < numOffsets) {
                 decoder.decode(input, docOffsetDecompBuffer);
-                int lenToCopy = Math.min(numOffsets- batchStart, NUMERIC_BLOCK_SIZE);
+                int lenToCopy = Math.min(numOffsets - batchStart, NUMERIC_BLOCK_SIZE);
                 for (int i = 0; i < lenToCopy; i++) {
                     uncompressedDocStarts[batchStart + i] = (int) docOffsetDecompBuffer[i];
                 }

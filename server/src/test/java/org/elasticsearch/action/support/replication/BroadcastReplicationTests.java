@@ -285,7 +285,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         }
 
         @Override
-        protected BasicReplicationRequest newShardRequest(DummyBroadcastRequest request, ShardId shardId) {
+        protected BasicReplicationRequest newShardRequest(DummyBroadcastRequest request, ShardId shardId, ProjectMetadata project) {
             return new BasicReplicationRequest(shardId);
         }
 
@@ -304,6 +304,7 @@ public class BroadcastReplicationTests extends ESTestCase {
             Task task,
             DummyBroadcastRequest request,
             ShardId shardId,
+            ProjectMetadata project,
             ActionListener<ReplicationResponse> shardActionListener
         ) {
             capturedShardRequests.add(new Tuple<>(shardId, shardActionListener));

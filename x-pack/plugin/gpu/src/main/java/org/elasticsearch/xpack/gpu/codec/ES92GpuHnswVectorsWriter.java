@@ -332,6 +332,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
             .withGraphDegree(M)
             .withIntermediateGraphDegree(beamWidth)
+            .withNNDescentNumIterations(5)
             .withMetric(distanceType)
             .build();
 

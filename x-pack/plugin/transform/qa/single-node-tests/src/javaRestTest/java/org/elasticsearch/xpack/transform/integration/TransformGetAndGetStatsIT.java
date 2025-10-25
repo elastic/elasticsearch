@@ -66,7 +66,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     @After
     public void clearOutTransforms() throws Exception {
-        adminClient().performRequest(new Request("POST", "/_features/_reset"));
+        performPostFeaturesReset(adminClient());
     }
 
     @SuppressWarnings("unchecked")

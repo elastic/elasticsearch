@@ -520,8 +520,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         final Zstd814StoredFieldsFormat.ZstdCompressor compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(ZSTD_LEVEL);
 
         final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-        final long[] docLengthCompressBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-        int[] docLengths = new int[START_BLOCK_DOCS];
+        final long[] docOffsetsCompressBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+        int[] docOffsets = new int[START_BLOCK_DOCS];
 
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
@@ -552,13 +552,13 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
          * But we can guarantee that the lookup value is dense on the range of inserted values.
          */
         void addDoc(int _docId, BytesRef v) throws IOException {
-            docLengths = ArrayUtil.grow(docLengths, numDocsInCurrentBlock + 1);
-            docLengths[numDocsInCurrentBlock] = v.length;
-
             block = ArrayUtil.grow(block, uncompressedBlockLength + v.length);
             System.arraycopy(v.bytes, v.offset, block, uncompressedBlockLength, v.length);
             uncompressedBlockLength += v.length;
+
             numDocsInCurrentBlock++;
+            docOffsets = ArrayUtil.grow(docOffsets, numDocsInCurrentBlock + 1); // need one extra since writing start for next block
+            docOffsets[numDocsInCurrentBlock] = uncompressedBlockLength;
 
             if (uncompressedBlockLength > MIN_BLOCK_BYTES) {
                 flushData();
@@ -592,15 +592,16 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
             int batchStart = 0;
-            while (batchStart < numDocsInCurrentBlock) {
-                int batchLength = Math.min(numDocsInCurrentBlock - batchStart, NUMERIC_BLOCK_SIZE);
+            int numOffsets = numDocsInCurrentBlock + 1;
+            while (batchStart < numOffsets) {
+                int batchLength = Math.min(numOffsets - batchStart, NUMERIC_BLOCK_SIZE);
                 for (int i = 0; i < batchLength; i++) {
-                    docLengthCompressBuffer[i] = docLengths[batchStart + i];
+                    docOffsetsCompressBuffer[i] = docOffsets[batchStart + i];
                 }
-                if (batchLength < docLengthCompressBuffer.length) {
-                    Arrays.fill(docLengthCompressBuffer, batchLength, docLengthCompressBuffer.length, 0);
+                if (batchLength < docOffsetsCompressBuffer.length) {
+                    Arrays.fill(docOffsetsCompressBuffer, batchLength, docOffsetsCompressBuffer.length, 0);
                 }
-                encoder.encode(docLengthCompressBuffer, output);
+                encoder.encode(docOffsetsCompressBuffer, output);
                 batchStart += batchLength;
             }
         }

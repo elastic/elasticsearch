@@ -341,7 +341,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private final IndexInput compressedData;
         // Cache of last uncompressed block
         private long lastBlockId = -1;
-        private final long[] docLengthDecompBuffer = new long[NUMERIC_BLOCK_SIZE];
+        private final long[] docOffsetDecompBuffer = new long[NUMERIC_BLOCK_SIZE];
         private final int[] uncompressedDocStarts;
         private final byte[] uncompressedBlock;
         private final BytesRef uncompressedBytesRef;
@@ -386,13 +386,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         void decompressDocOffsets(int numDocsInBlock, DataInput input) throws IOException {
             int batchStart = 0;
-            while (batchStart < numDocsInBlock) {
-                decoder.decode(input, docLengthDecompBuffer);
-                int lenToCopy = Math.min(numDocsInBlock - batchStart, NUMERIC_BLOCK_SIZE);
+            int numOffsets = numDocsInBlock + 1;
+            while (batchStart < numOffsets) {
+                decoder.decode(input, docOffsetDecompBuffer);
+                int lenToCopy = Math.min(numOffsets- batchStart, NUMERIC_BLOCK_SIZE);
                 for (int i = 0; i < lenToCopy; i++) {
-                    // convert compressed length to offsets
-                    int docLength = (int) docLengthDecompBuffer[i];
-                    uncompressedDocStarts[batchStart + i + 1] = docLength + uncompressedDocStarts[batchStart + i];
+                    uncompressedDocStarts[batchStart + i] = (int) docOffsetDecompBuffer[i];
                 }
                 batchStart += NUMERIC_BLOCK_SIZE;
             }

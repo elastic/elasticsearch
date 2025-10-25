@@ -2074,6 +2074,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * @return the name of a random data node in a cluster
+     */
+    public String getRandomDataNodeName() {
+        return getNodeNameThat(DiscoveryNode::canContainData);
+    }
+
+    /**
      * @return the name of a random node in a cluster that match the {@code predicate}
      */
     public String getNodeNameThat(Predicate<Settings> predicate) {

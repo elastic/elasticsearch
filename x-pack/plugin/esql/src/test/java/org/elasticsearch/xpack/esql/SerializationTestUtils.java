@@ -125,6 +125,7 @@ public class SerializationTestUtils {
                 AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral::new
             )
         );
+        entries.add(WriteableExponentialHistogram.ENTRY);
         return new NamedWriteableRegistry(entries);
     }
 

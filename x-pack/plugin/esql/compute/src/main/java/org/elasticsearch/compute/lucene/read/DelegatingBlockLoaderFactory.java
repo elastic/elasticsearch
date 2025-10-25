@@ -14,8 +14,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -136,5 +138,29 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     @Override
     public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
         return factory.newAggregateMetricDoubleBlockBuilder(count);
+    }
+
+    @Override
+    public BlockLoader.ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count) {
+        return factory.newExponentialHistogramBlockBuilder(count);
+    }
+
+    @Override
+    public BlockLoader.Block buildExponentialHistogramBlockDirect(
+        BlockLoader.Block minima,
+        BlockLoader.Block maxima,
+        BlockLoader.Block sums,
+        BlockLoader.Block valueCounts,
+        BlockLoader.Block zeroThresholds,
+        BlockLoader.Block encodedHistograms
+    ) {
+        return factory.newExponentialHistogramBlockFromDocValues(
+            (DoubleBlock) minima,
+            (DoubleBlock) maxima,
+            (DoubleBlock) sums,
+            (LongBlock) valueCounts,
+            (DoubleBlock) zeroThresholds,
+            (BytesRefBlock) encodedHistograms
+        );
     }
 }

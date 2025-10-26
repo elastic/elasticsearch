@@ -451,7 +451,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             int docIndex = offset;
                             while (docIndex < docCount) {
                                 int ord = Math.toIntExact(ordinalReader.readValueAndAdvance(docs.get(docIndex)));
-                                if (ord == lastValue) {
+                                // append all docs of the last range without checking
+                                if (lastDoc < ordinalReader.rangeEndExclusive) {
                                     builder.appendOrds(ord, docCount - docIndex);
                                     break;
                                 }

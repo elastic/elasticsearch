@@ -240,6 +240,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
                 if (iaEx.getMessage().startsWith("Fielddata is disabled on")) {
                     return new IllegalArgumentException(
                         String.format(
+                            Locale.ROOT,
                             "Failed to retrieve values for diversification on field [%s]. Is it a [dense_vector] field?",
                             diversificationField
                         ),
@@ -291,7 +292,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
                     fieldVectors.put(asRankDoc.doc, new VectorData((byte[]) field.getValue()));
                 } else {
                     throw new ElasticsearchStatusException(
-                        String.format("Failed to parse field [%s]. Is it a [dense_vector] field?", diversificationField),
+                        String.format(Locale.ROOT, "Failed to parse field [%s]. Is it a [dense_vector] field?", diversificationField),
                         RestStatus.BAD_REQUEST
                     );
                 }
@@ -301,6 +302,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         if (fieldVectors.isEmpty()) {
             throw new ElasticsearchStatusException(
                 String.format(
+                    Locale.ROOT,
                     "Could not retrieve any vectors for field [%s]. Is it a populated [dense_vector] field?",
                     diversificationField
                 ),

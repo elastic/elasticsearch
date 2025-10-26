@@ -33,13 +33,20 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 
 /**
- * Converts values to long.  Explain more here.
- * <p>
- *     Like ToIp, this doesn't extend from {@link AbstractConvertFunction} so that it
- *     can support an optional number base.  It rewrites itself into {@link ToLong}, ...
- *     which are all {@link AbstractConvertFunction} subclasses.
- *     This keeps the conversion code happy while still allowing us to expose a single method to users.
- * </p>
+ * In a single-parameter mode, the function converts the first parameter to a long.
+ * <ul>
+ *     <li>TO_LONG(value) - value supports boolean, date, date_nanos, keyword, text,
+ *         double, long, unsigned_long, integer, counter_integer, counter_long,
+ *         geohash, geotile, geohex
+ *     </li>
+ * </ul>
+ * <br/>
+ * In two-parameter mode, the function parses the first string parameter into a long
+ * using the second parameter as a base.
+ * <ul>
+ *     <li>TO_LONG(string, base) - base supports integer, long and unsigned_long
+ *     </li>
+ * </ul>
  */
 
 public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpression, OptionalArgument, ConvertFunction {
@@ -53,21 +60,28 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
             Converts an input value to a long value. If the input parameter is of a date type,
             its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to long.
             Boolean `true` will be converted to long `1`, `false` to `0`.""",
-        examples = @Example(file = "ints", tag = "to_long-str", explanation = """
-            Note that in this example, the last conversion of the string isn’t possible.
-            When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
-            The header will provide information on the source of the failure:
+        examples = {
+            @Example(file = "ints", tag = "to_long-str", explanation = """
+                Note that in this example, the last conversion of the string isn’t possible.
+                When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
+                The header will provide information on the source of the failure:
 
-            `"Line 1:113: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded."`
+                `"Line 1:113: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded."`
 
-            A following header will contain the failure reason and the offending value:
+                A following header will contain the failure reason and the offending value:
 
-            `"java.lang.NumberFormatException: For input string: \"foo\""`""")
+                `"java.lang.NumberFormatException: For input string: \"foo\""`"""
+            ),
+            @Example(file = "ints", tag = "to_long_base-str", explanation = """
+                Parse string as a long number in the specified base.  Java's `Long.parseLong(string, radix)`.
+                Note like the eql 'number' function, a leading '0x' prefix is allowed for base 16.
+                """
+            )
+        }
     )
     public ToLongSurrogate(
         Source source,
 
-        // ──────────────────────────────────────────────────── ToLong
         @Param(
             name = "field",
             type = {
@@ -88,7 +102,6 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field,
 
-        // ──────────────────────────────────────────────────── CountDistinctOverTime
         @Param(
             name = "base",
             type = { "integer", "long", "unsigned_long" },
@@ -101,24 +114,26 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
         this.base = base;
     }
 
-    // ──────────────────────────────────────────────────────── ToIP
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
     @Override
     public String getWriteableName() {
         throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("not serialized");
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        throw new UnsupportedOperationException("should be rewritten");
     }
 
-    // ──────────────────────────────────────────────────────── ToLong
     @Override
     public DataType dataType() {
         return LONG;
     }
 
-    // ──────────────────────────────────────────────────────── ToLong, ToLongBase, TRANGE
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
@@ -139,23 +154,11 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
         return resolution;
     }
 
-    // ──────────────────────────────────────────────────────── ToIP
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new ToLongSurrogate(source(), newChildren.get(0), newChildren.size() == 1 ? null : newChildren.get(1));
     }
 
-    @Override
-    protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToLongSurrogate::new, field, base);
-    }
-
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        throw new UnsupportedOperationException("should be rewritten");
-    }
-
-    // SurrogateExpression ──────────────────────────────────── Max (aggregate)
     @Override
     public Expression surrogate() {
         if (base != null) {
@@ -170,13 +173,16 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
         return new ToLong(source(), field);
     }
 
-    // ConvertFunction ──────────────────────────────────────── ToIP
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, ToLongSurrogate::new, field, base);
+    }
+
     @Override
     public Expression field() {
         return field;
     }
 
-    // ConvertFunction ──────────────────────────────────────── ToIP
     @Override
     public Set<DataType> supportedTypes() {
         return ToLong.EVALUATORS.keySet();

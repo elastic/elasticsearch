@@ -168,6 +168,27 @@ str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
 // BEGIN esql_to_long_base_133728
 // see comments for each group in base_conversion.csv
 
+convertStringToLongBase
+
+// tag::to_long_base-str[]
+  ROW   str1   = "0x32"
+      , str2   = "31"
+      , str3   = "Hazelnut"
+| EVAL  long1 = TO_LONG(str1, 16)
+      , long2 = TO_LONG(str2, 13)
+      , long3 = TO_LONG(str3, 36)
+      , fail3 = TO_LONG(str3, 10)
+// end::to_long_base-str[]
+;
+warningRegex:Line 7:11: evaluation of \[TO_LONG\(str3, 10\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 7:11: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
+
+// tag::to_long_base-str-result[]
+str1:keyword | str2:keyword | str3:keyword | long1:long | long2:long | long3:long     | fail3:long   
+0x32         | 31           | Hazelnut     | 50         | 40         | 1356099454469  | null
+// end::to_long_base-str-result[]
+;
+
 convertStringToLongBaseIndexGroup0
 required_capability: to_long_base
 

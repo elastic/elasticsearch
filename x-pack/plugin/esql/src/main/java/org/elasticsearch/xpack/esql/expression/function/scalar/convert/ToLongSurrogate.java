@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -20,6 +21,10 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 import java.io.IOException;
 import java.util.List;
@@ -113,6 +118,27 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
         return LONG;
     }
 
+    // ──────────────────────────────────────────────────────── ToLong, ToLongBase, TRANGE
+    @Override
+    protected TypeResolution resolveType() {
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+
+        // single parameter TO_LONG(field) supports many types
+        if (base == null) {
+            return (new ToLong(source(), field)).resolveType();
+        }
+
+        // two parameter TO_LONG(string, base) supports more restricted types
+        TypeResolution resolution = TypeResolutions.isString(field, sourceText(), FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+        resolution = TypeResolutions.isWholeNumber(base, sourceText(), SECOND);
+        return resolution;
+    }
+
     // ──────────────────────────────────────────────────────── ToIP
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
@@ -139,7 +165,7 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
             if (base.dataType().isWholeNumber() == false) {
                 throw new UnsupportedOperationException("base must be a whole number");
             }
-            return new ToLongBase(source(), field, base);
+            return new ToLongBase(source(), field, new ToInteger(source(), base));
         }
         return new ToLong(source(), field);
     }

@@ -1476,7 +1476,7 @@ public class EsqlCapabilities {
          * Percentile over time and other ts-aggregations
          */
         PERCENTILE_OVER_TIME,
-
+        VARIANCE_STDDEV_OVER_TIME,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1588,6 +1588,8 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/136851
          */
         INLINE_STATS_WITH_NO_COLUMNS(INLINE_STATS.enabled),
+
+        FIX_MV_CONSTANT_EQUALS_FIELD,
 
         /**
          * Support for pushing down MV_EXPAND past PROJECT with complex queries.

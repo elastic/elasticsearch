@@ -59,7 +59,8 @@ public class MlDeprecationIT extends ESRestTestCase {
 
     @After
     public void resetFeatures() throws IOException {
-        performPostFeaturesReset(adminClient());
+        Response response = adminClient().performRequest(new Request("POST", "/_features/_reset"));
+        assertOK(response);
     }
 
     @Override

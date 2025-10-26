@@ -925,16 +925,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
-    /**
-     * Invoke {@code POST /_features/_reset?error_trace&master_timeout=-1} with the given {@link RestClient}.
-     */
-    public static void performPostFeaturesReset(RestClient restClient) throws IOException {
-        final var request = new Request(HttpPost.METHOD_NAME, "/_features/_reset");
-        request.addParameter("error_trace", "true");
-        request.addParameter("master_timeout", "-1");
-        assertOK(restClient.performRequest(request));
-    }
-
     private void wipeCluster() throws Exception {
         waitForClusterUpdates();
 
@@ -961,7 +951,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         wipeSnapshots();
 
         if (resetFeatureStates()) {
-            performPostFeaturesReset(cleanupClient());
+            final Request postRequest = new Request("POST", "/_features/_reset");
+            cleanupClient().performRequest(postRequest);
         }
 
         // wipe data streams before indices so that the backing indices for data streams are handled properly

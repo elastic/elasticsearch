@@ -180,8 +180,8 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalLong(from);
-            out.writeOptionalLong(to);
+            out.writeLong(from);
+            out.writeLong(to);
         }
     }
 }

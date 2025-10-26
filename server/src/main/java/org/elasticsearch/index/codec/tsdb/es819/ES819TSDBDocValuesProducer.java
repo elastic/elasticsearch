@@ -437,10 +437,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
                     int firstDoc = docs.get(offset);
                     denseOrds.advanceExact(firstDoc);
-                    long startValue = denseOrds.longValue();
+                    int startValue = Math.toIntExact(denseOrds.longValue());
                     final int docCount = docs.count();
                     int lastDoc = docs.get(docCount - 1);
-                    long lastValue = denseOrds.lookAheadValueAt(lastDoc);
+                    int lastValue = Math.toIntExact(denseOrds.lookAheadValueAt(lastDoc));
                     if (lastValue == startValue) {
                         BytesRef b = lookupOrd(Math.toIntExact(startValue));
                         return factory.constantBytes(BytesRef.deepCopyOf(b), docCount - offset);
@@ -450,16 +450,16 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         try (var builder = factory.singletonOrdinalsBuilder(this, docCount - offset, true)) {
                             int docIndex = offset;
                             while (docIndex < docCount) {
-                                long ord = ordinalReader.readValueAndAdvance(docs.get(docIndex));
+                                int ord = Math.toIntExact(ordinalReader.readValueAndAdvance(docs.get(docIndex)));
                                 if (ord == lastValue) {
-                                    builder.appendOrds(Math.toIntExact(ord), docCount - docIndex);
+                                    builder.appendOrds(ord, docCount - docIndex);
                                     break;
                                 }
                                 final int startIndex = docIndex;
                                 while (docIndex < docCount && docs.get(docIndex) < ordinalReader.rangeEndExclusive) {
                                     ++docIndex;
                                 }
-                                builder.appendOrds(Math.toIntExact(ord), docIndex - startIndex);
+                                builder.appendOrds(ord, docIndex - startIndex);
                             }
                             return builder.build();
                         }

@@ -85,6 +85,20 @@ group:integer,string:keyword,base:integer,expect_long:long,expect_integer:intege
 3,0xdeadbeef,16,3735928559,,    TO_LONG("0xdeadbeef"\, 16)       == long 3735928559 but integer null because overflow
 3,deadbeef,,,,                  TO_LONG("deadbeef"\, null)       == null because base is null
 3,deadbeef,16,3735928559,,      TO_LONG("deadbeef"\, 16)         == long 3735928559 but integer null because overflow
+//
+//     also include some negative values for base 16
+//     observe how the eql "number" function allows 0x prefix (and 0x- !) but not -0x
+//     
+3,1,16,1,,                      TO_LONG("1"\, 16)                == 1
+3,0x1,16,1,,                    TO_LONG("0x1"\, 16)              == 1
+3,-1,16,-1,,                    TO_LONG("-1"\, 16)               == -1
+3,-0x1,16,,,                    TO_LONG("-0x1"\, 16)             == null because implementation doesn't recognize -0x prefix
+3,0x-1,16,,,                    TO_LONG("0x-1"\, 16)             == 1 because implementation just strips 0x before calling Long.parseLong
+3,f,16,15,,                     TO_LONG("f"\, 16)                == 15
+3,0xf,16,15,,                   TO_LONG("0xf"\, 16)              == 15
+3,-f,16,-15,,                   TO_LONG("-f"\, 16)               == -15
+3,-0xf,16,,,                    TO_LONG("-0xf"\, 16)             == null because implementation doesn't recognize -0x prefix
+3,0x-f,16,-15,,                 TO_LONG("-0xf"\, 16)             == -15 because implementation just strips 0x before calling Long.parseLong
 
 //
 // Test Group 4
@@ -103,8 +117,53 @@ group:integer,string:keyword,base:integer,expect_long:long,expect_integer:intege
 //
 // Test Group 5
 //
+//     Values to use for overflow and underflow tests
+//
+//
+5,9223372036854775807,10,9223372036854775807,,    		max long base 10
+5,9223372036854775808,10,9223372036854775807,,    		max long base 10 + 1 returns INCORRECT value WITHOUT warning
+//
+5,7fffffffffffffff,16,9223372036854775807,,     		max long base 16
+5,8000000000000000,16,,,                        		max long base 16 + 1 overflows and returns null with warning
+//
+5,-9223372036854775808,10,-9223372036854775808,,  		min long base 10
+5,-9223372036854775809,10,-9223372036854775808,,  		min long base 10 - 1 returns INCORRECT value WITHOUT warning
+//
+5,-7fffffffffffffff,16,-9223372036854775807,,     		near min long base 
+5,-8000000000000000,16,-9223372036854775808,,   		min long base 16
+5,-8000000000000001,16,,,                       		min long base 16 - 1 underflows and returns null with warning
+
+//
+// Test Group 6
+//
 //     For nested calls test    ┌────────────────────────────────────────────┐
-//                                                       8              + 2
+//     which revealed a bug                              8              + 2
 //                                              ┌──────────────────────┐
 //                                      "1000"          "1000"   2
-5,1000,2,1000,1000,             TO_LONG(string\, TO_LONG(string\, base) + 2 ) == 1000
+6,1000,2,1000,1000,             TO_LONG(string\, TO_LONG(string\, base) + 2 ) == 1000
+
+//
+// Test Group 7
+//
+//     test cases from javadoc for public static long parseLong(String s, int radix)
+//     https://docs.oracle.com/javase/8/docs/api/java/lang/Long.html#parseLong-java.lang.String-int-
+//
+//         parseLong("0", 10) returns 0L
+//         parseLong("473", 10) returns 473L
+//         parseLong("+42", 10) returns 42L
+//         parseLong("-0", 10) returns 0L
+//         parseLong("-FF", 16) returns -255L
+//         parseLong("1100110", 2) returns 102L
+//         parseLong("99", 8) throws a NumberFormatException
+//         parseLong("Hazelnut", 10) throws a NumberFormatException
+//         parseLong("Hazelnut", 36) returns 1356099454469L
+//
+7,0,10,0,,
+7,473,10,473,,
+7,+42,10,42,,
+7,-0,10,0,,
+7,-FF,16,-255,,
+7,1100110,2,102,,
+7,99,8,,,
+7,Hazelnut,10,,,
+7,Hazelnut,36,1356099454469,,

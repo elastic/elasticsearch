@@ -226,6 +226,8 @@ required_capability: to_long_base
 ;
 warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[0x1337\]
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0x1\] to number of base \[16\]
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0xf\] to number of base \[16\]
 
 string:keyword | base:integer | to_long:long
 1337           | 10           | 1337
@@ -237,6 +239,16 @@ string:keyword | base:integer | to_long:long
 0xdeadbeef     | 16           | 3735928559
 deadbeef       | null         | null
 deadbeef       | 16           | 3735928559
+1              | 16           | 1
+0x1            | 16           | 1
+-1             | 16           | -1
+-0x1           | 16           | null
+0x-1           | 16           | -1
+f              | 16           | 15
+0xf            | 16           | 15
+-f             | 16           | -15
+-0xf           | 16           | null
+0x-f           | 16           | -15
 ;
 
 convertStringToLongBaseIndexGroup4
@@ -254,28 +266,35 @@ string:keyword | base:integer | to_long:long
 52403          | 7            | 12890
 ;
 
-
-convertStringToLongBaseNestedGroup5
+convertStringToLongBaseIndexGroup5
 required_capability: to_long_base
 
   FROM  base_conversion
 | WHERE group == 5
-| EVAL  part1 = TO_LONG(string, base) + 2
-| EVAL  part2 = TO_LONG(string, part1)
-| KEEP  string, base, part1, part2
+| EVAL  to_long = TO_LONG(string, base)
+| KEEP  string, base, to_long
+;
+warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[8000000000000000\] to number of base \[16\]
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000001\] to number of base \[16\]
+
+string:keyword       | base:integer | to_long:long
+9223372036854775807  | 10           | 9223372036854775807
+9223372036854775808  | 10           | 9223372036854775807
+7fffffffffffffff     | 16           | 9223372036854775807
+8000000000000000     | 16           | null
+-9223372036854775808 | 10           | -9223372036854775808
+-9223372036854775809 | 10           | -9223372036854775808
+-7fffffffffffffff    | 16           | -9223372036854775807
+-8000000000000000    | 16           | -9223372036854775808
+-8000000000000001    | 16           | null
 ;
 
-string:keyword | base:integer | part1:long | part2:long
-1000           | 2            | 10         | 1000
-;
-
-// same as group5 using a ROW 
-
-convertStringToLongBaseNestedRow
+convertStringToLongBaseIndexGroup6
 required_capability: to_long_base
 
-  ROW   string = "1000"
-    ,   base   = 2
+  FROM  base_conversion
+| WHERE group == 6
 | EVAL  part1 = TO_LONG(string, base) + 2
 | EVAL  part2 = TO_LONG(string, part1)
 | KEEP  string, base, part1, part2
@@ -285,9 +304,29 @@ string:keyword | base:integer | part1:long | part2:long
 1000           | 2            | 10         | 1000
 ;
 
+convertStringToLongBaseIndexGroup7
+required_capability: to_long_base
 
+  FROM  base_conversion
+| WHERE group == 7
+| EVAL  to_long = TO_LONG(string, base)
+| KEEP  string, base, to_long
+;
+warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[99\] to number of base \[8\]
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
 
-
+string:keyword | base:integer | to_long:long
+0              | 10           | 0
+473            | 10           | 473
++42            | 10           | 42
+-0             | 10           | 0
+-FF            | 16           | -255
+1100110        | 2            | 102
+99             | 8            | null
+Hazelnut       | 10           | null
+Hazelnut       | 36           | 1356099454469
+;
 
 
 // END esql_to_long_base_133728

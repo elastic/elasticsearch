@@ -70,6 +70,7 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -508,7 +509,8 @@ public class JwtUtil {
             try {
                 // HTTP dates are in RFC 1123 format
                 return ZonedDateTime.parse(expires, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant();
-            } catch (Exception e) {
+            } catch (DateTimeParseException e) {
+                LOGGER.debug("Failed to parse Expires HTTP response header", e);
                 return null;
             }
         }

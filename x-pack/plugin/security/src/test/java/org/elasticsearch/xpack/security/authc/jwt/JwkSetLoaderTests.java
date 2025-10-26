@@ -15,10 +15,11 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.mockito.ArgumentCaptor;
@@ -60,7 +61,6 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class JwkSetLoaderTests extends ESTestCase {
@@ -167,7 +167,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         assertThat(watcher.changed(), is(false));
     }
 
-    public void testFilePkcJwkSetLoaderEnabled() throws IOException {
+    public void testFilePkcJwkSetLoader() throws IOException {
         Path tempDir = createTempDir();
         String file = "tmp.txt";
         Path path = tempDir.resolve(file);
@@ -178,14 +178,13 @@ public class JwkSetLoaderTests extends ESTestCase {
         when(env.configDir()).thenReturn(tempDir);
         when(realmConfig.env()).thenReturn(env);
         when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH)).thenReturn(file);
-        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED)).thenReturn(true);
         when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_FILE_INTERVAL)).thenReturn(TimeValue.timeValueMinutes(0)); // do now
-        Scheduler scheduler = mock(Scheduler.class);
-        JwkSetCallback callback = new JwkSetCallback();
+        ThreadPool threadPool = mock(ThreadPool.class);
+        CountingCallback callback = new CountingCallback();
 
-        new JwkSetLoader.FilePkcJwkSetLoader(realmConfig, scheduler, null /* not used */, path.toString(), callback); // schedules task
+        new JwkSetLoader.FilePkcJwkSetLoader(realmConfig, threadPool, path.toString(), callback).start(); // schedules task
         ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
-        verify(scheduler, times(1)).scheduleWithFixedDelay(taskCaptor.capture(), any(TimeValue.class), isNull());
+        verify(threadPool, times(1)).scheduleWithFixedDelay(taskCaptor.capture(), any(TimeValue.class), isNull());
 
         taskCaptor.getValue().run(); // run first time
         assertThat(callback.content, is(equalTo(hello)));
@@ -202,52 +201,60 @@ public class JwkSetLoaderTests extends ESTestCase {
         assertThat(callback.count, is(2));
     }
 
-    public void testFilePkcJwkSetLoaderDisabled() {
-        RealmConfig realmConfig = mock(RealmConfig.class);
-        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED)).thenReturn(false);
-        Scheduler scheduler = mock(Scheduler.class);
-        new JwkSetLoader.FilePkcJwkSetLoader(realmConfig, scheduler, null, null, null);
-        verifyNoInteractions(scheduler);
-    }
-
-    public void testUrlPkcJwkSetLoaderEnabled() throws IOException {
+    public void testUrlPkcJwkSetLoader() throws IOException {
         var url = "https://localhost/jwkset.json";
         var uri = URI.create(url);
-        RealmConfig realmConfig = mock(RealmConfig.class);
-        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH)).thenReturn(url);
-        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED)).thenReturn(true);
-        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MIN)).thenReturn(TimeValue.timeValueMinutes(1));
-        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MAX)).thenReturn(TimeValue.timeValueMinutes(60));
-        Scheduler scheduler = mock(Scheduler.class);
+        RealmConfig realmConfig = makeRealmConfigWithReloadUrl(url);
+        ThreadPool threadPool = mock(ThreadPool.class);
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
 
-        JwkSetCallback callback = new JwkSetCallback();
+        CountingCallback callback = new CountingCallback();
 
-        // construct loader, which schedules the task
-        new JwkSetLoader.UrlPkcJwkSetLoader(realmConfig, scheduler, null, uri, httpClient, callback); // schedules task
+        new JwkSetLoader.UrlPkcJwkSetLoader(realmConfig, threadPool, uri, httpClient, callback).start(); // schedules task
 
-        // verify scheduling iterations
         int iterations = randomIntBetween(5, 10);
         for (int i = 0; i < iterations; i++) {
-            verifySchedulingIteration(callback, scheduler, httpClient, i + 1);
+            verifySchedulingIteration(callback, threadPool, httpClient, i + 1);
         }
     }
 
-    private void verifySchedulingIteration(JwkSetCallback callback, Scheduler scheduler, CloseableHttpAsyncClient httpClient, int iteration)
-        throws IOException {
+    public void testUrlPkcJwkSetLoaderListenerException() throws IOException {
+        var url = "https://localhost/jwkset.json";
+        var uri = URI.create(url);
+        RealmConfig realmConfig = makeRealmConfigWithReloadUrl(url);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
+
+        Consumer<byte[]> callback = bytes -> { throw new RuntimeException(); };
+
+        new JwkSetLoader.UrlPkcJwkSetLoader(realmConfig, threadPool, uri, httpClient, callback).start(); // schedules task
+
+        int iterations = randomIntBetween(5, 10);
+        for (int i = 0; i < iterations; i++) {
+            verifySchedulingIterationWithListenerException(threadPool, httpClient, i + 1);
+        }
+    }
+
+    private static RealmConfig makeRealmConfigWithReloadUrl(String url) {
+        RealmConfig realmConfig = mock(RealmConfig.class);
+        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH)).thenReturn(url);
+        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MIN)).thenReturn(TimeValue.timeValueMinutes(1));
+        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MAX)).thenReturn(TimeValue.timeValueMinutes(60));
+        return realmConfig;
+    }
+
+    private void verifySchedulingIteration(
+        CountingCallback callback,
+        ThreadPool threadPool,
+        CloseableHttpAsyncClient httpClient,
+        int iteration
+    ) throws IOException {
         // capture scheduled task and delay
         ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
         ArgumentCaptor<TimeValue> timeCaptor = ArgumentCaptor.forClass(TimeValue.class);
-        verify(scheduler, times(1)).schedule(taskCaptor.capture(), timeCaptor.capture(), isNull());
+        verify(threadPool, times(1)).schedule(taskCaptor.capture(), timeCaptor.capture(), isNull());
 
-        TimeValue delay = timeCaptor.getValue();
-        if (iteration == 1) { // first iteration
-            assertThat(delay, is(TimeValue.timeValueMinutes(1))); // first delay is always minimum (1 minute configured above)
-        } else {
-            TimeValue lower = TimeValue.timeValueMinutes(9);
-            TimeValue upper = TimeValue.timeValueMinutes(11);
-            assertThat(delay, both(greaterThanOrEqualTo(lower)).and(lessThanOrEqualTo(upper))); // 10 minutes +/-1 minute (jitter)
-        }
+        verifyScheduleTime(iteration == 1, timeCaptor);
 
         // run the scheduled task, which triggers HTTP call
         taskCaptor.getValue().run();
@@ -255,6 +262,53 @@ public class JwkSetLoaderTests extends ESTestCase {
         ArgumentCaptor<FutureCallback<HttpResponse>> responseFn = ArgumentCaptor.forClass(FutureCallback.class);
         verify(httpClient, times(1)).execute(any(HttpGet.class), responseFn.capture());
         byte[] bytes = "x".repeat(iteration).getBytes(StandardCharsets.UTF_8);
+        HttpResponse response = makeHttpResponse(bytes);
+
+        reset(threadPool);
+        reset(httpClient);
+
+        // invoke response handler
+        responseFn.getValue().completed(response);
+        assertThat(callback.content, is(equalTo(bytes)));
+        assertThat(callback.count, is(iteration));
+    }
+
+    private void verifySchedulingIterationWithListenerException(ThreadPool threadPool, CloseableHttpAsyncClient httpClient, int iteration)
+        throws IOException {
+        // capture scheduled task and delay
+        ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
+        ArgumentCaptor<TimeValue> timeCaptor = ArgumentCaptor.forClass(TimeValue.class);
+        verify(threadPool, times(1)).schedule(taskCaptor.capture(), timeCaptor.capture(), isNull());
+
+        TimeValue delay = timeCaptor.getValue();
+        assertThat(delay, is(TimeValue.timeValueMinutes(1))); // 1 minute always when exception occurs
+
+        // run the scheduled task, which triggers HTTP call
+        taskCaptor.getValue().run();
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<FutureCallback<HttpResponse>> responseFn = ArgumentCaptor.forClass(FutureCallback.class);
+        verify(httpClient, times(1)).execute(any(HttpGet.class), responseFn.capture());
+        HttpResponse response = makeHttpResponse(new byte[0]);
+
+        reset(threadPool);
+        reset(httpClient);
+
+        // invoke response handler
+        responseFn.getValue().completed(response);
+    }
+
+    private static void verifyScheduleTime(boolean firstIteration, ArgumentCaptor<TimeValue> timeCaptor) {
+        TimeValue delay = timeCaptor.getValue();
+        if (firstIteration) {
+            assertThat(delay, is(TimeValue.timeValueMinutes(1))); // first delay is always minimum (1 minute configured above)
+        } else {
+            TimeValue lower = TimeValue.timeValueMinutes(9);
+            TimeValue upper = TimeValue.timeValueMinutes(11);
+            assertThat(delay, both(greaterThanOrEqualTo(lower)).and(lessThanOrEqualTo(upper))); // 10 minutes +/-1 minute (jitter)
+        }
+    }
+
+    private static HttpResponse makeHttpResponse(byte[] bytes) throws IOException {
         HttpEntity entity = mock(HttpEntity.class);
         Header header = mock(Header.class);
         StatusLine statusLine = mock(StatusLine.class);
@@ -265,14 +319,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         when(response.getStatusLine()).thenReturn(statusLine);
         when(response.getEntity()).thenReturn(entity);
         when(response.getFirstHeader(anyString())).thenReturn(header);
-
-        reset(scheduler);
-        reset(httpClient);
-
-        // invoke response handler
-        responseFn.getValue().completed(response);
-        assertThat(callback.content, is(equalTo(bytes)));
-        assertThat(callback.count, is(iteration));
+        return response;
     }
 
     private static String expiresHeader(int plusMinutes) {
@@ -281,15 +328,14 @@ public class JwkSetLoaderTests extends ESTestCase {
         return zdt.format(DateTimeFormatter.RFC_1123_DATE_TIME);
     }
 
-    public void testUrlPkcJwkSetLoaderDisabled() {
+    public void testUrlPkcJwkSetLoaderInvalidIntervals() {
         RealmConfig realmConfig = mock(RealmConfig.class);
-        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED)).thenReturn(false);
-        Scheduler scheduler = mock(Scheduler.class);
-        new JwkSetLoader.UrlPkcJwkSetLoader(realmConfig, scheduler, null, null, null, null);
-        verifyNoInteractions(scheduler);
+        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MIN)).thenReturn(TimeValue.timeValueMinutes(10));
+        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MAX)).thenReturn(TimeValue.timeValueMinutes(1));
+        expectThrows(SettingsException.class, () -> new JwkSetLoader.UrlPkcJwkSetLoader(realmConfig, null, null, null, null));
     }
 
-    static class JwkSetCallback implements Consumer<byte[]> {
+    static class CountingCallback implements Consumer<byte[]> {
         byte[] content;
         int count;
 

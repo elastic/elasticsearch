@@ -17,7 +17,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
@@ -40,7 +42,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -52,7 +53,7 @@ import java.util.function.Consumer;
  * {@link JwtRealm} settings can specify reloading parameters to enable periodic background reloading
  * of the JWK set.
  */
-public class JwkSetLoader implements Releasable {
+class JwkSetLoader implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(JwkSetLoader.class);
 
@@ -68,7 +69,7 @@ public class JwkSetLoader implements Releasable {
         new JwksAlgs(Collections.emptyList(), Collections.emptyList())
     );
 
-    public JwkSetLoader(
+    JwkSetLoader(
         final RealmConfig realmConfig,
         final List<String> allowedJwksAlgsPkc,
         final SSLService sslService,
@@ -84,7 +85,7 @@ public class JwkSetLoader implements Releasable {
         Consumer<byte[]> listener = content -> handleReloadedContentAndJwksAlgs(content, false);
         this.loader = jwkSetPathUri == null
             ? new FilePkcJwkSetLoader(realmConfig, threadPool, jwkSetPath, listener)
-            : new UrlPkcJwkSetLoader(realmConfig, threadPool, jwkSetPathUri, sslService, listener);
+            : new UrlPkcJwkSetLoader(realmConfig, threadPool, jwkSetPathUri, JwtUtil.createHttpClient(realmConfig, sslService), listener);
         this.reloadNotifier = reloadNotifier;
 
         // Any exception during loading requires closing JwkSetLoader's HTTP client to avoid a thread pool leak
@@ -96,6 +97,10 @@ public class JwkSetLoader implements Releasable {
         } catch (Throwable t) {
             close();
             throw t;
+        }
+
+        if (realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED)) {
+            loader.start();
         }
     }
 
@@ -146,7 +151,6 @@ public class JwkSetLoader implements Releasable {
 
     private void handleReloadedContentAndJwksAlgs(byte[] bytes, boolean init) {
         final ContentAndJwksAlgs newContentAndJwksAlgs = parseContent(bytes);
-        assert newContentAndJwksAlgs != null;
         assert contentAndJwksAlgs != null;
         if ((Arrays.equals(contentAndJwksAlgs.sha256, newContentAndJwksAlgs.sha256)) == false) {
             logger.info(
@@ -183,7 +187,7 @@ public class JwkSetLoader implements Releasable {
 
     @Override
     public void close() {
-        loader.close();
+        loader.stop();
     }
 
     // Filtered JWKs and Algs
@@ -208,34 +212,38 @@ public class JwkSetLoader implements Releasable {
     interface PkcJwkSetLoader {
         void load(ActionListener<byte[]> listener);
 
-        void close();
+        void start();
+
+        void stop();
     }
 
     static class FilePkcJwkSetLoader implements PkcJwkSetLoader {
-        final RealmConfig realmConfig;
-        final String jwkSetPath;
+        private final RealmConfig realmConfig;
+        private final String jwkSetPath;
+        private final ThreadPool threadPool;
+        private final Consumer<byte[]> listener;
 
-        Scheduler.Cancellable task;
+        private volatile boolean closed = false;
+        private Scheduler.Cancellable task;
 
         FilePkcJwkSetLoader(RealmConfig realmConfig, ThreadPool threadPool, String jwkSetPath, Consumer<byte[]> listener) {
-            this(realmConfig, threadPool, threadPool == null ? null : threadPool.generic(), jwkSetPath, listener);
-        }
-
-        FilePkcJwkSetLoader(RealmConfig realmConfig, Scheduler scheduler, Executor executor, String jwkSetPath, Consumer<byte[]> listener) {
             this.realmConfig = realmConfig;
             this.jwkSetPath = jwkSetPath;
-            if (realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED)) {
-                scheduleReload(scheduler, executor, jwkSetPath, listener);
-            }
+            this.threadPool = threadPool;
+            this.listener = listener;
         }
 
-        void scheduleReload(Scheduler scheduler, Executor executor, String jwkSetPath, Consumer<byte[]> listener) {
+        public void start() {
             var fileWatcher = new FileChangeWatcher(JwtUtil.resolvePath(realmConfig.env(), jwkSetPath));
             TimeValue reloadInterval = realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_FILE_INTERVAL);
-            task = scheduler.scheduleWithFixedDelay(() -> reload(fileWatcher, listener), reloadInterval, executor);
+            task = threadPool.scheduleWithFixedDelay(() -> reload(fileWatcher), reloadInterval, threadPool.generic());
         }
 
-        void reload(FileChangeWatcher fileWatcher, Consumer<byte[]> listener) {
+        void reload(FileChangeWatcher fileWatcher) {
+            if (closed) {
+                logger.debug("Skipping file reload because loader is closed");
+                return;
+            }
             try {
                 if (fileWatcher.changed() == false) {
                     logger.debug("No changes detected in PKC JWK set file [{}], aborting", jwkSetPath);
@@ -264,7 +272,7 @@ public class JwkSetLoader implements Releasable {
         }
 
         @Override
-        public void close() {
+        public void stop() {
             if (task != null) {
                 task.cancel();
             }
@@ -272,58 +280,56 @@ public class JwkSetLoader implements Releasable {
     }
 
     static class UrlPkcJwkSetLoader implements PkcJwkSetLoader {
-        final RealmConfig realmConfig;
-        final Scheduler scheduler;
-        final Executor executor;
-        final URI jwkSetPathUri;
-        final Consumer<byte[]> listener;
-        final CloseableHttpAsyncClient httpClient;
-        final TimeValue reloadIntervalMin;
-        final TimeValue reloadIntervalMax;
+        private final RealmConfig realmConfig;
+        private final ThreadPool threadPool;
+        private final URI jwkSetPathUri;
+        private final Consumer<byte[]> listener;
+        private final CloseableHttpAsyncClient httpClient;
+        private final TimeValue reloadIntervalMin;
+        private final TimeValue reloadIntervalMax;
 
-        Scheduler.Cancellable task;
-
-        UrlPkcJwkSetLoader(RealmConfig realmConfig, ThreadPool threadPool, URI jwkSetPathUri, SSLService ssl, Consumer<byte[]> listener) {
-            this(
-                realmConfig,
-                threadPool,
-                threadPool == null ? null : threadPool.generic(),
-                jwkSetPathUri,
-                JwtUtil.createHttpClient(realmConfig, ssl),
-                listener
-            );
-        }
+        private volatile boolean closed = false;
+        private Scheduler.Cancellable task;
 
         UrlPkcJwkSetLoader(
             RealmConfig realmConfig,
-            Scheduler scheduler,
-            Executor executor,
+            ThreadPool threadPool,
             URI jwkSetPathUri,
             CloseableHttpAsyncClient httpClient,
             Consumer<byte[]> listener
         ) {
             this.realmConfig = realmConfig;
-            this.scheduler = scheduler;
-            this.executor = executor;
+            this.threadPool = threadPool;
             this.jwkSetPathUri = jwkSetPathUri;
             this.listener = listener;
             this.httpClient = httpClient;
             this.reloadIntervalMin = realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MIN);
             this.reloadIntervalMax = realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_URL_INTERVAL_MAX);
-            if (realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED)) {
-                scheduleReload(reloadIntervalMin);
+            if (reloadIntervalMax.compareTo(reloadIntervalMin) < 0) {
+                throw new SettingsException(
+                    "Invalid PKC JWK set URL reload intervals: max [" + reloadIntervalMax + "] is less than min [" + reloadIntervalMin + "]"
+                );
             }
         }
 
+        public void start() {
+            scheduleReload(reloadIntervalMin);
+        }
+
         void scheduleReload(TimeValue period) {
-            task = scheduler.schedule(this::reload, period, executor);
+            if (closed) {
+                logger.debug("Skipping reload schedule because loader is closed");
+                return;
+            }
+            task = threadPool.schedule(this::reload, period, threadPool.generic());
         }
 
         void reload() {
             doLoad(ActionListener.wrap(res -> {
-                logger.debug("Successfully reloaded PKC JWK set from HTTPS URI [{}]", jwkSetPathUri);
-                scheduleReload(calculateNextUrlReload(reloadIntervalMin, reloadIntervalMax, res.expires(), URL_RELOAD_JITTER_PCT));
-                listener.accept(res.content());
+                TimeValue period = calculateNextUrlReload(reloadIntervalMin, reloadIntervalMax, res.expires(), URL_RELOAD_JITTER_PCT);
+                logger.debug("Successfully reloaded PKC JWK set from HTTPS URI [{}], reload delay is [{}]", jwkSetPathUri, period);
+                listener.accept(res.content()); // exception here will be caught by ActionListener.wrap and handled below
+                scheduleReload(period);
             }, e -> {
                 logger.warn("Failed to reload PKC JWK set from HTTPS URI [" + jwkSetPathUri + "]", e);
                 scheduleReload(reloadIntervalMin);
@@ -346,19 +352,20 @@ public class JwkSetLoader implements Releasable {
         }
 
         @Override
-        public void close() {
+        public void stop() {
+            closed = true;
+            if (task != null) {
+                task.cancel();
+            }
             try {
                 httpClient.close();
             } catch (IOException e) {
                 logger.warn(() -> "Exception closing HTTPS client for realm [" + realmConfig.name() + "]", e);
             }
-            if (task != null) {
-                task.cancel();
-            }
         }
     }
 
-    static TimeValue calculateNextUrlReload(TimeValue minVal, TimeValue maxVal, Instant targetTime, double maxJitterPct) {
+    static TimeValue calculateNextUrlReload(TimeValue minVal, TimeValue maxVal, @Nullable Instant targetTime, double maxJitterPct) {
         if (targetTime == null) {
             return minVal;
         }

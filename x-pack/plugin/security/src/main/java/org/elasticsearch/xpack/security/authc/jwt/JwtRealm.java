@@ -125,7 +125,7 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
         // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
         // Enhancement idea: Use separate caches for PKC vs HMAC JWKs, so only PKC entries get invalidated.
         // Enhancement idea: When some JWKs are retained (ex: rotation), only invalidate for removed JWKs.
-        jwtAuthenticator = new JwtAuthenticator(realmConfig, sslService, this::expireAll, threadPool);
+        jwtAuthenticator = new JwtAuthenticator(realmConfig, sslService, this::invalidateJwtCache, threadPool);
 
         final Map<String, String> fallbackClaimNames = jwtAuthenticator.getFallbackClaimNames();
 

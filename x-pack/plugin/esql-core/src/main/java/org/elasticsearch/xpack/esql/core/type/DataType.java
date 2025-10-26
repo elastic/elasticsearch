@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -122,7 +123,7 @@ import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
  *         Ensure the capabilities for this type are always enabled.</li>
  *     <li>
  *         Mark the type with a new transport version via
- *         {@link Builder#supportedOn(TransportVersion)}. This will enable the type on
+ *         {@link Builder#supportedSince(TransportVersion)}. This will enable the type on
  *         non-SNAPSHOT builds as long as all nodes in the cluster (and remote clusters)
  *         support it.</li>
  *     <li>
@@ -274,7 +275,7 @@ public enum DataType implements Writeable {
     /**
      * Represents a half-inclusive range between two dates.
      */
-    DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().supportedOn(ESQL_LONG_RANGES)),
+    DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().supportedSince(ESQL_LONG_RANGES)),
     /**
      * IP addresses. IPv4 address are always
      * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>
@@ -301,9 +302,13 @@ public enum DataType implements Writeable {
     // NOTE: If INDEX_SOURCE somehow gets backported to a version that doesn't actually support these types, we'll be missing validation for
     // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because these types require specific
     // geo functions to turn up in the query, and those types aren't available before 9.2.0 either.
-    GEOHASH(builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES).supportedOn(DataTypesTransportVersions.INDEX_SOURCE)),
-    GEOTILE(builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES).supportedOn(DataTypesTransportVersions.INDEX_SOURCE)),
-    GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES).supportedOn(DataTypesTransportVersions.INDEX_SOURCE)),
+    GEOHASH(
+        builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES).supportedSince(DataTypesTransportVersions.INDEX_SOURCE)
+    ),
+    GEOTILE(
+        builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES).supportedSince(DataTypesTransportVersions.INDEX_SOURCE)
+    ),
+    GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES).supportedSince(DataTypesTransportVersions.INDEX_SOURCE)),
 
     /**
      * Fields with this type represent a Lucene doc id. This field is a bit magic in that:
@@ -327,7 +332,7 @@ public enum DataType implements Writeable {
     // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because _tsid requires specifically being
     // used in `FROM idx METADATA _tsid` or in the `TS` command, which both weren't available before 9.2.0.
     TSID_DATA_TYPE(
-        builder().esType("_tsid").estimatedSize(Long.BYTES * 2).docValues().supportedOn(DataTypesTransportVersions.INDEX_SOURCE)
+        builder().esType("_tsid").estimatedSize(Long.BYTES * 2).docValues().supportedSince(DataTypesTransportVersions.INDEX_SOURCE)
     ),
     /**
      * Fields with this type are the partial result of running a non-time-series aggregation
@@ -338,13 +343,13 @@ public enum DataType implements Writeable {
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
-            .supportedOn(DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION)
+            .supportedSince(DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION)
     ),
     /**
      * Fields with this type are dense vectors, represented as an array of float values.
      */
     DENSE_VECTOR(
-        builder().esType("dense_vector").estimatedSize(4096).supportedOn(DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION)
+        builder().esType("dense_vector").estimatedSize(4096).supportedSince(DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION)
     );
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
@@ -749,7 +754,7 @@ public enum DataType implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (supportedVersion.supports(out.getTransportVersion()) == false) {
+        if (supportedVersion.supportedOn(out.getTransportVersion(), Build.current().isSnapshot()) == false) {
             /*
              * TODO when we implement version aware planning flip this to an IllegalStateException
              * so we throw a 500 error. It'll be our bug then. Right now it's a sign that the user
@@ -960,8 +965,8 @@ public enum DataType implements Writeable {
          * <p>
          * Generally, we should add a dedicated transport version when a type is enabled on release builds.
          */
-        Builder supportedOn(TransportVersion supportedVersion) {
-            this.supportedVersion = SupportedVersion.supportedOn(supportedVersion);
+        Builder supportedSince(TransportVersion supportedVersion) {
+            this.supportedVersion = SupportedVersion.supportedSince(supportedVersion);
             return this;
         }
 

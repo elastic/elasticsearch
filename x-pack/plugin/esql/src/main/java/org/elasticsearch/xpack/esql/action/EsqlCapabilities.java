@@ -1589,6 +1589,11 @@ public class EsqlCapabilities {
          */
         INLINE_STATS_WITH_NO_COLUMNS(INLINE_STATS.enabled),
 
+        /**
+         * Support for pushing down MV_EXPAND past PROJECT with complex queries.
+         */
+        PUSH_DOWN_MV_EXPAND_PAST_PROJECT,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

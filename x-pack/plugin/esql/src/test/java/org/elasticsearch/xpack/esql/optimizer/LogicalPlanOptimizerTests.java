@@ -3168,8 +3168,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | mv_expand a
             | mv_expand b
             """);
-        var porject = as(plan, Project.class);
-        var limit = asLimit(porject.child(), 1000, true);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
         var mvExpand = as(limit.child(), MvExpand.class);
         var eval = as(mvExpand.child(), Eval.class);
         limit = asLimit(eval.child(), 1000, true);
@@ -3177,6 +3177,32 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         limit = asLimit(mvExpand.child(), 1000, false);
         var agg = as(limit.child(), Aggregate.class);
         as(agg.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[b{r}#22]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[$$a$b$0{r}#23,b{r}#22]
+     *     \_Eval[[2[INTEGER] AS $$a$b$0#23]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * }</pre>
+     */
+    public void testPushDownMvExpandPastProject3() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval a = 2
+            | rename a AS b
+            | mv_expand b
+            | keep b
+            """);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
+        var mvExpand = as(limit.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        limit = asLimit(eval.child(), 1000, false);
+        as(limit.child(), EsRelation.class);
     }
 
     public void testTopNEnrich() {

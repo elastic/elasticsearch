@@ -606,6 +606,11 @@ public interface BlockLoader {
          */
         SingletonOrdinalsBuilder appendOrd(int value);
 
+        /**
+         * Appends a single ord for the next N positions
+         */
+        SingletonOrdinalsBuilder appendOrds(int ord, int length);
+
         SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd);
     }
 

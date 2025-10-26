@@ -1,5 +1,0 @@
-pr: 134137
-summary: Add signing configuration for cross cluster api keys
-area: Security
-type: enhancement
-issues: []

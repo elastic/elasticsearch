@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.gpu.codec;
 
+import com.nvidia.cuvs.CagraIndexParams;
 import com.nvidia.cuvs.CuVSMatrix;
 import com.nvidia.cuvs.CuVSResources;
 import com.nvidia.cuvs.GPUInfoProvider;
@@ -46,11 +47,18 @@ public interface CuVSResourceManager {
      * <p>A manager can use the given parameters, numVectors and dims, to estimate the potential
      * effect on GPU memory and compute usage to determine whether to give out
      * another resource or wait for a resources to be returned before giving out another.
+     *
+     * <p>If the required memory exceeds the available GPU memory:
+     * - If distanceType is NOT CosineExpanded, the resource's useIVFPQ flag will be set to true
+     *   to indicate that IVF_PQ algorithm should be used instead of the default algorithm.
+     * - If distanceType is CosineExpanded, an error will be thrown since IVF_PQ doesn't support
+     *   Cosine distance in CUVS 25.10. This limitation should be removed when updating to CUVS 25.12+.
      */
     // numVectors and dims are currently unused, but could be used along with GPU metadata,
     // memory, generation, etc, when acquiring for 10M x 1536 dims, or 100,000 x 128 dims,
     // to give out a resources or not.
-    ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType) throws InterruptedException;
+    ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams.CuvsDistanceType distanceType)
+        throws InterruptedException;
 
     /** Marks the resources as finished with regard to compute. */
     void finishedComputation(ManagedCuVSResources resources);
@@ -128,7 +136,12 @@ public interface CuVSResourceManager {
         }
 
         @Override
-        public ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType) throws InterruptedException {
+        public ManagedCuVSResources acquire(
+            int numVectors,
+            int dims,
+            CuVSMatrix.DataType dataType,
+            CagraIndexParams.CuvsDistanceType distanceType
+        ) throws InterruptedException {
             try {
                 var started = System.nanoTime();
                 lock.lock();
@@ -152,14 +165,28 @@ public interface CuVSResourceManager {
                         // Check immutable constraints
                         long totalDeviceMemoryInBytes = gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes();
                         if (requiredMemoryInBytes > totalDeviceMemoryInBytes) {
+                            // IVF_PQ doesn't support Cosine distance in CUVS 25.10
+                            // TODO: Remove this check when updating to CUVS 25.12+
+                            if (distanceType == CagraIndexParams.CuvsDistanceType.CosineExpanded) {
+                                String message = Strings.format(
+                                    "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
+                                    numVectors,
+                                    dims,
+                                    totalDeviceMemoryInBytes
+                                );
+                                logger.error(message);
+                                throw new IllegalArgumentException(message);
+                            }
+                            // For non-Cosine distances, use IVF_PQ algorithm
                             String message = Strings.format(
-                                "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
+                                "Requested GPU memory for [%d] vectors, [%d] dims exceeds GPU total memory [%d B], using IVF_PQ algorithm",
                                 numVectors,
                                 dims,
                                 totalDeviceMemoryInBytes
                             );
-                            logger.error(message);
-                            throw new IllegalArgumentException(message);
+                            logger.warn(message);
+                            res.useIVFPQ = true;
+                            break;
                         }
 
                         // If no resource in the pool is locked, short circuit to avoid livelock
@@ -192,10 +219,6 @@ public interface CuVSResourceManager {
         }
 
         private long estimateRequiredMemory(int numVectors, int dims, CuVSMatrix.DataType dataType) {
-            // for large vector sets, we use IVF+PQ or similar, so we don't skip blocking based on memory usage
-            if (numVectors >= 1e6) {
-                return 0;
-            }
             int elementTypeBytes = switch (dataType) {
                 case FLOAT -> Float.BYTES;
                 case INT, UINT -> Integer.BYTES;
@@ -244,6 +267,7 @@ public interface CuVSResourceManager {
 
         final CuVSResources delegate;
         boolean locked = false;
+        boolean useIVFPQ = false;
 
         ManagedCuVSResources(CuVSResources resources) {
             this.delegate = resources;

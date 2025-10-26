@@ -190,10 +190,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 // Will not be indexed on the GPU
                 flushFieldWithMockGraph(fieldInfo, numVectors, sortMap);
             } else {
+                var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
                 try (
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT, distanceType)
                     )
                 ) {
                     var builder = CuVSMatrix.deviceBuilder(
@@ -307,12 +308,8 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private CagraIndex buildGPUIndex(
-        CuVSResourceManager.ManagedCuVSResources cuVSResources,
-        VectorSimilarityFunction similarityFunction,
-        CuVSMatrix dataset
-    ) throws Throwable {
-        CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
+    private CagraIndexParams.CuvsDistanceType cagraDistanceFromSimFun(VectorSimilarityFunction similarityFunction) {
+        return switch (similarityFunction) {
             case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
             case DOT_PRODUCT -> {
@@ -326,22 +323,35 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 yield CagraIndexParams.CuvsDistanceType.InnerProduct;
             }
         };
+    }
+
+    private CagraIndex buildGPUIndex(
+        CuVSResourceManager.ManagedCuVSResources cuVSResources,
+        VectorSimilarityFunction similarityFunction,
+        CuVSMatrix dataset
+    ) throws Throwable {
+        CagraIndexParams.CuvsDistanceType distanceType = cagraDistanceFromSimFun(similarityFunction);
 
         final CagraIndexParams params;
         int numCPUThreads = 1;  // TODO: how many CPU threads we can use?
-        if (dataset.size() < 1e6) {
+        // IVF_PQ doesn't support Cosine distance in CUVS 25.10
+        // TODO: Remove this check on distance when updating to CUVS 25.12+
+        if ((distanceType != CagraIndexParams.CuvsDistanceType.CosineExpanded) && (cuVSResources.useIVFPQ || dataset.size() >= 5e6)) {
+            var ivfPqParams = CuVSIvfPqParamsFactory.create(dataset, distanceType);
+            params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
+                .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ)
+                .withCuVSIvfPqParams(ivfPqParams)
+                .withMetric(distanceType)
+                .build();
+            if (cuVSResources.useIVFPQ && logger.isDebugEnabled()) {
+                logger.debug("Using IVF_PQ algorithm due to insufficient GPU memory");
+            }
+        } else {
             params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
                 .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
                 .withGraphDegree(M)
                 .withIntermediateGraphDegree(beamWidth)
                 .withNNDescentNumIterations(5)
-                .withMetric(distanceType)
-                .build();
-        } else {
-            var ivfPqParams = CuVSIvfPqParamsFactory.create(dataset, distanceType);
-            params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
-                .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ)
-                .withCuVSIvfPqParams(ivfPqParams)
                 .withMetric(distanceType)
                 .build();
         }
@@ -539,11 +549,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         );
                     }
 
+                    var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
                     try (
                         var dataset = DatasetUtilsImpl.fromMemorySegment(packedSegment, numVectors, packedRowSize, dataType);
                         var resourcesHolder = new ResourcesHolder(
                             cuVSResourceManager,
-                            cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                            cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
                         )
                     ) {
                         generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
@@ -563,11 +574,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     builder.addVector(vector);
                 }
 
+                var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
                 try (
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
@@ -584,11 +596,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 builder.addVector(byteVectorValues.vectorValue(iterator.index()));
             }
 
+            var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
             try (
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
@@ -610,12 +623,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             var input = FilterIndexInput.unwrapOnlyTest(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                 // Direct access to mmapped file
+                var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
                 try (
                     var dataset = DatasetUtils.getInstance()
                         .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
@@ -634,11 +648,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     builder.addVector(vector);
                 }
 
+                var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
                 try (
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
@@ -656,11 +671,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 float[] vector = floatVectorValues.vectorValue(iterator.index());
                 builder.addVector(vector);
             }
+            var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
             try (
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);

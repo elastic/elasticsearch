@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -261,7 +261,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         ArgumentCaptor<FutureCallback<HttpResponse>> responseFn = ArgumentCaptor.forClass(FutureCallback.class);
         verify(httpClient, times(1)).execute(any(HttpGet.class), responseFn.capture());
         byte[] bytes = "x".repeat(iteration).getBytes(StandardCharsets.UTF_8);
-        HttpResponse response = makeHttpResponse(bytes);
+        HttpResponse response = makeHttpResponse(bytes, randomBoolean());
 
         reset(threadPool);
         reset(httpClient);
@@ -287,7 +287,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<FutureCallback<HttpResponse>> responseFn = ArgumentCaptor.forClass(FutureCallback.class);
         verify(httpClient, times(1)).execute(any(HttpGet.class), responseFn.capture());
-        HttpResponse response = makeHttpResponse(new byte[0]);
+        HttpResponse response = makeHttpResponse(new byte[0], randomBoolean());
 
         reset(threadPool);
         reset(httpClient);
@@ -307,21 +307,34 @@ public class JwkSetLoaderTests extends ESTestCase {
         }
     }
 
-    private static HttpResponse makeHttpResponse(byte[] bytes) throws IOException {
+    private static HttpResponse makeHttpResponse(byte[] bytes, boolean expiresHeader) throws IOException {
         HttpEntity entity = mock(HttpEntity.class);
-        Header header = mock(Header.class);
         StatusLine statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(200);
-        when(header.getValue()).thenReturn(expiresHeader(10)); // expires in 10 minutes
         when(entity.getContent()).thenReturn(new ByteArrayInputStream(bytes));
         HttpResponse response = mock(HttpResponse.class);
         when(response.getStatusLine()).thenReturn(statusLine);
         when(response.getEntity()).thenReturn(entity);
-        when(response.getFirstHeader(anyString())).thenReturn(header);
+        Header eh = expiresHeader ? expiresHeader(10) : null;
+        Header cc = expiresHeader ? null : cacheControlHeader(10);
+        when(response.getFirstHeader(eq("Expires"))).thenReturn(eh);
+        when(response.getFirstHeader(eq("Cache-Control"))).thenReturn(cc);
         return response;
     }
 
-    private static String expiresHeader(int plusMinutes) {
+    private static Header expiresHeader(int minutes) {
+        Header header = mock(Header.class);
+        when(header.getValue()).thenReturn(expiresHeaderValue(minutes));
+        return header;
+    }
+
+    private static Header cacheControlHeader(int minutes) {
+        Header header = mock(Header.class);
+        when(header.getValue()).thenReturn("max-age=" + (minutes * 60));
+        return header;
+    }
+
+    private static String expiresHeaderValue(int plusMinutes) {
         ZonedDateTime nowUtc = ZonedDateTime.now(ZoneId.of("UTC"));
         ZonedDateTime zdt = nowUtc.plusMinutes(plusMinutes);
         return zdt.format(DateTimeFormatter.RFC_1123_DATE_TIME);

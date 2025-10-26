@@ -76,8 +76,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -337,7 +338,8 @@ public class JwtUtil {
                             listener.onResponse(
                                 new JwksResponse(
                                     inputStream.readAllBytes(),
-                                    Optional.ofNullable(result.getFirstHeader("Expires")).map(Header::getValue).orElse(null)
+                                    firstHeaderValue(result, "Expires"),
+                                    firstHeaderValue(result, "Cache-Control")
                                 )
                             );
                         } catch (Exception e) {
@@ -364,6 +366,11 @@ public class JwtUtil {
             });
             return null;
         });
+    }
+
+    private static String firstHeaderValue(final HttpResponse response, final String headerName) {
+        final Header header = response.getFirstHeader(headerName);
+        return header != null ? header.getValue() : null;
     }
 
     public static Path resolvePath(final Environment environment, final String jwkSetPath) {
@@ -491,9 +498,11 @@ public class JwtUtil {
         return false;
     }
 
-    record JwksResponse(byte[] content, Instant expires) {
-        JwksResponse(byte[] content, String expires) {
-            this(content, parseExpires(expires));
+    record JwksResponse(byte[] content, Instant expires, Integer maxAgeSeconds) {
+        private static final Pattern MAX_AGE_PATTERN = Pattern.compile("\\bmax-age\\s*=\\s*(\\d+)\\b", Pattern.CASE_INSENSITIVE);
+
+        JwksResponse(byte[] content, String expires, String cacheControl) {
+            this(content, parseExpires(expires), parseMaxAge(cacheControl));
         }
 
         /**
@@ -511,6 +520,28 @@ public class JwtUtil {
                 return ZonedDateTime.parse(expires, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant();
             } catch (DateTimeParseException e) {
                 LOGGER.debug("Failed to parse Expires HTTP response header", e);
+                return null;
+            }
+        }
+
+        /**
+         * Parse the Cache-Control header to extract the max-age value.
+         * @return the parsed max-age value as Integer, or null if the header is null or cannot be parsed
+         */
+        static Integer parseMaxAge(String cacheControl) {
+            if (cacheControl == null) {
+                return null;
+            }
+
+            Matcher matcher = MAX_AGE_PATTERN.matcher(cacheControl);
+            if (matcher.find() == false) {
+                return null;
+            }
+
+            try {
+                return Integer.parseInt(matcher.group(1));
+            } catch (NumberFormatException e) {
+                LOGGER.debug("Failed to parse max-age value from Cache-Control HTTP response header", e);
                 return null;
             }
         }

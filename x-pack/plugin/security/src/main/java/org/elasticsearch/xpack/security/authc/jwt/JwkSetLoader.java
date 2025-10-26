@@ -320,7 +320,10 @@ class JwkSetLoader implements Releasable {
 
         void reload() {
             doLoad(ActionListener.wrap(res -> {
-                TimeValue period = calculateNextUrlReload(reloadIntervalMin, reloadIntervalMax, res.expires(), URL_RELOAD_JITTER_PCT);
+                Instant targetTime = res.expires() != null
+                    ? res.expires()
+                    : (res.maxAgeSeconds() != null ? Instant.now().plusSeconds(res.maxAgeSeconds()) : null);
+                TimeValue period = calculateNextUrlReload(reloadIntervalMin, reloadIntervalMax, targetTime, URL_RELOAD_JITTER_PCT);
                 logger.debug("Successfully reloaded PKC JWK set from HTTPS URI [{}], reload delay is [{}]", jwkSetPathUri, period);
                 listener.accept(res.content()); // exception here will be caught by ActionListener.wrap and handled below
                 scheduleReload(period);

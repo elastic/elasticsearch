@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
@@ -90,7 +89,7 @@ public class JwkSetLoaderTests extends ESTestCase {
             assertThat(readyLatch.await(10, TimeUnit.SECONDS), is(true));
             invocation.callRealMethod();
             return null;
-        }).when(jwkSetLoader).loadInternal(anyActionListener(), anyBoolean());
+        }).when(jwkSetLoader).loadInternal(anyActionListener());
 
         new Thread(() -> jwkSetLoader.reload(futures.get(0))).start();
         assertThat(loadingLatch.await(10, TimeUnit.SECONDS), is(true));
@@ -102,7 +101,7 @@ public class JwkSetLoaderTests extends ESTestCase {
             final Object result = invocation.callRealMethod();
             threadsCountDown.countDown();
             return result;
-        }).when(jwkSetLoader).getFuture(anyBoolean());
+        }).when(jwkSetLoader).getFuture();
         IntStream.range(1, nThreads).forEach(i -> new Thread(() -> jwkSetLoader.reload(futures.get(i))).start());
         assertThat(threadsCountDown.await(10, TimeUnit.SECONDS), is(true));
 
@@ -116,7 +115,7 @@ public class JwkSetLoaderTests extends ESTestCase {
             future.actionGet();
             assertSame(algs, jwkSetLoader.getContentAndJwksAlgs().jwksAlgs());
         });
-        verify(jwkSetLoader, never()).loadInternal(anyActionListener(), anyBoolean());
+        verify(jwkSetLoader, never()).loadInternal(anyActionListener());
     }
 
     public void testCalculateNextUrlReload() {

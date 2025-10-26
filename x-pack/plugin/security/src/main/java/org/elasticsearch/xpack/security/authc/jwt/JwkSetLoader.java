@@ -82,7 +82,7 @@ class JwkSetLoader implements Releasable {
         String jwkSetPath = realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
         assert Strings.hasText(jwkSetPath);
         URI jwkSetPathUri = JwtUtil.parseHttpsUri(jwkSetPath);
-        Consumer<byte[]> listener = content -> handleReloadedContentAndJwksAlgs(content, false);
+        Consumer<byte[]> listener = content -> handleReloadedContentAndJwksAlgs(content);
         this.loader = jwkSetPathUri == null
             ? new FilePkcJwkSetLoader(realmConfig, threadPool, jwkSetPath, listener)
             : new UrlPkcJwkSetLoader(realmConfig, threadPool, jwkSetPathUri, JwtUtil.createHttpClient(realmConfig, sslService), listener);
@@ -91,7 +91,7 @@ class JwkSetLoader implements Releasable {
         // Any exception during loading requires closing JwkSetLoader's HTTP client to avoid a thread pool leak
         try {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            reload(future, true); // reload in init mode
+            reload(future); // reload in init mode
             // ASSUME: Blocking read operations are OK during startup
             future.actionGet();
         } catch (Throwable t) {
@@ -109,11 +109,7 @@ class JwkSetLoader implements Releasable {
      * they are different.
      */
     void reload(final ActionListener<Void> listener) {
-        reload(listener, false);
-    }
-
-    private void reload(final ActionListener<Void> listener, boolean init) {
-        final ListenableFuture<Void> future = getFuture(init);
+        final ListenableFuture<Void> future = getFuture();
         future.addListener(listener);
     }
 
@@ -122,7 +118,7 @@ class JwkSetLoader implements Releasable {
     }
 
     // Package private for testing
-    ListenableFuture<Void> getFuture(boolean init) {
+    ListenableFuture<Void> getFuture() {
         for (;;) {
             final ListenableFuture<Void> existingFuture = reloadFutureRef.get();
             if (existingFuture != null) {
@@ -134,7 +130,7 @@ class JwkSetLoader implements Releasable {
                 loadInternal(ActionListener.runBefore(newFuture, () -> {
                     final ListenableFuture<Void> oldValue = reloadFutureRef.getAndSet(null);
                     assert oldValue == newFuture : "future reference changed unexpectedly";
-                }), init);
+                }));
                 return newFuture;
             }
             // else, Another thread set the future-ref before us, just try it all again
@@ -142,14 +138,14 @@ class JwkSetLoader implements Releasable {
     }
 
     // Package private for testing
-    void loadInternal(final ActionListener<Void> listener, boolean init) {
+    void loadInternal(final ActionListener<Void> listener) {
         loader.load(ActionListener.wrap(content -> {
-            handleReloadedContentAndJwksAlgs(content, init); // reloadNotifier callback invoked inside
+            handleReloadedContentAndJwksAlgs(content); // reloadNotifier callback invoked inside
             listener.onResponse(null);
         }, listener::onFailure));
     }
 
-    private void handleReloadedContentAndJwksAlgs(byte[] bytes, boolean init) {
+    private void handleReloadedContentAndJwksAlgs(byte[] bytes) {
         final ContentAndJwksAlgs newContentAndJwksAlgs = parseContent(bytes);
         assert contentAndJwksAlgs != null;
         if ((Arrays.equals(contentAndJwksAlgs.sha256, newContentAndJwksAlgs.sha256)) == false) {
@@ -159,9 +155,7 @@ class JwkSetLoader implements Releasable {
                 MessageDigests.toHexString(newContentAndJwksAlgs.sha256)
             );
             contentAndJwksAlgs = newContentAndJwksAlgs;
-            if (init == false) { // omit notification during initial load via constructor
-                reloadNotifier.reloaded();
-            }
+            reloadNotifier.reloaded();
         }
     }
 

@@ -2748,3 +2748,9 @@ book_no:keyword | author_encoded:keyword | title_encoded:keyword
 1463            | J.%20R.%20R.%20Tolkien | Realms%20of%20Tolkien%3A%20Images%20of%20Middle-earth
 ;
 
+ascii
+row a = "eñe\nis a Spanish letter" | eval x = ascii(a);
+
+a:keyword | x:keyword
+eñe\nis a Spanish letter | e\\xf1e\\nis a Spanish letter
+;

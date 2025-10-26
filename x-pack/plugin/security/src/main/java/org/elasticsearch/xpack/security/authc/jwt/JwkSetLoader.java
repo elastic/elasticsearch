@@ -91,7 +91,7 @@ class JwkSetLoader implements Releasable {
         // Any exception during loading requires closing JwkSetLoader's HTTP client to avoid a thread pool leak
         try {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            reload(future); // reload in init mode
+            reload(future);
             // ASSUME: Blocking read operations are OK during startup
             future.actionGet();
         } catch (Throwable t) {

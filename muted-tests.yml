@@ -534,6 +534,9 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testCanRemainNotPreferredIsIgnoredWhenAllOtherNodesReturnNotPreferred
   issue: https://github.com/elastic/elasticsearch/issues/137162
+- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
+  method: testLicenseCheck
+  issue: https://github.com/elastic/elasticsearch/issues/137168
 
 # Examples:
 #

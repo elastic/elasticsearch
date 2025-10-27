@@ -550,9 +550,10 @@ public class EsqlSession {
             executionInfo
         );
 
-        // The main index pattern dictates on which nodes the query can be executed, so we use the minimum transport version from this field
-        // caps request.
         SubscribableListener.<PreAnalysisResult>newForked(
+            // The main index pattern dictates on which nodes the query can be executed, so we use the minimum transport version from this
+            // field
+            // caps request.
             l -> preAnalyzeMainIndices(preAnalysis.indexes().entrySet().iterator(), preAnalysis, executionInfo, result, requestFilter, l)
         ).andThenApply(r -> {
             if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
@@ -576,6 +577,9 @@ public class EsqlSession {
             .addListener(logicalPlanListener);
     }
 
+    /**
+     * Perform a field caps request for each lookup index. Does not update the minimum transport version.
+     */
     private void preAnalyzeLookupIndices(
         Iterator<IndexPattern> lookupIndices,
         PreAnalysisResult preAnalysisResult,
@@ -796,6 +800,10 @@ public class EsqlSession {
         });
     }
 
+    /**
+     * Perform a field caps request for each index pattern and determine the minimum transport version of all clusters with matching
+     * indices.
+     */
     private void preAnalyzeMainIndices(
         Iterator<Map.Entry<IndexPattern, IndexMode>> indexPatterns,
         PreAnalyzer.PreAnalysis preAnalysis,

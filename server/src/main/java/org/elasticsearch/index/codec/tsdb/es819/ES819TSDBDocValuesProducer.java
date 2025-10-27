@@ -420,7 +420,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int idxInBlock = (int) (docNumber - startDocNumForBlock);
             assert idxInBlock < numDocsInBlock;
 
-            // already read and uncompressed?
             if (blockId != lastBlockId) {
                 decompressBlock((int) blockId, numDocsInBlock);
                 // uncompressedBytesRef and uncompressedDocStarts now populated
@@ -1673,6 +1672,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
                     return lookaheadBlock[valueIndex];
                 }
+
+                static boolean isDense(int firstDocId, int lastDocId, int length) {
+                    // This does not detect duplicate docids (e.g [1, 1, 2, 4] would be detected as dense),
+                    // this can happen with enrich or lookup. However this codec isn't used for enrich / lookup.
+                    // This codec is only used in the context of logsdb and tsdb, so this is fine here.
+                    return lastDocId - firstDocId == length - 1;
+                }
+
             };
         } else {
             final IndexedDISI disi = new IndexedDISI(
@@ -1785,13 +1792,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
             };
         }
-    }
-
-    static boolean isDense(int firstDocId, int lastDocId, int length) {
-        // This does not detect duplicate docids (e.g [1, 1, 2, 4] would be detected as dense),
-        // this can happen with enrich or lookup. However this codec isn't used for enrich / lookup.
-        // This codec is only used in the context of logsdb and tsdb, so this is fine here.
-        return lastDocId - firstDocId == length - 1;
     }
 
     private NumericDocValues getRangeEncodedNumericDocValues(NumericEntry entry, long maxOrd) throws IOException {

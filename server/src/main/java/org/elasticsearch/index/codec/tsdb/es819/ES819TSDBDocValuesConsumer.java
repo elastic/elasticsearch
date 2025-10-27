@@ -474,7 +474,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 numDocsWithField++;
                 BytesRef v = values.binaryValue();
-                blockWriter.addDoc(doc, v);
+                blockWriter.addDoc(v);
                 int length = v.length;
                 minLength = Math.min(length, minLength);
                 maxLength = Math.max(length, maxLength);
@@ -547,11 +547,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             }
         }
 
-        /**
-         * _docId is unused. This is because docId may not be dense.
-         * But we can guarantee that the lookup value is dense on the range of inserted values.
-         */
-        void addDoc(int _docId, BytesRef v) throws IOException {
+        void addDoc(BytesRef v) throws IOException {
             block = ArrayUtil.grow(block, uncompressedBlockLength + v.length);
             System.arraycopy(v.bytes, v.offset, block, uncompressedBlockLength, v.length);
             uncompressedBlockLength += v.length;

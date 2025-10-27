@@ -3,4 +3,5 @@ summary: Introduce a new interface to declare functions depending on the `@times
   attribute
 area: ES|QL
 type: enhancement
-issues: []
+issues:
+ - 136772

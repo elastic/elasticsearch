@@ -45,7 +45,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
-import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
+import org.elasticsearch.index.codec.zstd.ZstdCompressor;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -517,7 +517,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         static final int START_BLOCK_DOCS = 1024;
         static final int ZSTD_LEVEL = 1;
 
-        final Zstd814StoredFieldsFormat.ZstdCompressor compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(ZSTD_LEVEL);
+        final ZstdCompressor compressor = new ZstdCompressor(ZSTD_LEVEL);
 
         final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
         final long[] docOffsetsCompressBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];

@@ -47,7 +47,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
-import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
+import org.elasticsearch.index.codec.zstd.ZstdDecompressor;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
@@ -347,7 +347,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private final BytesRef uncompressedBytesRef;
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
-        private final Zstd814StoredFieldsFormat.ZstdDecompressor decompressor = new Zstd814StoredFieldsFormat.ZstdDecompressor();
+        private final ZstdDecompressor decompressor = new ZstdDecompressor();
 
         BinaryDecoder(
             LongValues addresses,

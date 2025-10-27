@@ -23,7 +23,7 @@ import java.io.IOException;
 /**
  *  Like OffsetsAccumulator builds offsets and stores in a DirectMonotonicWriter. But write to temp file
  *  rather than directly to a DirectMonotonicWriter because the number of values is unknown. If number of
- *  values if known prefer OffsetsWriter.
+ *  values is known prefer OffsetsWriter.
  */
 final class DelayedOffsetAccumulator implements Closeable {
     private final Directory dir;

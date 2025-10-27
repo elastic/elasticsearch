@@ -10,19 +10,9 @@ package org.elasticsearch.xpack.esql.plan;
 import org.elasticsearch.Build;
 import org.elasticsearch.transport.RemoteClusterService;
 
-public class SettingsValidationContext {
+public record SettingsValidationContext(boolean crossProjectEnabled, boolean isSnapshot) {
 
-    private final RemoteClusterService remoteClusterService;
-
-    public SettingsValidationContext(RemoteClusterService remoteClusterService) {
-        this.remoteClusterService = remoteClusterService;
-    }
-
-    public boolean crossProjectEnabled() {
-        return remoteClusterService.crossProjectEnabled();
-    }
-
-    public boolean isSnapshot() {
-        return Build.current().isSnapshot();
+    public static SettingsValidationContext from(RemoteClusterService remoteClusterService) {
+        return new SettingsValidationContext(remoteClusterService.crossProjectEnabled(), Build.current().isSnapshot());
     }
 }

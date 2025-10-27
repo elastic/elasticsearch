@@ -447,7 +447,7 @@ public class EsqlSession {
             LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
             LOGGER.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
-        QuerySettings.validate(parsed, new SettingsValidationContext(remoteClusterService));
+        QuerySettings.validate(parsed, SettingsValidationContext.from(remoteClusterService));
         return parsed;
     }
 

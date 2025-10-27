@@ -29,41 +29,11 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySettingsTests extends ESTestCase {
 
-    private static SettingsValidationContext NON_SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(null) {
-        @Override
-        public boolean crossProjectEnabled() {
-            return true;
-        }
+    private static SettingsValidationContext NON_SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, false);
 
-        @Override
-        public boolean isSnapshot() {
-            return false;
-        }
-    };
+    private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, true);
 
-    private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(null) {
-        @Override
-        public boolean crossProjectEnabled() {
-            return true;
-        }
-
-        @Override
-        public boolean isSnapshot() {
-            return true;
-        }
-    };
-
-    private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_DISABLED = new SettingsValidationContext(null) {
-        @Override
-        public boolean crossProjectEnabled() {
-            return false;
-        }
-
-        @Override
-        public boolean isSnapshot() {
-            return true;
-        }
-    };
+    private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_DISABLED = new SettingsValidationContext(false, true);
 
     public void testValidate_NonExistingSetting() {
         String settingName = "non_existing";
@@ -84,16 +54,17 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    public void testValidate_ProjectRouting_noCps() {
-        var setting = QuerySettings.PROJECT_ROUTING;
-        assumeTrue("CPS validation not enabled yet", setting.preview());
-        assertInvalid(
-            setting.name(),
-            SNAPSHOT_CTX_WITH_CPS_DISABLED,
-            Literal.keyword(Source.EMPTY, "my-project"),
-            "Error validating setting [project_routing]: not enabled"
-        );
-    }
+    // TODO enable this test when CPS check is re-enabled.
+    // Currently, CPS is under development, so also these checks would rely on incomplete functionality.
+    // public void testValidate_ProjectRouting_noCps() {
+    // var setting = QuerySettings.PROJECT_ROUTING;
+    // assertInvalid(
+    // setting.name(),
+    // SNAPSHOT_CTX_WITH_CPS_DISABLED,
+    // Literal.keyword(Source.EMPTY, "my-project"),
+    // "Error validating setting [project_routing]: not enabled"
+    // );
+    // }
 
     public void testValidate_TimeZone() {
         var setting = QuerySettings.TIME_ZONE;

@@ -878,7 +878,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         ShardRouting that = (ShardRouting) o;
         return equalsIgnoringMetadata(that)
             && Objects.equals(unassignedInfo, that.unassignedInfo)
-            && Objects.equals(relocationFailureInfo, that.relocationFailureInfo);
+            && Objects.equals(relocationFailureInfo, that.relocationFailureInfo)
+            && becameUndesiredTime == that.becameUndesiredTime;
     }
 
     /**
@@ -900,6 +901,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             h = 31 * h + (allocationId != null ? allocationId.hashCode() : 0);
             h = 31 * h + (unassignedInfo != null ? unassignedInfo.hashCode() : 0);
             h = 31 * h + (relocationFailureInfo != null ? relocationFailureInfo.hashCode() : 0);
+            h = 31 * h + Long.hashCode(becameUndesiredTime);
             h = 31 * h + role.hashCode();
             hashCode = h;
         }

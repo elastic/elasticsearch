@@ -7,4 +7,5 @@
 | cartesian_point | double | geo_shape |
 | cartesian_shape | double | geo_shape |
 | geo_point | double | geo_shape |
+| geo_shape | double | geo_shape |
 

@@ -52,7 +52,7 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
         addTestCaseSuppliers(suppliers, new DataType[] { CARTESIAN_POINT }, GEO_SHAPE, StSimplifyTests::valueOf);
         addTestCaseSuppliers(suppliers, new DataType[] { CARTESIAN_SHAPE }, GEO_SHAPE, StSimplifyTests::valueOf);
         addTestCaseSuppliers(suppliers, new DataType[] { GEO_SHAPE }, GEO_SHAPE, StSimplifyTests::valueOf);
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType) {

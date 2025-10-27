@@ -80,13 +80,19 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
 
                 `"java.lang.NumberFormatException: For input string: \"foo\""`"""),
 
-            @Example(file = "ints", tag = "to_long_base-str1", explanation = ""
-                    + "This example demonstrates parsing a base 16 value and a base 13 value. {applies_to}`stack: ga 9.3`"),
+            @Example(
+                file = "ints",
+                tag = "to_long_base-str1",
+                explanation = "" + "This example demonstrates parsing a base 16 value and a base 13 value. {applies_to}`stack: ga 9.3`"
+            ),
 
-            @Example(file = "ints", tag = "to_long_base-str2", explanation = ""
+            @Example(
+                file = "ints",
+                tag = "to_long_base-str2",
+                explanation = ""
                     + "This example demonstrates parsing a string that is valid in base 36 but invalid in base 10."
-                    + "Observe in the second case a warning is generated and null is returned. {applies_to}`stack: ga 9.3`")
-        }
+                    + "Observe in the second case a warning is generated and null is returned. {applies_to}`stack: ga 9.3`"
+            ) }
     )
     public ToLongSurrogate(
         Source source,

@@ -299,17 +299,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          * @return whether to avoid using delegate if the file is a tmp fdt file.
          */
         static boolean avoidDelegateForFdtTempFiles(String name, LuceneFilesExtensions extension) {
-            return extension == LuceneFilesExtensions.TMP
-                && NO_MMAP_FILE_SUFFIXES.stream().anyMatch(name::contains);
+            return extension == LuceneFilesExtensions.TMP && NO_MMAP_FILE_SUFFIXES.stream().anyMatch(name::contains);
         }
 
-        static final List<String> NO_MMAP_FILE_SUFFIXES = List.of(
-            "fdt",
-            "disi",
-            "address-data",
-            "block-addresses",
-            "block-doc-ranges"
-        );
+        static final List<String> NO_MMAP_FILE_SUFFIXES = List.of("fdt", "disi", "address-data", "block-addresses", "block-doc-ranges");
 
         MMapDirectory getDelegate() {
             return delegate;

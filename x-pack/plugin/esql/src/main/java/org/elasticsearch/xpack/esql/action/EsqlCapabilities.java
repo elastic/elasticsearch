@@ -1082,6 +1082,11 @@ public class EsqlCapabilities {
         FORK_UNION_TYPES,
 
         /**
+         * Support non-correlated subqueries in the FROM clause.
+         */
+        SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,
@@ -1411,7 +1416,11 @@ public class EsqlCapabilities {
          * Allow lookup join on boolean expressions
          */
         LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
-
+        /**
+         * Lookup join with Full Text Function or other Lucene Pushable condition
+         * to be applied to the lookup index used
+         */
+        LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION,
         /**
          * FORK with remote indices
          */
@@ -1458,6 +1467,10 @@ public class EsqlCapabilities {
         TS_COMMAND_V0(),
 
         /**
+         * Custom error for renamed timestamp
+         */
+        TS_RENAME_TIMESTAMP_ERROR_MESSAGE,
+        /**
          * Add support for counter doubles, ints, and longs in first_ and last_over_time
          */
         FIRST_LAST_OVER_TIME_COUNTER_SUPPORT,
@@ -1468,7 +1481,7 @@ public class EsqlCapabilities {
          * Percentile over time and other ts-aggregations
          */
         PERCENTILE_OVER_TIME,
-
+        VARIANCE_STDDEV_OVER_TIME,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1478,6 +1491,8 @@ public class EsqlCapabilities {
         INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
 
         DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS,
+
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION,
 
         /**
          * FUSE L2_NORM score normalization support
@@ -1507,6 +1522,11 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
+         * Network direction function.
+         */
+        NETWORK_DIRECTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
         */
         TEMPORAL_AMOUNT_M,
@@ -1522,9 +1542,19 @@ public class EsqlCapabilities {
         FIX_FILTER_ORDINALS,
 
         /**
+         * Optional options argument for DATE_PARSE
+         */
+        DATE_PARSE_OPTIONS,
+
+        /**
          * Allow multiple patterns for GROK command
          */
         GROK_MULTI_PATTERN,
+
+        /**
+         * Fix pruning of columns when shadowed in INLINE STATS
+         */
+        INLINE_STATS_PRUNE_COLUMN_FIX(INLINESTATS.enabled),
 
         /**
          * Fix double release in inline stats when LocalRelation is reused
@@ -1538,10 +1568,46 @@ public class EsqlCapabilities {
         PUSHING_DOWN_EVAL_WITH_SCORE,
 
         /**
+         * Fix attribute equality to respect the name id of the attribute.
+         */
+        ATTRIBUTE_EQUALS_RESPECTS_NAME_ID,
+
+        /**
+         * Fix for lookup join filter pushdown not using semantic equality.
+         * This prevents duplicate filters from being pushed down when they are semantically equivalent, causing an infinite loop where
+         * BooleanSimplification will simplify the original and duplicate filters, so they'll be pushed down again...
+         */
+        LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
+
+        /**
+         * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
+         */
+        FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
+
+        /**
+         * Catch-and-rethrow determinization complexity errors as 400s rather than 500s
+         */
+        HANDLE_DETERMINIZATION_COMPLEXITY,
+
+        /**
+         * Support for the TRANGE function
+         */
+        FN_TRANGE,
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/136851
+         */
+        INLINE_STATS_WITH_NO_COLUMNS(INLINE_STATS.enabled),
+
+        FIX_MV_CONSTANT_EQUALS_FIELD,
+
+        /**
          * Chunk function.
          */
         CHUNK_FUNCTION(Build.current().isSnapshot())
 
+        // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
+        // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;
 
         private final boolean enabled;

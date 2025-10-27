@@ -1398,6 +1398,12 @@ public class EsqlCapabilities {
         NAME_QUALIFIERS(Build.current().isSnapshot()),
 
         /**
+         * Support for uri_parts function
+         */
+
+        URI_PARTS,
+
+        /**
          * URL encoding function.
          */
         URL_ENCODE(),

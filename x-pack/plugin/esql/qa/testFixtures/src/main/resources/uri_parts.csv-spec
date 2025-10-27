@@ -1,0 +1,93 @@
+uri_parts extract domain
+required_capability: uri_parts
+
+// tag::uri_parts[]
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_domain = uri_parts(my_url, "domain") | KEEP my_url_domain;
+// end::uri_parts[]
+
+my_url_domain:keyword
+example.org
+;
+
+uri_parts extract path
+required_capability: uri_parts
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_path = uri_parts(my_url, "path") | KEEP my_url_path;
+
+my_url_path:keyword
+/foo.gif
+;
+
+uri_parts extract fragment
+required_capability: uri_parts
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_fragment = uri_parts(my_url, "fragment") | KEEP my_url_fragment;
+
+my_url_fragment:keyword
+fragment
+;
+
+uri_parts extract extension
+required_capability: uri_parts
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_extension = uri_parts(my_url, "extension") | KEEP my_url_extension;
+
+my_url_extension:keyword
+gif
+;
+
+uri_parts extract password
+required_capability: uri_parts
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_password = uri_parts(my_url, "password") | KEEP my_url_password;
+
+my_url_password:keyword
+mypassword
+;
+
+uri_parts extract scheme
+required_capability: uri_parts
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_scheme = uri_parts(my_url, "scheme") | KEEP my_url_scheme;
+
+my_url_scheme:keyword
+http
+;
+
+uri_parts extract port
+required_capability: uri_parts
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_port = uri_parts(my_url, "port") | KEEP my_url_port;
+
+my_url_port:keyword
+80
+;
+
+uri_parts extract user_info
+required_capability: uri_parts
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_user_info = uri_parts(my_url, "user_info") | KEEP my_url_user_info;
+
+my_url_user_info:keyword
+myusername:mypassword
+;
+
+uri_parts extract query
+required_capability: uri_parts
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_query = uri_parts(my_url, "query") | KEEP my_url_query;
+
+my_url_query:keyword
+key1=val1&key2=val2
+;
+
+uri_parts extract username
+required_capability: uri_parts
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_username = uri_parts(my_url, "username") | KEEP my_url_username;
+
+my_url_username:keyword
+myusername
+;
+
+uri_parts extract non existent component
+required_capability: uri_parts
+ROW my_url = "http://myusername:mypassword@:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_domain = uri_parts(my_url, "domain") | KEEP my_url_domain;
+
+warning:Line 1:109: evaluation of [uri_parts(my_url, \"domain\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:109: java.lang.NullPointerException: Cannot read field \"length\" because \"key\" is null
+
+my_url_domain:keyword
+null
+;

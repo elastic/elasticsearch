@@ -175,7 +175,7 @@
   ],
   "examples" : [
     "ROW str1 = \"2147483648\", str2 = \"2147483648.2\", str3 = \"foo\"\n| EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)",
-    "  ROW   str1   = \"0x32\"\n      , str2   = \"31\"\n      , str3   = \"Hazelnut\"\n| EVAL  long1 = TO_LONG(str1, 16)\n      , long2 = TO_LONG(str2, 13)\n      , long3 = TO_LONG(str3, 36)\n      , fail3 = TO_LONG(str3, 10)"
+    "ROW str1 = \"0x32\", str2 = \"31\", str3 = \"Hazelnut\"\n| EVAL long1 = TO_LONG(str1, 16), long2 = TO_LONG(str2, 13), long3 = TO_LONG(str3, 36), fail3 = TO_LONG(str3, 10)"
   ],
   "preview" : false,
   "snapshot_only" : false

@@ -23,13 +23,8 @@ A following header will contain the failure reason and the offending value:
 `"java.lang.NumberFormatException: For input string: "foo""`
 
 ```esql
-  ROW   str1   = "0x32"
-      , str2   = "31"
-      , str3   = "Hazelnut"
-| EVAL  long1 = TO_LONG(str1, 16)
-      , long2 = TO_LONG(str2, 13)
-      , long3 = TO_LONG(str3, 36)
-      , fail3 = TO_LONG(str3, 10)
+ROW str1 = "0x32", str2 = "31", str3 = "Hazelnut"
+| EVAL long1 = TO_LONG(str1, 16), long2 = TO_LONG(str2, 13), long3 = TO_LONG(str3, 36), fail3 = TO_LONG(str3, 10)
 ```
 
 | str1:keyword | str2:keyword | str3:keyword | long1:long | long2:long | long3:long | fail3:long |

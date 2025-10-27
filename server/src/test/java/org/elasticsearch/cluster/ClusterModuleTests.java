@@ -111,7 +111,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         }
 
         @Override
-        public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+        public ShardAllocationDecision decideShardAllocationExplain(ShardRouting shard, RoutingAllocation allocation) {
             throw new UnsupportedOperationException("explain API not supported on FakeShardsAllocator");
         }
     }

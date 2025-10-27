@@ -243,7 +243,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
+    public ShardAllocationDecision decideShardAllocationExplain(final ShardRouting shard, final RoutingAllocation allocation) {
         Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,

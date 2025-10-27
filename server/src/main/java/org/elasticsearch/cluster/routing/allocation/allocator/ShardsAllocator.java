@@ -85,5 +85,5 @@ public interface ShardsAllocator {
      * If an implementation of this interface does not support explaining decisions for a single shard through
      * the cluster explain API, then this method should throw a {@code UnsupportedOperationException}.
      */
-    ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation);
+    ShardAllocationDecision decideShardAllocationExplain(ShardRouting shard, RoutingAllocation allocation);
 }

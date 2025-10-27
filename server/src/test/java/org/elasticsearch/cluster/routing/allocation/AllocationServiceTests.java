@@ -148,7 +148,7 @@ public class AllocationServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                public ShardAllocationDecision decideShardAllocationExplain(ShardRouting shard, RoutingAllocation allocation) {
                     return ShardAllocationDecision.NOT_TAKEN;
                 }
             },

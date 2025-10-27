@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -37,7 +38,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultSubqueryResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergeIndexResolutions;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
@@ -60,6 +63,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Analyzer metricsAnalyzer;
     protected static Analyzer multiIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
+    protected static Analyzer subqueryAnalyzer;
 
     protected static EnrichResolution enrichResolution;
 
@@ -211,10 +215,29 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             ),
             TEST_VERIFIER
         );
+
+        subqueryAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                mergeIndexResolutions(indexResolutions(test), defaultSubqueryResolution()),
+                defaultLookupResolution(),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
     }
 
     protected LogicalPlan optimizedPlan(String query) {
         return plan(query);
+    }
+
+    protected LogicalPlan optimizedPlan(String query, TransportVersion transportVersion) {
+        MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) analyzer.context();
+        try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
+            return optimizedPlan(query);
+        }
     }
 
     protected LogicalPlan plan(String query) {
@@ -249,6 +272,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planSample(String query) {
         var analyzed = sampleDataIndexAnalyzer.analyze(parser.createStatement(query));
+        return logicalOptimizer.optimize(analyzed);
+    }
+
+    protected LogicalPlan planSubquery(String query) {
+        var analyzed = subqueryAnalyzer.analyze(parser.createStatement(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

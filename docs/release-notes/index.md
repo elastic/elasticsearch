@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.1.6 [elasticsearch-9.1.6-release-notes]
-```{applies_to}
-stack: ga 9.1.6
-```
 
 ### Features and enhancements [elasticsearch-9.1.6-features-enhancements]
 
@@ -70,6 +67,7 @@ Transform:
 
 Vector Search:
 * Cardinality Aggregator Throws `UnsupportedOperationException` When Field Type is Vector [#135994](https://github.com/elastic/elasticsearch/pull/135994)
+
 
 
 ## 9.2.0 [elasticsearch-9.2.0-release-notes]
@@ -130,6 +128,7 @@ POST vectors/_search{
   }
 }
 ```
+
 `num_candidates` can be used for tuning approximate nature of the search.
 Or, more granular control can be provided by setting `visit_percentage` directly.
 ::::
@@ -159,7 +158,6 @@ Queries containing LOOKUP JOIN now can be preformed on cross-cluster indices, fo
 ```yaml
 FROM logs-*, remote:logs-* | LOOKUP JOIN clients on ip | SORT timestamp | LIMIT 100
 ```
-
 ::::
 
 ::::{dropdown} New lucene 10.3.0 release
@@ -316,6 +314,9 @@ Machine Learning:
 * Track inference deployments [#131442](https://github.com/elastic/elasticsearch/pull/131442)
 * [ML] Add Azure AI Rerank support to the Inference Plugin [#129848](https://github.com/elastic/elasticsearch/pull/129848)
 * [ML] Add IBM watsonx Completion and Chat Completion support to the Inference Plugin [#129146](https://github.com/elastic/elasticsearch/pull/129146)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
 
 Mapping:
 * Add new `pattern_text` field mapper in tech preview [#135370](https://github.com/elastic/elasticsearch/pull/135370)
@@ -542,6 +543,8 @@ Vector Search:
 * Cardinality Aggregator Throws `UnsupportedOperationException` When Field Type is Vector [#135994](https://github.com/elastic/elasticsearch/pull/135994)
 * Fix _inference_fields handling on old indices [#136312](https://github.com/elastic/elasticsearch/pull/136312) (issue: [#136130](https://github.com/elastic/elasticsearch/issues/136130))
 * Have top level knn searches tracked in query stats [#132548](https://github.com/elastic/elasticsearch/pull/132548)
+
+
 
 ## 9.0.8 [elasticsearch-9.0.8-release-notes]
 

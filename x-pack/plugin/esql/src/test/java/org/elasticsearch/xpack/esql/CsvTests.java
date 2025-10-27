@@ -347,6 +347,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
             );
             assumeFalse(
+                "CSV tests cannot currently handle subqueries",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
+            );
+            assumeFalse(
                 "CSV tests can't push down vector similarity functions",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.capabilityName())
             );

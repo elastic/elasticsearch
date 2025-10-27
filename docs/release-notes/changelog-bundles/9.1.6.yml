@@ -1,6 +1,6 @@
 version: 9.1.6
-released: false
-generated: 2025-10-22T17:03:50.756198780Z
+released: true
+generated: 2025-10-23T16:05:25.757289375Z
 changelogs:
   - pr: 132651
     summary: Use java8 variant of apm-agent

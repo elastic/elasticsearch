@@ -92,10 +92,10 @@ public class DesiredBalanceReconciler {
     private final TimeProvider timeProvider;
     private final FrequencyCappedAction undesiredAllocationLogInterval;
     private final FrequencyCappedAction immovableShardsLogInterval;
-    private double undesiredAllocationsLogThreshold;
+    private double undesiredAllocationsPercentageLoggingThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
-    private volatile TimeValue immovableShardThreshold;
+    private volatile TimeValue undesiredAllocationDurationLoggingThreshold;
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider) {
         this.timeProvider = timeProvider;
@@ -107,11 +107,11 @@ public class DesiredBalanceReconciler {
         });
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
-            value -> this.undesiredAllocationsLogThreshold = value
+            value -> this.undesiredAllocationsPercentageLoggingThreshold = value
         );
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING,
-            value -> this.immovableShardThreshold = value
+            value -> this.undesiredAllocationDurationLoggingThreshold = value
         );
     }
 
@@ -648,7 +648,7 @@ public class DesiredBalanceReconciler {
          */
         private void maybeLogUndesiredShardsWarning(long earliestUndesiredTimestamp) {
             final long currentTimeMillis = timeProvider.relativeTimeInMillis();
-            if (currentTimeMillis - earliestUndesiredTimestamp > immovableShardThreshold.millis()) {
+            if (currentTimeMillis - earliestUndesiredTimestamp > undesiredAllocationDurationLoggingThreshold.millis()) {
                 immovableShardsLogInterval.maybeExecute(this::logDecisionsForUndesiredShardsOverThreshold);
             }
         }
@@ -659,7 +659,7 @@ public class DesiredBalanceReconciler {
                 routingNode.forEach(shardRouting -> {
                     if (shardRouting.isInUndesiredAllocation()) {
                         final long undesiredDurationMs = currentTimeMillis - shardRouting.becameUndesiredTime();
-                        if (undesiredDurationMs > immovableShardThreshold.millis()) {
+                        if (undesiredDurationMs > undesiredAllocationDurationLoggingThreshold.millis()) {
                             logUndesiredShardDetails(shardRouting, TimeValue.timeValueMillis(undesiredDurationMs));
                         }
                     }
@@ -685,7 +685,8 @@ public class DesiredBalanceReconciler {
         private void maybeLogUndesiredAllocationsWarning(int totalAllocations, int undesiredAllocations, int nodeCount) {
             // more shards than cluster can relocate with one reroute
             final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
-            final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsLogThreshold * totalAllocations;
+            final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsPercentageLoggingThreshold
+                * totalAllocations;
             if (totalAllocations > 0 && nonEmptyRelocationBacklog && warningThresholdReached) {
                 undesiredAllocationLogInterval.maybeExecute(
                     () -> logger.warn(
@@ -693,7 +694,7 @@ public class DesiredBalanceReconciler {
                         Strings.format1Decimals(100.0 * undesiredAllocations / totalAllocations, "%"),
                         undesiredAllocations,
                         totalAllocations,
-                        Strings.format1Decimals(100.0 * undesiredAllocationsLogThreshold, "%")
+                        Strings.format1Decimals(100.0 * undesiredAllocationsPercentageLoggingThreshold, "%")
                     )
                 );
             }

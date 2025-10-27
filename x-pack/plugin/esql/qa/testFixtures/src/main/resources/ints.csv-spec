@@ -168,6 +168,7 @@ str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
 
 // see comments for each group in base_conversion.csv
 convertStringToLongBase
+required_capability: to_long_base
 
 // tag::to_long_base-str[]
 ROW str1 = "0x32", str2 = "31", str3 = "Hazelnut"

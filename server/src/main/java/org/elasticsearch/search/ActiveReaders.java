@@ -31,15 +31,21 @@ public class ActiveReaders {
 
     void put(ReaderContext context) {
         ShardSearchContextId contextId = context.id();
-        ReaderContext previous;
+        ReaderContext previous = null;
         if (sessionId.equals(contextId.getSessionId())) {
             previous = activeReaders.put(contextId.getId(), context);
         } else {
             // the reader context is relocated from another session, keep a relocation mapping for retrieval
-            assert relocationMap.containsKey(contextId) == false;
-            long activeReaderKey = idGenerator.incrementAndGet();
-            relocationMap.put(contextId, activeReaderKey);
-            previous = activeReaders.put(activeReaderKey, context);
+            if (relocationMap.containsKey(contextId) == false) {
+                // if we are racing two retries, make sure only one thread creates the mapping
+                long activeReaderKey = idGenerator.incrementAndGet();
+                relocationMap.put(contextId, activeReaderKey);
+                previous = activeReaders.put(activeReaderKey, context);
+            } else {
+                // keep the existing mapping and close the context we're trying to put
+                assert activeReaders.get(relocationMap.get(contextId)) != null;
+                context.close();
+            }
         }
         assert previous == null;
     }

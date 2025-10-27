@@ -24,6 +24,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Objects.requireNonNull;
@@ -72,17 +73,31 @@ public class ActiveReadersTests extends ESTestCase {
         AtomicLong idGenerator = new AtomicLong();
         ActiveReaders activeReaders = new ActiveReaders(primarySessionId, idGenerator);
         long id = randomLongBetween(0, 1000);
-        final String testSessionId = randomBoolean() ? primarySessionId : UUIDs.randomBase64UUID();
         String readerId = randomBoolean() ? null : UUIDs.randomBase64UUID();
-        ReaderContext readerContext = createRandomReaderContext(new ShardSearchContextId(testSessionId, id, readerId));
+        ReaderContext readerContext = createRandomReaderContext(new ShardSearchContextId(primarySessionId, id, readerId));
         activeReaders.put(readerContext);
 
         // putting same context should throw error
         expectThrows(AssertionError.class, () -> activeReaders.put(readerContext));
 
         // putting context with same id should also throw
-        ReaderContext anotherReaderContext = createRandomReaderContext(new ShardSearchContextId(testSessionId, id, readerId));
+        ReaderContext anotherReaderContext = createRandomReaderContext(new ShardSearchContextId(primarySessionId, id, readerId));
         expectThrows(AssertionError.class, () -> activeReaders.put(anotherReaderContext));
+
+        // check that for relocated context session Ids, concurrently putting same id works but second context is disregarded and closed
+        final String relocatedSession = UUIDs.randomBase64UUID();
+        ReaderContext reader1Context = createRandomReaderContext(new ShardSearchContextId(relocatedSession, id, readerId));
+        AtomicBoolean reader1Closed = new AtomicBoolean();
+        reader1Context.addOnClose(() -> reader1Closed.set(true));
+
+        ReaderContext reader2Context = createRandomReaderContext(new ShardSearchContextId(relocatedSession, id, readerId));
+        AtomicBoolean reader2Closed = new AtomicBoolean();
+        reader2Context.addOnClose(() -> reader2Closed.set(true));
+
+        activeReaders.put(reader1Context);
+        activeReaders.put(reader2Context);
+        assertFalse(reader1Closed.get());
+        assertTrue(reader2Closed.get());
     }
 
     public void testRemove() {

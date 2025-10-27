@@ -18,7 +18,6 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DocValueFetcher;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.StoredValueFetcher;
@@ -72,13 +71,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(fieldType.valueFetcher(any(), any())).thenReturn(
             new DocValueFetcher(
                 DocValueFormat.RAW,
-                new SortedNumericIndexFieldData(
-                    "field",
-                    IndexNumericFieldData.NumericType.LONG,
-                    CoreValuesSourceType.NUMERIC,
-                    null,
-                    IndexType.NONE
-                )
+                new SortedNumericIndexFieldData("field", IndexNumericFieldData.NumericType.LONG, CoreValuesSourceType.NUMERIC, null, false)
             )
         );
         when(sec.getFieldType(any())).thenReturn(fieldType);
@@ -138,13 +131,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(fieldType.valueFetcher(any(), any())).thenReturn(
             new DocValueFetcher(
                 DocValueFormat.RAW,
-                new SortedNumericIndexFieldData(
-                    "field",
-                    IndexNumericFieldData.NumericType.LONG,
-                    CoreValuesSourceType.NUMERIC,
-                    null,
-                    IndexType.NONE
-                )
+                new SortedNumericIndexFieldData("field", IndexNumericFieldData.NumericType.LONG, CoreValuesSourceType.NUMERIC, null, false)
             )
         );
         when(sec.getFieldType(eq("field"))).thenReturn(fieldType);

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -94,7 +93,6 @@ public class PlanWritables {
             Project.ENTRY,
             Rerank.ENTRY,
             Sample.ENTRY,
-            Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
             TopN.ENTRY
         );

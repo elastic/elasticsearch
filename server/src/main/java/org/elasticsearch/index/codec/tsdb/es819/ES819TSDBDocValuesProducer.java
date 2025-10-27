@@ -45,10 +45,9 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
 
@@ -428,43 +427,19 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
 
             BlockLoader.Block tryReadAHead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
-                if (ords instanceof BaseDenseNumericValues denseOrds) {
-                    if (entry.termsDictEntry.termsDictSize == 1) {
-                        return factory.constantBytes(BytesRef.deepCopyOf(lookupOrd(0)), docs.count() - offset);
-                    }
-                    if (valuesSorted == false) {
-                        return null;
-                    }
+                if (ords instanceof BaseDenseNumericValues denseOrds && (valuesSorted || entry.termsDictEntry.termsDictSize == 1)) {
                     int firstDoc = docs.get(offset);
                     denseOrds.advanceExact(firstDoc);
-                    int startValue = Math.toIntExact(denseOrds.longValue());
+                    long startValue = denseOrds.longValue();
                     final int docCount = docs.count();
                     int lastDoc = docs.get(docCount - 1);
-                    int lastValue = Math.toIntExact(denseOrds.lookAheadValueAt(lastDoc));
+                    long lastValue = denseOrds.lookAheadValueAt(lastDoc);
                     if (lastValue == startValue) {
                         BytesRef b = lookupOrd(Math.toIntExact(startValue));
                         return factory.constantBytes(BytesRef.deepCopyOf(b), docCount - offset);
                     }
-                    var ordinalReader = denseOrds.sortedOrdinalReader();
-                    if (ordinalReader != null) {
-                        try (var builder = factory.singletonOrdinalsBuilder(this, docCount - offset, true)) {
-                            int docIndex = offset;
-                            while (docIndex < docCount) {
-                                int ord = Math.toIntExact(ordinalReader.readValueAndAdvance(docs.get(docIndex)));
-                                // append all docs of the last range without checking
-                                if (lastDoc < ordinalReader.rangeEndExclusive) {
-                                    builder.appendOrds(ord, docCount - docIndex);
-                                    break;
-                                }
-                                final int startIndex = docIndex;
-                                while (docIndex < docCount && docs.get(docIndex) < ordinalReader.rangeEndExclusive) {
-                                    ++docIndex;
-                                }
-                                builder.appendOrds(ord, docIndex - startIndex);
-                            }
-                            return builder.build();
-                        }
-                    }
+                    // TODO: Since ordinals are sorted, start at 0 (offset by startValue), scan until lastValue,
+                    // then fill remaining positions with lastValue.
                 }
                 return null;
             }
@@ -577,9 +552,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         BlockLoader.Block tryRead(BlockLoader.SingletonLongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
             return null;
         }
-
-        @Nullable
-        abstract SortedOrdinalReader sortedOrdinalReader();
     }
 
     abstract static class BaseSparseNumericValues extends NumericDocValues implements BlockLoader.OptionalColumnAtATimeReader {
@@ -1354,11 +1326,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     long lookAheadValueAt(int targetDoc) throws IOException {
                         return 0L;  // Only one ordinal!
                     }
-
-                    @Override
-                    SortedOrdinalReader sortedOrdinalReader() {
-                        return null;
-                    }
                 };
             } else {
                 final IndexedDISI disi = new IndexedDISI(
@@ -1521,10 +1488,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     return lastDocId - firstDocId == length - 1;
                 }
 
-                @Override
-                SortedOrdinalReader sortedOrdinalReader() {
-                    return null;
-                }
             };
         } else {
             final IndexedDISI disi = new IndexedDISI(
@@ -1659,11 +1622,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public int docIDRunEnd() throws IOException {
                     return maxDoc;
-                }
-
-                @Override
-                SortedOrdinalReader sortedOrdinalReader() {
-                    return ordinalsReader;
                 }
             };
         } else {

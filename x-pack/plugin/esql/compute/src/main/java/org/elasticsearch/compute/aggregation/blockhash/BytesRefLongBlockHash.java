@@ -161,15 +161,12 @@ final class BytesRefLongBlockHash extends BlockHash {
                 }
                 // TODO: make takeOwnershipOf work?
                 BytesRefArray bytes = BytesRefArray.deepCopy(bytesHash.hash.getBytesRefs());
-                BytesRefVector dict = null;
-
                 try {
-                    dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
+                    var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
                     bytes = null; // transfer ownership to dict
                     k1 = new OrdinalBytesRefBlock(ordinals.build(), dict);
-                    dict = null;  // transfer ownership to k1
                 } finally {
-                    Releasables.closeExpectNoException(bytes, dict);
+                    Releasables.closeExpectNoException(bytes);
                 }
                 k2 = longs.build();
             } finally {

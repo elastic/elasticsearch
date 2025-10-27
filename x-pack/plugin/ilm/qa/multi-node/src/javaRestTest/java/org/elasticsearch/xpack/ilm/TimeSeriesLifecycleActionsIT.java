@@ -26,10 +26,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -80,7 +80,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
+public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
 
@@ -106,7 +106,7 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", "test-cluster-0")
+                .put("index.routing.allocation.include._name", "javaRestTest-0")
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
@@ -226,7 +226,7 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        String allocateNodeName = "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3";
+        String allocateNodeName = "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3";
         AllocateAction allocateAction = new AllocateAction(null, null, Map.of("_name", allocateNodeName), null, null);
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
@@ -451,7 +451,7 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
                     .field("type", "fs")
                     .startObject("settings")
                     .field("compress", randomBoolean())
-                    .field("location", repoDir.getRoot().getAbsolutePath())
+                    .field("location", System.getProperty("tests.path.repo"))
                     .field("max_snapshot_bytes_per_sec", "256b")
                     .endObject()
                     .endObject()

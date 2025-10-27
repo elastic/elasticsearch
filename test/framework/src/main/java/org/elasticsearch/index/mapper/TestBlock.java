@@ -13,7 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -393,14 +392,6 @@ public class TestBlock implements BlockLoader.Block {
                     public BlockLoader.SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
                         for (int i = from; i < from + length; i++) {
                             appendOrd(values[i]);
-                        }
-                        return this;
-                    }
-
-                    @Override
-                    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int ord, int length) {
-                        for (int i = 0; i < length; i++) {
-                            appendOrd(ord);
                         }
                         return this;
                     }

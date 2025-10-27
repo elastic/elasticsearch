@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 
 import java.io.IOException;
 
@@ -29,7 +28,9 @@ public class PatternTextBlockLoader extends BlockDocValuesReader.DocValuesBlockL
     @Override
     public AllReader reader(LeafReaderContext context) throws IOException {
         var docValues = docValuesSupplier.get(context.reader());
-        return BytesRefsFromBinaryBlockLoader.createReader(docValues);
+        if (docValues == null) {
+            return new ConstantNullsReader();
+        }
+        return new BlockDocValuesReader.BytesRefsFromBinary(docValues);
     }
-
 }

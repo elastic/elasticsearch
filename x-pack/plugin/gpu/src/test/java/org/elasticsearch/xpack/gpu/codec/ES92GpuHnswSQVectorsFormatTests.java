@@ -13,9 +13,6 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
@@ -42,8 +39,7 @@ public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
 
     @Override
     protected VectorSimilarityFunction randomSimilarity() {
-        return DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(DenseVectorFieldMapper.VectorIndexType.INT8_HNSW)
-            .vectorSimilarityFunction(IndexVersion.current(), DenseVectorFieldMapper.ElementType.FLOAT);
+        return VectorSimilarityFunction.values()[random().nextInt(VectorSimilarityFunction.values().length)];
     }
 
     @Override

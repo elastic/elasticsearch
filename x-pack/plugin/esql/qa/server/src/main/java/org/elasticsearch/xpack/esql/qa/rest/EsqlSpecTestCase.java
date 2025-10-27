@@ -51,7 +51,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -123,59 +122,23 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.mode = randomFrom(Mode.values());
     }
 
-    private static class Protected {
-        private volatile boolean completed = false;
-        private volatile boolean started = false;
-        private volatile Throwable failure = null;
-
-        private void protectedBlock(Callable<Void> callable) {
-            if (completed) {
-                return;
-            }
-            // In case tests get run in parallel, we ensure only one setup is run, and other tests wait for this
-            synchronized (this) {
-                if (completed) {
-                    return;
-                }
-                if (started) {
-                    // Should only happen if a previous test setup failed, possibly with partial setup, let's fail fast the current test
-                    if (failure != null) {
-                        fail(failure, "Previous test setup failed: " + failure.getMessage());
-                    }
-                    fail("Previous test setup failed with unknown error");
-                }
-                started = true;
-                try {
-                    callable.call();
-                    completed = true;
-                } catch (Throwable t) {
-                    failure = t;
-                    fail(failure, "Current test setup failed: " + failure.getMessage());
-                }
-            }
-        }
-
-        private synchronized void reset() {
-            completed = false;
-            started = false;
-            failure = null;
-        }
-    }
-
-    private static final Protected INGEST = new Protected();
+    private static boolean dataLoaded = false;
     protected static boolean testClustersOk = true;
 
     @Before
-    public void setup() {
+    public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
-        INGEST.protectedBlock(() -> {
-            // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
-            if (supportsInferenceTestService()) {
+        boolean supportsLookup = supportsIndexModeLookup();
+        boolean supportsSourceMapping = supportsSourceFieldMapping();
+        boolean supportsInferenceTestService = supportsInferenceTestService();
+        if (dataLoaded == false) {
+            if (supportsInferenceTestService) {
                 createInferenceEndpoints(adminClient());
             }
-            loadDataSetIntoEs(client(), supportsIndexModeLookup(), supportsSourceFieldMapping(), supportsInferenceTestService());
-            return null;
-        });
+
+            loadDataSetIntoEs(client(), supportsLookup, supportsSourceMapping, supportsInferenceTestService);
+            dataLoaded = true;
+        }
     }
 
     @AfterClass
@@ -184,6 +147,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             return;
         }
         try {
+            dataLoaded = false;
             adminClient().performRequest(new Request("DELETE", "/*"));
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
@@ -191,7 +155,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
-        INGEST.reset();
+
         deleteInferenceEndpoints(adminClient());
     }
 

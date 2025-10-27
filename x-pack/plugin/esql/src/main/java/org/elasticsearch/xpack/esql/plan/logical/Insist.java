@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class Insist extends UnaryPlan implements SurrogateLogicalPlan, Streaming {
+public class Insist extends UnaryPlan implements SurrogateLogicalPlan, CardinalityPreserving {
     private final List<? extends Attribute> insistedAttributes;
     private @Nullable List<Attribute> lazyOutput = null;
 

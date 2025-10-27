@@ -8,26 +8,14 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction.Request;
 
 public class SetUpgradeModeActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
-    private static final ParseField ENABLED = new ParseField("enabled");
-    public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-        SetUpgradeModeAction.NAME,
-        a -> new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, (Boolean) a[0])
-    );
-
-    static {
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
-    }
-
     @Override
     protected Request createTestInstance() {
-        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomBoolean());
+        return new Request(randomBoolean());
     }
 
     @Override
@@ -42,7 +30,6 @@ public class SetUpgradeModeActionRequestTests extends AbstractXContentSerializin
 
     @Override
     protected Request doParseInstance(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return Request.PARSER.apply(parser, null);
     }
-
 }

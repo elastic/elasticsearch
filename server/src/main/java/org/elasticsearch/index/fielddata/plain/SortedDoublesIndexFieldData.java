@@ -25,7 +25,6 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -45,25 +44,25 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         private final NumericType numericType;
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
-        private final IndexType indexType;
+        private final boolean indexed;
 
         public Builder(
             String name,
             NumericType numericType,
             ValuesSourceType valuesSourceType,
             ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
-            IndexType indexType
+            boolean indexed
         ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
-            this.indexType = indexType;
+            this.indexed = indexed;
         }
 
         @Override
         public SortedDoublesIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
+            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexed);
         }
     }
 
@@ -71,21 +70,21 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
-    protected final IndexType indexType;
+    protected final boolean indexed;
 
     public SortedDoublesIndexFieldData(
         String fieldName,
         NumericType numericType,
         ValuesSourceType valuesSourceType,
         ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
-        IndexType indexType
+        boolean indexed
     ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint();
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
-        this.indexType = indexType;
+        this.indexed = indexed;
     }
 
     @Override
@@ -104,8 +103,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public IndexType indexType() {
-        return indexType;
+    public boolean isIndexed() {
+        return indexed;
     }
 
     @Override

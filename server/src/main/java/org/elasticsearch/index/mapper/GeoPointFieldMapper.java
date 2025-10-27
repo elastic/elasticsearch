@@ -42,8 +42,6 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherMultiGeoPointIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.LatLonPointIndexFieldData;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
@@ -555,7 +553,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             // load from doc values
             if (hasDocValues()) {
                 if (blContext.fieldExtractPreference() == DOC_VALUES) {
-                    return new LongsBlockLoader(name());
+                    return new BlockDocValuesReader.LongsBlockLoader(name());
                 } else if (blContext.fieldExtractPreference() == NONE && isSyntheticSource) {
                     // when the preference is not explicitly set to DOC_VALUES, we expect a BytesRef -> see PlannerUtils.toElementType()
                     return new BytesRefFromLongsBlockLoader(name());

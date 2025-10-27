@@ -34,7 +34,7 @@ public class RLikePattern extends AbstractStringPattern implements Writeable {
     }
 
     @Override
-    protected Automaton doCreateAutomaton(boolean ignoreCase) {
+    public Automaton createAutomaton(boolean ignoreCase) {
         int matchFlags = ignoreCase ? RegExp.CASE_INSENSITIVE : 0;
         return Operations.determinize(
             new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, matchFlags).toAutomaton(),

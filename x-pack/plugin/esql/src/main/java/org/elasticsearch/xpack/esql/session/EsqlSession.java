@@ -459,24 +459,9 @@ public class EsqlSession {
     static void handleFieldCapsFailures(
         boolean allowPartialResults,
         EsqlExecutionInfo executionInfo,
-        Map<IndexPattern, IndexResolution> indexResolutions
+        Map<String, List<FieldCapabilitiesFailure>> failures
     ) throws Exception {
         FailureCollector failureCollector = new FailureCollector();
-        for (IndexResolution indexResolution : indexResolutions.values()) {
-            handleFieldCapsFailures(allowPartialResults, executionInfo, indexResolution.failures(), failureCollector);
-        }
-        Exception failure = failureCollector.getFailure();
-        if (failure != null) {
-            throw failure;
-        }
-    }
-
-    static void handleFieldCapsFailures(
-        boolean allowPartialResults,
-        EsqlExecutionInfo executionInfo,
-        Map<String, List<FieldCapabilitiesFailure>> failures,
-        FailureCollector failureCollector
-    ) throws Exception {
         for (var e : failures.entrySet()) {
             String clusterAlias = e.getKey();
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
@@ -505,6 +490,10 @@ public class EsqlSession {
                     (k, curr) -> new EsqlExecutionInfo.Cluster.Builder(cluster).addFailures(shardFailures).build()
                 );
             }
+        }
+        Exception failure = failureCollector.getFailure();
+        if (failure != null) {
+            throw failure;
         }
     }
 
@@ -543,20 +532,14 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        EsqlCCSUtils.initCrossClusterState(
-            indicesExpressionGrouper,
-            verifier.licenseState(),
-            preAnalysis.indexes().keySet(),
-            executionInfo
-        );
+        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
 
+        // The main index pattern dictates on which nodes the query can be executed, so we use the minimum transport version from this field
+        // caps request.
         SubscribableListener.<PreAnalysisResult>newForked(
-            // The main index pattern dictates on which nodes the query can be executed, so we use the minimum transport version from this
-            // field
-            // caps request.
-            l -> preAnalyzeMainIndices(preAnalysis.indexes().entrySet().iterator(), preAnalysis, executionInfo, result, requestFilter, l)
+            l -> preAnalyzeMainIndicesAndRetrieveMinTransportVersion(preAnalysis, executionInfo, result, requestFilter, l)
         ).andThenApply(r -> {
-            if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
+            if (r.indices.isValid()
                 && executionInfo.isCrossClusterSearch()
                 && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
                 LOGGER.debug("No more clusters to search, ending analysis stage");
@@ -577,9 +560,6 @@ public class EsqlSession {
             .addListener(logicalPlanListener);
     }
 
-    /**
-     * Perform a field caps request for each lookup index. Does not update the minimum transport version.
-     */
     private void preAnalyzeLookupIndices(
         Iterator<IndexPattern> lookupIndices,
         PreAnalysisResult preAnalysisResult,
@@ -799,39 +779,7 @@ public class EsqlSession {
         });
     }
 
-    /**
-     * Perform a field caps request for each index pattern and determine the minimum transport version of all clusters with matching
-     * indices.
-     */
-    private void preAnalyzeMainIndices(
-        Iterator<Map.Entry<IndexPattern, IndexMode>> indexPatterns,
-        PreAnalyzer.PreAnalysis preAnalysis,
-        EsqlExecutionInfo executionInfo,
-        PreAnalysisResult result,
-        QueryBuilder requestFilter,
-        ActionListener<PreAnalysisResult> listener
-    ) {
-        if (indexPatterns.hasNext()) {
-            var index = indexPatterns.next();
-            preAnalyzeMainIndices(
-                index.getKey(),
-                index.getValue(),
-                preAnalysis,
-                executionInfo,
-                result,
-                requestFilter,
-                listener.delegateFailureAndWrap((l, r) -> {
-                    preAnalyzeMainIndices(indexPatterns, preAnalysis, executionInfo, r, requestFilter, l);
-                })
-            );
-        } else {
-            listener.onResponse(result);
-        }
-    }
-
-    private void preAnalyzeMainIndices(
-        IndexPattern indexPattern,
-        IndexMode indexMode,
+    private void preAnalyzeMainIndicesAndRetrieveMinTransportVersion(
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
@@ -843,36 +791,42 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        // TODO: This is not yet index specific, but that will not matter as soon as #136804 is dealt with
-        if (executionInfo.clusterAliases().isEmpty()) {
-            // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
-            listener.onResponse(
-                result.withIndices(indexPattern, IndexResolution.valid(new EsIndex(indexPattern.indexPattern(), Map.of(), Map.of())))
-            );
+        if (preAnalysis.indexPattern() != null) {
+            if (executionInfo.clusterAliases().isEmpty()) {
+                // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
+                listener.onResponse(
+                    result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
+                        .withMinimumTransportVersion(TransportVersion.current())
+                );
+            } else {
+                indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(
+                    preAnalysis.indexPattern().indexPattern(),
+                    result.fieldNames,
+                    // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+                    switch (preAnalysis.indexMode()) {
+                        case IndexMode.TIME_SERIES -> {
+                            var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                            yield requestFilter != null
+                                ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
+                                : indexModeFilter;
+                        }
+                        default -> requestFilter;
+                    },
+                    preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                    preAnalysis.supportsAggregateMetricDouble(),
+                    preAnalysis.supportsDenseVector(),
+                    listener.delegateFailureAndWrap((l, indexResolution) -> {
+                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                        l.onResponse(
+                            result.withIndices(indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
+                        );
+                    })
+                );
+            }
         } else {
-            indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(
-                indexPattern.indexPattern(),
-                result.fieldNames,
-                // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                switch (indexMode) {
-                    case IndexMode.TIME_SERIES -> {
-                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                        yield requestFilter != null
-                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
-                            : indexModeFilter;
-                    }
-                    default -> requestFilter;
-                },
-                indexMode == IndexMode.TIME_SERIES,
-                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
-                preAnalysis.useDenseVectorWhenNotSupported(),
-                listener.delegateFailureAndWrap((l, indexResolution) -> {
-                    EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                    l.onResponse(
-                        result.withIndices(indexPattern, indexResolution.inner())
-                            .withMinimumTransportVersion(indexResolution.minimumVersion())
-                    );
-                })
+            // occurs when dealing with local relations (row a = 1)
+            listener.onResponse(
+                result.withIndices(IndexResolution.invalid("[none specified]")).withMinimumTransportVersion(TransportVersion.current())
             );
         }
     }
@@ -889,14 +843,10 @@ public class EsqlSession {
     ) {
         LOGGER.debug("Analyzing the plan ({})", description);
         try {
-            if (result.indexResolution.values().stream().anyMatch(IndexResolution::isValid) || requestFilter != null) {
+            if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                    executionInfo,
-                    result.indexResolution.values(),
-                    requestFilter != null
-                );
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
             }
             LogicalPlan plan = analyzedPlan(parsed, configuration, result, executionInfo);
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
@@ -950,7 +900,7 @@ public class EsqlSession {
 
     private LogicalPlan analyzedPlan(LogicalPlan parsed, Configuration configuration, PreAnalysisResult r, EsqlExecutionInfo executionInfo)
         throws Exception {
-        handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
+        handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indices.failures());
         Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, r), verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
         plan.setAnalyzed();
@@ -996,7 +946,7 @@ public class EsqlSession {
     public record PreAnalysisResult(
         Set<String> fieldNames,
         Set<String> wildcardJoinIndices,
-        Map<IndexPattern, IndexResolution> indexResolution,
+        IndexResolution indices,
         Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
@@ -1004,20 +954,19 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(
-                fieldNames,
-                wildcardJoinIndices,
-                new HashMap<>(),
-                new HashMap<>(),
-                null,
-                InferenceResolution.EMPTY,
-                TransportVersion.current()
-            );
+            this(fieldNames, wildcardJoinIndices, null, new HashMap<>(), null, InferenceResolution.EMPTY, null);
         }
 
-        PreAnalysisResult withIndices(IndexPattern indexPattern, IndexResolution indices) {
-            indexResolution.put(indexPattern, indices);
-            return this;
+        PreAnalysisResult withIndices(IndexResolution indices) {
+            return new PreAnalysisResult(
+                fieldNames,
+                wildcardJoinIndices,
+                indices,
+                lookupIndices,
+                enrichResolution,
+                inferenceResolution,
+                minimumTransportVersion
+            );
         }
 
         PreAnalysisResult addLookupIndexResolution(String index, IndexResolution indexResolution) {
@@ -1029,7 +978,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
-                indexResolution,
+                indices,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1041,7 +990,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
-                indexResolution,
+                indices,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1050,16 +999,10 @@ public class EsqlSession {
         }
 
         PreAnalysisResult withMinimumTransportVersion(TransportVersion minimumTransportVersion) {
-            if (this.minimumTransportVersion != null) {
-                if (this.minimumTransportVersion.equals(minimumTransportVersion)) {
-                    return this;
-                }
-                minimumTransportVersion = TransportVersion.min(this.minimumTransportVersion, minimumTransportVersion);
-            }
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
-                indexResolution,
+                indices,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,

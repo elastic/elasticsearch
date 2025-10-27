@@ -33,7 +33,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
@@ -855,8 +854,8 @@ public class DateFieldMapperTests extends MapperTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 {
                     // One big doc block
-                    var columnReader = (LongsBlockLoader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(from, to).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(to - from));
@@ -867,8 +866,8 @@ public class DateFieldMapperTests extends MapperTestCase {
                 {
                     // Smaller doc blocks
                     int docBlockSize = 1000;
-                    var columnReader = (LongsBlockLoader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     for (int i = from; i < to; i += docBlockSize) {
                         var docBlock = TestBlock.docs(IntStream.range(i, i + docBlockSize).toArray());
                         var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -881,8 +880,8 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 {
                     // One smaller doc block:
-                    var columnReader = (LongsBlockLoader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(1010, 2020).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(1010));
@@ -893,8 +892,8 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 {
                     // Read two tiny blocks:
-                    var columnReader = (LongsBlockLoader.SingletonLongs) blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(32, 64).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.size(), equalTo(32));

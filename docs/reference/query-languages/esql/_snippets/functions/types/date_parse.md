@@ -2,11 +2,10 @@
 
 **Supported types**
 
-| datePattern | dateString | options | result |
-| --- | --- | --- | --- |
-| keyword | keyword | named parameters | date |
-| keyword | keyword | | date |
-| keyword | text | | date |
-| text | keyword | | date |
-| text | text | | date |
+| datePattern | dateString | result |
+| --- | --- | --- |
+| keyword | keyword | date |
+| keyword | text | date |
+| text | keyword | date |
+| text | text | date |
 

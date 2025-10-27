@@ -2057,11 +2057,7 @@ public class MachineLearning extends Plugin
         Client originClient = new OriginSettingClient(client, ML_ORIGIN);
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
-            new SetUpgradeModeAction.Request(
-                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
-                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
-                true
-            ),
+            new SetUpgradeModeAction.Request(true),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)))
         );
     }
@@ -2078,11 +2074,7 @@ public class MachineLearning extends Plugin
         Client originClient = new OriginSettingClient(client, ML_ORIGIN);
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
-            new SetUpgradeModeAction.Request(
-                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
-                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
-                false
-            ),
+            new SetUpgradeModeAction.Request(false),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged()))
         );
     }
@@ -2161,27 +2153,23 @@ public class MachineLearning extends Plugin
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(success -> {
 
-            client.execute(
-                SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(masterNodeTimeout, true),
-                ActionListener.wrap(resetSuccess -> {
-                    finalListener.onResponse(success);
-                    logger.info("Finished machine learning feature reset");
-                }, resetFailure -> {
-                    logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
-                    finalListener.onFailure(
-                        ExceptionsHelper.serverError(
-                            "failed to disable reset mode after state otherwise successful machine learning reset",
-                            resetFailure
-                        )
-                    );
-                })
-            );
+            client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(resetSuccess -> {
+                finalListener.onResponse(success);
+                logger.info("Finished machine learning feature reset");
+            }, resetFailure -> {
+                logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
+                finalListener.onFailure(
+                    ExceptionsHelper.serverError(
+                        "failed to disable reset mode after state otherwise successful machine learning reset",
+                        resetFailure
+                    )
+                );
+            }));
         }, failure -> {
             logger.error("failed to reset machine learning", failure);
             client.execute(
                 SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(masterNodeTimeout, false),
+                SetResetModeActionRequest.disabled(false),
                 ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
                     logger.error("failed to disable reset mode after state clean up failure", resetFailure);
                     finalListener.onFailure(failure);
@@ -2365,7 +2353,7 @@ public class MachineLearning extends Plugin
         }, finalListener::onFailure);
 
         // Indicate that a reset is now in progress
-        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(masterNodeTimeout), afterResetModeSet);
+        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(), afterResetModeSet);
     }
 
     @Override

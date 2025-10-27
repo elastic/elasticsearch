@@ -67,6 +67,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101926")
     public void testMlAssignmentPlannerUpgrade() throws Exception {
         assumeFalse("This test deploys multiple models which cannot be accommodated on a single processor", IS_SINGLE_PROCESSOR_TEST);
 
@@ -186,12 +187,12 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         createTrainedModel("old_memory_format", 0, 0);
         putModelDefinition("old_memory_format");
         putVocabulary(List.of("these", "are", "my", "words"), "old_memory_format");
-        startDeployment("old_memory_format", "started", "low");
+        startDeployment("old_memory_format");
 
         createTrainedModel("new_memory_format", ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(10).getBytes());
         putModelDefinition("new_memory_format");
         putVocabulary(List.of("these", "are", "my", "words"), "new_memory_format");
-        startDeployment("new_memory_format", "started", "low");
+        startDeployment("new_memory_format");
     }
 
     private void cleanupDeployments() throws IOException {
@@ -247,14 +248,10 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response startDeployment(String modelId) throws IOException {
-        return startDeployment(modelId, "started", "normal");
+        return startDeployment(modelId, "started");
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
-        return startDeployment(modelId, waitForState, "normal");
-    }
-
-    private Response startDeployment(String modelId, String waitForState, String priority) throws IOException {
         String inferenceThreadParamName = "threads_per_allocation";
         String modelThreadParamName = "number_of_allocations";
         String compatibleHeader = null;
@@ -274,8 +271,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
                 + inferenceThreadParamName
                 + "=1&"
                 + modelThreadParamName
-                + "=1&priority="
-                + priority
+                + "=1"
         );
         if (compatibleHeader != null) {
             request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());

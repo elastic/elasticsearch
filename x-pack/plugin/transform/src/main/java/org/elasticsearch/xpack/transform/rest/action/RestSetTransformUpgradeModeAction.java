@@ -39,11 +39,9 @@ public class RestSetTransformUpgradeModeAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        final var request = new SetUpgradeModeActionRequest(
-            getMasterNodeTimeout(restRequest),
-            getAckTimeout(restRequest),
-            restRequest.paramAsBoolean("enabled", false)
-        );
+        SetUpgradeModeActionRequest request = new SetUpgradeModeActionRequest(restRequest.paramAsBoolean("enabled", false));
+        request.ackTimeout(getAckTimeout(restRequest));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(SetTransformUpgradeModeAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

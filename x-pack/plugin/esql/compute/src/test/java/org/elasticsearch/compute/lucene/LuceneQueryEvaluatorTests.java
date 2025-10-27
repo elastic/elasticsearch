@@ -42,7 +42,7 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -207,7 +207,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                             FIELD,
                             ElementType.BYTES_REF,
                             false,
-                            unused -> new BytesRefsFromOrdsBlockLoader(FIELD)
+                            unused -> new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(FIELD)
                         )
                     ),
                     new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {

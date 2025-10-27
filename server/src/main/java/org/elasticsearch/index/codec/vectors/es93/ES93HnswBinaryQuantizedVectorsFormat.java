@@ -49,9 +49,9 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
      *
      * @param useDirectIO whether to use direct IO when reading raw vectors
      */
-    public ES93HnswBinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType elementType, boolean useDirectIO) {
+    public ES93HnswBinaryQuantizedVectorsFormat(boolean useBFloat16, boolean useDirectIO) {
         super(NAME);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(useBFloat16, useDirectIO);
     }
 
     /**
@@ -61,14 +61,9 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
      * @param beamWidth the size of the queue maintained during graph construction.
      * @param useDirectIO whether to use direct IO when reading raw vectors
      */
-    public ES93HnswBinaryQuantizedVectorsFormat(
-        int maxConn,
-        int beamWidth,
-        ES93GenericFlatVectorsFormat.ElementType elementType,
-        boolean useDirectIO
-    ) {
+    public ES93HnswBinaryQuantizedVectorsFormat(int maxConn, int beamWidth, boolean useBFloat16, boolean useDirectIO) {
         super(NAME, maxConn, beamWidth);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(useBFloat16, useDirectIO);
     }
 
     /**
@@ -85,13 +80,13 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
     public ES93HnswBinaryQuantizedVectorsFormat(
         int maxConn,
         int beamWidth,
-        ES93GenericFlatVectorsFormat.ElementType elementType,
+        boolean useBFloat16,
         boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(useBFloat16, useDirectIO);
     }
 
     @Override

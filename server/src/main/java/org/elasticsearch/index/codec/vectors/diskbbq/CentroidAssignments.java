@@ -9,33 +9,11 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-public record CentroidAssignments(
-    int numCentroids,
-    float[][] centroids,
-    int[] assignments,
-    int[] overspillAssignments,
-    float[] globalCentroid
-) {
+public record CentroidAssignments(int numCentroids, float[][] centroids, int[] assignments, int[] overspillAssignments) {
 
-    public CentroidAssignments(int dims, float[][] centroids, int[] assignments, int[] overspillAssignments) {
-        this(centroids.length, centroids, assignments, overspillAssignments, computeGlobalCentroid(dims, centroids));
+    public CentroidAssignments(float[][] centroids, int[] assignments, int[] overspillAssignments) {
+        this(centroids.length, centroids, assignments, overspillAssignments);
         assert assignments.length == overspillAssignments.length || overspillAssignments.length == 0
             : "assignments and overspillAssignments must have the same length";
-
-    }
-
-    private static float[] computeGlobalCentroid(int dims, float[][] centroids) {
-        final float[] globalCentroid = new float[dims];
-        // TODO: push this logic into vector util?
-        for (float[] centroid : centroids) {
-            assert centroid.length == dims;
-            for (int j = 0; j < centroid.length; j++) {
-                globalCentroid[j] += centroid[j];
-            }
-        }
-        for (int j = 0; j < globalCentroid.length; j++) {
-            globalCentroid[j] /= centroids.length;
-        }
-        return globalCentroid;
     }
 }

@@ -15,13 +15,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.plan.logical.CardinalityPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -132,8 +132,8 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
                         return new Project(en.source(), copyTop, outputs);
                     }
                 }
-                if ((plan instanceof Streaming) == false // can change the number of rows, so we can't just pull a TopN from
-                                                         // under it
+                if ((plan instanceof CardinalityPreserving) == false // can change the number of rows, so we can't just pull a TopN from
+                                                                     // under it
                     // this will fail the verifier anyway, so no need to continue
                     || (plan instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)
                     // This is another remote Enrich, it can handle its own limits

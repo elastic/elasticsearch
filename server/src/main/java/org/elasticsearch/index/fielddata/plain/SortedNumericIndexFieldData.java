@@ -23,7 +23,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -45,15 +44,15 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         private final NumericType numericType;
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
-        private final IndexType indexType;
+        private final boolean indexed;
 
         public Builder(
             String name,
             NumericType numericType,
             ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
-            IndexType indexType
+            boolean indexed
         ) {
-            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory, indexType);
+            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory, indexed);
         }
 
         public Builder(
@@ -61,18 +60,18 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             NumericType numericType,
             ValuesSourceType valuesSourceType,
             ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
-            IndexType indexType
+            boolean indexed
         ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
-            this.indexType = indexType;
+            this.indexed = indexed;
         }
 
         @Override
         public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
+            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexed);
         }
     }
 
@@ -80,21 +79,21 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
-    protected final IndexType indexType;
+    protected final boolean indexed;
 
     public SortedNumericIndexFieldData(
         String fieldName,
         NumericType numericType,
         ValuesSourceType valuesSourceType,
         ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
-        IndexType indexType
+        boolean indexed
     ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint() == false;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
-        this.indexType = indexType;
+        this.indexed = indexed;
     }
 
     @Override
@@ -113,8 +112,8 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public IndexType indexType() {
-        return indexType;
+    public boolean isIndexed() {
+        return indexed;
     }
 
     @Override

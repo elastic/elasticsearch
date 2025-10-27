@@ -11,15 +11,15 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 
 public interface SupportedVersion {
-    boolean supportedOn(TransportVersion version, boolean currentBuildIsSnapshot);
+    boolean supports(TransportVersion version);
 
     default boolean supportedLocally() {
-        return supportedOn(TransportVersion.current(), Build.current().isSnapshot());
+        return supports(TransportVersion.current());
     }
 
     SupportedVersion SUPPORTED_ON_ALL_NODES = new SupportedVersion() {
         @Override
-        public boolean supportedOn(TransportVersion version, boolean currentBuildIsSnapshot) {
+        public boolean supports(TransportVersion version) {
             return true;
         }
 
@@ -56,8 +56,8 @@ public interface SupportedVersion {
     // Check usage of this constant to be sure.
     SupportedVersion UNDER_CONSTRUCTION = new SupportedVersion() {
         @Override
-        public boolean supportedOn(TransportVersion version, boolean currentBuildIsSnapshot) {
-            return currentBuildIsSnapshot;
+        public boolean supports(TransportVersion version) {
+            return Build.current().isSnapshot();
         }
 
         @Override
@@ -73,11 +73,11 @@ public interface SupportedVersion {
      *     continue to work. Otherwise, we'd have to update bwc tests to skip older versions based
      *     on a capability check, which can be error-prone and risks turning off an unrelated bwc test.
      */
-    static SupportedVersion supportedSince(TransportVersion supportedVersion) {
+    static SupportedVersion supportedOn(TransportVersion supportedVersion) {
         return new SupportedVersion() {
             @Override
-            public boolean supportedOn(TransportVersion version, boolean currentBuildIsSnapshot) {
-                return version.supports(supportedVersion) || currentBuildIsSnapshot;
+            public boolean supports(TransportVersion version) {
+                return version.supports(supportedVersion) || Build.current().isSnapshot();
             }
 
             @Override

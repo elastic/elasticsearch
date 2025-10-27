@@ -12,7 +12,6 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -92,8 +91,8 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    protected IndexType indexType() {
-        return IndexType.NONE;
+    protected boolean isIndexed() {
+        return false;
     }
 
     public static class LongScriptLeafFieldData extends LeafLongFieldData {

@@ -13,7 +13,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,7 +34,6 @@ import static org.elasticsearch.action.admin.indices.sampling.GetSampleStatsActi
 public class TransportGetSampleStatsAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
     private final SamplingService samplingService;
     private final ProjectResolver projectResolver;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportGetSampleStatsAction(
@@ -44,8 +42,7 @@ public class TransportGetSampleStatsAction extends TransportNodesAction<Request,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         SamplingService samplingService,
-        ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             GetSampleStatsAction.NAME,
@@ -57,7 +54,6 @@ public class TransportGetSampleStatsAction extends TransportNodesAction<Request,
         );
         this.samplingService = samplingService;
         this.projectResolver = projectResolver;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -75,7 +71,6 @@ public class TransportGetSampleStatsAction extends TransportNodesAction<Request,
 
     @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
-        indexNameExpressionResolver.concreteIndexNames(clusterService.state(), request);
         SamplingConfiguration samplingConfiguration = samplingService.getSamplingConfiguration(
             projectResolver.getProjectMetadata(clusterService.state()),
             request.indices()[0]

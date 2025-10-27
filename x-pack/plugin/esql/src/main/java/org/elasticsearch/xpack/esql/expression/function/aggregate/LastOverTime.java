@@ -18,7 +18,7 @@ import org.elasticsearch.compute.aggregation.LastLongByTimestampAggregatorFuncti
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -64,7 +64,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "_tsid" }
         ) Expression field
     ) {
-        this(source, field, UnresolvedTimestamp.withSource(source));
+        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
     }
 
     public LastOverTime(Source source, Expression field, Expression timestamp) {

@@ -15,7 +15,6 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
@@ -486,18 +485,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 list.add(o instanceof Automaton a ? a : Automata.makeString(o.toString()));
             }
             // use the fast run variant
-            try {
-                result = new UnresolvedNamePattern(
-                    src,
-                    new CharacterRunAutomaton(
-                        Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
-                    ),
-                    patternString.toString(),
-                    nameString.toString()
-                );
-            } catch (TooComplexToDeterminizeException e) {
-                throw new ParsingException("Pattern was too complex to determinize", e);
-            }
+            result = new UnresolvedNamePattern(
+                src,
+                new CharacterRunAutomaton(Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)),
+                patternString.toString(),
+                nameString.toString()
+            );
 
             if (qualifier != null) {
                 throw qualifiersUnsupportedInPatterns(src, qualifiedCtx.getText());

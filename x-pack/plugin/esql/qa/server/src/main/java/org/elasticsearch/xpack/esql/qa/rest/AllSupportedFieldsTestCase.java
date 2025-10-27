@@ -32,7 +32,6 @@ import org.junit.Rule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,7 +43,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_CREATED_TV;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -78,6 +76,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     @ParametersFactory(argumentFormatting = "pref=%s mode=%s")
     public static List<Object[]> args() {
+        if (Build.current().isSnapshot()) {
+            // We only test behavior in release builds. Snapshot builds will have data types enabled that are still under construction.
+            return List.of();
+        }
+
         List<Object[]> args = new ArrayList<>();
         for (MappedFieldType.FieldExtractPreference extractPreference : Arrays.asList(
             null,
@@ -99,7 +102,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         this.indexMode = indexMode;
     }
 
-    protected record NodeInfo(String cluster, String id, boolean snapshot, TransportVersion version, Set<String> roles) {}
+    protected record NodeInfo(String cluster, String id, TransportVersion version, Set<String> roles) {}
 
     private static Map<String, NodeInfo> nodeToInfo;
 
@@ -121,19 +124,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected boolean fetchDenseVectorAggMetricDoubleIfFns() throws IOException {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS")).orElse(false);
-    }
-
-    private static Boolean denseVectorAggMetricDoubleIfVersion;
-
-    private boolean denseVectorAggMetricDoubleIfVersion() throws IOException {
-        if (denseVectorAggMetricDoubleIfVersion == null) {
-            denseVectorAggMetricDoubleIfVersion = fetchDenseVectorAggMetricDoubleIfVersion();
-        }
-        return denseVectorAggMetricDoubleIfVersion;
-    }
-
-    protected boolean fetchDenseVectorAggMetricDoubleIfVersion() throws IOException {
-        return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
     }
 
     private static Boolean supportsNodeAssignment;
@@ -163,21 +153,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String id = (String) n.getKey();
             Map<?, ?> nodeInfo = (Map<?, ?>) n.getValue();
             String nodeName = (String) extractValue(nodeInfo, "name");
-
-            /*
-             * Figuring out is a node is a snapshot is kind of tricky. The main version
-             * doesn't include -SNAPSHOT. But ${VERSION}-SNAPSHOT is in the node info
-             * *somewhere*. So we do this silly toString here.
-             */
-            String version = (String) extractValue(nodeInfo, "version");
-            boolean snapshot = nodeInfo.toString().contains(version + "-SNAPSHOT");
-
             TransportVersion transportVersion = TransportVersion.fromId((Integer) extractValue(nodeInfo, "transport_version"));
             List<?> roles = (List<?>) nodeInfo.get("roles");
-
             nodeToInfo.put(
                 nodeName,
-                new NodeInfo(cluster, id, snapshot, transportVersion, roles.stream().map(Object::toString).collect(Collectors.toSet()))
+                new NodeInfo(cluster, id, transportVersion, roles.stream().map(Object::toString).collect(Collectors.toSet()))
             );
         }
 
@@ -192,22 +172,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
         } else {
             createIndexForNode(client(), null, null);
-        }
-    }
-
-    /**
-     * Make sure the test doesn't run on snapshot builds. Release builds only.
-     * <p>
-     *     {@link Build#isSnapshot()} checks if the version under test is a snapshot.
-     *     But! This run test runs against many versions and if *any* are snapshots
-     *     then this will fail. So we check the versions of each node in the cluster too.
-     * </p>
-     */
-    @Before
-    public void skipSnapshots() throws IOException {
-        assumeFalse("Only supported on production builds", Build.current().isSnapshot());
-        for (NodeInfo n : allNodeToInfo().values()) {
-            assumeFalse("Only supported on production builds", n.snapshot());
         }
     }
 
@@ -248,7 +212,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 if (supportedInIndex(type) == false) {
                     continue;
                 }
-                expectedValues = expectedValues.entry(fieldName(type), expectedValue(type, nodeInfo));
+                expectedValues = expectedValues.entry(fieldName(type), expectedValue(type));
             }
             expectedValues = expectedValues.entry("_id", any(String.class))
                 .entry("_ignored", nullValue())
@@ -263,23 +227,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         profileLogger.clearProfile();
     }
 
-    /**
-     * Tests fetching {@code dense_vector} if possible. Uses the {@code dense_vector_agg_metric_double_if_fns}
-     * work around if required.
-     */
+    // Tests a workaround and will become obsolete once we can determine the actual minimum transport version of all nodes.
     public final void testFetchDenseVector() throws IOException {
         Map<String, Object> response;
         try {
-            String request = """
+            response = esql("""
+                | EVAL k = v_l2_norm(f_dense_vector, [1])  // workaround to enable fetching dense_vector
                 | KEEP _index, f_dense_vector
                 | LIMIT 1000
-                """;
-            if (denseVectorAggMetricDoubleIfVersion() == false) {
-                request = """
-                    | EVAL k = v_l2_norm(f_dense_vector, [1])  // workaround to enable fetching dense_vector
-                    """ + request;
-            }
-            response = esql(request);
+                """);
             if ((Boolean) response.get("is_partial")) {
                 Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
                 Map<?, ?> details = (Map<?, ?>) clusters.get("details");
@@ -454,7 +410,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     // This will become dependent on the minimum transport version of all nodes once we can determine that.
-    private Matcher<?> expectedValue(DataType type, NodeInfo nodeInfo) throws IOException {
+    private Matcher<?> expectedValue(DataType type) {
         return switch (type) {
             case BOOLEAN -> equalTo(true);
             case COUNTER_LONG, LONG, COUNTER_INTEGER, INTEGER, UNSIGNED_LONG, SHORT, BYTE -> equalTo(1);
@@ -473,24 +429,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
-                /*
-                 * We need both AGGREGATE_METRIC_DOUBLE_CREATED and RESOLVE_FIELDS_RESPONSE_CREATED_TV
-                 * but RESOLVE_FIELDS_RESPONSE_CREATED_TV came last so it's enough to check just it.
-                 */
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) == false) {
-                    yield nullValue();
-                }
-                yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
+                // Currently, we cannot tell if all nodes support it or not so we treat it as unsupported.
+                // TODO: Fix this once we know the node versions.
+                yield nullValue();
             }
             case DENSE_VECTOR -> {
-                /*
-                 * We need both DENSE_VECTOR_CREATED and RESOLVE_FIELDS_RESPONSE_CREATED_TV
-                 * but RESOLVE_FIELDS_RESPONSE_CREATED_TV came last so it's enough to check just it.
-                 */
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) == false) {
-                    yield nullValue();
-                }
-                yield equalTo(List.of(0.5, 10.0, 5.9999995));
+                // Currently, we cannot tell if all nodes support it or not so we treat it as unsupported.
+                // TODO: Fix this once we know the node versions.
+                yield nullValue();
             }
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
@@ -561,7 +507,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     // This will become dependent on the minimum transport version of all nodes once we can determine that.
-    private Matcher<String> expectedType(DataType type) throws IOException {
+    private Matcher<String> expectedType(DataType type) {
         return switch (type) {
             case COUNTER_DOUBLE, COUNTER_LONG, COUNTER_INTEGER -> {
                 if (indexMode == IndexMode.TIME_SERIES) {
@@ -572,16 +518,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case BYTE, SHORT -> equalTo("integer");
             case HALF_FLOAT, SCALED_FLOAT, FLOAT -> equalTo("double");
             case NULL -> equalTo("keyword");
-            case AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> {
-                /*
-                 * We need both <type_name>_CREATED and RESOLVE_FIELDS_RESPONSE_CREATED_TV
-                 * but RESOLVE_FIELDS_RESPONSE_CREATED_TV came last so it's enough to check just it.
-                 */
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) == false) {
-                    yield equalTo("unsupported");
-                }
-                yield equalTo(type.esType());
-            }
+            // Currently unsupported without TS command or KNN function
+            case AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR ->
+                // TODO: Fix this once we know the node versions.
+                equalTo("unsupported");
             default -> equalTo(type.esType());
         };
     }
@@ -615,13 +555,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     name = e.getValue().cluster + ":" + name;
                 }
                 // We should only end up with one per cluster
-                result.put(name, new NodeInfo(e.getValue().cluster, null, e.getValue().snapshot(), e.getValue().version(), null));
+                result.put(name, new NodeInfo(e.getValue().cluster, null, e.getValue().version(), null));
             }
         }
         return result;
-    }
-
-    protected TransportVersion minVersion() throws IOException {
-        return allNodeToInfo().values().stream().map(NodeInfo::version).min(Comparator.naturalOrder()).get();
     }
 }

@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -187,7 +186,7 @@ public class EsqlCCSUtils {
 
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
-        Collection<IndexResolution> indexResolutions,
+        IndexResolution indexResolution,
         boolean usedFilter
     ) {
         if (executionInfo.clusterInfo.isEmpty()) {
@@ -196,10 +195,8 @@ public class EsqlCCSUtils {
         // Get the clusters which are still running, and we will check whether they have any matching indices.
         // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getRunningClusterAliases().collect(toSet());
-        for (IndexResolution indexResolution : indexResolutions) {
-            for (String indexName : indexResolution.resolvedIndices()) {
-                clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
-            }
+        for (String indexName : indexResolution.resolvedIndices()) {
+            clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
         }
         /*
          * Rules enforced at planning time around non-matching indices
@@ -237,22 +234,20 @@ public class EsqlCCSUtils {
                 }
             } else {
                 // We check for the valid resolution because if we have empty resolution it's still an error.
-                for (IndexResolution indexResolution : indexResolutions) {
-                    if (indexResolution.isValid()) {
-                        List<FieldCapabilitiesFailure> failures = indexResolution.failures().getOrDefault(c, List.of());
-                        // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
-                        if (failures.isEmpty()) {
-                            markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
-                        } else {
-                            // skip reporting index_not_found exceptions to avoid spamming users with such errors
-                            // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
-                            Exception nonIndexNotFound = failures.stream()
-                                .map(FieldCapabilitiesFailure::getException)
-                                .filter(ex -> ExceptionsHelper.unwrap(ex, IndexNotFoundException.class) == null)
-                                .findAny()
-                                .orElse(null);
-                            markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SKIPPED, nonIndexNotFound);
-                        }
+                if (indexResolution.isValid()) {
+                    List<FieldCapabilitiesFailure> failures = indexResolution.failures().getOrDefault(c, List.of());
+                    // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
+                    if (failures.isEmpty()) {
+                        markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
+                    } else {
+                        // skip reporting index_not_found exceptions to avoid spamming users with such errors
+                        // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
+                        Exception nonIndexNotFound = failures.stream()
+                            .map(FieldCapabilitiesFailure::getException)
+                            .filter(ex -> ExceptionsHelper.unwrap(ex, IndexNotFoundException.class) == null)
+                            .findAny()
+                            .orElse(null);
+                        markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SKIPPED, nonIndexNotFound);
                     }
                 }
             }
@@ -263,11 +258,8 @@ public class EsqlCCSUtils {
     }
 
     // Filter-less version, mainly for testing where we don't need filter support
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(
-        EsqlExecutionInfo executionInfo,
-        Set<IndexResolution> indexResolutions
-    ) {
-        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolutions, false);
+    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
+        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution, false);
     }
 
     // visible for testing
@@ -312,31 +304,24 @@ public class EsqlCCSUtils {
     /**
      * Checks the index expression for the presence of remote clusters.
      * If found, it will ensure that the caller has a valid Enterprise (or Trial) license on the querying cluster
-     * as well as initialize the corresponding cluster state in execution info.
+     * as well as initialize corresponding cluster state in execution info.
      * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
      */
     public static void initCrossClusterState(
         IndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState,
-        Set<IndexPattern> indexPatterns,
+        IndexPattern indexPattern,
         EsqlExecutionInfo executionInfo
     ) throws ElasticsearchStatusException {
-        if (indexPatterns.isEmpty()) {
+        if (indexPattern == null) {
             return;
         }
         try {
-            // TODO it is not safe to concat multiple index patterns in case any of them contains exclusion.
-            // This is going to be resolved in #136804
-            String[] indexExpressions = indexPatterns.stream()
-                .map(indexPattern -> Strings.splitStringByCommaToArray(indexPattern.indexPattern()))
-                .reduce((a, b) -> {
-                    String[] combined = new String[a.length + b.length];
-                    System.arraycopy(a, 0, combined, 0, a.length);
-                    System.arraycopy(b, 0, combined, a.length, b.length);
-                    return combined;
-                })
-                .get();
-            var groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, indexExpressions, false);
+            var groupedIndices = indicesGrouper.groupIndices(
+                IndicesOptions.DEFAULT,
+                Strings.splitStringByCommaToArray(indexPattern.indexPattern()),
+                false
+            );
 
             executionInfo.clusterInfoInitializing(true);
             // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error

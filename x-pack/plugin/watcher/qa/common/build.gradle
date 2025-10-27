@@ -1,0 +1,6 @@
+apply plugin: 'elasticsearch.java'
+
+dependencies {
+  implementation project(':test:yaml-rest-runner')
+}
+

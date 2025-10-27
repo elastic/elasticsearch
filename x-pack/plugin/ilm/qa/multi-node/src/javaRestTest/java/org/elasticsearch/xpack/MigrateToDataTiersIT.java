@@ -23,6 +23,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.XContentTestUtils.JsonMapView;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.AllocationRoutedStep;
@@ -60,7 +61,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MigrateToDataTiersIT extends IlmESRestTestCase {
+public class MigrateToDataTiersIT extends ESRestTestCase {
     private String index;
     private String policy;
     private String alias;

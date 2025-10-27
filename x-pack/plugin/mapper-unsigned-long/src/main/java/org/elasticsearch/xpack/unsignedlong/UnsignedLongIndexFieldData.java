@@ -11,23 +11,22 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
     private final IndexNumericFieldData signedLongIFD;
     protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
-    protected final IndexType indexType;
+    protected final boolean indexed;
 
     UnsignedLongIndexFieldData(
         IndexNumericFieldData signedLongFieldData,
         ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
-        IndexType indexType
+        boolean indexed
     ) {
         this.signedLongIFD = signedLongFieldData;
         this.toScriptFieldFactory = toScriptFieldFactory;
-        this.indexType = indexType;
+        this.indexed = indexed;
     }
 
     @Override
@@ -56,8 +55,8 @@ public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    protected IndexType indexType() {
-        return indexType;
+    protected boolean isIndexed() {
+        return indexed;
     }
 
     @Override

@@ -1,16 +1,22 @@
-
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.authenticated-testclusters'
 
 dependencies {
-  yamlRestTestImplementation project(':x-pack:qa')
-
-  clusterModules project(xpackModule('ilm'))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 restResources {
   restApi {
     include '_common', 'cluster', 'indices', 'index', 'snapshot', 'ilm', 'slm', 'health_report', 'capabilities'
   }
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
 }
 
 configurations {

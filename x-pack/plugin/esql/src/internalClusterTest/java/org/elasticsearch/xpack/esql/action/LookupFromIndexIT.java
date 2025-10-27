@@ -250,7 +250,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         return new FragmentExec(filter);
     }
 
-    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, PhysicalPlan pushedDownFilter) throws IOException {
+    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, PhysicalPlan filters) throws IOException {
         String[] fieldMappers = new String[keyTypes.size() * 2];
         for (int i = 0; i < keyTypes.size(); i++) {
             fieldMappers[2 * i] = "key" + i;
@@ -283,8 +283,17 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
         Predicate<Integer> filterPredicate = l -> true;
-        if (pushedDownFilter instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof Filter filter) {
-            filterPredicate = getPredicateFromFilter(filter);
+        if (filters instanceof FragmentExec fragmentExec) {
+            if (fragmentExec.fragment() instanceof Filter filter
+                && filter.condition() instanceof GreaterThan gt
+                && gt.left() instanceof FieldAttribute fa
+                && fa.name().equals("l")
+                && gt.right() instanceof Literal lit) {
+                long value = ((Number) lit.value()).longValue();
+                filterPredicate = l -> l > value;
+            } else {
+                fail("Unsupported filter type in test baseline generation: " + filters);
+            }
         }
 
         int docCount = between(10, 1000);
@@ -387,16 +396,6 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                         new EsField("rkey" + i, keyTypes.get(i), Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
                     );
                     joinOnConditions.add(new Equals(Source.EMPTY, leftAttr, rightAttr));
-                    // randomly decide to apply the filter as additional join on filter instead of pushed down filter
-                    boolean applyAsJoinOnCondition = EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
-                        ? randomBoolean()
-                        : false;
-                    if (applyAsJoinOnCondition
-                        && pushedDownFilter instanceof FragmentExec fragmentExec
-                        && fragmentExec.fragment() instanceof Filter filter) {
-                        joinOnConditions.add(filter.condition());
-                        pushedDownFilter = null;
-                    }
                 }
             }
             // the matchFields are shared for both types of join
@@ -413,7 +412,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 "lookup",
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
                 Source.EMPTY,
-                pushedDownFilter,
+                filters,
                 Predicates.combineAnd(joinOnConditions)
             );
             DriverContext driverContext = driverContext();
@@ -477,19 +476,6 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             }
             assertDriverContext(driverContext);
         }
-    }
-
-    private static Predicate<Integer> getPredicateFromFilter(Filter filter) {
-        if (filter.condition() instanceof GreaterThan gt
-            && gt.left() instanceof FieldAttribute fa
-            && fa.name().equals("l")
-            && gt.right() instanceof Literal lit) {
-            long value = ((Number) lit.value()).longValue();
-            return l -> l > value;
-        } else {
-            fail("Unsupported filter type in test baseline generation: " + filter);
-        }
-        return null;
     }
 
     /**

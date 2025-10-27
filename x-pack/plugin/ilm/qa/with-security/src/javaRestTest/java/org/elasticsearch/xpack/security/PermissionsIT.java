@@ -25,6 +25,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,9 +53,9 @@ public class PermissionsIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("x-pack-ilm")
-        .module("x-pack-ccr")
-        .module("analysis-common")
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .setting("xpack.security.enabled", "true")

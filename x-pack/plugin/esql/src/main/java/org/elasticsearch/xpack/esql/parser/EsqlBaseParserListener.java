@@ -182,26 +182,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitIndexPatternAndMetadataFields(EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#indexPatternOrSubquery}.
-   * @param ctx the parse tree
-   */
-  void enterIndexPatternOrSubquery(EsqlBaseParser.IndexPatternOrSubqueryContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#indexPatternOrSubquery}.
-   * @param ctx the parse tree
-   */
-  void exitIndexPatternOrSubquery(EsqlBaseParser.IndexPatternOrSubqueryContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#subquery}.
-   * @param ctx the parse tree
-   */
-  void enterSubquery(EsqlBaseParser.SubqueryContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#subquery}.
-   * @param ctx the parse tree
-   */
-  void exitSubquery(EsqlBaseParser.SubqueryContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    */

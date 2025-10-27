@@ -15,8 +15,5 @@ public interface Unresolvable extends Resolvable {
         return false;
     }
 
-    /**
-     * NOTE: Any non-null return value from this method indicates that the item in question could not be resolved.
-     */
     String unresolvedMessage();
 }

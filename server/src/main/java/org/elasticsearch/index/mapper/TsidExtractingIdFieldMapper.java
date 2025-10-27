@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -90,20 +91,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 )
             );
         }
-        assert id != null;
         context.id(id);
 
-        final Field idField;
-        if (context.indexSettings().useTsdbSyntheticId()) {
-            idField = syntheticIdField(context.id());
-        } else {
-            idField = standardIdField(context.id());
-        }
-        assert NAME.equals(idField.name()) : idField.name();
-        assert idField.binaryValue() != null;
-
-        context.doc().add(idField);
-        return idField.binaryValue();
+        BytesRef uidEncoded = Uid.encodeId(context.id());
+        context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
+        return uidEncoded;
     }
 
     public static String createId(int routingHash, BytesRef tsid, long timestamp) {

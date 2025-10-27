@@ -1170,19 +1170,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         var config = new IndexWriterConfig();
         config.setIndexSort(new Sort(new SortField(primaryField, SortField.Type.STRING, false)));
         config.setMergePolicy(new LogByteSizeMergePolicy());
-        final Codec codec = new Elasticsearch92Lucene103Codec() {
-            final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
-                ESTestCase.randomIntBetween(2, 4096),
-                1, // always enable range-encode
-                random().nextBoolean()
-            );
-
-            @Override
-            public DocValuesFormat getDocValuesFormatForField(String field) {
-                return docValuesFormat;
-            }
-        };
-        config.setCodec(codec);
+        config.setCodec(getCodec());
         Map<Integer, String> hostnames = new HashMap<>();
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
             int numDocs = ESTestCase.randomIntBetween(100, 5000);
@@ -1290,11 +1278,20 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                         return docId;
                                     }
                                 }, start);
-                                assertNotNull(hostBlock);
-                                assertThat(hostBlock.size(), equalTo(end - start + 1));
-                                for (int i = 0; i < hostBlock.size(); i++) {
-                                    String actualHostName = BytesRefs.toString(hostBlock.get(i));
-                                    assertThat(actualHostName, equalTo(hostnames.get(((Number) idBlock.get(i + start)).intValue())));
+                                Set<String> seenValues = new HashSet<>();
+                                for (int p = start; p <= end; p++) {
+                                    String hostName = hostnames.get(((Number) idBlock.get(p)).intValue());
+                                    seenValues.add(hostName);
+                                }
+                                if (seenValues.size() == 1) {
+                                    assertNotNull(hostBlock);
+                                    assertThat(hostBlock.size(), equalTo(end - start + 1));
+                                    for (int i = 0; i < hostBlock.size(); i++) {
+                                        String actualHostName = BytesRefs.toString(hostBlock.get(i));
+                                        assertThat(actualHostName, equalTo(hostnames.get(((Number) idBlock.get(i + start)).intValue())));
+                                    }
+                                } else {
+                                    assertNull(hostBlock);
                                 }
                                 if (start == idBlock.size() - 1) {
                                     break;

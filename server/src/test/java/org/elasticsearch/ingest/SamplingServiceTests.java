@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -351,6 +352,8 @@ public class SamplingServiceTests extends ESTestCase {
             TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
-        return SamplingService.create(scriptService, clusterService, Settings.EMPTY);
+        final ProjectId projectId = ProjectId.DEFAULT;
+        final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
+        return SamplingService.create(scriptService, clusterService, projectResolver, Settings.EMPTY);
     }
 }

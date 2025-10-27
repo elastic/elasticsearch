@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.script.StringFieldScript;
 
 import java.io.IOException;

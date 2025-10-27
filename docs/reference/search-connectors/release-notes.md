@@ -20,13 +20,6 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 
 * Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
 
-## 9.1.6 [connectors-9.1.6-release-notes]
-
-### Features and enhancements [connectors-9.1.6-features-enhancements]
-* Idle Github connectors no longer excessively query set-up repositories, which reduces the number of calls to GitHub each connector makes and makes users less likely to hit GitHub API quotas. [#3708](https://github.com/elastic/connectors/pull/3708)
-
-* In the Sharepoint Online connector, /contentstorage/ URLs are no longer synced. [#3630](https://github.com/elastic/connectors/pull/3630)
-
 ## 9.1.5 [connectors-9.1.5-release-notes]
 
 ### Features and enhancements [connectors-9.1.5-features-enhancements]

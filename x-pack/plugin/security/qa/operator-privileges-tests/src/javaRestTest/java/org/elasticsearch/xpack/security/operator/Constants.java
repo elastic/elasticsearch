@@ -663,7 +663,6 @@ public class Constants {
         "indices:admin/sample/config/update",
         "indices:admin/sample/stats",
         "indices:admin/sample/config/delete",
-        "indices:monitor/sample/config/get",
-        "indices:monitor/sample/config/get_all"
+        "indices:monitor/sample/config/get"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

@@ -28,7 +28,7 @@ public abstract class RegexExtract extends UnaryPlan
     implements
         GeneratingPlan<RegexExtract>,
         PostAnalysisVerificationAware,
-        Streaming,
+        CardinalityPreserving,
         SortAgnostic {
     protected final Expression input;
     protected final List<Attribute> extractedFields;

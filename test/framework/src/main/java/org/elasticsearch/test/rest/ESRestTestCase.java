@@ -446,13 +446,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
             nodesVersions = Collections.unmodifiableSet(versions);
-
-            var semanticNodeVersions = nodesVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
-            assert semanticNodeVersions.isEmpty() == false || serverless;
-            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
+            testFeatureService = createTestFeatureService(
+                getClusterStateFeatures(adminClient),
+                ESRestTestFeatureService.fromSemanticVersions(nodesVersions)
+            );
 
             configureProjects();
         }
@@ -467,9 +464,9 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
-        Set<Version> semanticNodeVersions
+        ESRestTestFeatureService.VersionFeaturesPredicate versionFeaturesPredicate
     ) {
-        return new ESRestTestFeatureService(semanticNodeVersions, clusterStateFeatures.values());
+        return new ESRestTestFeatureService(versionFeaturesPredicate, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {

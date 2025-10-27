@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ESRestTestFeatureService;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -54,7 +55,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -127,13 +127,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
             logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);
 
-            var semanticNodeVersions = nodesVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
             final TestFeatureService testFeatureService = createTestFeatureService(
                 getClusterStateFeatures(adminClient()),
-                semanticNodeVersions
+                ESRestTestFeatureService.fromSemanticVersions(nodesVersions)
             );
 
             logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);

@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ESRestTestFeatureService;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -38,7 +38,6 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -172,11 +171,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     private TestFeatureService remoteFeaturesService() throws IOException {
         if (remoteFeaturesService == null) {
             var remoteNodeVersions = readVersionsFromNodesInfo(remoteClusterClient());
-            var semanticNodeVersions = remoteNodeVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
-            remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteClusterClient()), semanticNodeVersions);
+            remoteFeaturesService = createTestFeatureService(
+                getClusterStateFeatures(remoteClusterClient()),
+                ESRestTestFeatureService.fromSemanticVersions(remoteNodeVersions)
+            );
         }
         return remoteFeaturesService;
     }

@@ -34,6 +34,10 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
 
     private final IndicesService indicesService;
 
+    public LocalPrimarySnapshotShardContextFactory() {
+        throw new IllegalStateException("This no arg constructor only exists for SPI validation");
+    }
+
     public LocalPrimarySnapshotShardContextFactory(IndicesService indicesService) {
         this.indicesService = indicesService;
     }
@@ -72,20 +76,21 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
             final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
             snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
             snapshotStatus.ensureNotAborted();
-            final var snapshotShardContext = new LocalPrimarySnapshotShardContext(
-                indexShard.store(),
-                indexShard.mapperService(),
-                snapshot.getSnapshotId(),
+
+            final var snapshotShardContextListener = doAsyncCreate(
+                shardId,
+                snapshot,
                 indexId,
-                snapshotIndexCommit,
-                shardStateId,
                 snapshotStatus,
                 repositoryMetaVersion,
                 snapshotStartTime,
-                listener
+                listener,
+                indexShard,
+                snapshotIndexCommit,
+                shardStateId
             );
             snapshotIndexCommit = null;
-            return SubscribableListener.newSucceeded(snapshotShardContext);
+            return snapshotShardContextListener;
         } finally {
             if (snapshotIndexCommit != null) {
                 snapshotIndexCommit.closingBefore(new ActionListener<Void>() {
@@ -100,6 +105,34 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
                 }).onResponse(null);
             }
         }
+    }
+
+    protected SubscribableListener<SnapshotShardContext> doAsyncCreate(
+        ShardId shardId,
+        Snapshot snapshot,
+        IndexId indexId,
+        IndexShardSnapshotStatus snapshotStatus,
+        IndexVersion repositoryMetaVersion,
+        long snapshotStartTime,
+        ActionListener<ShardSnapshotResult> listener,
+        IndexShard indexShard,
+        SnapshotIndexCommit snapshotIndexCommit,
+        String shardStateId
+    ) {
+        return SubscribableListener.newSucceeded(
+            new LocalPrimarySnapshotShardContext(
+                indexShard.store(),
+                indexShard.mapperService(),
+                snapshot.getSnapshotId(),
+                indexId,
+                snapshotIndexCommit,
+                shardStateId,
+                snapshotStatus,
+                repositoryMetaVersion,
+                snapshotStartTime,
+                listener
+            )
+        );
     }
 
     static ActionListener<IndexShardSnapshotStatus.AbortStatus> makeAbortListener(

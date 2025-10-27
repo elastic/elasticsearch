@@ -7,12 +7,36 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 /**
  * A block that holds {@link ExponentialHistogram} values.
  */
 public sealed interface ExponentialHistogramBlock extends Block permits ConstantNullBlock, ExponentialHistogramArrayBlock {
+
+    /**
+     * Abstraction to use for writing individual values via {@link ExponentialHistogramBlockAccessor#serializeValue(int, SerializedOutput)}.
+     */
+    interface SerializedOutput {
+        void appendDouble(double value);
+
+        void appendLong(long value);
+
+        void appendBytesRef(BytesRef bytesRef);
+    }
+
+    /**
+     * Abstraction to use for reading individual serialized via
+     * {@link ExponentialHistogramBlockBuilder#deserializeAndAppend(SerializedInput)}.
+     */
+    interface SerializedInput {
+        double readDouble();
+
+        long readLong();
+
+        BytesRef readBytesRef(BytesRef tempBytesRef);
+    }
 
     /**
      * Returns the {@link ExponentialHistogram} value at the given index.

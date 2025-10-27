@@ -94,6 +94,45 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         }
     }
 
+    void serializeValue(int valueIndex, SerializedOutput out, BytesRef tempBytesRef) {
+        long valueCount = getHistogramValueCount(valueIndex);
+        out.appendLong(valueCount);
+        out.appendDouble(getHistogramSum(valueIndex));
+        out.appendDouble(getHistogramZeroThreshold(valueIndex));
+        if (valueCount > 0) {
+            // min / max are only non-null for non-empty histograms
+            out.appendDouble(getHistogramMin(valueIndex));
+            out.appendDouble(getHistogramMax(valueIndex));
+        }
+        out.appendBytesRef(getEncodedHistogramBytes(valueIndex, tempBytesRef));
+    }
+
+    private double getHistogramMin(int valueIndex) {
+        int minimaValIndex = minima.getFirstValueIndex(valueIndex);
+        return minima.isNull(minimaValIndex) ? Double.NaN : minima.getDouble(minimaValIndex);
+    }
+
+    private double getHistogramMax(int valueIndex) {
+        int maximaValIndex = maxima.getFirstValueIndex(valueIndex);
+        return maxima.isNull(maximaValIndex) ? Double.NaN : maxima.getDouble(maximaValIndex);
+    }
+
+    private double getHistogramSum(int valueIndex) {
+        return sums.getDouble(sums.getFirstValueIndex(valueIndex));
+    }
+
+    private long getHistogramValueCount(int valueIndex) {
+        return valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
+    }
+
+    private double getHistogramZeroThreshold(int valueIndex) {
+        return zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
+    }
+
+    private BytesRef getEncodedHistogramBytes(int valueIndex, BytesRef tempBytesRef) {
+        return encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), tempBytesRef);
+    }
+
     @Override
     protected void closeInternal() {
         Releasables.close(getSubBlocks());

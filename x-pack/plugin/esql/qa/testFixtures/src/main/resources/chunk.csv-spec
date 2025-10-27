@@ -108,6 +108,26 @@ book_no:keyword | title:text                                            | chunks
 1985            | Brothers Karamazov                                    | Brothers KaramazovFour brothers reunite in their hometown in Russia.
 ;
 
+chunkTextWithMultivaluedField
+required_capability: chunk_function
+
+FROM employees
+| EVAL chunks = CHUNK(job_positions)
+| KEEP emp_no, first_name, last_name, chunks
+| SORT emp_no
+| LIMIT 5
+;
+warning:Line 2:17: evaluation of [CHUNK(job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | first_name:keyword | last_name:keyword | chunks:keyword
+10001          | Georgi             | Facello           | null
+10002          | Bezalel            | Simmel            | Senior Team Lead
+10003          | Parto              | Bamford           | null
+10004          | Chirstian          | Koblick           | null
+10005          | Kyoichi            | Maliniak          | null
+;
+
 
 
 

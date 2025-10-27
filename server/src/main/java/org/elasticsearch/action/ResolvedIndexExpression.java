@@ -125,7 +125,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
             if (this.exception != null && Objects.equals(this.exception.getMessage(), exception.getMessage()) == false) {
                 // see https://github.com/elastic/elasticsearch/issues/135799
                 logger.debug(message);
-                assert false: message;
+                assert false : message;
             } else {
                 this.exception = exception;
             }

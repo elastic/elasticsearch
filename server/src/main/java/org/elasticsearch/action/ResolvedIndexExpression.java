@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,6 +51,8 @@ import java.util.Set;
 public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, Set<String> remoteExpressions)
     implements
         Writeable {
+
+    private static final Logger logger = LogManager.getLogger(ResolvedIndexExpression.class);
 
     public ResolvedIndexExpression(StreamInput in) throws IOException {
         this(in.readString(), new LocalExpressions(in), in.readCollectionAsImmutableSet(StreamInput::readString));
@@ -112,14 +116,19 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
             return exception;
         }
 
-        public void setException(ElasticsearchException exception) {
+        public void setExceptionIfUnset(ElasticsearchException exception) {
             assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS
                 : "If the local resolution result is SUCCESS, exception must be null";
             Objects.requireNonNull(exception);
 
-            assert this.exception == null : "Exception is already set";
-
-            this.exception = exception;
+            var message = "Exception is already set: " + exception.getMessage();
+            if (this.exception != null && Objects.equals(this.exception.getMessage(), exception.getMessage()) == false) {
+                // see https://github.com/elastic/elasticsearch/issues/135799
+                logger.debug(message);
+                assert false: message;
+            } else {
+                this.exception = exception;
+            }
         }
 
         @Override

@@ -720,7 +720,7 @@ public class AuthorizationService {
                 indexExpressions.expressions().forEach(resolved -> {
                     if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
                         resolved.localExpressions()
-                            .setException(
+                            .setExceptionIfUnset(
                                 actionDenied(
                                     authentication,
                                     authzInfo,

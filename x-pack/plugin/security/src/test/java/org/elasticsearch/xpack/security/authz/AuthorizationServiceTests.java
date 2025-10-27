@@ -3856,7 +3856,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException.getRootCause(), throwableWithMessage(containsString("access restricted by workflow")));
     }
 
-    public void testSetExceptionOnMissingIndexWhenIgnoreUnavailable() {
+    public void testCrossProjectSetExceptionOnUnauthorizedIndex() {
         final ProjectRoutingInfo originProject = createRandomProjectWithAlias(randomAlphaOfLengthBetween(6, 10));
 
         doAnswer(invocation -> {
@@ -3892,7 +3892,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             ? new SearchRequest("accessible-index", "not-accessible-index")
             : new SearchRequest("not-accessible-index");
 
-        request.indicesOptions(IndicesOptions.fromOptions(true, false, true, false));
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, false));
         AuditUtil.getOrGenerateRequestId(threadContext);
         authorize(authentication, TransportSearchAction.TYPE.name(), request);
 

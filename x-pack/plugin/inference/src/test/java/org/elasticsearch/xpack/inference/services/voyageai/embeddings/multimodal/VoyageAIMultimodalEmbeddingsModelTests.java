@@ -41,7 +41,7 @@ public class VoyageAIMultimodalEmbeddingsModelTests extends ESTestCase {
         var model = createModel(
             "url",
             "api_key",
-            new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.INGEST),
+            new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.INGEST, null),
             null,
             null,
             "voyage-multimodal-3"
@@ -51,7 +51,7 @@ public class VoyageAIMultimodalEmbeddingsModelTests extends ESTestCase {
         var expectedModel = createModel(
             "url",
             "api_key",
-            new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.SEARCH),
+            new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.SEARCH, null),
             null,
             null,
             "voyage-multimodal-3"
@@ -63,7 +63,7 @@ public class VoyageAIMultimodalEmbeddingsModelTests extends ESTestCase {
         var model = createModel(
             "url",
             "api_key",
-            new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.INGEST),
+            new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.INGEST, null),
             null,
             null,
             "voyage-multimodal-3"
@@ -73,7 +73,7 @@ public class VoyageAIMultimodalEmbeddingsModelTests extends ESTestCase {
         var expectedModel = createModel(
             "url",
             "api_key",
-            new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.INGEST),
+            new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.INGEST, null),
             null,
             null,
             "voyage-multimodal-3"
@@ -115,6 +115,7 @@ public class VoyageAIMultimodalEmbeddingsModelTests extends ESTestCase {
             url,
             new VoyageAIMultimodalEmbeddingsServiceSettings(
                 new VoyageAIServiceSettings(model, null),
+                null,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
                 tokenLimit,
@@ -140,6 +141,7 @@ public class VoyageAIMultimodalEmbeddingsModelTests extends ESTestCase {
             url,
             new VoyageAIMultimodalEmbeddingsServiceSettings(
                 new VoyageAIServiceSettings(model, null),
+                null,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
                 tokenLimit,
@@ -166,6 +168,7 @@ public class VoyageAIMultimodalEmbeddingsModelTests extends ESTestCase {
             url,
             new VoyageAIMultimodalEmbeddingsServiceSettings(
                 new VoyageAIServiceSettings(model, null),
+                null,
                 similarityMeasure,
                 dimensions,
                 tokenLimit,

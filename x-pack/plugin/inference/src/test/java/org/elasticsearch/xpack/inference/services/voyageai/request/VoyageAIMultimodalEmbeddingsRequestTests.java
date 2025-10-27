@@ -78,7 +78,7 @@ public class VoyageAIMultimodalEmbeddingsRequestTests extends ESTestCase {
             VoyageAIMultimodalEmbeddingsModelTests.createModel(
                 "url",
                 "secret",
-                new VoyageAIMultimodalEmbeddingsTaskSettings(null),
+                new VoyageAIMultimodalEmbeddingsTaskSettings(null, null),
                 null,
                 null,
                 "voyage-multimodal-3"
@@ -118,7 +118,7 @@ public class VoyageAIMultimodalEmbeddingsRequestTests extends ESTestCase {
             VoyageAIMultimodalEmbeddingsModelTests.createModel(
                 "url",
                 "secret",
-                new VoyageAIMultimodalEmbeddingsTaskSettings(inputType),
+                new VoyageAIMultimodalEmbeddingsTaskSettings(inputType, null),
                 null,
                 null,
                 "voyage-multimodal-3"
@@ -159,7 +159,7 @@ public class VoyageAIMultimodalEmbeddingsRequestTests extends ESTestCase {
             VoyageAIMultimodalEmbeddingsModelTests.createModel(
                 "url",
                 "secret",
-                new VoyageAIMultimodalEmbeddingsTaskSettings(taskSettingsInputType),
+                new VoyageAIMultimodalEmbeddingsTaskSettings(taskSettingsInputType, null),
                 null,
                 null,
                 "voyage-multimodal-3"

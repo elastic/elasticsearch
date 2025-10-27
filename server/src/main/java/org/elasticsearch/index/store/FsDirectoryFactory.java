@@ -41,6 +41,7 @@ import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -290,8 +291,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          * mmap-ing that should still be ok even is memory is scarce.
          * The fdt file is large and tends to cause more page faults when memory is scarce.
          *
-         * For disi and address-data files, in es819 tsdb doc values codec, docids and offsets are first written to a tmp file and
-         * read and written into new segment.
+         * For disi, address-data, block-addresses, and block-doc-ranges files, in es819 tsdb doc values codec,
+         * docids and offsets are first written to a tmp file and read and written into new segment.
          *
          * @param name      The name of the file in Lucene index
          * @param extension The extension of the in Lucene index
@@ -299,8 +300,16 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          */
         static boolean avoidDelegateForFdtTempFiles(String name, LuceneFilesExtensions extension) {
             return extension == LuceneFilesExtensions.TMP
-                && (name.contains("fdt") || name.contains("disi") || name.contains("address-data"));
+                && NO_MMAP_FILE_SUFFIXES.stream().anyMatch(name::contains);
         }
+
+        static final List<String> NO_MMAP_FILE_SUFFIXES = List.of(
+            "fdt",
+            "disi",
+            "address-data",
+            "block-addresses",
+            "block-doc-ranges"
+        );
 
         MMapDirectory getDelegate() {
             return delegate;

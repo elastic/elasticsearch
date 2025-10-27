@@ -537,10 +537,10 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         CompressedBinaryBlockWriter() throws IOException {
             long blockAddressesStart = data.getFilePointer();
-            blockAddressAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block_addresses", blockAddressesStart);
+            blockAddressAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block-addresses", blockAddressesStart);
 
             try {
-                blockDocRangeAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block_doc_ranges", 0);
+                blockDocRangeAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block-doc-ranges", 0);
             } catch (IOException e) {
                 blockAddressAcc.close();
                 throw e;

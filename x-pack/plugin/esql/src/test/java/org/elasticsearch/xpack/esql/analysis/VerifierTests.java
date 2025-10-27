@@ -3204,6 +3204,75 @@ public class VerifierTests extends ESTestCase {
             found value [1 hour] type [time_duration]"""));
     }
 
+    /**
+     * If there is explicit casting on fields with mix data types between subquery and main index {@code VerificationException} is thrown.
+     */
+    public void testMixedDataTypesInSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String errorMessage = error("""
+            FROM test, (FROM test_mixed_types | WHERE languages > 0)
+            | WHERE emp_no > 10000
+            | SORT is_rehired, still_hired
+            """);
+        assertThat(errorMessage, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
+        assertThat(errorMessage, containsString("Column [is_rehired] has conflicting data types in subqueries: [boolean, keyword]"));
+        assertThat(errorMessage, containsString("Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]"));
+    }
+
+    // Fork inside subquery is tested in LogicalPlanOptimizerTests
+    public void testSubqueryInFromWithForkInMainQuery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String errorMessage = error("""
+            FROM test, (FROM test_mixed_types
+                                 | WHERE languages > 0
+                                 | EVAL emp_no = emp_no::int
+                                 | KEEP emp_no)
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | KEEP emp_no
+            """);
+        assertThat(errorMessage, containsString("1:6: FORK after subquery is not supported"));
+    }
+
+    // InlineStats after subquery is not supported
+    public void testSubqueryInFromWithInlineStatsInMainQuery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String errorMessage = error("""
+            FROM test, (FROM test_mixed_types
+                                 | WHERE languages > 0
+                                 | EVAL emp_no = emp_no::int
+                                 | KEEP emp_no)
+            | INLINE STATS cnt = count(*)
+            | SORT emp_no
+            """);
+        assertThat(
+            errorMessage,
+            containsString(
+                "1:6: INLINE STATS after subquery is not supported, "
+                    + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
+            )
+        );
+        assertThat(errorMessage, containsString("line 5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"));
+    }
+
+    // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet
+    // FTF on the join(after subquery) on condition is not visible inside subquery yet. FTF after Fork fails with a similar error.
+    public void testSubqueryInFromWithLookupJoinOnFullTextFunction() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String errorMessage = error("""
+            FROM test, (FROM test_mixed_types
+                                 | WHERE languages > 0
+                                 | EVAL emp_no = emp_no::int
+                                 | KEEP emp_no, languages)
+            | LOOKUP JOIN languages_lookup ON languages == language_code AND MATCH(language_name,"English")
+            | KEEP emp_no, languages, language_name
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+        assertThat(errorMessage, containsString("5:3: [MATCH] function cannot be used after test, (FROM test_mixed_types"));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

@@ -53,7 +53,7 @@ public class ResolvedIndices {
         this.searchContextId = searchContextId;
     }
 
-    public ResolvedIndices(
+    ResolvedIndices(
         Map<String, OriginalIndices> remoteClusterIndices,
         @Nullable OriginalIndices localIndices,
         Map<Index, IndexMetadata> localIndexMetadata

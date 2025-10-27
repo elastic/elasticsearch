@@ -24,6 +24,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -244,7 +245,44 @@ public class SenderServiceTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            testService.infer(model, queryString, null, null, List.of(testInput), false, Map.of(), InputType.SEARCH, null, listener);
+            testService.infer(model, queryString, null, null, List.of(testInput), false, Map.of(), null, null, listener);
+            assertNotNull(listener.actionGet(TIMEOUT));
+            assertTrue(doInferCalled.get());
+        }
+    }
+
+    public void testInferSucceeds_WhenQueryIsNotDefinedForCompletionTaskType() throws IOException {
+        var sender = createMockSender();
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var testInput = "test input";
+        var doInferCalled = new AtomicReference<>(false);
+
+        var testService = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            protected void doInfer(
+                Model model,
+                InferenceInputs inputs,
+                Map<String, Object> taskSettings,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                var castedInput = inputs.castTo(ChatCompletionInput.class);
+                assertThat(castedInput.getInputs(), is(List.of(testInput)));
+                doInferCalled.set(true);
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+
+        try (testService) {
+            var model = mock(Model.class);
+            when(model.getTaskType()).thenReturn(TaskType.COMPLETION);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            testService.infer(model, null, null, null, List.of(testInput), false, Map.of(), null, null, listener);
             assertNotNull(listener.actionGet(TIMEOUT));
             assertTrue(doInferCalled.get());
         }

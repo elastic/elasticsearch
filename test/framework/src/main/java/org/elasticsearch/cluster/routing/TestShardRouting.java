@@ -63,6 +63,7 @@ public class TestShardRouting {
         private AllocationId allocationId;
         private Long expectedShardSize;
         private ShardRouting.Role role;
+        private Long becameUndesired;
 
         public Builder(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
             this.shardId = shardId;
@@ -106,6 +107,11 @@ public class TestShardRouting {
             return this;
         }
 
+        public Builder withBecameUndesired(long becameUndesired) {
+            this.becameUndesired = becameUndesired;
+            return this;
+        }
+
         public ShardRouting build() {
             return new ShardRouting(
                 shardId,
@@ -118,7 +124,8 @@ public class TestShardRouting {
                 relocationFailureInfo != null ? relocationFailureInfo : buildRelocationFailureInfo(state),
                 allocationId != null ? allocationId : buildAllocationId(state),
                 expectedShardSize != null ? expectedShardSize : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                role != null ? role : ShardRouting.Role.DEFAULT
+                role != null ? role : ShardRouting.Role.DEFAULT,
+                becameUndesired != null ? becameUndesired : ShardRouting.NOT_UNDESIRED_TIMESTAMP
             );
         }
     }
@@ -160,7 +167,8 @@ public class TestShardRouting {
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-            role
+            role,
+            ShardRouting.NOT_UNDESIRED_TIMESTAMP
         );
     }
 
@@ -184,7 +192,8 @@ public class TestShardRouting {
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-            role
+            role,
+            ShardRouting.NOT_UNDESIRED_TIMESTAMP
         );
     }
 
@@ -223,7 +232,8 @@ public class TestShardRouting {
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.NOT_UNDESIRED_TIMESTAMP
         );
     }
 

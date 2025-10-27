@@ -51,7 +51,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             TestShardRouting.buildRelocationFailureInfo(state),
             TestShardRouting.buildAllocationId(state),
             randomLongBetween(-1, 1024),
-            randomFrom(ShardRouting.Role.DEFAULT, (primary ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY))
+            randomFrom(ShardRouting.Role.DEFAULT, (primary ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY)),
+            randomBoolean() ? ShardRouting.NOT_UNDESIRED_TIMESTAMP : randomLong()
         );
     }
 
@@ -83,7 +84,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             instance.relocationFailureInfo(),
             instance.allocationId(),
             instance.getExpectedShardSize(),
-            instance.role()
+            instance.role(),
+            instance.becameUndesiredTime()
         );
     }
 
@@ -115,7 +117,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 );
             },
             instance.getExpectedShardSize(),
-            instance.role()
+            instance.role(),
+            instance.becameUndesiredTime()
         );
     }
 
@@ -131,7 +134,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             instance.relocationFailureInfo(),
             instance.allocationId(),
             instance.getExpectedShardSize(),
-            instance.role()
+            instance.role(),
+            instance.becameUndesiredTime()
         );
     }
 
@@ -153,7 +157,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     ShardRouting.Role.DEFAULT,
                     (instance.primary() ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY)
                 )
-            )
+            ),
+            instance.becameUndesiredTime()
         );
     }
 
@@ -274,7 +279,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                         otherRouting.relocationFailureInfo(),
                         otherRouting.allocationId(),
                         otherRouting.getExpectedShardSize(),
-                        otherRouting.role()
+                        otherRouting.role(),
+                        otherRouting.becameUndesiredTime()
                     );
                     break;
                 case 1:
@@ -290,7 +296,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                         otherRouting.relocationFailureInfo(),
                         otherRouting.allocationId(),
                         otherRouting.getExpectedShardSize(),
-                        otherRouting.role()
+                        otherRouting.role(),
+                        otherRouting.becameUndesiredTime()
                     );
                     break;
                 case 2:
@@ -309,7 +316,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize(),
-                            otherRouting.role()
+                            otherRouting.role(),
+                            otherRouting.becameUndesiredTime()
                         );
                     }
                     break;
@@ -329,7 +337,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize(),
-                            otherRouting.role()
+                            otherRouting.role(),
+                            otherRouting.becameUndesiredTime()
                         );
                     }
                     break;
@@ -354,7 +363,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize(),
-                            otherRouting.role()
+                            otherRouting.role(),
+                            otherRouting.becameUndesiredTime()
                         );
                     }
                     break;

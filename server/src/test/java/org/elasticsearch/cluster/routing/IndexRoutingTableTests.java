@@ -146,7 +146,8 @@ public class IndexRoutingTableTests extends ESTestCase {
             TestShardRouting.buildRelocationFailureInfo(state),
             TestShardRouting.buildAllocationId(state),
             randomLongBetween(-1, 1024),
-            role
+            role,
+            randomBoolean() ? ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE : randomLong()
         );
     }
 

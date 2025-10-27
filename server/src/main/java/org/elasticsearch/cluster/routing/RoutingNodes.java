@@ -892,6 +892,25 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return Collections.unmodifiableMap(assignedShards);
     }
 
+    /**
+     * Record that this shard is in an undesired location if it's not already marked as such
+     */
+    public ShardRouting markAsUndesired(ShardRouting originalShard, long becameUndesiredTime) {
+        final var withUndesiredInfo = originalShard.updateUndesired(becameUndesiredTime);
+        if (withUndesiredInfo != originalShard) {
+            nodesToShards.get(originalShard.currentNodeId()).update(originalShard, withUndesiredInfo);
+            return withUndesiredInfo;
+        }
+        return originalShard;
+    }
+
+    public void clearUndesired(ShardRouting originalShard) {
+        final var withoutUndesiredInfo = originalShard.clearUndesired();
+        if (withoutUndesiredInfo != originalShard) {
+            nodesToShards.get(originalShard.currentNodeId()).update(originalShard, withoutUndesiredInfo);
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

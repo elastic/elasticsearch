@@ -11,8 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
-import com.carrotsearch.hppc.procedures.LongProcedure;
-import com.carrotsearch.hppc.procedures.ObjectLongProcedure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
@@ -99,7 +96,6 @@ public class DesiredBalanceReconciler {
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
     private volatile TimeValue immovableShardThreshold;
-    private final ObjectLongHashMap<ShardRouting> immovableShards = new ObjectLongHashMap<>();
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider) {
         this.timeProvider = timeProvider;
@@ -134,7 +130,6 @@ public class DesiredBalanceReconciler {
     public void clear() {
         allocationOrdering.clear();
         moveOrdering.clear();
-        immovableShards.clear();
     }
 
     /**
@@ -499,7 +494,7 @@ public class DesiredBalanceReconciler {
             // Iterate over all started shards and check if they can remain. In the presence of throttling shard movements,
             // the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the shards.
             for (final var iterator = OrderedShardsIterator.createForNecessaryMoves(allocation, moveOrdering); iterator.hasNext();) {
-                final var shardRouting = iterator.next();
+                var shardRouting = iterator.next();
 
                 if (shardRouting.started() == false) {
                     // can only move started shards
@@ -514,8 +509,10 @@ public class DesiredBalanceReconciler {
 
                 if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                     // shard is already on a desired node
+                    routingNodes.clearUndesired(shardRouting);
                     continue;
                 }
+                shardRouting = routingNodes.markAsUndesired(shardRouting, timeProvider.relativeTimeInMillis());
 
                 if (allocation.deciders().canAllocate(shardRouting, allocation).type() != Decision.Type.YES) {
                     // cannot allocate anywhere, no point in looking for a target node
@@ -534,7 +531,6 @@ public class DesiredBalanceReconciler {
                 final var moveTarget = findRelocationTarget(shardRouting, assignment.nodeIds());
                 if (moveTarget != null) {
                     logger.debug("Moving shard {} from {} to {}", shardRouting.shardId(), shardRouting.currentNodeId(), moveTarget.getId());
-                    immovableShards.remove(shardRouting);
                     routingNodes.relocateShard(
                         shardRouting,
                         moveTarget.getId(),
@@ -558,8 +554,9 @@ public class DesiredBalanceReconciler {
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
             // shards.
+            var earliestUndesiredTimestamp = Long.MAX_VALUE;
             for (final var iterator = OrderedShardsIterator.createForBalancing(allocation, moveOrdering); iterator.hasNext();) {
-                final var shardRouting = iterator.next();
+                var shardRouting = iterator.next();
 
                 totalAllocations++;
                 totalAllocationsByRole.addTo(shardRouting.role(), 1);
@@ -577,8 +574,12 @@ public class DesiredBalanceReconciler {
 
                 if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                     // shard is already on a desired node
+                    routingNodes.clearUndesired(shardRouting);
                     continue;
                 }
+                shardRouting = routingNodes.markAsUndesired(shardRouting, timeProvider.relativeTimeInMillis());
+                assert shardRouting.becameUndesiredTime() != ShardRouting.NOT_UNDESIRED_TIMESTAMP;
+                earliestUndesiredTimestamp = Math.min(earliestUndesiredTimestamp, shardRouting.becameUndesiredTime());
 
                 if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
                     // shard is not on a shutting down node, nor is it on a desired node per the previous check.
@@ -601,10 +602,8 @@ public class DesiredBalanceReconciler {
                     continue;
                 }
 
-                final var rebalanceDecision = findRelocationTarget(shardRouting, assignment.nodeIds(), this::decideCanAllocate);
-                final var rebalanceTarget = rebalanceDecision.chosenNode();
+                final var rebalanceTarget = findRelocationTarget(shardRouting, assignment.nodeIds(), this::decideCanAllocate);
                 if (rebalanceTarget != null) {
-                    immovableShards.remove(shardRouting);
                     logger.debug(
                         "Rebalancing shard {} from {} to {}",
                         shardRouting.shardId(),
@@ -621,17 +620,10 @@ public class DesiredBalanceReconciler {
                     );
                     iterator.dePrioritizeNode(shardRouting.currentNodeId());
                     moveOrdering.recordAllocation(shardRouting.currentNodeId());
-                } else {
-                    // Start tracking this shard as immovable if we are not already, we're not interested in shards that are THROTTLED
-                    if (rebalanceDecision.bestDecision() == null || rebalanceDecision.bestDecision() == Decision.NO) {
-                        if (immovableShards.containsKey(shardRouting) == false) {
-                            immovableShards.put(shardRouting, timeProvider.relativeTimeInMillis());
-                        }
-                    }
                 }
             }
 
-            maybeLogImmovableShardsWarning();
+            maybeLogUndesiredShardsWarning(earliestUndesiredTimestamp);
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
             return new DesiredBalanceMetrics.AllocationStats(
                 unassignedShards,
@@ -649,31 +641,35 @@ public class DesiredBalanceReconciler {
         }
 
         /**
-         * If there are shards that have been immovable for a long time, log a warning
+         * If there are shards that have been in undesirable allocations for a long time, log a warning
          */
-        private void maybeLogImmovableShardsWarning() {
+        private void maybeLogUndesiredShardsWarning(long earliestUndesiredTimestamp) {
             final long currentTimeMillis = timeProvider.relativeTimeInMillis();
-            if (currentTimeMillis - oldestImmovableShardTimestamp() > immovableShardThreshold.millis()) {
-                immovableShardsLogInterval.maybeExecute(this::logDecisionsForImmovableShardsOverThreshold);
+            if (currentTimeMillis - earliestUndesiredTimestamp > immovableShardThreshold.millis()) {
+                immovableShardsLogInterval.maybeExecute(this::logDecisionsForUndesiredShardsOverThreshold);
             }
         }
 
-        private void logDecisionsForImmovableShardsOverThreshold() {
+        private void logDecisionsForUndesiredShardsOverThreshold() {
             final long currentTimeMillis = timeProvider.relativeTimeInMillis();
-            immovableShards.forEach((ObjectLongProcedure<? super ShardRouting>) (shardRouting, immovableSinceMillis) -> {
-                final long immovableDurationMs = currentTimeMillis - immovableSinceMillis;
-                if (immovableDurationMs > immovableShardThreshold.millis()) {
-                    logImmovableShardDetails(shardRouting, TimeValue.timeValueMillis(immovableDurationMs));
-                }
+            routingNodes.forEach(routingNode -> {
+                routingNode.forEach(shardRouting -> {
+                    if (shardRouting.isInUndesiredAllocation()) {
+                        final long undesiredDurationMs = currentTimeMillis - shardRouting.becameUndesiredTime();
+                        if (undesiredDurationMs > immovableShardThreshold.millis()) {
+                            logUndesiredShardDetails(shardRouting, TimeValue.timeValueMillis(undesiredDurationMs));
+                        }
+                    }
+                });
             });
         }
 
-        private void logImmovableShardDetails(ShardRouting shardRouting, TimeValue immovableDuration) {
+        private void logUndesiredShardDetails(ShardRouting shardRouting, TimeValue immovableDuration) {
             final RoutingAllocation.DebugMode originalDebugMode = allocation.getDebugMode();
             allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
             try {
                 final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
-                logger.warn("Shard {} has been immovable for {}", shardRouting.shardId(), immovableDuration);
+                logger.warn("Shard {} has been in an undesired allocation for {}", shardRouting.shardId(), immovableDuration);
                 for (final var nodeId : assignment.nodeIds()) {
                     final var decision = allocation.deciders().canAllocate(shardRouting, routingNodes.node(nodeId), allocation);
                     logger.warn("Shard [{}] cannot be allocated on node [{}]: {}", shardRouting.shardId(), nodeId, decision);
@@ -681,16 +677,6 @@ public class DesiredBalanceReconciler {
             } finally {
                 allocation.setDebugMode(originalDebugMode);
             }
-        }
-
-        private long oldestImmovableShardTimestamp() {
-            long[] oldestTimestamp = { Long.MAX_VALUE };
-            immovableShards.values().forEach((LongProcedure) lc -> {
-                if (lc < oldestTimestamp[0]) {
-                    oldestTimestamp[0] = lc;
-                }
-            });
-            return oldestTimestamp[0];
         }
 
         private void maybeLogUndesiredAllocationsWarning(int totalAllocations, int undesiredAllocations, int nodeCount) {
@@ -711,25 +697,24 @@ public class DesiredBalanceReconciler {
         }
 
         private DiscoveryNode findRelocationTarget(final ShardRouting shardRouting, Set<String> desiredNodeIds) {
-            final var moveDecision = findRelocationTarget(shardRouting, desiredNodeIds, this::decideCanAllocate).chosenNode();
+            final var moveDecision = findRelocationTarget(shardRouting, desiredNodeIds, this::decideCanAllocate);
             if (moveDecision != null) {
                 return moveDecision;
             }
 
             final var shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
             if (shardsOnReplacedNode) {
-                return findRelocationTarget(shardRouting, desiredNodeIds, this::decideCanForceAllocateForVacate).chosenNode();
+                return findRelocationTarget(shardRouting, desiredNodeIds, this::decideCanForceAllocateForVacate);
             }
             return null;
         }
 
-        private DecisionAndResult findRelocationTarget(
+        private DiscoveryNode findRelocationTarget(
             ShardRouting shardRouting,
             Set<String> desiredNodeIds,
             BiFunction<ShardRouting, RoutingNode, Decision> canAllocateDecider
         ) {
             DiscoveryNode chosenNode = null;
-            Decision bestDecision = null;
             for (final var nodeId : desiredNodeIds) {
                 // TODO consider ignored nodes here too?
                 if (nodeId.equals(shardRouting.currentNodeId())) {
@@ -747,7 +732,6 @@ public class DesiredBalanceReconciler {
                 // better to offload shards first.
                 if (decision.type() == Decision.Type.YES) {
                     chosenNode = node.node();
-                    bestDecision = decision;
                     // As soon as we get any YES, we return it.
                     break;
                 } else if (decision.type() == Decision.Type.NOT_PREFERRED && chosenNode == null) {
@@ -756,20 +740,11 @@ public class DesiredBalanceReconciler {
                     // choose and the shard cannot remain where it is, we accept not-preferred. NOT_PREFERRED is essentially a YES for
                     // reconciliation.
                     chosenNode = node.node();
-                    bestDecision = decision;
                 }
             }
 
-            return new DecisionAndResult(bestDecision, chosenNode);
+            return chosenNode;
         }
-
-        /**
-         * An allocation decision result
-         *
-         * @param bestDecision The best decision we saw from the nodes attempted (can be null if no nodes were attempted)
-         * @param chosenNode The node to allocate the shard to (can be null if no suitable nodes were found)
-         */
-        private record DecisionAndResult(@Nullable Decision bestDecision, @Nullable DiscoveryNode chosenNode) {}
 
         private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {
             assert target != null : "Target node is not found";

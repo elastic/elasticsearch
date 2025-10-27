@@ -102,12 +102,27 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         RelativeByteSizeValue floodStageWatermarkFrozen = base.frozenFloodStageWatermark();
         ByteSizeValue floodStageWatermarkFrozenMaxHeadRoom = base.frozenFloodStageMaxHeadroom();
         switch (randomInt(5)) {
-            case 0 -> highWatermark = randomRelativeByteSizeValue();
-            case 1 -> highWatermarkMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
-            case 2 -> floodStageWatermark = randomRelativeByteSizeValue();
-            case 3 -> floodStageWatermarkMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
-            case 4 -> floodStageWatermarkFrozen = randomRelativeByteSizeValue();
-            case 5 -> floodStageWatermarkFrozenMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
+            case 0 -> highWatermark = randomValueOtherThan(highWatermark, HealthMetadataSerializationTests::randomRelativeByteSizeValue);
+            case 1 -> highWatermarkMaxHeadRoom = randomValueOtherThan(
+                highWatermarkMaxHeadRoom,
+                () -> ByteSizeValue.ofGb(randomIntBetween(10, 999))
+            );
+            case 2 -> floodStageWatermark = randomValueOtherThan(
+                floodStageWatermark,
+                HealthMetadataSerializationTests::randomRelativeByteSizeValue
+            );
+            case 3 -> floodStageWatermarkMaxHeadRoom = randomValueOtherThan(
+                floodStageWatermarkMaxHeadRoom,
+                () -> ByteSizeValue.ofGb(randomIntBetween(10, 999))
+            );
+            case 4 -> floodStageWatermarkFrozen = randomValueOtherThan(
+                floodStageWatermarkFrozen,
+                HealthMetadataSerializationTests::randomRelativeByteSizeValue
+            );
+            case 5 -> floodStageWatermarkFrozenMaxHeadRoom = randomValueOtherThan(
+                floodStageWatermarkFrozenMaxHeadRoom,
+                () -> ByteSizeValue.ofGb(randomIntBetween(10, 999))
+            );
         }
         return new HealthMetadata.Disk(
             highWatermark,
@@ -129,10 +144,16 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         int shardCapacityUnhealthyThresholdYellow = base.shardCapacityUnhealthyThresholdYellow();
         int shardCapacityUnhealthyThresholdRed = base.shardCapacityUnhealthyThresholdRed();
         switch (randomInt(3)) {
-            case 0 -> maxShardsPerNode = randomIntBetween(1, 10000);
-            case 1 -> maxShardsPerNodeFrozen = randomIntBetween(1, 10000);
-            case 2 -> shardCapacityUnhealthyThresholdYellow = randomIntBetween(1, 10000);
-            case 3 -> shardCapacityUnhealthyThresholdRed = randomIntBetween(1, 10000);
+            case 0 -> maxShardsPerNode = randomValueOtherThan(maxShardsPerNode, () -> randomIntBetween(1, 10000));
+            case 1 -> maxShardsPerNodeFrozen = randomValueOtherThan(maxShardsPerNodeFrozen, () -> randomIntBetween(1, 10000));
+            case 2 -> shardCapacityUnhealthyThresholdYellow = randomValueOtherThan(
+                shardCapacityUnhealthyThresholdYellow,
+                () -> randomIntBetween(1, 10000)
+            );
+            case 3 -> shardCapacityUnhealthyThresholdRed = randomValueOtherThan(
+                shardCapacityUnhealthyThresholdRed,
+                () -> randomIntBetween(1, 10000)
+            );
         }
         return new HealthMetadata.ShardLimits(
             maxShardsPerNode,

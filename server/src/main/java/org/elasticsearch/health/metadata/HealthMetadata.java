@@ -178,7 +178,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         );
 
         static ShardLimits readFrom(StreamInput in) throws IOException {
-            return in.getTransportVersion().onOrAfter(VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS)
+            return in.getTransportVersion().supports(VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS)
                 ? new ShardLimits(in.readInt(), in.readInt(), in.readInt(), in.readInt())
                 // defaults from older versions
                 : new ShardLimits(in.readInt(), in.readInt(), 10, 5);
@@ -197,7 +197,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(maxShardsPerNode);
             out.writeInt(maxShardsPerNodeFrozen);
-            if (out.getTransportVersion().onOrAfter(VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS)) {
+            if (out.getTransportVersion().supports(VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS)) {
                 out.writeInt(shardCapacityUnhealthyThresholdYellow);
                 out.writeInt(shardCapacityUnhealthyThresholdRed);
             }

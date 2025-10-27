@@ -623,11 +623,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         boolean ccsRequest = resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
-        if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
-            throw new IllegalArgumentException(
-                NAME + " query does not support cross-cluster search when [ccs_minimize_roundtrips] is false"
-            );
-        }
 
         if (localInferenceResultsMapSupplier != null || remoteInferenceResultsMapSupplier != null) {
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process

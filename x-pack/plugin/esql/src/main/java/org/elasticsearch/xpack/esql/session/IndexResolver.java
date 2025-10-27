@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -23,12 +25,14 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -45,9 +49,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -89,8 +91,8 @@ public class IndexResolver {
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
-        boolean supportsAggregateMetricDouble,
-        boolean supportsDenseVector,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
         ActionListener<IndexResolution> listener
     ) {
         ActionListener<Versioned<IndexResolution>> ignoreVersion = listener.delegateFailureAndWrap(
@@ -102,8 +104,8 @@ public class IndexResolver {
             fieldNames,
             requestFilter,
             includeAllDimensions,
-            supportsAggregateMetricDouble,
-            supportsDenseVector,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported,
             ignoreVersion
         );
     }
@@ -117,30 +119,81 @@ public class IndexResolver {
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
-        boolean supportsAggregateMetricDouble,
-        boolean supportsDenseVector,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> {
-                TransportVersion minimumVersion = response.minTransportVersion();
-
-                LOGGER.debug("minimum transport version {}", minimumVersion);
-                l.onResponse(
-                    new Versioned<>(
-                        mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector)),
-                        // The minimum transport version was added to the field caps response in 9.2.1; in clusters with older nodes,
-                        // we don't have that information and need to assume the oldest supported version.
-                        minimumVersion == null ? TransportVersion.minimumCompatible() : minimumVersion
-                    )
+                FieldsInfo info = new FieldsInfo(
+                    response.caps(),
+                    response.minTransportVersion(),
+                    Build.current().isSnapshot(),
+                    useAggregateMetricDoubleWhenNotSupported,
+                    useDenseVectorWhenNotSupported
                 );
+                LOGGER.debug("minimum transport version {} {}", response.minTransportVersion(), info.effectiveMinTransportVersion());
+                l.onResponse(new Versioned<>(mergedMappings(indexWildcard, info), info.effectiveMinTransportVersion()));
             })
         );
     }
 
-    public record FieldsInfo(FieldCapabilitiesResponse caps, boolean supportAggregateMetricDouble, boolean supportDenseVector) {}
+    /**
+     * Information for resolving a field.
+     * @param caps {@link FieldCapabilitiesResponse} from all indices involved in the query
+     * @param minTransportVersion The minimum {@link TransportVersion} of any node that <strong>might</strong> receive the request.
+     *                            More precisely, it's the minimum transport version of ALL nodes in ALL the clusters that the query
+     *                            is targeting. It doesn't matter if the node is a data node or an ML node or a unicorn, it's transport
+     *                            version counts. BUT if the query doesn't dispatch to that cluster AT ALL, we don't count the versions
+     *                            of any nodes in that cluster.
+     * @param currentBuildIsSnapshot is the current build a snapshot? Note: This is always {@code Build.current().isSnapshot()} in
+     *                               production but tests need more control
+     * @param useAggregateMetricDoubleWhenNotSupported does the query itself force us to use {@code aggregate_metric_double} fields
+     *                                                 even if the remotes don't report that they support the type? This exists because
+     *                                                 some remotes <strong>do</strong> support {@code aggregate_metric_double} without
+     *                                                 reporting that they do. And, for a while, we used the query itself to opt into
+     *                                                 reading these fields.
+     * @param useDenseVectorWhenNotSupported does the query itself force us to use {@code dense_vector} fields even if the remotes don't
+     *                                       report that they support the type? This exists because some remotes <strong>do</strong>
+     *                                       support {@code dense_vector} without reporting that they do. And, for a while, we used the
+     *                                       query itself to opt into reading these fields.
+     */
+    public record FieldsInfo(
+        FieldCapabilitiesResponse caps,
+        @Nullable TransportVersion minTransportVersion,
+        boolean currentBuildIsSnapshot,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {
+        /**
+         * The {@link #minTransportVersion}, but if any remote didn't tell us the version we assume
+         * that it's very, very old. This effectively disables any fields that were created "recently".
+         * Which is appropriate because those fields are not supported on *almost* all versions that
+         * don't return the transport version in the response.
+         * <p>
+         *     "Very, very old" above means that there are versions of Elasticsearch that we're wire
+         *     compatible that with that don't support sending the version back. That's anything
+         *     from {@code 8.19.FIRST} to {@code 9.2.0}. "Recently" means any field types we
+         *     added support for after the initial release of ESQL. These fields use
+         *     {@link SupportedVersion#supportedOn} rather than {@link SupportedVersion#SUPPORTED_ON_ALL_NODES}.
+         *     Except for DATE_NANOS. For DATE_NANOS we got lucky/made a mistake. It wasn't widely
+         *     used before ESQL added support for it and we weren't careful about enabling it. So
+         *     queries on mixed version clusters that touch DATE_NANOS will fail. All the types
+         *     added after that, like DENSE_VECTOR, will gracefully disable themselves when talking
+         *     to older nodes.
+         * </p>
+         * <p>
+         *     Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
+         *     we can remove this and make sure {@link #minTransportVersion} is non-null. That'll
+         *     be 10.0-ish.
+         * </p>
+         */
+        TransportVersion effectiveMinTransportVersion() {
+            return minTransportVersion != null ? minTransportVersion : TransportVersion.minimumCompatible();
+        }
+    }
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
@@ -275,11 +328,16 @@ public class IndexResolver {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
-        type = switch (type) {
-            case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.supportAggregateMetricDouble ? AGGREGATE_METRIC_DOUBLE : UNSUPPORTED;
-            case DENSE_VECTOR -> fieldsInfo.supportDenseVector ? DENSE_VECTOR : UNSUPPORTED;
-            default -> type;
-        };
+        boolean typeSupported = type.supportedVersion()
+            .supportedOn(fieldsInfo.effectiveMinTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
+            || switch (type) {
+                case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
+                case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;
+                default -> false;
+            };
+        if (false == typeSupported) {
+            type = UNSUPPORTED;
+        }
         boolean aggregatable = first.isAggregatable();
         EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first);
         if (rest.isEmpty() == false) {

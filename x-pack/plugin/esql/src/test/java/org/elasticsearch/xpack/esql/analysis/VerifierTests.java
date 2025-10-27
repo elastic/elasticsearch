@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
@@ -38,9 +41,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -63,6 +70,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -78,7 +86,24 @@ public class VerifierTests extends ESTestCase {
     private final Analyzer sampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-sample_data.json", "test"));
     private final Analyzer oddSampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-odd-timestamp.json", "test"));
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
-
+    private Analyzer k8s;
+    {
+        // Load Time Series mappings for these tests
+        Map<String, EsField> mappingK8s = EsqlTestUtils.loadMapping("k8s-mappings.json");
+        EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
+        IndexResolution getIndexResult = IndexResolution.valid(k8sIndex);
+        k8s = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResult,
+                defaultLookupResolution(),
+                new EnrichResolution(),
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+    }
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
 
@@ -1147,6 +1172,108 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM test | STATS present(name) BY network.bytes_in", tsdb),
             equalTo("1:36: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithRate() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(rate(network.total_cost))", k8s),
+            equalTo("1:38: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithLastOverTime() {
+        assertThat(
+            error(
+                "TS k8s | RENAME @timestamp AS newTs | STATS max(last_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
+                k8s
+            ),
+            equalTo("1:49: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(last_over_time(network.eth0.tx))", k8s),
+            equalTo("1:38: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithFirstOverTime() {
+        assertThat(
+            error(
+                "TS k8s | RENAME @timestamp AS newTs | STATS max(first_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
+                k8s
+            ),
+            equalTo("1:49: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(first_over_time(network.eth0.tx))", k8s),
+            equalTo("1:38: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithIncrease() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(increase(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(increase(network.eth0.tx))", k8s),
+            equalTo("1:38: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithIRate() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(irate(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(irate(network.eth0.tx))", k8s),
+            equalTo("1:38: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithDelta() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(delta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(delta(network.eth0.tx))", k8s),
+            equalTo("1:38: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithIDelta() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(idelta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
+            equalTo("1:49: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(idelta(network.eth0.tx))", k8s),
+            equalTo("1:38: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestampWithTBucket() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)", k8s),
+            equalTo("1:95: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(max_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)", k8s),
+            equalTo("1:83: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
         );
     }
 
@@ -2513,7 +2640,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testInvalidTBucketCalls() {
-        assertThat(error("from test | stats max(emp_no) by tbucket(1 hour)"), equalTo("1:34: Unknown column [@timestamp]"));
+        assertThat(
+            error("from test | stats max(emp_no) by tbucket(1 hour)"),
+            equalTo("1:34: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+        );
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
             equalTo("1:42: error building [tbucket]: expects exactly one argument")
@@ -2809,6 +2939,146 @@ public class VerifierTests extends ESTestCase {
         assertThat(error("TS test | INLINE STATS max(network.connections) | STATS max(network.connections) by host", tsdb), equalTo("""
             1:11: INLINE STATS [INLINE STATS max(network.connections)] \
             can only be used after STATS when used with TS command"""));
+    }
+
+    public void testInlineStatsWithRateNotAllowed() {
+        assertThat(error("TS test | INLINE STATS max(60 * rate(network.bytes_in)), max(network.connections)", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max(60 * rate(network.bytes_in)), max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
+
+    }
+
+    public void testLimitBeforeInlineStats_WithTS() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        assertThat(
+            error("TS test | STATS m=max(languages) BY s=salary/10000 | LIMIT 5 | INLINE STATS max(s) BY m"),
+            containsString(
+                "1:64: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@1:54]"
+            )
+        );
+    }
+
+    public void testLimitBeforeInlineStats_WithFork() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        assertThat(
+            error(
+                "FROM test\n"
+                    + "| WHERE emp_no == 10048 OR emp_no == 10081\n"
+                    + "| FORK (EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
+                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                    + "       (EVAL b = CONCAT(last_name, \" \", emp_no::keyword, \" \", first_name)\n"
+                    + "        | GROK b \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                    + "| SORT _fork, emp_no"
+                    + "| INLINE STATS max_lang = MAX(languages) BY gender"
+            ),
+            containsString(
+                "7:23: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
+                    + "after [(EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
+                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WOR...] [@3:8]"
+            )
+        );
+
+        assertThat(
+            error(
+                "FROM employees\n"
+                    + "| KEEP emp_no, languages, gender\n"
+                    + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
+                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"
+                    + "| LIMIT 5"
+                    + "| INLINE STATS max_lang = MAX(languages) BY gender \n"
+                    + "| SORT emp_no, gender, _fork\n"
+            ),
+            containsString(
+                "5:12: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 5] [@5:3]"
+            )
+        );
+
+        assertThat(
+            error(
+                "FROM employees\n"
+                    + "| KEEP emp_no, languages, gender\n"
+                    + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
+                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"
+                    + "| INLINE STATS max_lang = MAX(languages) BY gender \n"
+                    + "| SORT emp_no, gender, _fork\n"
+                    + "| LIMIT 5"
+            ),
+            containsString(
+                "5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
+                    + "after [(WHERE emp_no == 10048 OR emp_no == 10081)\n"
+                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)] [@3:8]"
+            )
+        );
+    }
+
+    public void testLimitBeforeInlineStats_WithFrom_And_Row() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        var sourceCommands = new String[] { "FROM test | ", "ROW salary=1,gender=\"M\",languages=1 | " };
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "SORT languages | LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        assertThat(
+            error(
+                randomFrom(sourceCommands) + "LIMIT 1 | LIMIT 2 | INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"
+            ),
+            allOf(
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+                ),
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS avg(salary)] after [LIMIT 2] [@"
+                )
+            )
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + """
+                EVAL x = 1
+                | LIMIT 1
+                | INLINE STATS avg(salary)
+                | STATS m=max(languages) BY s=salary/10000
+                | LIMIT 5
+                | INLINE STATS max(s) BY m
+                """),
+            allOf(
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS max(s) BY m] after [LIMIT 5] [@"
+                ),
+                containsString(
+                    "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                        + "but was [INLINE STATS avg(salary)] after [LIMIT 1] [@"
+                )
+            )
+        );
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

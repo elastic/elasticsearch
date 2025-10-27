@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
@@ -116,6 +117,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getAttributeByName;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
@@ -215,7 +217,10 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
         assertEquals(1, eval.fields().size());
-        assertEquals(new Alias(EMPTY, "e", new FieldAttribute(EMPTY, "emp_no", idx.mapping().get("emp_no"))), eval.fields().get(0));
+        assertThat(
+            eval.fields().get(0),
+            equalToIgnoringIds(new Alias(EMPTY, "e", new FieldAttribute(EMPTY, "emp_no", idx.mapping().get("emp_no"))))
+        );
 
         assertEquals(2, eval.output().size());
         Attribute empNo = eval.output().get(0);
@@ -272,7 +277,10 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
         assertEquals(1, eval.fields().size());
-        assertEquals(new Alias(EMPTY, "e", new ReferenceAttribute(EMPTY, "emp_no", DataType.INTEGER)), eval.fields().get(0));
+        assertThat(
+            eval.fields().get(0),
+            equalToIgnoringIds(new Alias(EMPTY, "e", new ReferenceAttribute(EMPTY, "emp_no", DataType.INTEGER)))
+        );
 
         assertEquals(2, eval.output().size());
         Attribute empNo = eval.output().get(0);
@@ -3142,25 +3150,23 @@ public class AnalyzerTests extends ESTestCase {
         var insist = as(limit.child(), Insist.class);
         assertThat(insist.output(), hasSize(analyze("FROM test").output().size() + 1));
         var expectedAttribute = new FieldAttribute(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
-        assertThat(insist.insistedAttributes(), is(List.of(expectedAttribute)));
-        assertThat(insist.output().getLast(), is(expectedAttribute));
+        assertThat(insist.insistedAttributes(), equalToIgnoringIds(List.of(expectedAttribute)));
+        assertThat(insist.output().getLast(), equalToIgnoringIds(expectedAttribute));
     }
 
     public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_createsUnmappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("keyword")),
                         fieldCapabilitiesIndexResponse("bar", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
 
@@ -3177,17 +3183,15 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
                         fieldCapabilitiesIndexResponse("bar", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3205,8 +3209,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
@@ -3214,9 +3218,7 @@ public class AnalyzerTests extends ESTestCase {
                         fieldCapabilitiesIndexResponse("bazz", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3233,17 +3235,15 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
                         fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3258,8 +3258,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
@@ -3268,9 +3268,7 @@ public class AnalyzerTests extends ESTestCase {
                         fieldCapabilitiesIndexResponse("qux", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3287,8 +3285,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo, bar",
-            new IndexResolver.FieldsInfo(
+            "foo,bar",
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
@@ -3296,9 +3294,7 @@ public class AnalyzerTests extends ESTestCase {
                         fieldCapabilitiesIndexResponse("bazz", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         VerificationException e = expectThrows(
@@ -3318,13 +3314,19 @@ public class AnalyzerTests extends ESTestCase {
             List.of()
         );
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
         }
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, false));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
@@ -3342,7 +3344,10 @@ public class AnalyzerTests extends ESTestCase {
             List.of()
         );
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(
@@ -3351,7 +3356,10 @@ public class AnalyzerTests extends ESTestCase {
             );
         }
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, false, true));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
@@ -3384,7 +3392,7 @@ public class AnalyzerTests extends ESTestCase {
         List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         Eval eval = as(project.child(), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork1"))));
+        assertThat(as(eval.fields().get(0), Alias.class), equalToIgnoringIds(alias("_fork", string("fork1"))));
         Filter filter = as(eval.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(1)));
 
@@ -3401,7 +3409,7 @@ public class AnalyzerTests extends ESTestCase {
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork2"))));
+        assertThat(as(eval.fields().get(0), Alias.class), equalToIgnoringIds(alias("_fork", string("fork2"))));
         filter = as(eval.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(2)));
 
@@ -3418,7 +3426,7 @@ public class AnalyzerTests extends ESTestCase {
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork3"))));
+        assertThat(as(eval.fields().get(0), Alias.class), equalToIgnoringIds(alias("_fork", string("fork3"))));
         limit = as(eval.child(), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(7));
         var orderBy = as(limit.child(), OrderBy.class);
@@ -3437,7 +3445,7 @@ public class AnalyzerTests extends ESTestCase {
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork4"))));
+        assertThat(as(eval.fields().get(0), Alias.class), equalToIgnoringIds(alias("_fork", string("fork4"))));
         orderBy = as(eval.child(), OrderBy.class);
         filter = as(orderBy.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
@@ -3452,7 +3460,7 @@ public class AnalyzerTests extends ESTestCase {
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork5"))));
+        assertThat(as(eval.fields().get(0), Alias.class), equalToIgnoringIds(alias("_fork", string("fork5"))));
         limit = as(eval.child(), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(9));
         filter = as(limit.child(), Filter.class);
@@ -3498,7 +3506,7 @@ public class AnalyzerTests extends ESTestCase {
         }
 
         eval = as(eval.child(), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork1"))));
+        assertThat(as(eval.fields().get(0), Alias.class), equalToIgnoringIds(alias("_fork", string("fork1"))));
         limit = as(eval.child(), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(7));
         var orderBy = as(limit.child(), OrderBy.class);
@@ -3527,7 +3535,7 @@ public class AnalyzerTests extends ESTestCase {
         }
 
         eval = as(eval.child(), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork2"))));
+        assertThat(as(eval.fields().get(0), Alias.class), equalToIgnoringIds(alias("_fork", string("fork2"))));
         eval = as(eval.child(), Eval.class);
         Alias alias = as(eval.fields().get(0), Alias.class);
         assertThat(alias.name(), equalTo("xyz"));
@@ -3557,7 +3565,7 @@ public class AnalyzerTests extends ESTestCase {
         }
 
         eval = as(eval.child(), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork3"))));
+        assertThat(as(eval.fields().get(0), Alias.class), equalToIgnoringIds(alias("_fork", string("fork3"))));
 
         eval = as(eval.child(), Eval.class);
         alias = as(eval.fields().get(0), Alias.class);
@@ -3801,7 +3809,7 @@ public class AnalyzerTests extends ESTestCase {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
-        IndexResolver.FieldsInfo caps = new IndexResolver.FieldsInfo(new FieldCapabilitiesResponse(idxResponses, List.of()), true, true);
+        IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
         IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
@@ -3984,7 +3992,7 @@ public class AnalyzerTests extends ESTestCase {
 
             assertThat(rerank.queryText(), equalTo(string("italian food recipe")));
             assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
-            assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", titleAttribute))));
+            assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", titleAttribute))));
             assertThat(rerank.scoreAttribute(), equalTo(getAttributeByName(relation.output(), MetadataAttribute.SCORE)));
         }
 
@@ -4008,7 +4016,7 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(rerank.rerankFields(), hasSize(3));
             Attribute titleAttribute = getAttributeByName(relation.output(), "title");
             assertThat(titleAttribute, notNullValue());
-            assertThat(rerank.rerankFields().get(0), equalTo(alias("title", titleAttribute)));
+            assertThat(rerank.rerankFields().get(0), equalToIgnoringIds(alias("title", titleAttribute)));
 
             Attribute descriptionAttribute = getAttributeByName(relation.output(), "description");
             assertThat(descriptionAttribute, notNullValue());
@@ -4021,7 +4029,7 @@ public class AnalyzerTests extends ESTestCase {
 
             Attribute yearAttribute = getAttributeByName(relation.output(), "year");
             assertThat(yearAttribute, notNullValue());
-            assertThat(rerank.rerankFields().get(2), equalTo(alias("yearRenamed", yearAttribute)));
+            assertThat(rerank.rerankFields().get(2), equalToIgnoringIds(alias("yearRenamed", yearAttribute)));
 
             assertThat(rerank.scoreAttribute(), equalTo(getAttributeByName(relation.output(), MetadataAttribute.SCORE)));
         }
@@ -4072,7 +4080,7 @@ public class AnalyzerTests extends ESTestCase {
             EsRelation relation = as(filter.child(), EsRelation.class);
 
             assertThat(relation.output().stream().noneMatch(attr -> attr.name().equals(MetadataAttribute.SCORE)), is(true));
-            assertThat(rerank.scoreAttribute(), equalTo(MetadataAttribute.create(EMPTY, MetadataAttribute.SCORE)));
+            assertThat(rerank.scoreAttribute(), equalToIgnoringIds(MetadataAttribute.create(EMPTY, MetadataAttribute.SCORE)));
             assertThat(rerank.output(), hasItem(rerank.scoreAttribute()));
         }
 
@@ -4171,12 +4179,12 @@ public class AnalyzerTests extends ESTestCase {
             EsRelation relation = as(rerank.child(), EsRelation.class);
             Attribute fieldAttribute = getAttributeByName(relation.output(), fieldName);
             if (DataType.isString(fieldAttribute.dataType())) {
-                assertThat(rerank.rerankFields(), equalTo(List.of(alias(fieldName, fieldAttribute))));
+                assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias(fieldName, fieldAttribute))));
 
             } else {
                 assertThat(
                     rerank.rerankFields(),
-                    equalTo(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute))))
+                    equalToIgnoringIds(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute))))
                 );
             }
         }
@@ -4234,7 +4242,7 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
-        assertThat(completion.targetField(), equalTo(referenceAttribute("translation", DataType.KEYWORD)));
+        assertThat(completion.targetField(), equalToIgnoringIds(referenceAttribute("translation", DataType.KEYWORD)));
     }
 
     public void testResolveCompletionDefaultTargetField() {
@@ -4244,7 +4252,7 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
-        assertThat(completion.targetField(), equalTo(referenceAttribute("completion", DataType.KEYWORD)));
+        assertThat(completion.targetField(), equalToIgnoringIds(referenceAttribute("completion", DataType.KEYWORD)));
     }
 
     public void testResolveCompletionPrompt() {
@@ -4277,7 +4285,7 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-books.json");
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
-        assertThat(completion.targetField(), equalTo(referenceAttribute("description", DataType.KEYWORD)));
+        assertThat(completion.targetField(), equalToIgnoringIds(referenceAttribute("description", DataType.KEYWORD)));
 
         EsRelation esRelation = as(completion.child(), EsRelation.class);
         assertThat(getAttributeByName(completion.output(), "description"), equalTo(completion.targetField()));
@@ -4703,5 +4711,9 @@ public class AnalyzerTests extends ESTestCase {
 
     static Literal literal(int value) {
         return new Literal(EMPTY, value, DataType.INTEGER);
+    }
+
+    static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
     }
 }

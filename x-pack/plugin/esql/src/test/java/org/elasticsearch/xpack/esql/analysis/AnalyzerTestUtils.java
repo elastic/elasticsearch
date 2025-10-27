@@ -195,6 +195,15 @@ public final class AnalyzerTestUtils {
             "languages_idx",
             "mapping-languages.json"
         );
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.REMOTE,
+            MATCH_TYPE,
+            "languages_remote",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
         return enrichResolution;
     }
 
@@ -274,6 +283,10 @@ public final class AnalyzerTestUtils {
 
     public static IndexResolution tsdbIndexResolution() {
         return loadMapping("tsdb-mapping.json", "test");
+    }
+
+    public static IndexResolution k8sIndexResolution() {
+        return loadMapping("k8s-mappings.json", "k8s");
     }
 
     public static <E> E randomValueOtherThanTest(Predicate<E> exclude, Supplier<E> supplier) {

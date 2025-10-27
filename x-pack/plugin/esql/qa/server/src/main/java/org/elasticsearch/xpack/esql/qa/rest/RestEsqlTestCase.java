@@ -405,10 +405,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         options.addHeader("Accept", "text/csv; header=absent");
         request.setOptions(options);
         Response response = performRequest(request);
-        assertWarnings(response, new AssertWarnings.NoWarnings());
         HttpEntity entity = response.getEntity();
         String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         assertEquals("keyword0,0\r\n", actual);
+        assertWarnings(response, new AssertWarnings.NoWarnings(), actual);
     }
 
     public void testOutOfRangeComparisons() throws IOException {
@@ -1433,7 +1433,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (supportsAsyncHeadersFix) {
             assertNoAsyncHeaders(response);
         }
-        assertWarnings(response, assertWarnings);
+        assertWarnings(response, assertWarnings, json);
 
         return json;
     }
@@ -1485,7 +1485,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             if (profileLogger != null) {
                 profileLogger.extractProfile(json, profileEnabled);
             }
-            assertWarnings(response, assertWarnings);
+            assertWarnings(response, assertWarnings, json);
             json.remove("is_running"); // remove this to not mess up later map assertions
             return Collections.unmodifiableMap(json);
         } else {
@@ -1498,7 +1498,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 if (profileLogger != null) {
                     profileLogger.extractProfile(json, profileEnabled);
                 }
-                assertWarnings(response, assertWarnings);
+                assertWarnings(response, assertWarnings, json);
                 // we already have the results, but let's remember them so that we can compare to async get
                 initialColumns = json.get("columns");
                 initialValues = json.get("values");
@@ -1538,7 +1538,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (profileLogger != null) {
             profileLogger.extractProfile(result, profileEnabled);
         }
-        assertWarnings(response, assertWarnings);
+        assertWarnings(response, assertWarnings, result);
         assertDeletable(id);
         return removeAsyncProperties(result);
     }
@@ -1801,12 +1801,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         Response response = performRequest(request);
-        assertWarnings(response, new AssertWarnings.NoWarnings());
         HttpEntity entity = response.getEntity();
 
         // get the content, it could be empty because the request might have not completed
         String initialValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         String id = response.getHeader("X-Elasticsearch-Async-Id");
+        assertWarnings(response, new AssertWarnings.NoWarnings(), initialValue);
 
         if (mode == SYNC) {
             assertThat(id, is(emptyOrNullString()));
@@ -1855,10 +1855,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             // if `addParam` is false, `options` will already have an `Accept` header
             getRequest.setOptions(options);
             response = performRequest(getRequest);
-            assertWarnings(response, new AssertWarnings.NoWarnings());
             entity = response.getEntity();
         }
         String newValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+        assertWarnings(response, new AssertWarnings.NoWarnings(), newValue);
 
         // assert initial contents, if any, are the same as async get contents
         if (initialValue != null && initialValue.isEmpty() == false) {
@@ -1911,13 +1911,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
     }
 
-    private static void assertWarnings(Response response, AssertWarnings assertWarnings) {
+    private static void assertWarnings(Response response, AssertWarnings assertWarnings, Object context) {
         List<String> warnings = new ArrayList<>(response.getWarnings());
         warnings.removeAll(mutedWarnings());
         if (shouldLog()) {
             LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
         }
-        assertWarnings.assertWarnings(warnings);
+        assertWarnings.assertWarnings(warnings, context);
     }
 
     private static Set<String> mutedWarnings() {

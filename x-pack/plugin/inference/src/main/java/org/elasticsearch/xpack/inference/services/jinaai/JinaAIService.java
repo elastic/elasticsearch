@@ -331,7 +331,7 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+        return TransportVersions.V_8_18_0;
     }
 
     @Override

@@ -1226,10 +1226,52 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         // EsRelation does not contain a FunctionEsField
         var esRelation = as(eval.child(), EsRelation.class);
-        assertTrue(
+        assertFalse(
             esRelation.output()
                 .stream()
-                .anyMatch(att -> (att instanceof FieldAttribute fieldAttr) && fieldAttr.field() instanceof FunctionEsField) == false
+                .anyMatch(att -> (att instanceof FieldAttribute fieldAttr) && fieldAttr.field() instanceof FunctionEsField)
+        );
+    }
+
+    public void testVectorFunctionsWhenFieldMissing() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            from test_all
+            | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
+            | sort s desc
+            | limit 1
+            | keep s
+            """;
+
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals("dense_vector") == false;
+            }
+        });
+
+        // Project[[s{r}#5]]
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("s"));
+
+        // TopN[[Order[s{r}#5,DESC,FIRST]],1[INTEGER],false]
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1));
+
+        // Evaluates expression as null, as the field is missing
+        var eval = as(topN.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("s"));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(nullValue()));
+        assertThat(literal.dataType(), is(DataType.DOUBLE));
+
+        // EsRelation[test_all] - does not contain a FunctionEsField
+        var esRelation = as(eval.child(), EsRelation.class);
+        assertFalse(
+            esRelation.output()
+                .stream()
+                .anyMatch(att -> (att instanceof FieldAttribute fieldAttr) && fieldAttr.field() instanceof FunctionEsField)
         );
     }
 

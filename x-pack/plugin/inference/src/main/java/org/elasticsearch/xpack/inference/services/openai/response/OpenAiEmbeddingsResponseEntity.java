@@ -12,7 +12,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -65,9 +65,9 @@ public class OpenAiEmbeddingsResponseEntity {
      * </code>
      * </pre>
      */
-    public static TextEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static DenseEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
         try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response.body())) {
-            return EmbeddingFloatResult.PARSER.apply(p, null).toTextEmbeddingFloatResults();
+            return EmbeddingFloatResult.PARSER.apply(p, null).toDenseEmbeddingFloatResults();
         }
     }
 
@@ -83,9 +83,9 @@ public class OpenAiEmbeddingsResponseEntity {
             PARSER.declareObjectArray(constructorArg(), EmbeddingFloatResultEntry.PARSER::apply, new ParseField("data"));
         }
 
-        public TextEmbeddingFloatResults toTextEmbeddingFloatResults() {
-            return new TextEmbeddingFloatResults(
-                embeddingResults.stream().map(entry -> TextEmbeddingFloatResults.Embedding.of(entry.embedding)).toList()
+        public DenseEmbeddingFloatResults toDenseEmbeddingFloatResults() {
+            return new DenseEmbeddingFloatResults(
+                embeddingResults.stream().map(entry -> DenseEmbeddingFloatResults.Embedding.of(entry.embedding)).toList()
             );
         }
     }

@@ -120,6 +120,7 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -239,6 +240,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BreakerSettings.CIRCUIT_BREAKER_TYPE,
         ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
         ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
+        ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING,
         EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
         EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
         FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
@@ -652,6 +654,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_DURATION_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,
-        SamplingService.TTL_POLL_INTERVAL_SETTING
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL,
+        SamplingService.TTL_POLL_INTERVAL_SETTING,
+        BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING
     );
 }

@@ -50,10 +50,13 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -358,6 +361,7 @@ public class EsqlFunctionRegistry {
                 def(Percentile.class, bi(Percentile::new), "percentile"),
                 def(Sample.class, bi(Sample::new), "sample"),
                 def(StdDev.class, uni(StdDev::new), "std_dev"),
+                def(Variance.class, uni(Variance::new), "variance", "std_var"),
                 def(Sum.class, uni(Sum::new), "sum"),
                 def(Top.class, tri(Top::new), "top"),
                 def(Values.class, uni(Values::new), "values"),
@@ -532,6 +536,8 @@ public class EsqlFunctionRegistry {
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
+                def(StdDevOverTime.class, uni(StdDevOverTime::new), "stddev_over_time"),
+                def(VarianceOverTime.class, uni(VarianceOverTime::new), "variance_over_time", "stdvar_over_time"),
                 def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
                 def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
                 def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
@@ -1043,7 +1049,12 @@ public class EsqlFunctionRegistry {
     protected static <T extends Function> FunctionDefinition def(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsOptionalTriFunction(function, children.size());
-            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() > 1 ? children.get(1) : null,
+                children.size() == 3 ? children.get(2) : null
+            );
         };
         return def(function, builder, names);
     }
@@ -1323,9 +1334,12 @@ public class EsqlFunctionRegistry {
 
     private static void checkIsOptionalTriFunction(Class<? extends Function> function, int childrenSize) {
         boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
-        if (hasMinimumTwo && (childrenSize > 3 || childrenSize < 2)) {
+        boolean hasMinimumOne = TwoOptionalArguments.class.isAssignableFrom(function);
+        if (hasMinimumOne && (childrenSize > 3 || childrenSize == 0)) {
+            throw new QlIllegalArgumentException("expects one, two or three arguments");
+        } else if (hasMinimumTwo && (childrenSize > 3 || childrenSize < 2)) {
             throw new QlIllegalArgumentException("expects two or three arguments");
-        } else if (hasMinimumTwo == false && childrenSize != 3) {
+        } else if (hasMinimumOne == false && hasMinimumTwo == false && childrenSize != 3) {
             throw new QlIllegalArgumentException("expects exactly three arguments");
         }
     }

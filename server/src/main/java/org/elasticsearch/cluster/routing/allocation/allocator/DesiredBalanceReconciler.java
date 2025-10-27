@@ -649,7 +649,8 @@ public class DesiredBalanceReconciler {
          */
         private void maybeLogUndesiredShardsWarning(long earliestUndesiredTimestamp) {
             final long currentTimeMillis = timeProvider.relativeTimeInMillis();
-            if (currentTimeMillis - earliestUndesiredTimestamp > undesiredAllocationDurationLoggingThreshold.millis()) {
+            if (earliestUndesiredTimestamp < currentTimeMillis
+                && currentTimeMillis - earliestUndesiredTimestamp > undesiredAllocationDurationLoggingThreshold.millis()) {
                 undesiredAllocationDurationLogInterval.maybeExecute(this::logDecisionsForUndesiredShardsOverThreshold);
             }
         }

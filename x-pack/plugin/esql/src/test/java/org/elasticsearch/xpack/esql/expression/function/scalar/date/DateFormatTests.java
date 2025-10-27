@@ -85,7 +85,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
             List.of()
         );
         suppliers = TestCaseSupplier.mapTestCases(suppliers, testCase -> testCase.withConfiguration(TestCaseSupplier.TEST_CONFIGURATION));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

@@ -100,13 +100,13 @@ public class StdDev extends AggregateFunction implements ToAggregator {
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier();
+            return new StdDevLongAggregatorFunctionSupplier(true);
         }
         if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier();
+            return new StdDevIntAggregatorFunctionSupplier(true);
         }
         if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier();
+            return new StdDevDoubleAggregatorFunctionSupplier(true);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

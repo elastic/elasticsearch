@@ -29,7 +29,7 @@ public class GetConnectorSyncJobActionRequestBWCSerializingTests extends Abstrac
 
     @Override
     protected GetConnectorSyncJobAction.Request mutateInstance(GetConnectorSyncJobAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetConnectorSyncJobAction.Request(randomValueOtherThan(instance.getConnectorSyncJobId(), () -> randomAlphaOfLength(10)));
     }
 
     @Override

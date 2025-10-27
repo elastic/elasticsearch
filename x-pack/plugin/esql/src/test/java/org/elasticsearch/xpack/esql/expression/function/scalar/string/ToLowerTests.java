@@ -48,7 +48,7 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
         suppliers(suppliers, "keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10));
         suppliers(suppliers, "text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10));
         suppliers(suppliers, "text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     public void testRandomLocale() {

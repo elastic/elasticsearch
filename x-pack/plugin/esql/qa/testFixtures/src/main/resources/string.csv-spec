@@ -2582,6 +2582,54 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
 ;
 
+mvStringEqualsMultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM mv_text
+| WHERE message == ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvString_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM mv_text
+| WHERE message IN (["Connected to 10.1.0.1", "Banana"])
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message IN ([\"Connected to 10.1.0.1\", \"Banana\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvKeyword_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM employees
+| WHERE job_positions IN (["Tech Lead" , "Data Scientist", "Senior Team Lead"])
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions IN ([\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+mvKeywordEqualsMultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM employees
+| WHERE job_positions == ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions == [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
 url_encode sample for docs
 required_capability: url_encode
 

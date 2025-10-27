@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBooleanIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BooleansBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.Script;
@@ -351,7 +352,7 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BlockDocValuesReader.BooleansBlockLoader(name());
+                return new BooleansBlockLoader(name());
             }
 
             // Multi fields don't have fallback synthetic source.

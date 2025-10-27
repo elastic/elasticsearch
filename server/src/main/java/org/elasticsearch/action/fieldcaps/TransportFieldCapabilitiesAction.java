@@ -13,6 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
@@ -69,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -144,22 +146,20 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Executor singleThreadedExecutor = buildSingleThreadedExecutor(searchCoordinationExecutor, LOGGER);
         assert task instanceof CancellableTask;
         final CancellableTask fieldCapTask = (CancellableTask) task;
-        // retrieve the initial timestamp in case the action is a cross cluster search
+        // retrieve the initial timestamp in case the action is a cross-cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
+        final var minTransportVersion = new AtomicReference<>(clusterService.state().getMinTransportVersion());
         final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
             .groupIndices(request.indicesOptions(), request.indices(), request.returnLocalAll());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices;
-        if (localIndices == null) {
-            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
-            concreteIndices = Strings.EMPTY_ARRAY;
-        } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
-        }
+        // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
+        final String[] concreteIndices = localIndices != null
+            ? indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices)
+            : Strings.EMPTY_ARRAY;
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
-            listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
+            listener.onResponse(FieldCapabilitiesResponse.builder().withMinTransportVersion(minTransportVersion.get()).build());
             return;
         }
 
@@ -235,7 +235,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (fieldCapTask.notifyIfCancelled(listener)) {
                 releaseResourcesOnCancel.run();
             } else {
-                mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, listener);
+                mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, minTransportVersion, listener);
             }
         })) {
             // local cluster
@@ -281,6 +281,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                         }
                     }
+                    minTransportVersion.accumulateAndGet(response.minTransportVersion(), (lhs, rhs) -> {
+                        if (lhs == null || rhs == null) {
+                            return null;
+                        }
+                        return TransportVersion.min(lhs, rhs);
+                    });
                 }, ex -> {
                     for (String index : originalIndices.indices()) {
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
@@ -360,35 +366,41 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,
         FailureCollector indexFailures,
+        AtomicReference<TransportVersion> minTransportVersion,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.size() > 0) {
+        if (indexResponses.isEmpty() == false) {
             if (request.isMergeResults()) {
-                ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures));
+                ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures, minTransportVersion));
             } else {
-                listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
+                listener.onResponse(
+                    FieldCapabilitiesResponse.builder()
+                        .withIndexResponses(new ArrayList<>(indexResponses.values()))
+                        .withFailures(failures)
+                        .withMinTransportVersion(minTransportVersion.get())
+                        .build()
+                );
+            }
+        } else if (indexFailures.isEmpty() == false) {
+            /*
+             * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
+             * Instead, they should always be passed through the response object, as part of "failures".
+             */
+            if (failures.stream()
+                .anyMatch(
+                    failure -> failure.getException() instanceof IllegalStateException ise
+                        && ise.getCause() instanceof ElasticsearchTimeoutException
+                )) {
+                listener.onResponse(
+                    FieldCapabilitiesResponse.builder().withFailures(failures).withMinTransportVersion(minTransportVersion.get()).build()
+                );
+            } else {
+                // throw back the first exception
+                listener.onFailure(failures.get(0).getException());
             }
         } else {
-            // we have no responses at all, maybe because of errors
-            if (indexFailures.isEmpty() == false) {
-                /*
-                 * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
-                 * Instead, they should always be passed through the response object, as part of "failures".
-                 */
-                if (failures.stream()
-                    .anyMatch(
-                        failure -> failure.getException() instanceof IllegalStateException ise
-                            && ise.getCause() instanceof ElasticsearchTimeoutException
-                    )) {
-                    listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
-                } else {
-                    // throw back the first exception
-                    listener.onFailure(failures.get(0).getException());
-                }
-            } else {
-                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
-            }
+            listener.onResponse(FieldCapabilitiesResponse.builder().withMinTransportVersion(minTransportVersion.get()).build());
         }
     }
 
@@ -423,7 +435,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
         CancellableTask task,
         FieldCapabilitiesRequest request,
-        List<FieldCapabilitiesFailure> failures
+        List<FieldCapabilitiesFailure> failures,
+        AtomicReference<TransportVersion> minTransportVersion
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         task.ensureNotCancelled();
@@ -464,7 +477,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 );
             }
         }
-        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(fields), failures);
+        return FieldCapabilitiesResponse.builder()
+            .withIndices(indices)
+            .withFields(Collections.unmodifiableMap(fields))
+            .withFailures(failures)
+            .withMinTransportVersion(minTransportVersion.get())
+            .build();
     }
 
     private static boolean shouldLogException(Exception e) {

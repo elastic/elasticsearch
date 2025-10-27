@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -56,13 +54,24 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
     @FunctionInfo(
         returnType = "long",
         description = """
-            Converts an input value to a long value. If the input parameter is of a date type,
-            its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to long.
+            Converts the input value to a long.
+            If the input parameter is of a date type, its value will be interpreted as milliseconds
+            since the {wikipedia}/Unix_time[Unix epoch], converted to long.
             Boolean `true` will be converted to long `1`, `false` to `0`.""",
+
+        detailedDescription = """
+            When given two arguments, a string value and a whole number base,
+            the string is parsed as a long in the given base with Java's `Long.parseLong(string, radix)` function.
+            If parsing fails a warning is generated as described below and the result is null.
+            Like the eql 'number' function, a leading '0x' prefix is allowed for base 16.
+            {applies_to}`stack: ga 9.3`
+            """,
+
         examples = {
             @Example(file = "ints", tag = "to_long-str", explanation = """
-                Note that in this example, the last conversion of the string isn’t possible.
-                When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
+                Note in this example the last conversion of the string isn’t possible.
+                When this happens, the result is a `null` value.
+                In this case a _Warning_ header is added to the response.
                 The header will provide information on the source of the failure:
 
                 `"Line 1:113: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded."`
@@ -70,11 +79,14 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
                 A following header will contain the failure reason and the offending value:
 
                 `"java.lang.NumberFormatException: For input string: \"foo\""`"""),
-            @Example(file = "ints", tag = "to_long_base-str", explanation = """
-                Parse string as a long number in the specified base.  Java's `Long.parseLong(string, radix)`.
-                Note like the eql 'number' function, a leading '0x' prefix is allowed for base 16.
-                """) },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.3.0") }
+
+            @Example(file = "ints", tag = "to_long_base-str1", explanation = ""
+                    + "This example demonstrates parsing a base 16 value and a base 13 value. {applies_to}`stack: ga 9.3`"),
+
+            @Example(file = "ints", tag = "to_long_base-str2", explanation = ""
+                    + "This example demonstrates parsing a string that is valid in base 36 but invalid in base 10."
+                    + "Observe in the second case a warning is generated and null is returned. {applies_to}`stack: ga 9.3`")
+        }
     )
     public ToLongSurrogate(
         Source source,
@@ -100,10 +112,12 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
         ) Expression field,
 
         @Param(
+            optional = true,
             name = "base",
             type = { "integer", "long", "unsigned_long" },
-            description = "(Optional) Radix or base used to convert the string. Defaults to base 10.",
-            optional = true
+            description = "(Optional) Radix or base used to convert the input value."
+                + "When a base is specified the input type must be `keyword` or `text`."
+                + "{applies_to}`stack: ga 9.3`"
         ) Expression base
     ) {
         super(source, base == null ? List.of(field) : List.of(field, base));

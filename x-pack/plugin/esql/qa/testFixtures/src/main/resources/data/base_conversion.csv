@@ -18,12 +18,15 @@ group:integer,string:keyword,base:integer,expect_long:long,notes:keyword
 
 //
 // Test Group 0 - example of the data with an without nulls
+// 
+// column           content
+// ──────────────── ──────────────────────────────────────────────────────────────────
+// group            test group for WHERE
+// string           string for test
+// base             base for test
+// expect_long      result of TO_LONG(string,base)
+// notes            comments on the test, typically reason for failure or null result
 //
-// ┌────────────────── string         - string for test
-// │   ┌────────────── base           - base for test
-// │   │  ┌─────────── expect_long    - result of TO_LONG(string,base)
-// │   │  │   ┌─────── notes          - comments on the test
-// ▼   ▼  ▼   ▼
 0,0xff,16,255,
 0,0xff,,,                                                       null because base is null
 0,,16,,                                                         null because string is null

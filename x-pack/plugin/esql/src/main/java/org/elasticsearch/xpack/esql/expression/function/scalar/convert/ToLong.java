@@ -42,7 +42,6 @@ public class ToLong extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToLong", ToLong::new);
 
     static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        // 133728 remove private forToLongSurrogate
         Map.entry(LONG, (source, fieldEval) -> fieldEval),
         Map.entry(DATETIME, (source, fieldEval) -> fieldEval),
         Map.entry(DATE_NANOS, (source, fieldEval) -> fieldEval),

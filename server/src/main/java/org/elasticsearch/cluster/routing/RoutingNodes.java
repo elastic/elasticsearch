@@ -894,6 +894,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     /**
      * Record that this shard is in an undesired location if it's not already marked as such
+     *
+     * @return The updated {@link ShardRouting} or <code>this</code> if no change was made
      */
     public ShardRouting markAsUndesired(ShardRouting originalShard, long becameUndesiredTime) {
         final var withUndesiredInfo = originalShard.updateUndesired(becameUndesiredTime);

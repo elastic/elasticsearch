@@ -237,6 +237,7 @@ public final class EsqlTestUtils {
         plan.forEachDown(EsRelation.class, relation -> {
             for (Attribute attr : relation.output()) {
                 if (attr.name().equals(name)) {
+                    assertNull("Multiple matching field attributes found", result.get());
                     result.set((FieldAttribute) attr);
                     return;
                 }

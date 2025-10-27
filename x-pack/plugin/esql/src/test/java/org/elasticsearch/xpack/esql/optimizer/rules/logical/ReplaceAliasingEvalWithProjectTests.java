@@ -25,10 +25,12 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOptimizerTests {
     /**
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#18, salary{f}#23, emp_no{f}#18 AS emp_no2#7, salary2{r}#10, emp_no{f}#18 AS emp_no3#13, salary3{r}#16]]
      * \_Eval[[salary{f}#23 * 2[INTEGER] AS salary2#10, salary2{r}#10 * 3[INTEGER] AS salary3#16]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     * }</pre>
      */
     public void testSimple() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
@@ -64,11 +66,13 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
     }
 
     /**
+     * <pre>{@code
      * EsqlProject[[salary{f}#23, emp_no{f}#18 AS emp_no2#7, $$emp_no$temp_name$29{r}#30 AS emp_no#10,
      *  emp_no{f}#18 AS emp_no3#13, salary3{r}#16]]
      * \_Eval[[salary{f}#23 * 2[INTEGER] AS $$emp_no$temp_name$29#30, $$emp_no$temp_name$29{r$}#30 * 2[INTEGER] AS salary3#16]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     * }</pre>
      */
     public void testNonAliasShadowingAliasedAttribute() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
@@ -104,10 +108,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
     }
 
     /**
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#18, salary{f}#23, emp_no{f}#18 AS emp_no3#10, emp_no2{r}#13, salary3{r}#16]]
      * \_Eval[[salary{f}#23 * 2[INTEGER] AS emp_no2#13, emp_no2{r}#13 * 3[INTEGER] AS salary3#16]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     * }</pre>
      */
     public void testNonAliasShadowingAliasOfAliasedAttribute() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
@@ -138,10 +144,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
     }
 
     /**
+     * <pre>{@code
      * EsqlProject[[emp_no{f}#24, salary{f}#29, emp_no{f}#24 AS emp_no3#13, salary{f}#29 AS salary3#16,
      *  salary{f}#29 AS emp_no2#19, emp_no{f}#24 AS salary2#22]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
+     * }</pre>
      */
     public void testAliasShadowingOtherAlias() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
@@ -168,10 +176,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
     }
 
     /**
+     * <pre>{@code
      * EsqlProject[[salary{f}#22, salary2{r}#6, salary2{r}#6 AS aliased_salary2#9, salary3{r}#12, salary2{r}#6 AS twice_aliased_salary2#15]]
      * \_Eval[[salary{f}#22 * 2[INTEGER] AS salary2#6, salary2{r}#6 * 3[INTEGER] AS salary3#12]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
      */
     public void testAliasForNonAlias() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
@@ -201,12 +211,14 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
     }
 
     /**
+     * <pre>{@code
      * EsqlProject[[salary{f}#25, salary2{r}#6 AS aliased_salary2#9, $$salary2$temp_name$31{r$}#32 AS salary2#12, salary3{r}#15,
      *  salary3{r}#15 AS salary4#18]]
      * \_Eval[[salary{f}#25 * 2[INTEGER] AS salary2#6, salary2{r}#6 * 3[INTEGER] AS $$salary2$temp_name$31#32,
      *  $$salary2$temp_name$31{r$}#32 * 4[INTEGER] AS salary3#15]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     * }</pre>
      */
     public void testAliasForShadowedNonAlias() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *

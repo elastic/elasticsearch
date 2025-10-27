@@ -68,11 +68,11 @@ public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, Logi
         List<Alias> newEvalFields = new ArrayList<>();
 
         var fields = eval.fields();
-        for (int i = 0, size = fields.size(); i < size; i++) {
-            Alias field = fields.get(i);
-            var attribute = field.toAttribute();
+        for (Alias alias : fields) {
             // propagate all previous aliases into the current field
-            field = (Alias) field.transformUp(e -> renamesToPropagate.build().resolve(e, e));
+            Alias field = (Alias) alias.transformUp(e -> renamesToPropagate.build().resolve(e, e));
+            String name = field.name();
+            Attribute attribute = field.toAttribute();
             Expression child = field.child();
 
             if (child instanceof Attribute renamedAttribute) {
@@ -80,21 +80,21 @@ public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, Logi
                 renamesToPropagate.put(attribute, renamedAttribute);
                 projectionAliases.put(attribute, field);
                 namesRequiredForProjectionAliases.add(renamedAttribute.name());
-            } else {
-                // not a basic renaming, needs to remain in the eval
-
+            } else if (namesRequiredForProjectionAliases.contains(name)) {
+                // Not a basic renaming, needs to remain in the eval.
                 // The field may shadow one of the attributes that we will need to correctly perform the subsequent projection.
                 // If so, rename it in the eval!
-                if (namesRequiredForProjectionAliases.contains(field.name())) {
-                    Alias newField = new Alias(field.source(), locallyUniqueTemporaryName(field.name()), field.child(), null, true);
-                    Alias reRenamedField = new Alias(field.source(), field.name(), newField.toAttribute(), field.id(), field.synthetic());
-                    projectionAliases.put(field.toAttribute(), reRenamedField);
-                    // the renaming also needs to be propagated to eval fields to the right
-                    renamesToPropagate.put(field.toAttribute(), newField.toAttribute());
 
-                    field = newField;
-                }
+                Alias newField = new Alias(field.source(), locallyUniqueTemporaryName(name), child, null, true);
+                Attribute newAttribute = newField.toAttribute();
+                Alias reRenamedField = new Alias(field.source(), name, newAttribute, field.id(), field.synthetic());
+                projectionAliases.put(attribute, reRenamedField);
+                // the renaming also needs to be propagated to eval fields to the right
+                renamesToPropagate.put(attribute, newAttribute);
 
+                newEvalFields.add(newField);
+            } else {
+                // still not a basic renaming, but no risk of shadowing
                 newEvalFields.add(field);
             }
         }

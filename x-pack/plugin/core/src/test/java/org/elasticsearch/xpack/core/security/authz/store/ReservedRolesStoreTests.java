@@ -1314,6 +1314,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 kibanaRole.indices().allowedIndicesMatcher("indices:admin/data_stream/lifecycle/put").test(indexAbstraction),
                 is(true)
             );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:admin/forcemerge").test(indexAbstraction), is(true));
 
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);

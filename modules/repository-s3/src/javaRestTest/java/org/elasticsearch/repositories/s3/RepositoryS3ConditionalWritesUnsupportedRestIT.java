@@ -13,8 +13,10 @@ import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
+import com.carrotsearch.randomizedtesting.annotations.SuppressForbidden;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -40,6 +42,7 @@ import static org.hamcrest.Matchers.hasItem;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
+@SuppressForbidden("HttpExchange and Headers are ok here")
 public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3BasicCredentialsRestIT");
@@ -50,6 +53,7 @@ public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepo
     private static final String CLIENT = "no_conditional_writes_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         BUCKET,
@@ -57,24 +61,37 @@ public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepo
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     ) {
         @Override
+        @SuppressForbidden("HttpExchange and Headers are ok here")
         protected HttpHandler createHandler() {
-            final var delegateHandler = asInstanceOf(S3HttpHandler.class, super.createHandler());
-            return exchange -> {
-                if (exchange.getRequestHeaders().containsKey("if-match") || exchange.getRequestHeaders().containsKey("if-none-match")) {
-                    final var exception = new AssertionError(
-                        Strings.format(
-                            "unsupported conditional write: [%s] with headers [%s]",
-                            delegateHandler.parseRequest(exchange),
-                            exchange.getRequestHeaders()
-                        )
-                    );
-                    ExceptionsHelper.maybeDieOnAnotherThread(exception);
-                    throw exception;
-                }
-                delegateHandler.handle(exchange);
-            };
+            return new AssertNoConditionalWritesHandler(asInstanceOf(S3HttpHandler.class, super.createHandler()));
         }
     };
+
+    @SuppressForbidden("HttpExchange and Headers are ok here")
+    private static class AssertNoConditionalWritesHandler implements HttpHandler {
+
+        private final S3HttpHandler delegateHandler;
+
+        private AssertNoConditionalWritesHandler(S3HttpHandler delegateHandler) {
+            this.delegateHandler = delegateHandler;
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (exchange.getRequestHeaders().containsKey("if-match") || exchange.getRequestHeaders().containsKey("if-none-match")) {
+                final var exception = new AssertionError(
+                    Strings.format(
+                        "unsupported conditional write: [%s] with headers [%s]",
+                        delegateHandler.parseRequest(exchange),
+                        exchange.getRequestHeaders()
+                    )
+                );
+                ExceptionsHelper.maybeDieOnAnotherThread(exception);
+                throw exception;
+            }
+            delegateHandler.handle(exchange);
+        }
+    }
 
     @Override
     protected Settings extraRepositorySettings() {

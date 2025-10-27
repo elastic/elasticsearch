@@ -341,6 +341,15 @@ public class Knn extends FullTextFunction
     }
 
     @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        // check plan again after predicates are pushed down into subqueries
+        return (plan, failures) -> {
+            super.postOptimizationPlanVerification().accept(plan, failures);
+            fieldVerifier(plan, this, field, failures);
+        };
+    }
+
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new Knn(
             source(),

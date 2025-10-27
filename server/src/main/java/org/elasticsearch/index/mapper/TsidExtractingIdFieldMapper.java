@@ -170,27 +170,27 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(id.bytes);
     }
 
-    public static BytesRef extractTimeSeriesIdFromSyntheticId(byte[] id) {
+    public static BytesRef extractTimeSeriesIdFromSyntheticId(BytesRef id) {
         assert id.length > Long.BYTES + Integer.BYTES;
         // See #createSyntheticId
         byte[] tsId = new byte[Math.toIntExact(id.length - Long.BYTES - Integer.BYTES)];
-        System.arraycopy(id, 0, tsId, 0, tsId.length);
+        System.arraycopy(id.bytes, id.offset, tsId, 0, tsId.length);
         return new BytesRef(tsId);
     }
 
-    public static long extractTimestampFromSyntheticId(byte[] id) {
+    public static long extractTimestampFromSyntheticId(BytesRef id) {
         assert id.length > Long.BYTES + Integer.BYTES;
         // See #createSyntheticId
-        return ByteUtils.readLongBE(id, id.length - Long.BYTES - Integer.BYTES);
+        return ByteUtils.readLongBE(id.bytes, id.offset + id.length - Long.BYTES - Integer.BYTES);
     }
 
-    public static int extractRoutingHashFromSyntheticId(byte[] id) {
+    public static int extractRoutingHashFromSyntheticId(BytesRef id) {
         assert id.length > Long.BYTES + Integer.BYTES;
         // See #createSyntheticId
-        return ByteUtils.readIntBE(id, id.length - Integer.BYTES);
+        return ByteUtils.readIntBE(id.bytes, id.offset + id.length - Integer.BYTES);
     }
 
-    public static BytesRef extractRoutingHashBytesFromSyntheticId(byte[] id) {
+    public static BytesRef extractRoutingHashBytesFromSyntheticId(BytesRef id) {
         int hash = extractRoutingHashFromSyntheticId(id);
         return Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(hash));
     }

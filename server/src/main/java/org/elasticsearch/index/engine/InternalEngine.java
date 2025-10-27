@@ -1448,7 +1448,7 @@ public class InternalEngine extends Engine {
         index.parsedDoc().updateSeqID(index.seqNo(), index.primaryTerm());
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
         try {
-            logDocumentsDetails(index.docs());
+            logDocumentsDetails(index.docs(), index.id(), index.uid());
             if (plan.addStaleOpToLucene) {
                 addStaleDocs(index.docs(), indexWriter);
             } else if (plan.useLuceneUpdateDocument) {
@@ -1484,10 +1484,10 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void logDocumentsDetails(List<LuceneDocument> docs) {
+    private void logDocumentsDetails(List<LuceneDocument> docs, String id, BytesRef uid) {
         if (useTsdbSyntheticId && logger.isTraceEnabled()) {
             for (var doc : docs) {
-                logger.trace("indexing document fields [{}]", doc.getFields());
+                logger.trace("indexing document [id: {}, uid: {}]:\n{}\r\n", id, uid, doc.getFields());
             }
         }
     }
@@ -1877,7 +1877,7 @@ public class InternalEngine extends Engine {
             assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
                 : "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
             doc.add(softDeletesField);
-            logDocumentsDetails(List.of(doc));
+            logDocumentsDetails(List.of(doc), delete.id(), delete.uid());
             if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                 indexWriter.addDocument(doc);
             } else {
@@ -2815,7 +2815,7 @@ public class InternalEngine extends Engine {
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,
                 () -> softDeletesPolicy.getRetentionQuery(engineConfig.getIndexSettings().seqNoIndexOptions()),
-                new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
+                useTsdbSyntheticId ? mergePolicy : new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
             )
         );
         if (SHUFFLE_FORCE_MERGE) {

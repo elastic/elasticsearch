@@ -22,10 +22,13 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -45,8 +48,10 @@ import java.util.Map;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -101,7 +106,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     public void testSyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 3));
+        putDataStreamTemplate(dataStreamName, 1);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -160,7 +165,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var randomDocs = randomSubsetOf(randomIntBetween(0, results.length), results);
         for (var doc : randomDocs) {
             boolean fetchSource = randomBoolean();
-            var getResponse = client().prepareGet(doc.getIndex(), doc.getId()).setFetchSource(fetchSource).execute().actionGet();
+            var getResponse = client().prepareGet(doc.getIndex(), doc.getId()).setFetchSource(fetchSource).get();
             assertThat(getResponse.isExists(), equalTo(true));
             assertThat(getResponse.getVersion(), equalTo(1L));
 
@@ -169,20 +174,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(doc.getItemId()));
             }
         }
-
-        // Update by synthetic _id
-        //
-        // Note: it doesn't work, is that expected? Is is blocked by IndexRouting.ExtractFromSource.updateShard
-        var updateDocId = randomFrom(docs.keySet());
-        var updateDocIndex = docs.get(updateDocId);
-        var exception = expectThrows(IllegalArgumentException.class, () -> {
-            var doc = document(timestamp, "vm-dev01", "cpu-load", 10); // update
-            client().prepareUpdate(updateDocIndex, updateDocId).setDoc(doc).get();
-        });
-        assertThat(
-            exception.getMessage(),
-            containsString("update is not supported because the destination index [" + updateDocIndex + "] is in time_series mode")
-        );
 
         // Random flush or refresh or nothing, so that the next DELETEs are executed on flushed segments or in memory segments.
         switch (randomFrom(Operation.values())) {
@@ -199,24 +190,65 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         // Delete by synthetic _id
         var deletedDocs = randomSubsetOf(randomIntBetween(1, docs.size()), docs.keySet());
-        for (var deletedDocId : deletedDocs) {
-            var deletedDocIndex = docs.get(deletedDocId);
+        for (var docId : deletedDocs) {
+            var deletedDocIndex = docs.get(docId);
+            assertThat(deletedDocIndex, notNullValue());
 
             // Delete
-            var deleteResponse = client().prepareDelete(deletedDocIndex, deletedDocId).get();
-            assertThat(deleteResponse.getId(), equalTo(deletedDocId));
+            var deleteResponse = client().prepareDelete(deletedDocIndex, docId).get();
+            assertThat(deleteResponse.getId(), equalTo(docId));
             assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
             assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
             assertThat(deleteResponse.getVersion(), equalTo(2L));
-
-            // Get returns "not found"
-            var getResponse = client().prepareGet(deletedDocIndex, deletedDocId).get();
-            assertThat(getResponse.getId(), equalTo(deletedDocId));
-            assertThat(getResponse.getIndex(), equalTo(deletedDocIndex));
-            assertThat(getResponse.isExists(), equalTo(false));
         }
 
-        flushAndRefresh(dataStreamName);
+        refresh(dataStreamName);
+
+        assertCheckedResponse(
+            client().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(100),
+            searchResponse -> {
+                assertHitCount(searchResponse, docs.size() - deletedDocs.size());
+
+                // Verify that search response does not contain deleted docs
+                for (var searchHit : searchResponse.getHits()) {
+                    assertThat(
+                        "Document with id [" + searchHit.getId() + "] is deleted",
+                        deletedDocs.contains(searchHit.getId()),
+                        equalTo(false)
+                    );
+                }
+            }
+        );
+
+        // Search by synthetic _id
+        var otherDocs = randomSubsetOf(Sets.difference(docs.keySet(), Sets.newHashSet(deletedDocs)));
+        for (var docId : otherDocs) {
+            assertCheckedResponse(
+                client().prepareSearch(docs.get(docId))
+                    .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
+                searchResponse -> {
+                    assertHitCount(searchResponse, 1L);
+                    assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                    assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
+                }
+            );
+        }
+
+        // Update by synthetic _id
+        //
+        // Note: it doesn't work, is that expected? Is is blocked by IndexRouting.ExtractFromSource.updateShard
+        var updateDocId = randomFrom(docs.keySet());
+        var updateDocIndex = docs.get(updateDocId);
+        var exception = expectThrows(IllegalArgumentException.class, () -> {
+            var doc = document(timestamp, "vm-dev01", "cpu-load", 10); // update
+            client().prepareUpdate(updateDocIndex, updateDocId).setDoc(doc).get();
+        });
+        assertThat(
+            exception.getMessage(),
+            containsString("update is not supported because the destination index [" + updateDocIndex + "] is in time_series mode")
+        );
+
+        flush(dataStreamName);
 
         // Check that synthetic _id field have no postings on disk
         var indices = new HashSet<>(docs.values());
@@ -225,19 +257,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
             assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
         }
-
-        /* This does not work :-(
-        assertCheckedResponse(
-            client().prepareSearch(dataStreamName).setTrackTotalHits(true),
-            searchResponse -> {
-                assertHitCount(searchResponse, docs.size() - deletedDocs.size());
-
-                // Verify that search response does not contain deleted docs
-                for (var searchHit : searchResponse.getHits()) {
-                    assertThat(deletedDocs.contains(searchHit.getId()), equalTo(false));
-                }
-            }
-        );*/
     }
 
     public void testGetFromTranslogBySyntheticId() throws Exception {

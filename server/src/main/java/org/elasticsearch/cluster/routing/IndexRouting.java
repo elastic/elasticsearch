@@ -397,7 +397,6 @@ public abstract class IndexRouting {
         public int deleteShard(String id, @Nullable String routing) {
             checkNoRouting(routing);
             int shardId = idToHash(id);
-            System.out.println("id " + id + " routed to " + shardId);
             return rerouteWritesIfResharding(shardId);
         }
 
@@ -431,7 +430,7 @@ public abstract class IndexRouting {
                 hash = ByteUtils.readIntLE(idBytes, idBytes.length - 9);
             } else if (useTimeSeriesSyntheticId) {
                 // For TSDB with synthetic ids, the hash is stored as the id suffix.
-                hash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(idBytes);
+                hash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(new BytesRef(idBytes));
             } else {
                 // For TSDB, the hash is stored as the id prefix.
                 hash = ByteUtils.readIntLE(idBytes, 0);
@@ -526,7 +525,6 @@ public abstract class IndexRouting {
 
             @Override
             protected int hashSource(IndexRequest indexRequest) {
-                System.out.println("hashSource for tsid");
                 BytesRef tsid = indexRequest.tsid();
                 if (tsid == null) {
                     tsid = buildTsid(indexRequest.getContentType(), indexRequest.indexSource().bytes());

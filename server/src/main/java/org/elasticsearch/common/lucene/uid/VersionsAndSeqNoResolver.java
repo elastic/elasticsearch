@@ -169,11 +169,12 @@ public final class VersionsAndSeqNoResolver {
         boolean loadSeqNo,
         boolean useSyntheticId
     ) throws IOException {
-        byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
         final long timestamp;
         if (useSyntheticId) {
-            timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(idAsBytes);
+            assert uid.equals(new BytesRef(Base64.getUrlDecoder().decode(id)));
+            timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
         } else {
+            byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
             timestamp = TsidExtractingIdFieldMapper.extractTimestampFromId(idAsBytes);
         }
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true);

@@ -101,9 +101,9 @@ public class ParsedDocument {
             // Use a synthetic _id field which is not indexed nor stored
             document.add(IdFieldMapper.syntheticIdField(id));
 
-            var timeSeriesId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid.bytes);
-            var timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid.bytes);
-            var routingHash = TsidExtractingIdFieldMapper.extractRoutingHashBytesFromSyntheticId(uid.bytes);
+            var timeSeriesId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid);
+            var timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
+            var routingHash = TsidExtractingIdFieldMapper.extractRoutingHashBytesFromSyntheticId(uid);
 
             if (useDocValuesSkipper) {
                 document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));

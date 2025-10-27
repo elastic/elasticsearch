@@ -427,7 +427,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             }
 
             // Extract the _tsid
-            final BytesRef tsId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(id.bytes);
+            final BytesRef tsId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(id);
             int tsIdOrd = docValues.lookupTsIdTerm(tsId);
 
             // _tsid not found
@@ -453,7 +453,9 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             }
 
             // _tsid found, extract the timestamp
-            final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id.bytes);
+            final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
+
+            Ici on doit chercher après le dernier doc.
 
             // Slow scan to the first document matching the _tsid
             final int startDocID = docValues.slowScanToFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
@@ -479,6 +481,11 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 if (tsIdOrd < docTsIdOrd || docTimestamp < timestamp) {
                     break;
                 }
+            }
+
+            if (docID == maxDocs -1) {
+                current = NO_MORE_DOCS;
+                return SeekStatus.END;
             }
 
             // set the terms enum on the first non-matching document

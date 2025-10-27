@@ -198,7 +198,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         return switch (entry.compression) {
             case NO_COMPRESS -> getUncompressedBinary(entry);
-            case COMPRESSED_WITH_ZSTD -> getCompressedBinary(entry);
+            case COMPRESSED_WITH_ZSTD_1 -> getCompressedBinary(entry);
         };
     }
 
@@ -1347,6 +1347,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         entry.numDocsWithField = meta.readInt();
         entry.minLength = meta.readInt();
         entry.maxLength = meta.readInt();
+
         if (compression == BinaryDVCompressionMode.NO_COMPRESS) {
             if (entry.minLength < entry.maxLength) {
                 entry.addressesOffset = meta.readLong();
@@ -1357,7 +1358,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 entry.addressesLength = meta.readLong();
             }
         } else {
-            if (entry.numDocsWithField > 0 || entry.minLength < entry.maxLength) {
+            if (entry.numDocsWithField > 0) {
                 entry.addressesOffset = meta.readLong();
                 // New count of compressed addresses - the number of compressed blocks
                 int numCompressedChunks = meta.readVInt();

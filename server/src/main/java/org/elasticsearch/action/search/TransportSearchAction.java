@@ -383,7 +383,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
          * CPS is enabled, i.e. resolvesCrossProject() returns true, we need to modify and relax the
          * indices options. This is to:
          *   a) Prevent the downstream code from throwing an error if an index is not found since in
-         *      CPS, an index can exist either on the origin or on different linked project(s).
+         *      CPS, an index can exist anywhere.
          *   b) Prevent the linked projects from re-interpreting the index expressions as CPS expressions
          *      and rather treat them as canonical/standard ones.
          */
@@ -1121,9 +1121,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 /*
                  * It may be possible that indices do not exist on the project that SearchShards API is targeting.
                  * In such cases, it throws an error because it calls the index resolution APIs underneath. We relax
-                 * the index options to prevent this from happening. Also, it's fine to pass in these relaxed options
-                 * to it because SearchShardsRequest#allowsCrossProject() returns false anyway and the index rewriting
-                 * does not happen downstream.
+                 * the index options to prevent this from happening, iff this is a CPS request and CPS is enabled.
+                 * Also, it's fine to pass in these relaxed options to it because SearchShardsRequest#allowsCrossProject()
+                 * returns false anyway and the index rewriting does not happen downstream.
                  */
                 IndicesOptions searchShardsIdxOpts = resolvesCrossProject
                     ? indicesOptionsForCrossProjectFanout(originalIdxOpts)

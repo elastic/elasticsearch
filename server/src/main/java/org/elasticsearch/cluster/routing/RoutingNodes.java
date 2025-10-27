@@ -906,6 +906,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return originalShard;
     }
 
+    /**
+     * Clear any undesired allocation metadata from the specified shard
+     *
+     * @param originalShard The {@link ShardRouting} to clear undesired metadata from
+     */
     public void clearUndesired(ShardRouting originalShard) {
         final var withoutUndesiredInfo = originalShard.clearUndesired();
         if (withoutUndesiredInfo != originalShard) {

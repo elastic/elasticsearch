@@ -95,8 +95,8 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
     private record MapResult(LogicalPlan plan, Map<String, Expression> extras) {}
 
     // Will pattern match on PromQL plan types:
-    // - WithinSeriesAggregate -> TimeSeriesAggregate
     // - AcrossSeriesAggregate -> Aggregate over TimeSeriesAggregate
+    // - WithinSeriesAggregate -> TimeSeriesAggregate
     // - Selector -> EsRelation + Filter
     private static MapResult map(LogicalPlan p) {
         if (p instanceof Selector selector) {

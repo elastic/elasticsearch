@@ -1205,7 +1205,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         int promqlStartLine = source.source().getLineNumber();
-        int promqlStartColumn = terminalNode != null ? terminalNode.getSymbol().getCharPositionInLine() : source.source().getColumnNumber();
+        int promqlStartColumn = queryCtx != null && !queryCtx.isEmpty()
+            ? queryCtx.get(0).start.getCharPositionInLine()
+            : source.source().getColumnNumber();
 
         PromqlParser promqlParser = new PromqlParser();
         LogicalPlan promqlPlan;

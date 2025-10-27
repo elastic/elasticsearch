@@ -56,7 +56,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                             DataType.LONG,
                             equalTo(2023L)
-                        ).withConfiguration(TestCaseSupplier.TEST_CONFIGURATION)
+                        ).withStaticConfiguration()
                     ),
                     new TestCaseSupplier(
                         List.of(stringType, DataType.DATE_NANOS),
@@ -68,7 +68,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                             DataType.LONG,
                             equalTo(2023L)
-                        ).withConfiguration(TestCaseSupplier.TEST_CONFIGURATION)
+                        ).withStaticConfiguration()
                     ),
                     new TestCaseSupplier(
                         List.of(stringType, DataType.DATE_NANOS),
@@ -80,7 +80,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                             DataType.LONG,
                             equalTo(123456L)
-                        ).withConfiguration(TestCaseSupplier.TEST_CONFIGURATION)
+                        ).withStaticConfiguration()
                     ),
                     new TestCaseSupplier(
                         List.of(stringType, DataType.DATETIME),
@@ -93,7 +93,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                             DataType.LONG,
                             is(nullValue())
-                        ).withConfiguration(TestCaseSupplier.TEST_CONFIGURATION)
+                        ).withStaticConfiguration()
                             .withWarning(
                                 "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
                             )

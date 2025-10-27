@@ -1796,6 +1796,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * Build a new {@link TestCase} with the {@link #TEST_CONFIGURATION}.
+         *
+         * @deprecated Use a custom configuration instead, and test the results.
+         */
+        @Deprecated
+        public TestCase withStaticConfiguration() {
+            return withConfiguration(TEST_CONFIGURATION);
+        }
+
+        /**
          * Build a new {@link TestCase} with new {@link #configuration}.
          */
         public TestCase withConfiguration(Configuration configuration) {

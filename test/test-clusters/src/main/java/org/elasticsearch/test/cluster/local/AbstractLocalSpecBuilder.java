@@ -21,7 +21,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,7 +33,7 @@ import java.util.function.Supplier;
 public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> implements LocalSpecBuilder<T> {
     private final AbstractLocalSpecBuilder<?> parent;
     private final List<SettingsProvider> settingsProviders = new ArrayList<>();
-    private final Map<String, String> settings = new HashMap<>();
+    private final Map<String, String> settings = new LinkedHashMap<>();
     private final List<EnvironmentProvider> environmentProviders = new ArrayList<>();
     private final Map<String, String> environment = new HashMap<>();
     private final Map<String, DefaultPluginInstallSpec> modules = new HashMap<>();
@@ -321,7 +322,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     }
 
     private <T> Set<T> inherit(Supplier<Set<T>> parent, Set<T> child) {
-        Set<T> combinedSet = new HashSet<>();
+        Set<T> combinedSet = new LinkedHashSet<>();
         if (this.parent != null) {
             combinedSet.addAll(parent.get());
         }
@@ -330,7 +331,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     }
 
     private <K, V> Map<K, V> inherit(Supplier<Map<K, V>> parent, Map<K, V> child) {
-        Map<K, V> combinedMap = new HashMap<>();
+        Map<K, V> combinedMap = new LinkedHashMap<>();
         if (this.parent != null) {
             combinedMap.putAll(parent.get());
         }

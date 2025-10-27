@@ -21,6 +21,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -236,7 +237,7 @@ public class LocalClusterSpec implements ClusterSpec {
          * @return the configured setting value or provided default
          */
         public String getSetting(String setting, String defaultValue) {
-            Map<String, String> allSettings = new HashMap<>();
+            Map<String, String> allSettings = new LinkedHashMap<>();
             allSettings.putAll(resolveSettings());
             allSettings.putAll(resolveKeystore());
 
@@ -255,7 +256,7 @@ public class LocalClusterSpec implements ClusterSpec {
          * @return resolved settings for node
          */
         public Map<String, String> resolveSettings() {
-            Map<String, String> resolvedSettings = new HashMap<>();
+            Map<String, String> resolvedSettings = new LinkedHashMap<>();
             settingsProviders.forEach(p -> resolvedSettings.putAll(p.get(getFilteredSpec(p, null))));
             resolvedSettings.putAll(settings);
             return resolvedSettings;

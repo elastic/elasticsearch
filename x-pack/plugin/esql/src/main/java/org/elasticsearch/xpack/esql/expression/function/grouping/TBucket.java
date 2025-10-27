@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -65,7 +64,11 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
         Source source,
         @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets
     ) {
-        this(source, buckets, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD));
+        this(
+            source,
+            buckets,
+            new UnresolvedTimestamp(source, "TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+        );
     }
 
     public TBucket(Source source, Expression buckets, Expression timestamp) {

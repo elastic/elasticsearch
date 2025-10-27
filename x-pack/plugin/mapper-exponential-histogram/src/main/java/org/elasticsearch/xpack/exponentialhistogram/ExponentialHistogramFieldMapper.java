@@ -22,6 +22,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
@@ -406,7 +407,12 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         double max
     ) throws IOException {
         BytesStreamOutput histogramBytesOutput = new BytesStreamOutput();
-        CompressedExponentialHistogram.writeHistogramBytes(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
+        CompressedExponentialHistogram.writeHistogramBytes(
+            histogramBytesOutput,
+            scale,
+            IndexWithCount.asBuckets(scale, negativeBuckets).iterator(),
+            IndexWithCount.asBuckets(scale, positiveBuckets).iterator()
+        );
         BytesRef histoBytes = histogramBytesOutput.bytes().toBytesRef();
 
         BinaryDocValuesField histoField = new BinaryDocValuesField(fieldName, histoBytes);

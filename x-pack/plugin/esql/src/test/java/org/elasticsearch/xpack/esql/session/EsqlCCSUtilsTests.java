@@ -224,7 +224,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -267,7 +267,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             );
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -309,7 +309,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -350,7 +350,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -399,7 +399,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -713,7 +713,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         String... expectedRemotes
     ) {
         var executionInfo = new EsqlExecutionInfo(true);
-        initCrossClusterState(indicesGrouper, createLicenseState(status), pattern, executionInfo);
+        initCrossClusterState(indicesGrouper, createLicenseState(status), Set.of(pattern), executionInfo);
         assertThat(executionInfo.clusterAliases(), containsInAnyOrder(expectedRemotes));
     }
 
@@ -728,7 +728,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             equalTo(
                 "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
             ),
-            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), pattern, new EsqlExecutionInfo(true))
+            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), Set.of(pattern), new EsqlExecutionInfo(true))
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }

@@ -78,7 +78,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -3494,7 +3493,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             assertThat(remoteIndexExpressions, empty());
         }
         {
-            List<String> remoteIndexExpressions = IndexNameExpressionResolver.getRemoteIndexExpressions("index-1", "remote:index-1", "idx-*", "remote-2:idx-5");
+            List<String> remoteIndexExpressions = IndexNameExpressionResolver.getRemoteIndexExpressions(
+                "index-1",
+                "remote:index-1",
+                "idx-*",
+                "remote-2:idx-5"
+            );
             assertThat(remoteIndexExpressions, hasSize(2));
             assertThat(remoteIndexExpressions, contains("remote:index-1", "remote-2:idx-5"));
         }

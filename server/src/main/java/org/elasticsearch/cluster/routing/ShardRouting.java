@@ -527,7 +527,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             null,
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
             role,
-            becameUndesiredTime
+            NOT_UNDESIRED_TIMESTAMP     // Unassigned and undesired are tracked separately
         );
     }
 

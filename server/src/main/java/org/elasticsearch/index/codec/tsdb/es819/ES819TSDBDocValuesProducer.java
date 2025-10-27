@@ -284,7 +284,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
 
             final RandomAccessInput docRangeData = this.data.randomAccessSlice(entry.docRangeOffset, entry.docRangeLength);
-            final LongValues docRanges = DirectMonotonicReader.getInstance(entry.docRangeMeta, docRangeData);
+            final DirectMonotonicReader docRanges = DirectMonotonicReader.getInstance(entry.docRangeMeta, docRangeData);
             return new DenseBinaryDocValues(maxDoc) {
                 final BinaryDecoder decoder = new BinaryDecoder(
                     addresses,
@@ -313,7 +313,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
 
             final RandomAccessInput docRangeData = this.data.randomAccessSlice(entry.docRangeOffset, entry.docRangeLength);
-            final LongValues docRanges = DirectMonotonicReader.getInstance(entry.docRangeMeta, docRangeData);
+            final DirectMonotonicReader docRanges = DirectMonotonicReader.getInstance(entry.docRangeMeta, docRangeData);
             return new SparseBinaryDocValues(disi) {
                 final BinaryDecoder decoder = new BinaryDecoder(
                     addresses,
@@ -337,7 +337,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
         private final LongValues addresses;
-        private final LongValues docRanges;
+        private final DirectMonotonicReader docRanges;
         private final IndexInput compressedData;
         // Cache of last uncompressed block
         private long lastBlockId = -1;
@@ -351,7 +351,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         BinaryDecoder(
             LongValues addresses,
-            LongValues docRanges,
+            DirectMonotonicReader docRanges,
             IndexInput compressedData,
             int biggestUncompressedBlockSize,
             int maxNumDocsInAnyBlock
@@ -397,24 +397,26 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
         }
 
-        // Find range containing docId that is within or after lastBlockId
-        // Could change to binary search, though since we usually scan forward this would probably be slower
-        long getBlockContainingDoc(LongValues docRanges, long lastBlockId, int docNumber, int numBlocks) {
-            for (long blockId = lastBlockId + 1; blockId < numBlocks; blockId++) {
-                startDocNumForBlock = docRanges.get(blockId);
-                limitDocNumForBlock = docRanges.get(blockId + 1);
-                if (docNumber < limitDocNumForBlock) {
-                    return blockId;
-                }
+        long findAndUpdateBlock(DirectMonotonicReader docOffsets, long lastBlockId, int docNumber, int numBlocks) {
+            long index = docOffsets.binarySearch(lastBlockId + 1, numBlocks, docNumber);
+            // If index is found, index is inclusive lower bound of docNum range, so docNum is in blockId == index
+            if (index < 0) {
+                // If index was not found, insertion point (-index - 1) will be upper bound of docNum range.
+                // Subtract additional 1 so that index points to lower bound of doc range, which is the blockId
+                index = -2 - index;
             }
-            throw new AssertionError("No block found containing document: " + docNumber + ", this should never happen.");
+            assert index < numBlocks: "invalid range " + index + " for doc " + docNumber + " in numBlocks " + numBlocks;
+
+            startDocNumForBlock = docOffsets.get(index);
+            limitDocNumForBlock = docOffsets.get(index + 1);
+            return index;
         }
 
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
             // docNumber, rather than docId, because these are dense and could be indices from a DISI
             long blockId = docNumber < limitDocNumForBlock
                 ? lastBlockId
-                : getBlockContainingDoc(docRanges, lastBlockId, docNumber, numBlocks);
+                : findAndUpdateBlock(docRanges, lastBlockId, docNumber, numBlocks);
 
             int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
             int idxInBlock = (int) (docNumber - startDocNumForBlock);

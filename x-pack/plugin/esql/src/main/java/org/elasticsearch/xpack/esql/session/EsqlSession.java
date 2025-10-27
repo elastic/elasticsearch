@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -446,7 +447,7 @@ public class EsqlSession {
             LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
             LOGGER.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
-        QuerySettings.validate(parsed, remoteClusterService);
+        QuerySettings.validate(parsed, new SettingsValidationContext(remoteClusterService));
         return parsed;
     }
 

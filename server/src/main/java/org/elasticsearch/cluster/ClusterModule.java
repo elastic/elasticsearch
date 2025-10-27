@@ -582,7 +582,6 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationStatsService.class).toInstance(allocationStatsService);
         bind(TelemetryProvider.class).toInstance(telemetryProvider);
         bind(DesiredBalanceMetrics.class).toInstance(desiredBalanceMetrics);
-        bind(AllocationBalancingRoundMetrics.class).toInstance(balancingRoundMetrics);
         bind(MetadataRolloverService.class).asEagerSingleton();
     }
 

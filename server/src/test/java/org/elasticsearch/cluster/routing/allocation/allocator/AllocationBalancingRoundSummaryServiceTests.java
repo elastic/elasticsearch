@@ -19,7 +19,9 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.MetricRecorder;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,8 +30,14 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.DISK_USAGE_BYTES_METRIC_NAME;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_SHARDS_METRIC_NAME;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_SHARD_MOVES_METRIC_NAME;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.TOTAL_WEIGHT_METRIC_NAME;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.WRITE_LOAD_METRIC_NAME;
 
 public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(AllocationBalancingRoundSummaryServiceTests.class);
@@ -122,9 +130,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
-            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
-            assertEquals(measurements.size(), 0);
+
+            assertMetricsCollected(recordingMeterRegistry, List.of(), List.of(), Map.of(), Map.of(), Map.of(), Map.of());
         }
     }
 
@@ -132,7 +139,6 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         var recordingMeterRegistry = new RecordingMeterRegistry();
         var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
         var service = new AllocationBalancingRoundSummaryService(testThreadPool, enabledClusterSettings, balancingRoundMetrics);
-        balancingRoundMetrics.setEnableSending(true);
 
         try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
             /**
@@ -175,9 +181,15 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
 
-            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
-            assertEquals(measurements.size(), 2);
+            assertMetricsCollected(
+                recordingMeterRegistry,
+                List.of(1L, 1L),
+                List.of(50L, 200L),
+                Map.of("node1", List.of(2L, 2L), "node2", List.of(2L, 2L)),
+                Map.of("node1", List.of(4.0, 4.0), "node2", List.of(4.0, 4.0)),
+                Map.of("node1", List.of(6.0, 6.0), "node2", List.of(6.0, 6.0)),
+                Map.of("node1", List.of(8.0, 8.0), "node2", List.of(8.0, 8.0))
+            );
         }
     }
 
@@ -188,7 +200,6 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         var recordingMeterRegistry = new RecordingMeterRegistry();
         var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
         var service = new AllocationBalancingRoundSummaryService(testThreadPool, enabledClusterSettings, balancingRoundMetrics);
-        balancingRoundMetrics.setEnableSending(true);
 
         try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
             service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
@@ -208,9 +219,15 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
 
-            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
-            assertEquals(measurements.size(), 2);
+            assertMetricsCollected(
+                recordingMeterRegistry,
+                List.of(1L, 1L),
+                List.of(50L, 100L),
+                Map.of("node1", List.of(2L, 2L), "node2", List.of(2L, 2L)),
+                Map.of("node1", List.of(4.0, 4.0), "node2", List.of(4.0, 4.0)),
+                Map.of("node1", List.of(6.0, 6.0), "node2", List.of(6.0, 6.0)),
+                Map.of("node1", List.of(8.0, 8.0), "node2", List.of(8.0, 8.0))
+            );
         }
     }
 
@@ -238,6 +255,16 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                 )
             );
 
+            assertMetricsCollected(
+                recordingMeterRegistry,
+                List.of(1L),
+                List.of(50L),
+                Map.of("node1", List.of(2L), "node2", List.of(2L)),
+                Map.of("node1", List.of(4.0), "node2", List.of(4.0)),
+                Map.of("node1", List.of(6.0), "node2", List.of(6.0)),
+                Map.of("node1", List.of(8.0), "node2", List.of(8.0))
+            );
+
             deterministicTaskQueue.advanceTime();
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
@@ -261,9 +288,15 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
 
-            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
-            assertEquals(measurements.size(), 0);
+            assertMetricsCollected(
+                recordingMeterRegistry,
+                List.of(1L),
+                List.of(50L),
+                Map.of("node1", List.of(2L), "node2", List.of(2L)),
+                Map.of("node1", List.of(4.0), "node2", List.of(4.0)),
+                Map.of("node1", List.of(6.0), "node2", List.of(6.0)),
+                Map.of("node1", List.of(8.0), "node2", List.of(8.0))
+            );
         }
     }
 
@@ -272,11 +305,13 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
      * to false.
      */
     public void testEnableAndThenDisableService() {
+        var recordingMeterRegistry = new RecordingMeterRegistry();
+        var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
         var disabledSettingsUpdate = Settings.builder()
             .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING.getKey(), false)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(enabledSummariesSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        var service = new AllocationBalancingRoundSummaryService(testThreadPool, clusterSettings);
+        var service = new AllocationBalancingRoundSummaryService(testThreadPool, clusterSettings, balancingRoundMetrics);
 
         try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
             /**
@@ -289,6 +324,16 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
             clusterSettings.applySettings(disabledSettingsUpdate);
             service.verifyNumberOfSummaries(0);
+
+            assertMetricsCollected(
+                recordingMeterRegistry,
+                List.of(1L),
+                List.of(50L),
+                Map.of("node1", List.of(2L), "node2", List.of(2L)),
+                Map.of("node1", List.of(4.0), "node2", List.of(4.0)),
+                Map.of("node1", List.of(6.0), "node2", List.of(6.0)),
+                Map.of("node1", List.of(8.0), "node2", List.of(8.0))
+            );
 
             /**
              * Verify that any additional summaries are not retained, since the service is disabled.
@@ -310,6 +355,16 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
+
+            assertMetricsCollected(
+                recordingMeterRegistry,
+                List.of(1L),
+                List.of(50L),
+                Map.of("node1", List.of(2L), "node2", List.of(2L)),
+                Map.of("node1", List.of(4.0), "node2", List.of(4.0)),
+                Map.of("node1", List.of(6.0), "node2", List.of(6.0)),
+                Map.of("node1", List.of(8.0), "node2", List.of(8.0))
+            );
         }
     }
 
@@ -481,5 +536,54 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
      */
     private void assertDoublesEqual(double expected, double actual) {
         assertEquals(expected, actual, 0.00001);
+    }
+
+    private void assertMetricsCollected(
+        RecordingMeterRegistry recordingMeterRegistry,
+        List<Long> roundCounts,
+        List<Long> shardMoves,
+        Map<String, List<Long>> shardCountTelemetry,
+        Map<String, List<Double>> diskUsageTelemetry,
+        Map<String, List<Double>> writeLoadTelemetry,
+        Map<String, List<Double>> totalWeightTelemetry
+    ) {
+        MetricRecorder<Instrument> metricRecorder = recordingMeterRegistry.getRecorder();
+
+        List<Measurement> measuredRoundCounts = metricRecorder.getMeasurements(
+            InstrumentType.LONG_COUNTER,
+            NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME
+        );
+        List<Long> measuredRoundCountValues = Measurement.getMeasurementValues(measuredRoundCounts, (measurement -> measurement.getLong()));
+        assertEquals(measuredRoundCountValues, roundCounts);
+
+        List<Measurement> measuredShardMoves = metricRecorder.getMeasurements(
+            InstrumentType.LONG_COUNTER,
+            NUMBER_OF_SHARD_MOVES_METRIC_NAME
+        );
+        List<Long> measuredShardMoveValues = Measurement.getMeasurementValues(measuredShardMoves, (measurement -> measurement.getLong()));
+        assertEquals(measuredShardMoveValues, shardMoves);
+
+        List<Measurement> measuredShardCounts = metricRecorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, NUMBER_OF_SHARDS_METRIC_NAME);
+        var shardCountsByNode = groupMeasurementsByAttribute(measuredShardCounts, (measurement -> measurement.getLong()));
+        assertEquals(shardCountTelemetry, shardCountsByNode);
+
+        List<Measurement> measuredDiskUsage = metricRecorder.getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, DISK_USAGE_BYTES_METRIC_NAME);
+        var diskUsageByNode = groupMeasurementsByAttribute(measuredDiskUsage, (measurement -> measurement.getDouble()));
+        assertEquals(diskUsageTelemetry, diskUsageByNode);
+
+        List<Measurement> measuredWriteLoad = metricRecorder.getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, WRITE_LOAD_METRIC_NAME);
+        var writeLoadByNode = groupMeasurementsByAttribute(measuredWriteLoad, (measurement -> measurement.getDouble()));
+        assertEquals(writeLoadTelemetry, writeLoadByNode);
+
+        List<Measurement> measuredTotalWeight = metricRecorder.getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, TOTAL_WEIGHT_METRIC_NAME);
+        var totalWeightByNode = groupMeasurementsByAttribute(measuredTotalWeight, (measurement -> measurement.getDouble()));
+        assertEquals(totalWeightTelemetry, totalWeightByNode);
+    }
+
+    private <T> Map<String, List<T>> groupMeasurementsByAttribute(
+        List<Measurement> measurements,
+        Function<Measurement, T> getMeasurementValue
+    ) {
+        return Measurement.groupMeasurementsByAttribute(measurements, (attrs -> (String) attrs.get("node_name")), getMeasurementValue);
     }
 }

@@ -69,10 +69,6 @@ public class AllocationBalancingRoundSummaryService {
     /** This reference is set when reporting is scheduled. If it is null, then reporting is inactive. */
     private final AtomicReference<Scheduler.Cancellable> scheduledReportFuture = new AtomicReference<>();
 
-    public AllocationBalancingRoundSummaryService(ThreadPool threadPool, ClusterSettings clusterSettings) {
-        this(threadPool, clusterSettings, AllocationBalancingRoundMetrics.NOOP);
-    }
-
     public AllocationBalancingRoundSummaryService(
         ThreadPool threadPool,
         ClusterSettings clusterSettings,
@@ -174,6 +170,7 @@ public class AllocationBalancingRoundSummaryService {
         }
 
         summaries.add(summary);
+        balancingRoundMetrics.addBalancingRoundSummary(summary);
     }
 
     /**
@@ -195,8 +192,6 @@ public class AllocationBalancingRoundSummaryService {
         }
 
         logger.info("Balancing round summaries: " + combinedSummaries);
-
-        balancingRoundMetrics.updateBalancingRoundMetrics(combinedSummaries);
     }
 
     /**
@@ -225,7 +220,6 @@ public class AllocationBalancingRoundSummaryService {
             cancelReporting();
             // Clear the data structure so that we don't retain unnecessary memory.
             drainSummaries();
-            balancingRoundMetrics.clearBalancingRoundMetrics();
         }
     }
 

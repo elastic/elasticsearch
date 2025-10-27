@@ -98,43 +98,50 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
     }
 
     public void testMatchQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
-        final Consumer<QueryBuilder> assertCcsMinimizeRoundTripsFalseFailure = q -> {
-            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(q);
-            SearchRequest searchRequest = new SearchRequest(convertToArray(QUERY_INDICES), searchSourceBuilder);
-            searchRequest.setCcsMinimizeRoundtrips(false);
+        // Query a field has the same inference ID value across clusters, but with different backing inference services
+        assertSearchResponse(
+            new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+            ),
+            null,
+            r -> r.setCcsMinimizeRoundtrips(false)
+        );
 
-            IllegalArgumentException e = assertThrows(
-                IllegalArgumentException.class,
-                () -> client().search(searchRequest).actionGet(TEST_REQUEST_TIMEOUT)
-            );
-            assertThat(
-                e.getMessage(),
-                equalTo(
-                    "match query does not support cross-cluster search when querying a [semantic_text] field when "
-                        + "[ccs_minimize_roundtrips] is false"
-                )
-            );
-        };
+        // Query a field that has different inference ID values across clusters
+        assertSearchResponse(
+            new MatchQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, "b"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
+            ),
+            null,
+            r -> r.setCcsMinimizeRoundtrips(false)
+        );
 
-        // Validate that expected cases fail
-        assertCcsMinimizeRoundTripsFalseFailure.accept(new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, randomAlphaOfLength(5)));
-        assertCcsMinimizeRoundTripsFalseFailure.accept(new MatchQueryBuilder(MIXED_TYPE_FIELD_1, randomAlphaOfLength(5)));
-
-        // Validate the expected ccs_minimize_roundtrips=false detection gap and failure mode when querying non-inference fields locally
+        // Query a field that has mixed types across clusters
+        assertSearchResponse(
+            new MatchQueryBuilder(MIXED_TYPE_FIELD_1, "c"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
+            ),
+            null,
+            r -> r.setCcsMinimizeRoundtrips(false)
+        );
         assertSearchResponse(
             new MatchQueryBuilder(MIXED_TYPE_FIELD_2, "d"),
             QUERY_INDICES,
-            List.of(new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
-            new ClusterFailure(
-                SearchResponse.Cluster.Status.SKIPPED,
-                Set.of(
-                    new FailureCause(
-                        QueryShardException.class,
-                        "failed to create query: Field [mixed-type-field-2] of type [semantic_text] does not support match queries"
-                    )
-                )
+            List.of(
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
             ),
-            s -> s.setCcsMinimizeRoundtrips(false)
+            null,
+            r -> r.setCcsMinimizeRoundtrips(false)
         );
 
         // Validate that a CCS match query functions when only text fields are queried

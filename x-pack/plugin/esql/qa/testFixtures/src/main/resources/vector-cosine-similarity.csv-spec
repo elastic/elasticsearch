@@ -1,8 +1,6 @@
 # Tests for cosine similarity function
 
 similarityWithVectorField
-required_capability: cosine_vector_similarity_function
-required_capability: dense_vector_field_type_released
 required_capability: vector_similarity_functions_pushdown
 
 
@@ -32,8 +30,6 @@ gray        | 0.8164966106414795
 ;
 
 similarityAsPartOfExpression
-required_capability: cosine_vector_similarity_function
-required_capability: dense_vector_field_type_released
 required_capability: vector_similarity_functions_pushdown
 
 from colors
@@ -58,8 +54,6 @@ gray        | 1.408
 ;
 
 similarityWithLiteralVectors
-required_capability: cosine_vector_similarity_function
-required_capability: dense_vector_field_type_released
 required_capability: vector_similarity_functions_pushdown
  
 row a = 1
@@ -72,8 +66,6 @@ similarity:double
 ;
 
 similarityWithStats
-required_capability: cosine_vector_similarity_function
-required_capability: dense_vector_field_type_released
 required_capability: vector_similarity_functions_pushdown
  
 from colors
@@ -87,9 +79,6 @@ avg:double | min:double | max:double
 ; 
 
 similarityWithNull
-required_capability: cosine_vector_similarity_function
-required_capability: vector_similarity_functions_support_null
-required_capability: dense_vector_field_type_released
 required_capability: vector_similarity_functions_pushdown
 
 from colors
@@ -102,9 +91,6 @@ total_null:long
 ;
 
 similarityWithRow
-required_capability: cosine_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
 required_capability: vector_similarity_functions_pushdown
  
 row vector = to_dense_vector([1, 2, 3]) 
@@ -116,8 +102,6 @@ vector:dense_vector | similarity:double
 ;
 
 multipleEvalSimilarityWithVectorFields
-required_capability: cosine_vector_similarity_function
-required_capability: dense_vector_field_type_released
 required_capability: vector_similarity_functions_pushdown
 
 from colors
@@ -142,8 +126,6 @@ gray        | 0.8164966106414795 | 1.4082483053207397
 ;
 
 multipleSimilarityWithVectorFields
-required_capability: cosine_vector_similarity_function
-required_capability: dense_vector_field_type_released
 required_capability: vector_similarity_functions_pushdown
 
 from colors

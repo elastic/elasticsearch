@@ -85,6 +85,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
@@ -101,6 +102,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -146,16 +149,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         var allTypesMapping = loadMapping("mapping-all-types.json");
         EsIndex testAll = new EsIndex("test_all", allTypesMapping, Map.of("test_all", IndexMode.STANDARD));
-        allTypesAnalyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(testAll),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        allTypesAnalyzer = analyzer(indexResolutions(testAll), defaultLookupResolution(), emptyPolicyResolution(), TEST_VERIFIER, TEST_CFG);
     }
 
     /**
@@ -1107,6 +1101,47 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         String query = """
             from test_all
             | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
+            """;
+
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+
+        // EsqlProject[[!alias_integer, boolean{f}#7, byte{f}#8, ... s{r}#5]]
+        var project = as(plan, EsqlProject.class);
+        // Does not contain the extracted field
+        assertFalse(Expressions.names(project.projections()).stream().anyMatch(s -> s.startsWith("$$dense_vector$DotProduct")));
+
+        // Eval[[$$dense_vector$DOTPRODUCT$27{f}#27 AS s#5]]
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), equalTo("s"));
+
+        // Check replaced field attribute
+        FieldAttribute fieldAttr = (FieldAttribute) alias.child();
+        assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        var field = as(fieldAttr.field(), FunctionEsField.class);
+        var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
+        assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+        assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+
+        // Limit[1000[INTEGER],false,false]
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
+
+        // EsRelation[types_all]
+        var esRelation = as(limit.child(), EsRelation.class);
+        assertTrue(esRelation.output().contains(fieldAttr));
+    }
+
+    public void testVectorFunctionLookupJoin() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            from test_all
+            | rename integer AS language_code
+            | lookup join languages_lookup ON language_code
+            | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
+            | keep dense_vector, language_name, s
             """;
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);

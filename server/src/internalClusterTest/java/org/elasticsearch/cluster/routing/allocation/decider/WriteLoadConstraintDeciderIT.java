@@ -255,7 +255,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         try {
             logger.info("--> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only");
             // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
-            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+            updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._name"));
 
             safeAwait(temporaryClusterStateListener);
         } catch (AssertionError error) {
@@ -335,7 +335,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         MockLog.awaitLogger(() -> {
             logger.info("--> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only");
             // Updating the cluster settings will trigger a reroute request.
-            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+            updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._name"));
         }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
 
         try {
@@ -425,7 +425,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         MockLog.awaitLogger(() -> {
             logger.info("--> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only");
             // Updating the cluster settings will trigger a reroute request.
-            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+            updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._name"));
         }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
 
         try {

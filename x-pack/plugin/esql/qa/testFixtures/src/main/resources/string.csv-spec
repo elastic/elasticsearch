@@ -2749,8 +2749,8 @@ book_no:keyword | author_encoded:keyword | title_encoded:keyword
 ;
 
 ascii
-row a = "eñe\nis a Spanish letter" | eval x = ascii(a);
+row a = "eñe\nis a Spanish letter" | eval x = ascii(a) | keep x;
 
-a:keyword | x:keyword
-eñe\nis a Spanish letter | e\\xf1e\\nis a Spanish letter
+x:keyword
+e\\xf1e\\nis a Spanish letter
 ;

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -67,6 +68,20 @@ public class ExponentialHistogramParser {
     private static final ParseField BUCKET_COUNTS_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_COUNTS_FIELD);
 
     public static final FeatureFlag EXPONENTIAL_HISTOGRAM_FEATURE = new FeatureFlag("exponential_histogram");
+
+    private static final Set<String> ROOT_FIELD_NAMES = Set.of(
+        SCALE_FIELD.getPreferredName(),
+        SUM_FIELD.getPreferredName(),
+        MIN_FIELD.getPreferredName(),
+        MAX_FIELD.getPreferredName(),
+        ZERO_FIELD.getPreferredName(),
+        POSITIVE_FIELD.getPreferredName(),
+        NEGATIVE_FIELD.getPreferredName()
+    );
+
+    public static boolean isExponentialHistogramFieldName(String fieldName) {
+        return ROOT_FIELD_NAMES.contains(fieldName);
+    }
 
     /**
      * Represents a parsed exponential histogram.

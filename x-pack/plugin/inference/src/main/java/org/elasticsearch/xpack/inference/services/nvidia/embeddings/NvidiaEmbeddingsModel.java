@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -27,6 +26,11 @@ import java.util.Map;
  */
 public class NvidiaEmbeddingsModel extends NvidiaModel {
 
+    public static NvidiaEmbeddingsModel of(NvidiaEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var requestTaskSettings = NvidiaEmbeddingsTaskSettings.fromMap(taskSettings);
+        return new NvidiaEmbeddingsModel(model, NvidiaEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+    }
+
     /**
      * Constructor for creating a NvidiaEmbeddingsModel with specified parameters.
      *
@@ -34,6 +38,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to embeddings
+     * @param taskSettings the task-specific settings to be applied
      * @param chunkingSettings the chunking settings for processing input data
      * @param secrets the secret settings for the model, such as API keys or tokens
      * @param context the context for parsing configuration settings
@@ -43,6 +48,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context
@@ -52,6 +58,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
             taskType,
             service,
             NvidiaEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            NvidiaEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
@@ -70,6 +77,16 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
     /**
      * Constructor for creating a NvidiaEmbeddingsModel with specified parameters.
      *
+     * @param model the base NvidiaEmbeddingsModel to copy properties from
+     * @param taskSettings the task-specific settings to be applied
+     */
+    public NvidiaEmbeddingsModel(NvidiaEmbeddingsModel model, NvidiaEmbeddingsTaskSettings taskSettings) {
+        super(model, taskSettings);
+    }
+
+    /**
+     * Constructor for creating a NvidiaEmbeddingsModel with specified parameters.
+     *
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
@@ -82,11 +99,12 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
         TaskType taskType,
         String service,
         NvidiaEmbeddingsServiceSettings serviceSettings,
+        NvidiaEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
         SecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets)
         );
     }
@@ -96,13 +114,19 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
         return (NvidiaEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
+    @Override
+    public NvidiaEmbeddingsTaskSettings getTaskSettings() {
+        return (NvidiaEmbeddingsTaskSettings) super.getTaskSettings();
+    }
+
     /**
      * Accepts a visitor to create an executable action for this Nvidia embeddings model.
      *
      * @param creator the visitor that creates the executable action
+     *                @param taskSettings the task-specific settings to be applied
      * @return an ExecutableAction representing the Nvidia embeddings model
      */
-    public ExecutableAction accept(NvidiaActionVisitor creator) {
-        return creator.create(this);
+    public ExecutableAction accept(NvidiaActionVisitor creator, Map<String, Object> taskSettings) {
+        return creator.create(this, taskSettings);
     }
 }

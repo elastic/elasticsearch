@@ -9,18 +9,25 @@ package org.elasticsearch.xpack.inference.services.nvidia.request.embeddings;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
+import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 /**
@@ -32,27 +39,41 @@ public class NvidiaEmbeddingsRequest implements Request {
     private final NvidiaEmbeddingsModel model;
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
+    private final InputType inputType;
 
     /**
      * Constructs a new NvidiaEmbeddingsRequest with the specified truncator, input, and model.
      *
      * @param truncator the truncator to handle input truncation
-     * @param input the input to be truncated
-     * @param model the Nvidia embeddings model to be used for the request
+     * @param input     the input to be truncated
+     * @param model     the Nvidia embeddings model to be used for the request
+     * @param inputType the type of input being processed
      */
-    public NvidiaEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, NvidiaEmbeddingsModel model) {
+    public NvidiaEmbeddingsRequest(
+        Truncator truncator,
+        Truncator.TruncationResult input,
+        NvidiaEmbeddingsModel model,
+        @Nullable InputType inputType
+    ) {
         this.model = Objects.requireNonNull(model);
         this.truncator = Objects.requireNonNull(truncator);
         this.truncationResult = Objects.requireNonNull(input);
+        this.inputType = inputType;
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(model.getServiceSettings().uri());
+        HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new NvidiaEmbeddingsRequestEntity(truncationResult.input(), model.getServiceSettings().modelId()))
-                .getBytes(StandardCharsets.UTF_8)
+            Strings.toString(
+                new NvidiaEmbeddingsRequestEntity(
+                    truncationResult.input(),
+                    model.getServiceSettings().modelId(),
+                    extractInputTypeToUse(),
+                    model.getTaskSettings().getTruncation()
+                )
+            ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
@@ -62,15 +83,32 @@ public class NvidiaEmbeddingsRequest implements Request {
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
+    private InputType extractInputTypeToUse() {
+        if (InputType.isSpecified(inputType)) {
+            return inputType;
+        } else if (InputType.isSpecified(model.getTaskSettings().getInputType())) {
+            return model.getTaskSettings().getInputType();
+        } else {
+            return null;
+        }
+    }
+
     @Override
     public URI getURI() {
-        return model.getServiceSettings().uri();
+        return buildUri(model.getServiceSettings().uri(), NvidiaService.NAME, NvidiaEmbeddingsRequest::buildDefaultEmbeddingsUri);
+    }
+
+    private static URI buildDefaultEmbeddingsUri() throws URISyntaxException {
+        return new URIBuilder().setScheme("https")
+            .setHost(NvidiaUtils.HOST)
+            .setPathSegments(NvidiaUtils.VERSION_1, NvidiaUtils.EMBEDDINGS_PATH)
+            .build();
     }
 
     @Override
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
-        return new NvidiaEmbeddingsRequest(truncator, truncatedInput, model);
+        return new NvidiaEmbeddingsRequest(truncator, truncatedInput, model, inputType);
     }
 
     @Override

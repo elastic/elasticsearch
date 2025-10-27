@@ -25,12 +25,14 @@ import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbedd
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsResponseHandler;
 import org.elasticsearch.xpack.inference.services.nvidia.request.completion.NvidiaChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.nvidia.request.embeddings.NvidiaEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.nvidia.request.rerank.NvidiaRerankRequest;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankResponseHandler;
-import org.elasticsearch.xpack.inference.services.nvidia.response.NvidiaRankedResponseEntity;
+import org.elasticsearch.xpack.inference.services.nvidia.response.NvidiaRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
@@ -58,8 +60,7 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
 
     private static final ResponseHandler RERANK_HANDLER = new NvidiaRerankResponseHandler(
         "Nvidia rerank",
-        (request, response) -> NvidiaRankedResponseEntity.fromResponse(response),
-        false
+        (request, response) -> NvidiaRerankResponseEntity.fromResponse(response)
     );
 
     private final Sender sender;
@@ -77,15 +78,17 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(NvidiaEmbeddingsModel model) {
+    public ExecutableAction create(NvidiaEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = NvidiaEmbeddingsModel.of(model, taskSettings);
         var manager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
-            model,
+            overriddenModel,
             EMBEDDINGS_HANDLER,
             embeddingsInput -> new NvidiaEmbeddingsRequest(
                 serviceComponents.truncator(),
-                truncate(embeddingsInput.getStringInputs(), model.getServiceSettings().maxInputTokens()),
-                model
+                truncate(embeddingsInput.getInputs(), overriddenModel.getServiceSettings().maxInputTokens()),
+                overriddenModel,
+                embeddingsInput.getInputType()
             ),
             EmbeddingsInput.class
         );

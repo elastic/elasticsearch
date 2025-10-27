@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.nvidia;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -38,6 +39,15 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
      */
     protected NvidiaModel(RateLimitGroupingModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
+    }
+
+    /**
+     * Constructor for creating a NvidiaModel with specified model, service settings, and secret settings.
+     * @param model the model configurations
+     * @param taskSettings the task settings for the inference task
+     */
+    protected NvidiaModel(RateLimitGroupingModel model, TaskSettings taskSettings) {
+        super(model, taskSettings);
     }
 
     @Override

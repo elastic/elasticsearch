@@ -25,11 +25,14 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -42,6 +45,7 @@ import org.elasticsearch.xpack.inference.services.nvidia.action.NvidiaActionCrea
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.request.completion.NvidiaChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -72,6 +76,13 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class NvidiaService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "nvidia";
     private static final String SERVICE_NAME = "Nvidia";
+
+    public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INGEST,
+        InputType.SEARCH,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
+    );
     /**
      * The optimal batch size depends on the hardware the model is deployed on.
      * For Nvidia use a conservatively small max batch size as it is
@@ -120,16 +131,11 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         switch (model) {
             case NvidiaChatCompletionModel nvidiaChatCompletionModel -> nvidiaChatCompletionModel.accept(actionCreator)
                 .execute(inputs, timeout, listener);
-            case NvidiaEmbeddingsModel nvidiaEmbeddingsModel -> nvidiaEmbeddingsModel.accept(actionCreator)
+            case NvidiaEmbeddingsModel nvidiaEmbeddingsModel -> nvidiaEmbeddingsModel.accept(actionCreator, taskSettings)
                 .execute(inputs, timeout, listener);
             case NvidiaRerankModel nvidiaRerankModel -> nvidiaRerankModel.accept(actionCreator).execute(inputs, timeout, listener);
             default -> listener.onFailure(createInvalidModelException(model));
         }
-    }
-
-    @Override
-    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
     }
 
     /**
@@ -138,6 +144,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
      * @param inferenceId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
      * @param serviceSettings the settings for the inference service
+     * @param taskSettings the task-specific settings, if applicable
      * @param chunkingSettings the settings for chunking, if applicable
      * @param secretSettings the secret settings for the model, such as API keys or tokens
      * @param context the context for parsing configuration settings
@@ -147,6 +154,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         String inferenceId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
         ConfigurationParseContext context
@@ -165,6 +173,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
                 taskType,
                 NAME,
                 serviceSettings,
+                taskSettings,
                 chunkingSettings,
                 secretSettings,
                 context
@@ -202,6 +211,28 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
     }
 
     @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof NvidiaEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+
+            var updatedServiceSettings = new NvidiaEmbeddingsServiceSettings(
+                serviceSettings.modelId(),
+                serviceSettings.uri(),
+                embeddingSize,
+                similarityToUse,
+                serviceSettings.maxInputTokens(),
+                serviceSettings.rateLimitSettings()
+            );
+
+            return new NvidiaEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -210,7 +241,24 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        throw new UnsupportedOperationException("Nvidia service does not support chunked inference");
+        if (model instanceof NvidiaEmbeddingsModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        var nvidiaEmbeddingsModel = (NvidiaEmbeddingsModel) model;
+        var actionCreator = new NvidiaActionCreator(getSender(), getServiceComponents());
+
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+            inputs,
+            EMBEDDING_MAX_BATCH_SIZE,
+            nvidiaEmbeddingsModel.getConfigurations().getChunkingSettings()
+        ).batchRequestsWithListeners(listener);
+
+        for (var request : batchedRequests) {
+            var action = nvidiaEmbeddingsModel.accept(actionCreator, taskSettings);
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+        }
     }
 
     @Override
@@ -255,6 +303,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
                 inferenceId,
                 taskType,
                 serviceSettingsMap,
+                taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
                 ConfigurationParseContext.REQUEST
@@ -278,7 +327,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
@@ -286,13 +335,21 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, chunkingSettings, secretSettingsMap);
+        return createModelFromPersistent(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            chunkingSettings,
+            secretSettingsMap
+        );
     }
 
     private NvidiaModel createModelFromPersistent(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings
     ) {
@@ -300,6 +357,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
             inferenceEntityId,
             taskType,
             serviceSettings,
+            taskSettings,
             chunkingSettings,
             secretSettings,
             ConfigurationParseContext.PERSISTENT
@@ -307,27 +365,26 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
     }
 
     @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
+    }
+
+    @Override
     public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
         if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, chunkingSettings, null);
+        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return NvidiaUtils.ML_INFERENCE_NVIDIA_ADDED;
-    }
-
-    @Override
-    public boolean hideFromConfigurationApi() {
-        // The Nvidia service is very configurable so we're going to hide it from being exposed in the service API.
-        return true;
     }
 
     @Override
@@ -355,7 +412,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
                     URL,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The URL endpoint to use for the requests.")
                         .setLabel("URL")
-                        .setRequired(true)
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)

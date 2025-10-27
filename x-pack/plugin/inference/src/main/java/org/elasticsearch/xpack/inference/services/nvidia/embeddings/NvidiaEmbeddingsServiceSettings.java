@@ -25,6 +25,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
 public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     public static final String NAME = "nvidia_embeddings_service_settings";
 
+    private final Integer dimensions;
     private final SimilarityMeasure similarity;
     private final Integer maxInputTokens;
 
@@ -58,6 +60,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
 
         var model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var uri = extractOptionalUri(map, URL, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var maxInputTokens = extractOptionalPositiveInteger(
             map,
@@ -72,7 +75,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
             throw validationException;
         }
 
-        return new NvidiaEmbeddingsServiceSettings(model, uri, similarity, maxInputTokens, rateLimitSettings);
+        return new NvidiaEmbeddingsServiceSettings(model, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
     }
 
     /**
@@ -83,6 +86,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
      */
     public NvidiaEmbeddingsServiceSettings(StreamInput in) throws IOException {
         super(in);
+        this.dimensions = in.readOptionalVInt();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.maxInputTokens = in.readOptionalVInt();
     }
@@ -92,6 +96,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
      *
      * @param modelId the identifier for the model
      * @param uri the URI of the Nvidia service
+     * @param dimensions the number of dimensions for the embeddings, can be null
      * @param similarity the similarity measure to use, can be null
      * @param maxInputTokens the maximum number of input tokens, can be null
      * @param rateLimitSettings the rate limit settings for the service, can be null
@@ -99,11 +104,13 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     public NvidiaEmbeddingsServiceSettings(
         String modelId,
         @Nullable URI uri,
+        @Nullable Integer dimensions,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         super(modelId, uri, rateLimitSettings);
+        this.dimensions = dimensions;
         this.similarity = similarity;
         this.maxInputTokens = maxInputTokens;
     }
@@ -113,6 +120,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
      *
      * @param modelId the identifier for the model
      * @param url the URL of the Nvidia service
+     * @param dimensions the number of dimensions for the embeddings, can be null
      * @param similarity the similarity measure to use, can be null
      * @param maxInputTokens the maximum number of input tokens, can be null
      * @param rateLimitSettings the rate limit settings for the service, can be null
@@ -120,16 +128,22 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     public NvidiaEmbeddingsServiceSettings(
         String modelId,
         @Nullable String url,
+        @Nullable Integer dimensions,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this(modelId, createOptionalUri(url), similarity, maxInputTokens, rateLimitSettings);
+        this(modelId, createOptionalUri(url), dimensions, similarity, maxInputTokens, rateLimitSettings);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Integer dimensions() {
+        return this.dimensions;
     }
 
     @Override
@@ -163,6 +177,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeOptionalVInt(dimensions);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(maxInputTokens);
     }
@@ -170,6 +185,9 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         super.toXContentFragmentOfExposedFields(builder, params);
+        if (dimensions != null) {
+            builder.field(DIMENSIONS, dimensions);
+        }
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
@@ -186,6 +204,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
         NvidiaEmbeddingsServiceSettings that = (NvidiaEmbeddingsServiceSettings) o;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(uri, that.uri)
+            && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
@@ -193,7 +212,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, maxInputTokens, similarity, rateLimitSettings);
+        return Objects.hash(modelId, uri, dimensions, maxInputTokens, similarity, rateLimitSettings);
     }
 
 }

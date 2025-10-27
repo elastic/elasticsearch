@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCo
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 
+import java.util.Map;
+
 /**
  * Visitor interface for creating executable actions for Nvidia inference services.
  */
@@ -22,7 +24,7 @@ public interface NvidiaActionVisitor {
      * @param model the Nvidia embeddings model
      * @return an executable action for the embeddings model
      */
-    ExecutableAction create(NvidiaEmbeddingsModel model);
+    ExecutableAction create(NvidiaEmbeddingsModel model, Map<String, Object> taskSettings);
 
     /**
      * Creates an executable action for the given Nvidia chat completion model.

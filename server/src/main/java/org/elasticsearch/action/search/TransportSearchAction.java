@@ -379,12 +379,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final ResolvedIndices resolvedIndices;
 
         /*
-         * Irrespective of whether this is the origin project or a linked project, it's wiser to relax
-         * the index options to prevent the index resolution APIs from throwing index not found errors.
-         * Also, we do not replace the indices options on the SearchRequest because we'd be needing it
-         * downstream when validating the indices from both the origin and the linked projects.
+         * If this search request is originating from a search endpoint that is CPS compatible, and,
+         * CPS is enabled, i.e. resolvesCrossProject() returns true, we need to modify and relax the
+         * indices options. This is to:
+         *   a) Prevent the downstream code from throwing an error if an index is not found since in
+         *      CPS, an index can exist either on the origin or on different linked project(s).
+         *   b) Prevent the linked projects from re-interpreting the index expressions as CPS expressions
+         *      and rather treat them as canonical/standard ones.
          */
-        IndicesOptions resolutionIdxOpts = crossProjectModeDecider.resolvesCrossProject(original)
+        IndicesOptions resolutionIdxOpts = resolvesCrossProject
             ? indicesOptionsForCrossProjectFanout(original.indicesOptions())
             : original.indicesOptions();
 
@@ -964,8 +967,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Outside Cross Project Search, we're sure of projects involved and their corresponding indices. However,
-     * in CPS, it may be possible that indices can exist anywhere:
+     * Reconciliation is only done when Cross Project Search is enabled and requests originate from a CPS
+     * compatible endpoints. Outside CPS, we're sure of projects involved and their corresponding indices.
+     * However, in CPS, it may be possible that indices can exist anywhere:
      * <ul>
      *     <li>Only on the origin</li>
      *     <li>Only on the linked project(s)</li>
@@ -982,7 +986,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * validation is complete.
      * @param originResolvedIdxExpressions The resolution result from origin's Security Action Filter.
      * @param shardResponses Responses pieced back from SearchShards API.
-     * @param projects Clusters object to build upon.
+     * @param projects The clusters originally in scope for the query.
      * @return A new Clusters object containing only the Search-participating projects.
      */
     static SearchResponse.Clusters reconcileProjects(
@@ -991,7 +995,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters projects
     ) {
         /*
-         * We only fire a SearchShards API for a project if it needs to be searched. This can either mean that it was
+         * We only fire a SearchShards API call for a project if it needs to be searched. This can either mean that it was
          * part of the search due to the flatworld behaviour, or that it was targeted specifically. If it returns an
          * empty response, it's because the project does not host any of our specified indices.
          */
@@ -1092,7 +1096,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             }
                             resolvedIndexExpressions.put(entry.getKey(), entry.getValue().getResolvedIndexExpressions());
                         }
-                        // We do not use the related index options here when validating indices' existence.
+                        // We do not use the relaxed index options here when validating indices' existence.
                         ElasticsearchException validationEx = CrossProjectIndexResolutionValidator.validate(
                             originalIdxOpts,
                             originResolvedIdxExpressions,

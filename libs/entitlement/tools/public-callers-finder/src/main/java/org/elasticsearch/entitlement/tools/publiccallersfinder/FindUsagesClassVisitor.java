@@ -37,7 +37,7 @@ class FindUsagesClassVisitor extends ClassVisitor {
 
     record MethodDescriptor(String className, String methodName, String methodDescriptor) {}
 
-    record EntryPoint(String moduleName, String source, int line, MethodDescriptor method, EnumSet<ExternalAccess> access) { }
+    record EntryPoint(String moduleName, String source, int line, MethodDescriptor method, EnumSet<ExternalAccess> access) {}
 
     interface CallerConsumer {
         void accept(String source, int line, MethodDescriptor method, EnumSet<ExternalAccess> access);

@@ -80,10 +80,10 @@ public class DesiredBalanceReconciler {
     );
 
     /**
-     * Warning logs will be periodically written if we see a shard that's been unable to be allocated for this long
+     * Warning logs will be periodically written if we see a shard that's been in an undesired allocation for this long
      */
-    public static final Setting<TimeValue> IMMOVABLE_SHARD_LOG_THRESHOLD_SETTING = Setting.timeSetting(
-        "cluster.routing.allocation.desired_balance.immovable_shard_logging.threshold",
+    public static final Setting<TimeValue> UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.desired_balance.undesired_duration_logging.threshold",
         TimeValue.timeValueMinutes(5),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -109,7 +109,10 @@ public class DesiredBalanceReconciler {
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
         );
-        clusterSettings.initializeAndWatch(IMMOVABLE_SHARD_LOG_THRESHOLD_SETTING, value -> this.immovableShardThreshold = value);
+        clusterSettings.initializeAndWatch(
+            UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING,
+            value -> this.immovableShardThreshold = value
+        );
     }
 
     /**

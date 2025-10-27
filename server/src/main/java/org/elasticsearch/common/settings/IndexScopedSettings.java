@@ -89,6 +89,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID,
                 IndexMetadata.INDEX_DOWNSAMPLE_STATUS,
                 IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL,
+                IndexMetadata.INDEX_DOWNSAMPLE_METHOD,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -244,6 +245,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
         if (IndexSettings.DOC_VALUES_SKIPPER) {
             settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
+        }
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            settings.add(IndexSettings.USE_SYNTHETIC_ID);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

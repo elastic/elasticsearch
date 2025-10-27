@@ -1139,8 +1139,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throws IOException {
             ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getDecoder().decode(context.parser().text())).order(ByteOrder.BIG_ENDIAN);
             if (byteBuffer.remaining() != dims * Float.BYTES) {
-                throw new IllegalArgumentException(
-                    "Base64 decoded vector byte length ["
+                throw new ParsingException(
+                    context.parser().getTokenLocation(),
+                    "Failed to parse object: Base64 decoded vector byte length ["
                         + byteBuffer.remaining()
                         + "] does not match the expected length of ["
                         + (dims * Float.BYTES)

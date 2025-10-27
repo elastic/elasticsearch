@@ -386,6 +386,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     // TODO: Handle when fields is null?
+    // TODO: Simplify checks
     static SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> getRemoteInferenceResults(
         QueryRewriteContext queryRewriteContext,
         Map<String, OriginalIndices> remoteClusterIndices,
@@ -393,6 +394,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         @Nullable List<String> fields,
         @Nullable String query
     ) {
+        Boolean ccsMinimizeRoundTrips = queryRewriteContext.isCcsMinimizeRoundTrips();
+        if (ccsMinimizeRoundTrips == null || ccsMinimizeRoundTrips) {
+            // We need to get remote inference results only when ccsMinimizeRoundTrips is explicitly set to false
+            return null;
+        }
+
         if (inferenceResultsMap != null) {
             // If we have inference results, we can assume they contain the remote inference results because when these are needed, they
             // are gathered during the initial inference results collection (i.e. when inferenceResultsMap == null) on the local cluster

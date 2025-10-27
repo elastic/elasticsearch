@@ -16,7 +16,6 @@ import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
-public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Idelta", Idelta::new);
 
     private final Expression timestamp;
@@ -52,10 +52,6 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
         preview = true,
         examples = { @Example(file = "k8s-timeseries-idelta", tag = "idelta") }
     )
-    public Idelta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
-        this(source, field, UnresolvedTimestamp.withSource(source));
-    }
-
     public Idelta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {
         this(source, field, Literal.TRUE, timestamp);
     }
@@ -138,5 +134,10 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
     @Override
     public String toString() {
         return "idelta(" + field() + ")";
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
     }
 }

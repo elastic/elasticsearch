@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+
 /**
  * Marker interface to identify classes of functions that operate on the {code @timestamp} field of an index.
  * Implementations of this interface need to expect the associated {@code Attribute} to be passed as the following argument after the
  * {@code Source} one, which is always the first one.
  */
-public interface TimestampAware {}
+public interface TimestampAware {
+    Expression timestamp();
+}

@@ -1661,13 +1661,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     var dataType = arg.dataType();
                     if (dataType == KEYWORD) {
                         if (arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
-                            int targetDataTypesIdx = f instanceof TimestampAware ? i - 1 : i;
-                            if (targetDataTypesIdx < targetDataTypes.size()) {
-                                targetDataType = targetDataTypes.get(targetDataTypesIdx);
-                            }
+                            if (i < targetDataTypes.size()) {
+                                targetDataType = targetDataTypes.get(i);
+                            } // else the last type applies to all elements in a possible list (variadic)
                             if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
                                 Expression e = castStringLiteral(arg, targetDataType);
-                                targetDataType = NULL;
                                 if (e != arg) {
                                     childrenChanged = true;
                                     newChildren.add(e);

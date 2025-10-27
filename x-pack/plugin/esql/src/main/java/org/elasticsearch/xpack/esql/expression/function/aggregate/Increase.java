@@ -16,7 +16,6 @@ import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * It is similar to the {@code rate()} function, but instead of calculating the per-second average rate of increase,
  * it calculates the total increase over the time window.
  */
-public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Increase", Increase::new);
 
     private final Expression timestamp;
@@ -55,13 +55,6 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         preview = true,
         examples = { @Example(file = "k8s-timeseries-increase", tag = "increase") }
     )
-    public Increase(
-        Source source,
-        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field
-    ) {
-        this(source, field, UnresolvedTimestamp.withSource(source));
-    }
-
     public Increase(
         Source source,
         @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
@@ -144,7 +137,8 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         return "increase(" + field() + ")";
     }
 
-    Expression timestamp() {
+    @Override
+    public Expression timestamp() {
         return timestamp;
     }
 

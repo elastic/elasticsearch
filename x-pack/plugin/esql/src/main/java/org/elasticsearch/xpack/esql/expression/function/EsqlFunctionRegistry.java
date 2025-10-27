@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
@@ -528,11 +529,11 @@ public class EsqlFunctionRegistry {
                 def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") },
             // time-series functions
             new FunctionDefinition[] {
-                def(Rate.class, uni(Rate::new), "rate"),
-                def(Irate.class, uni(Irate::new), "irate"),
-                def(Idelta.class, uni(Idelta::new), "idelta"),
-                def(Delta.class, uni(Delta::new), "delta"),
-                def(Increase.class, uni(Increase::new), "increase"),
+                defTS(Rate.class, Rate::new, "rate"),
+                defTS(Irate.class, Irate::new, "irate"),
+                defTS(Idelta.class, Idelta::new, "idelta"),
+                defTS(Delta.class, Delta::new, "delta"),
+                defTS(Increase.class, Increase::new, "increase"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
@@ -543,8 +544,8 @@ public class EsqlFunctionRegistry {
                 def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
                 def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
-                def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
-                def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
+                defTS(LastOverTime.class, LastOverTime::new, "last_over_time"),
+                defTS(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
@@ -768,19 +769,25 @@ public class EsqlFunctionRegistry {
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
-        final int offset = 1 // skipping 1st argument, the source
-            + (TimestampAware.class.isAssignableFrom(def.clazz()) ? 1 : 0); // skipping the 2nd argument, the @timestamp
-        for (int i = offset; i < params.length; i++) { // skipping 1st argument, the source
-            if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                boolean isList = List.class.isAssignableFrom(params[i].getType());
-                variadic |= isList;
-                MapParam mapParamInfo = params[i].getAnnotation(MapParam.class); // refactor this
-                if (mapParamInfo != null) {
-                    args.add(mapParam(mapParamInfo));
-                } else {
-                    Param paramInfo = params[i].getAnnotation(Param.class);
-                    args.add(paramInfo != null ? param(paramInfo, isList) : paramWithoutAnnotation(params[i].getName()));
-                }
+        int countOfParamsToDescribe = params.length;
+        if (TimestampAware.class.isAssignableFrom(def.clazz())) {
+            countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
+        }
+        if (EsqlConfigurationFunction.class.isAssignableFrom(def.clazz())) {
+            // this isn't enforced by the contract, but the convention is: func(..., Expression timestamp, Configuration config)
+            assert Configuration.class.isAssignableFrom(params[params.length - 1].getType())
+                : "The configuration parameter must be the last argument of an EsqlConfigurationFunction definition";
+            countOfParamsToDescribe--; // skip the Configuration parameter
+        }
+        for (int i = 1; i < countOfParamsToDescribe; i++) { // skipping 1st argument, the source
+            boolean isList = List.class.isAssignableFrom(params[i].getType());
+            variadic |= isList;
+            MapParam mapParamInfo = params[i].getAnnotation(MapParam.class); // refactor this
+            if (mapParamInfo != null) {
+                args.add(mapParam(mapParamInfo));
+            } else {
+                Param paramInfo = params[i].getAnnotation(Param.class);
+                args.add(paramInfo != null ? param(paramInfo, isList) : paramWithoutAnnotation(params[i].getName()));
             }
         }
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, functionInfo.type());
@@ -1263,7 +1270,7 @@ public class EsqlFunctionRegistry {
         checkIsTimestampAware(function);
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsUniFunction(children.size());
-            return ctorRef.build(source, UnresolvedTimestamp.withSource(source), children.get(0));
+            return ctorRef.build(source, children.getFirst(), UnresolvedTimestamp.withSource(source));
         };
         return def(function, builder, names);
     }
@@ -1278,9 +1285,9 @@ public class EsqlFunctionRegistry {
             checkIsOptionalBiFunction(function, children.size());
             return ctorRef.build(
                 source,
-                UnresolvedTimestamp.withSource(source),
                 children.get(0),
                 children.size() == 2 ? children.get(1) : null,
+                UnresolvedTimestamp.withSource(source),
                 cfg
             );
         };

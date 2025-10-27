@@ -84,10 +84,10 @@ public class TBucketTests extends AbstractScalarFunctionTestCase {
         Object span,
         String spanStr
     ) {
-        suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, spanType), () -> {
+        suppliers.add(new TestCaseSupplier(name, List.of(spanType, DataType.DATETIME), () -> {
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-            args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "@timestamp"));
             args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
+            args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "@timestamp"));
 
             return new TestCaseSupplier.TestCase(
                 args,
@@ -105,10 +105,10 @@ public class TBucketTests extends AbstractScalarFunctionTestCase {
         DataType spanType,
         Object span
     ) {
-        suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, spanType), () -> {
+        suppliers.add(new TestCaseSupplier(name, List.of(spanType, DataType.DATE_NANOS), () -> {
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-            args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "@timestamp"));
             args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
+            args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "@timestamp"));
             return new TestCaseSupplier.TestCase(
                 args,
                 Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
@@ -119,8 +119,8 @@ public class TBucketTests extends AbstractScalarFunctionTestCase {
     }
 
     private static Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
-        if (typedData.get(0).type() == DataType.DATE_NANOS) {
-            long nanos = ((Number) typedData.get(0).data()).longValue();
+        if (typedData.get(1).type() == DataType.DATE_NANOS) {
+            long nanos = ((Number) typedData.get(1).data()).longValue();
             long expected = DateUtils.toNanoSeconds(
                 Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(DateUtils.toMilliSeconds(nanos))
             );
@@ -130,7 +130,7 @@ public class TBucketTests extends AbstractScalarFunctionTestCase {
         }
 
         // For DATETIME, we use the millis value directly
-        long millis = ((Number) typedData.get(0).data()).longValue();
+        long millis = ((Number) typedData.get(1).data()).longValue();
         long expected = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(millis);
         LogManager.getLogger(getTestClass()).info("Expected: " + Instant.ofEpochMilli(expected));
         LogManager.getLogger(getTestClass()).info("Input: " + Instant.ofEpochMilli(millis));
@@ -149,7 +149,7 @@ public class TBucketTests extends AbstractScalarFunctionTestCase {
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
         assertThat(params, hasSize(2));
-        assertThat(params.get(0).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
-        return List.of(params.get(1));
+        assertThat(params.get(1).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+        return List.of(params.get(0));
     }
 }

@@ -25,6 +25,8 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.IMPLICIT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
@@ -62,12 +64,12 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
     )
     public TBucket(
         Source source,
-        Expression timestamp,
-        @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets
+        @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets,
+        Expression timestamp
     ) {
-        super(source, List.of(timestamp, buckets));
-        this.timestamp = timestamp;
+        super(source, List.of(buckets, timestamp));
         this.buckets = buckets;
+        this.timestamp = timestamp;
     }
 
     @Override
@@ -95,8 +97,8 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(timestamp, DataType::isMillisOrNanos, sourceText(), FIRST, "date_nanos or datetime").and(
-            isType(buckets, DataType::isTemporalAmount, sourceText(), DEFAULT, "date_period", "time_duration")
+        return isType(buckets, DataType::isTemporalAmount, sourceText(), DEFAULT, "date_period", "time_duration").and(
+            isType(timestamp, DataType::isMillisOrNanos, sourceText(), IMPLICIT, "date_nanos or datetime")
         );
     }
 
@@ -112,10 +114,11 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TBucket::new, timestamp, buckets);
+        return NodeInfo.create(this, TBucket::new, buckets, timestamp);
     }
 
-    public Expression field() {
+    @Override
+    public Expression timestamp() {
         return timestamp;
     }
 

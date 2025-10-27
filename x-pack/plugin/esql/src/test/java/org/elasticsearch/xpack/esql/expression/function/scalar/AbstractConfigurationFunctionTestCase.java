@@ -36,6 +36,7 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
 
         Configuration differentConfig = randomValueOtherThan(
             config,
+            // The source must match the original (static) one, as function source serialization depends on it
             () -> randomConfiguration(testCase.getSource().text(), randomTables())
         );
 

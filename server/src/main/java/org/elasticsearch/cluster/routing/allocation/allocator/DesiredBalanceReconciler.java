@@ -90,7 +90,7 @@ public class DesiredBalanceReconciler {
     );
 
     private final TimeProvider timeProvider;
-    private final FrequencyCappedAction undesiredAllocationLogInterval;
+    private final FrequencyCappedAction undesiredAllocationPercentageLogInterval;
     private final FrequencyCappedAction undesiredAllocationDurationLogInterval;
     private double undesiredAllocationsPercentageLoggingThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
@@ -99,10 +99,13 @@ public class DesiredBalanceReconciler {
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider) {
         this.timeProvider = timeProvider;
-        this.undesiredAllocationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.timeValueMinutes(5));
+        this.undesiredAllocationPercentageLogInterval = new FrequencyCappedAction(
+            timeProvider::relativeTimeInMillis,
+            TimeValue.timeValueMinutes(5)
+        );
         this.undesiredAllocationDurationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.ZERO);
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, value -> {
-            this.undesiredAllocationLogInterval.setMinInterval(value);
+            this.undesiredAllocationPercentageLogInterval.setMinInterval(value);
             this.undesiredAllocationDurationLogInterval.setMinInterval(value);
         });
         clusterSettings.initializeAndWatch(
@@ -690,7 +693,7 @@ public class DesiredBalanceReconciler {
             final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsPercentageLoggingThreshold
                 * totalAllocations;
             if (totalAllocations > 0 && nonEmptyRelocationBacklog && warningThresholdReached) {
-                undesiredAllocationLogInterval.maybeExecute(
+                undesiredAllocationPercentageLogInterval.maybeExecute(
                     () -> logger.warn(
                         "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}]",
                         Strings.format1Decimals(100.0 * undesiredAllocations / totalAllocations, "%"),

@@ -898,9 +898,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * @return The updated {@link ShardRouting} or <code>this</code> if no change was made
      */
     public ShardRouting markAsUndesired(ShardRouting originalShard, long becameUndesiredTime) {
-        final var withUndesiredInfo = originalShard.updateUndesired(becameUndesiredTime);
+        assert originalShard.started() : "Only started shards can be marked as being in an undesired allocation";
+        final var withUndesiredInfo = originalShard.markAsUndesired(becameUndesiredTime);
         if (withUndesiredInfo != originalShard) {
-            nodesToShards.get(originalShard.currentNodeId()).update(originalShard, withUndesiredInfo);
+            updateAssigned(originalShard, withUndesiredInfo);
             return withUndesiredInfo;
         }
         return originalShard;
@@ -912,9 +913,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * @param originalShard The {@link ShardRouting} to clear undesired metadata from
      */
     public void clearUndesired(ShardRouting originalShard) {
+        assert originalShard.started() : "Only started shards can be marked as being in a desired allocation";
         final var withoutUndesiredInfo = originalShard.clearUndesired();
         if (withoutUndesiredInfo != originalShard) {
-            nodesToShards.get(originalShard.currentNodeId()).update(originalShard, withoutUndesiredInfo);
+            updateAssigned(originalShard, withoutUndesiredInfo);
         }
     }
 

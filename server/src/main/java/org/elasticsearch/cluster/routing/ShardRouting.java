@@ -434,7 +434,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         );
     }
 
-    public ShardRouting updateUndesired(long becameUndesiredTime) {
+    public ShardRouting markAsUndesired(long becameUndesiredTime) {
         if (this.becameUndesiredTime != NOT_UNDESIRED_TIMESTAMP) {
             return this;
         }

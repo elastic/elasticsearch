@@ -51,14 +51,6 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
 public class CrossProjectIndexResolutionValidator {
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexResolutionValidator.class);
 
-    public static ElasticsearchException validate(
-        IndicesOptions indicesOptions,
-        ResolvedIndexExpressions localResolvedExpressions,
-        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
-    ) {
-        return validate(indicesOptions, null, localResolvedExpressions, remoteResolvedExpressions);
-    }
-
     /**
      * Validates the results of cross-project index resolution and returns appropriate exceptions based on the provided
      * {@link IndicesOptions}.
@@ -76,6 +68,7 @@ public class CrossProjectIndexResolutionValidator {
      * local and linked project resolution results when determining the appropriate error response.
      *
      * @param indicesOptions            Controls error behavior for missing indices
+     * @param projectRouting            The project routing string from the request, can be null if request does not specify it
      * @param localResolvedExpressions  Resolution results from the origin project
      * @param remoteResolvedExpressions Resolution results from linked projects
      * @return a {@link ElasticsearchException} if validation fails, null if validation passes
@@ -105,7 +98,7 @@ public class CrossProjectIndexResolutionValidator {
             String originalExpression = localResolvedIndices.original();
             logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
 
-            // Check if this is a qualified resource (project:index pattern)
+            // Check if this is a qualified resource (project:index pattern) or has project routing
             boolean isQualifiedExpression = hasProjectRouting || RemoteClusterAware.isRemoteIndexName(originalExpression);
 
             Set<String> remoteExpressions = localResolvedIndices.remoteExpressions();

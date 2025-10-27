@@ -74,7 +74,7 @@ public class CrossProjectRoutingResolver implements ProjectRoutingResolver {
             return TargetProjects.EMPTY;
         }
         final ProjectRoutingInfo first = projectRoutingInfos.getFirst();
-        if (targetProjects.originProject().projectAlias().equals(first.projectAlias())) {
+        if (first.equals(targetProjects.originProject())) {
             return new TargetProjects(first, projectRoutingInfos.subList(1, projectRoutingInfos.size()));
         } else {
             return new TargetProjects(null, projectRoutingInfos);

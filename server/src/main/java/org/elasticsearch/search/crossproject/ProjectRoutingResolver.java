@@ -17,6 +17,9 @@
 
 package org.elasticsearch.search.crossproject;
 
+/**
+ * Filter for the target projects based on the provided project routing string.
+ */
 public interface ProjectRoutingResolver {
 
     /**

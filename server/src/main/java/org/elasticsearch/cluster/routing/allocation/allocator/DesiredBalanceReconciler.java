@@ -91,7 +91,7 @@ public class DesiredBalanceReconciler {
 
     private final TimeProvider timeProvider;
     private final FrequencyCappedAction undesiredAllocationLogInterval;
-    private final FrequencyCappedAction immovableShardsLogInterval;
+    private final FrequencyCappedAction undesiredAllocationDurationLogInterval;
     private double undesiredAllocationsPercentageLoggingThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
@@ -100,10 +100,10 @@ public class DesiredBalanceReconciler {
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider) {
         this.timeProvider = timeProvider;
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.timeValueMinutes(5));
-        this.immovableShardsLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.ZERO);
+        this.undesiredAllocationDurationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.ZERO);
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, value -> {
             this.undesiredAllocationLogInterval.setMinInterval(value);
-            this.immovableShardsLogInterval.setMinInterval(value);
+            this.undesiredAllocationDurationLogInterval.setMinInterval(value);
         });
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
@@ -649,7 +649,7 @@ public class DesiredBalanceReconciler {
         private void maybeLogUndesiredShardsWarning(long earliestUndesiredTimestamp) {
             final long currentTimeMillis = timeProvider.relativeTimeInMillis();
             if (currentTimeMillis - earliestUndesiredTimestamp > undesiredAllocationDurationLoggingThreshold.millis()) {
-                immovableShardsLogInterval.maybeExecute(this::logDecisionsForUndesiredShardsOverThreshold);
+                undesiredAllocationDurationLogInterval.maybeExecute(this::logDecisionsForUndesiredShardsOverThreshold);
             }
         }
 

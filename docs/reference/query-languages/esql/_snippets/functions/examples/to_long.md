@@ -12,8 +12,9 @@ ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | 2147483648 | 2147483648.2 | foo | 2147483648 | 2147483648 | null |
 
 
-Note that in this example, the last conversion of the string isn’t possible.
-When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
+Note in this example the last conversion of the string isn’t possible.
+When this happens, the result is a `null` value.
+In this case a _Warning_ header is added to the response.
 The header will provide information on the source of the failure:
 
 `"Line 1:113: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded."`
@@ -23,16 +24,28 @@ A following header will contain the failure reason and the offending value:
 `"java.lang.NumberFormatException: For input string: "foo""`
 
 ```esql
-ROW str1 = "0x32", str2 = "31", str3 = "Hazelnut"
-| EVAL long1 = TO_LONG(str1, 16), long2 = TO_LONG(str2, 13), long3 = TO_LONG(str3, 36), fail3 = TO_LONG(str3, 10)
+ROW str1 = "0x32", str2 = "31"
+| EVAL long1 = TO_LONG(str1, 16), long2 = TO_LONG(str2, 13)
+| KEEP str1, long1, str2, long2
 ```
 
-| str1:keyword | str2:keyword | str3:keyword | long1:long | long2:long | long3:long | fail3:long |
-| --- | --- | --- | --- | --- | --- | --- |
-| 0x32 | 31 | Hazelnut | 50 | 40 | 1356099454469 | null |
+| str1:keyword | long1:long | str2:keyword | long2:long |
+| --- | --- | --- | --- |
+| 0x32 | 50 | 31 | 40 |
 
 
-Parse string as a long number in the specified base.  Java's `Long.parseLong(string, radix)`.
-Note like the eql 'number' function, a leading '0x' prefix is allowed for base 16.
+This example demonstrates parsing a base 16 value and a base 13 value. {applies_to}`stack: ga 9.3`
+
+```esql
+ROW str1 = "Hazelnut"
+| EVAL long1 = TO_LONG(str1, 36), fail1 = TO_LONG(str1, 10)
+```
+
+| str1:keyword | long1:long | fail1:long |
+| --- | --- | --- |
+| Hazelnut | 1356099454469 | null |
+
+
+This example demonstrates parsing a string that is valid in base 36 but invalid in base 10.Observe in the second case a warning is generated and null is returned. {applies_to}`stack: ga 9.3`
 
 

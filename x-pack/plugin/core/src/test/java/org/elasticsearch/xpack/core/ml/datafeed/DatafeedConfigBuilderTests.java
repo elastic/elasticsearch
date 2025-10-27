@@ -159,7 +159,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
         );
 
         var actualException = assertThrows(ElasticsearchStatusException.class, datafeedBuilder::build);
-        assertThat(actualException.getMessage(), equalTo("Cross-project search is not enabled for any ML feature"));
+        assertThat(actualException.getMessage(), equalTo("Cross-project search is not enabled for Datafeeds"));
         assertThat(actualException.status(), equalTo(RestStatus.FORBIDDEN));
     }
 

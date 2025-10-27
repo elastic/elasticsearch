@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
@@ -46,6 +47,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class ResultDiversificationRetrieverBuilder extends CompoundRetrieverBuilder<ResultDiversificationRetrieverBuilder> {
 
     public static final Float DEFAULT_LAMBDA_VALUE = 0.7f;
+
+    public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE = new NodeFeature("retriever.result_diversification_mmr");
 
     public static final String NAME = "diversify";
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");

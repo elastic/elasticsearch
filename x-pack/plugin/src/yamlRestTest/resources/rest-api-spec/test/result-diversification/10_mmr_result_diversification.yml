@@ -1,0 +1,318 @@
+# This test uses the simple model defined in
+# TextExpansionQueryIT.java to create the token weights.
+
+# ./gradlew ":x-pack:plugin:yamlRestTest" --tests "org.elasticsearch.xpack.test.rest.XPackRestIT.test {p0=result-diversification/10_mmr_result_diversification/*}"
+setup:
+  - requires:
+      cluster_features: [ "retriever.result_diversification_mmr" ]
+      reason: "Added retriever for result diversification using MMR"
+  - skip:
+      features: headers
+
+  - requires:
+      "test_runner_features": "contains"
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: test-result-diversification-index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              textbody:
+                type: text
+              keywordfield:
+                type: keyword
+              textvector:
+                type: dense_vector
+                dims: 4
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+        Content-Type: application/json
+      bulk:
+        index: test-result-diversification-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"textbody": "first text", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1"}
+          {"index":{}}
+          {"textbody": "second text", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2"}
+          {"index":{}}
+          {"textbody": "third text", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3"}
+          {"index":{}}
+          {"textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4"}
+          {"index":{}}
+          {"textbody": "fifth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test5"}
+          {"index":{}}
+          {"textbody": "sixth text", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test6"}
+
+---
+teardown:
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA"
+      indices.delete:
+        index: test-result-diversification-index
+        ignore: 404
+
+---
+"Test MMR result diversification":
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.7
+              num_candidates: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "third text" }
+  - match: { hits.hits.2._source.textbody: "first text" }
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.9
+              num_candidates: 3
+              query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.1, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.textbody: "first text" }
+  - match: { hits.hits.1._source.textbody: "sixth text" }
+  - match: { hits.hits.2._source.textbody: "fourth text" }
+
+---
+"Test MMR result diversification required parameters":
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.7
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Required [num_candidates]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.7
+              num_candidates: 3
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Required [retriever]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.7
+              num_candidates: 3
+              retriever:
+                - knn:
+                    field: "textvector"
+                    query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                    k: 6
+                    num_candidates: 6
+                - knn:
+                    field: "textvector"
+                    query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                    k: 6
+                    num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+  - contains: { error.reason: "[diversify] retriever doesn't support values of type: START_ARRAY" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              num_candidates: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: [diversify] MMR result diversification must have a [lambda] between 0.0 and 1.0;" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: -0.5
+              num_candidates: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: [diversify] MMR result diversification must have a [lambda] between 0.0 and 1.0;" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 1.5
+              num_candidates: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: [diversify] MMR result diversification must have a [lambda] between 0.0 and 1.0;" }
+
+---
+"Test MMR result diversification required field type":
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "unknown_field"
+              lambda: 0.7
+              num_candidates: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: status_exception }
+  - contains: { error.reason: "[diversify] search failed - retrievers '[diversify]'" }
+  - match: { error.suppressed.0.type: status_exception }
+  - match: { error.suppressed.0.reason: "Could not retrieve any vectors for field [unknown_field]. Is it a populated [dense_vector] field?" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "keywordfield"
+              lambda: 0.7
+              num_candidates: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: status_exception }
+  - contains: { error.reason: "[diversify] search failed - retrievers '[diversify]'" }
+  - match: { error.suppressed.0.type: status_exception }
+  - match: { error.suppressed.0.reason: "Failed to parse field [keywordfield]. Is it a [dense_vector] field?" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textbody"
+              lambda: 0.7
+              num_candidates: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: status_exception }
+  - contains: { error.reason: "[diversify] search failed" }
+  - match: { error.suppressed.0.type: illegal_argument_exception }
+  - match: { error.suppressed.0.reason: "Failed to retrieve values for diversification on field [textbody]. Is it a [dense_vector] field?" }

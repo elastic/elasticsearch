@@ -102,7 +102,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final String fieldName;
     private final String query;
     private final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
-    private final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier;
+    private final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> localInferenceResultsMapSupplier;
+    private final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> remoteInferenceResultsMapSupplier;
     private final Boolean lenient;
 
     // ccsRequest is only used on the local cluster coordinator node to detect when:
@@ -145,7 +146,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.fieldName = fieldName;
         this.query = query;
         this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
-        this.inferenceResultsMapSupplier = null;
+        this.localInferenceResultsMapSupplier = null;
+        this.remoteInferenceResultsMapSupplier = null;
         this.lenient = lenient;
         this.ccsRequest = ccsRequest;
     }
@@ -181,14 +183,20 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             this.ccsRequest = false;
         }
 
-        this.inferenceResultsMapSupplier = null;
+        this.localInferenceResultsMapSupplier = null;
+        this.remoteInferenceResultsMapSupplier = null;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (inferenceResultsMapSupplier != null) {
+        if (localInferenceResultsMapSupplier != null) {
             throw new IllegalStateException(
-                "inferenceResultsMapSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
+                "localInferenceResultsMapSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
+            );
+        }
+        if (remoteInferenceResultsMapSupplier != null) {
+            throw new IllegalStateException(
+                "remoteInferenceResultsMapSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
             );
         }
 
@@ -238,7 +246,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private SemanticQueryBuilder(
         SemanticQueryBuilder other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> localInferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> remoteInferenceResultsMapSupplier,
         boolean ccsRequest
     ) {
         this.fieldName = other.fieldName;
@@ -247,7 +256,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.queryName = other.queryName;
         // No need to copy the map here since this is only called internally. We can safely assume that the caller will not modify the map.
         this.inferenceResultsMap = inferenceResultsMap;
-        this.inferenceResultsMapSupplier = inferenceResultsMapSupplier;
+        this.localInferenceResultsMapSupplier = localInferenceResultsMapSupplier;
+        this.remoteInferenceResultsMapSupplier = remoteInferenceResultsMapSupplier;
         this.lenient = other.lenient;
         this.ccsRequest = ccsRequest;
     }
@@ -451,17 +461,46 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     static <T extends QueryBuilder> T getNewInferenceResultsFromSupplier(
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> supplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> localInferenceResultsMapSupplier,
         T currentQueryBuilder,
         Function<Map<FullyQualifiedInferenceId, InferenceResults>, T> copyGenerator
     ) {
-        Map<FullyQualifiedInferenceId, InferenceResults> newInferenceResultsMap = supplier.get();
+        return getNewInferenceResultsFromSupplier(localInferenceResultsMapSupplier, null, currentQueryBuilder, copyGenerator);
+    }
+
+    static <T extends QueryBuilder> T getNewInferenceResultsFromSupplier(
+        @Nullable SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> localInferenceResultsMapSupplier,
+        @Nullable SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> remoteInferenceResultsMapSupplier,
+        T currentQueryBuilder,
+        Function<Map<FullyQualifiedInferenceId, InferenceResults>, T> copyGenerator
+    ) {
+        Map<FullyQualifiedInferenceId, InferenceResults> localInferenceResultsMap = null;
+        if (localInferenceResultsMapSupplier != null) {
+            localInferenceResultsMap = localInferenceResultsMapSupplier.get();
+        }
+
+        Map<FullyQualifiedInferenceId, InferenceResults> remoteInferenceResultsMap = null;
+        if (remoteInferenceResultsMapSupplier != null) {
+            remoteInferenceResultsMap = remoteInferenceResultsMapSupplier.get();
+        }
+
+        Map<FullyQualifiedInferenceId, InferenceResults> completeNewInferenceResultsMap = null;
+        if (localInferenceResultsMap != null && remoteInferenceResultsMap != null) {
+            // Merge the two maps to generate the complete inference results map
+            localInferenceResultsMap.putAll(remoteInferenceResultsMap);
+            completeNewInferenceResultsMap = localInferenceResultsMap;
+        } else if (localInferenceResultsMap != null) {
+            completeNewInferenceResultsMap = localInferenceResultsMap;
+        } else if (remoteInferenceResultsMap != null) {
+            completeNewInferenceResultsMap = remoteInferenceResultsMap;
+        }
+
         // It's safe to use only the new inference results map (once set) because we can enumerate the scenarios where we need to get
         // inference results:
         // - On the local coordinating node, getting inference results for the first time. The previous inference results map is null.
         // - On the remote coordinating node, getting inference results for remote cluster inference IDs. In this case, we can guarantee
         // that only remote cluster inference results are required to handle the query.
-        return newInferenceResultsMap != null ? copyGenerator.apply(newInferenceResultsMap) : currentQueryBuilder;
+        return completeNewInferenceResultsMap != null ? copyGenerator.apply(completeNewInferenceResultsMap) : currentQueryBuilder;
     }
 
     private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createGroupedActionListener(
@@ -590,12 +629,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             );
         }
 
-        if (inferenceResultsMapSupplier != null) {
+        if (localInferenceResultsMapSupplier != null || remoteInferenceResultsMapSupplier != null) {
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
             return getNewInferenceResultsFromSupplier(
-                inferenceResultsMapSupplier,
+                localInferenceResultsMapSupplier,
+                remoteInferenceResultsMapSupplier,
                 this,
-                m -> new SemanticQueryBuilder(this, m, null, ccsRequest)
+                m -> new SemanticQueryBuilder(this, m, null, null, ccsRequest)
             );
         }
 
@@ -604,7 +644,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             queryRewriteContext.getLocalClusterAlias(),
             fieldName
         );
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newLocalInferenceResultsMapSupplier = getInferenceResults(
             queryRewriteContext,
             fullyQualifiedInferenceIds,
             inferenceResultsMap,
@@ -619,7 +659,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         );
 
         SemanticQueryBuilder rewritten = this;
-        if (newInferenceResultsMapSupplier == null) {
+        if (newLocalInferenceResultsMapSupplier == null && newRemoteInferenceResultsMapSupplier == null) {
             // No additional inference results are required
             if (inferenceResultsMap != null) {
                 // The inference results map is fully populated, so we can perform error checking
@@ -628,10 +668,16 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 // No inference results have been collected yet, indicating we don't need any to rewrite this query.
                 // This can happen when querying an unsupported field type or an unavailable index. Set an empty inference results map so
                 // that rewriting can continue.
-                rewritten = new SemanticQueryBuilder(this, Map.of(), null, ccsRequest);
+                rewritten = new SemanticQueryBuilder(this, Map.of(), null, null, ccsRequest);
             }
         } else {
-            rewritten = new SemanticQueryBuilder(this, inferenceResultsMap, newInferenceResultsMapSupplier, ccsRequest);
+            rewritten = new SemanticQueryBuilder(
+                this,
+                inferenceResultsMap,
+                newLocalInferenceResultsMapSupplier,
+                newRemoteInferenceResultsMapSupplier,
+                ccsRequest
+            );
         }
 
         return rewritten;
@@ -730,12 +776,20 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(query, other.query)
             && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
-            && Objects.equals(inferenceResultsMapSupplier, other.inferenceResultsMapSupplier)
+            && Objects.equals(localInferenceResultsMapSupplier, other.localInferenceResultsMapSupplier)
+            && Objects.equals(remoteInferenceResultsMapSupplier, other.remoteInferenceResultsMapSupplier)
             && Objects.equals(ccsRequest, other.ccsRequest);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        return Objects.hash(
+            fieldName,
+            query,
+            inferenceResultsMap,
+            localInferenceResultsMapSupplier,
+            remoteInferenceResultsMapSupplier,
+            ccsRequest
+        );
     }
 }

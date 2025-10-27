@@ -35,7 +35,7 @@ If `-Druntime.java` is not provided, the bundled JDK is used.
 
 Examples:
 ```bash
-./gradlew :libs:entitlement:tools:public-callers-finder:run --args="sensitive-methods.tsv true" --transitive --check-instrumentation"
+./gradlew :libs:entitlement:tools:public-callers-finder:run --args="sensitive-methods.tsv --transitive --check-instrumentation"
 ```
 
 The tool writes the following `TAB`-separated columns to standard out:

@@ -74,7 +74,7 @@ public class DataframeCpsIT extends MlSingleNodeTestCase {
         var request = new PutDataFrameAnalyticsAction.Request(config);
         var response = client().execute(PutDataFrameAnalyticsAction.INSTANCE, request);
         var validationException = assertThrows(ValidationException.class, response::actionGet);
-        assertThat(validationException.getMessage(), containsString("cross-project indices are not supported"));
+        assertThat(validationException.getMessage(), containsString("remote source and cross-project indices are not supported"));
     }
 
     public static class CpsPlugin extends Plugin implements ClusterPlugin {

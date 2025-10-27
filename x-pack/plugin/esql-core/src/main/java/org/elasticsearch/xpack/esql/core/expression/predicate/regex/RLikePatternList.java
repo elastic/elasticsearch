@@ -43,7 +43,7 @@ public class RLikePatternList extends AbstractStringPattern implements Writeable
      * We create a single automaton that is the union of all individual automatons to improve performance
      */
     @Override
-    public Automaton createAutomaton(boolean ignoreCase) {
+    protected Automaton doCreateAutomaton(boolean ignoreCase) {
         List<Automaton> automatonList = patternList.stream().map(x -> x.createAutomaton(ignoreCase)).toList();
         Automaton result = Operations.union(automatonList);
         return Operations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);

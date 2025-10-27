@@ -644,7 +644,8 @@ public class DesiredBalanceReconciler {
         }
 
         /**
-         * If there are shards that have been in undesirable allocations for a long time, log a warning
+         * If there are shards that have been in undesired allocations for longer than the configured
+         * threshold, log a warning
          */
         private void maybeLogUndesiredShardsWarning(long earliestUndesiredTimestamp) {
             final long currentTimeMillis = timeProvider.relativeTimeInMillis();

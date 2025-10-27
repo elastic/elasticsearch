@@ -12,6 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -35,6 +36,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -372,6 +375,81 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         });
     }
 
+    // TODO: Handle when fields is null?
+    static SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> getRemoteInferenceResults(
+        QueryRewriteContext queryRewriteContext,
+        Map<String, OriginalIndices> remoteClusterIndices,
+        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        @Nullable List<String> fields,
+        @Nullable String query
+    ) {
+        if (inferenceResultsMap != null) {
+            // If we have inference results, we can assume they contain the remote inference results because when these are needed, they
+            // are gathered during the initial inference results collection (i.e. when inferenceResultsMap == null) on the local cluster
+            // coordinator node
+            return null;
+        }
+
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier = null;
+        if (query != null && remoteClusterIndices.isEmpty() == false) {
+            inferenceResultsMapSupplier = new SetOnce<>();
+            registerRemoteInferenceAsyncActions(queryRewriteContext, inferenceResultsMapSupplier, fields, query, remoteClusterIndices);
+        }
+
+        return inferenceResultsMapSupplier;
+    }
+
+    static void registerRemoteInferenceAsyncActions(
+        QueryRewriteContext queryRewriteContext,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        List<String> fields,
+        String query,
+        Map<String, OriginalIndices> remoteClusterIndices
+    ) {
+        Map<String, GetInferenceFieldsAction.Request> remoteInferenceRequests = remoteClusterIndices.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                OriginalIndices originalIndices = e.getValue();
+
+                // TODO: Don't hard-code resolveWildcards and useDefaultFields
+                return new GetInferenceFieldsAction.Request(Arrays.asList(originalIndices.indices()), fields, false, false, query);
+            }));
+
+        // TODO: Use custom class here that doesn't require an onFailure handler
+        GroupedActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> gal = new GroupedActionListener<>(
+            remoteInferenceRequests.size(),
+            ActionListener.wrap(c -> {
+                Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>();
+                c.forEach(inferenceResultsMap::putAll);
+                inferenceResultsMapSupplier.set(inferenceResultsMap);
+            }, e -> {
+                // TODO: How to route error here?
+            })
+        );
+
+        for (var entry : remoteInferenceRequests.entrySet()) {
+            String clusterAlias = entry.getKey();
+            GetInferenceFieldsAction.Request request = entry.getValue();
+
+            queryRewriteContext.registerRemoteAsyncAction(
+                clusterAlias,
+                (client, listener) -> client.execute(
+                    GetInferenceFieldsAction.REMOTE_TYPE,
+                    request,
+                    listener.delegateFailureAndWrap((l, r) -> {
+                        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = r.getInferenceResultsMap()
+                            .entrySet()
+                            .stream()
+                            .collect(Collectors.toMap(e -> new FullyQualifiedInferenceId(clusterAlias, e.getKey()), Map.Entry::getValue));
+
+                        gal.onResponse(inferenceResultsMap);
+                        l.onResponse(null);
+                    })
+                )
+            );
+        }
+    }
+
     static <T extends QueryBuilder> T getNewInferenceResultsFromSupplier(
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> supplier,
         T currentQueryBuilder,
@@ -530,6 +608,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             queryRewriteContext,
             fullyQualifiedInferenceIds,
             inferenceResultsMap,
+            query
+        );
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newRemoteInferenceResultsMapSupplier = getRemoteInferenceResults(
+            queryRewriteContext,
+            resolvedIndices.getRemoteClusterIndices(),
+            inferenceResultsMap,
+            List.of(fieldName),
             query
         );
 

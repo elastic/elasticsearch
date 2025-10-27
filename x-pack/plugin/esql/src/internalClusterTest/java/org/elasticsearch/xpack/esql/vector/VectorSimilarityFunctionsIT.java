@@ -204,7 +204,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             List<Double> orderedSimilarity = leftVectors.stream()
-                .map(v -> calculateSimilarity(similarityFunction, randomVector, v))
+                .map(v -> calculateSimilarity(similarityFunction, v, randomVector))
                 .sorted((d1, d2) -> {
                     if (d1 == null && d2 == null) {
                         return 0;
@@ -302,7 +302,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     public void setup() throws IOException {
         createIndexWithDenseVector("test");
 
-        numDims = randomIntBetween(32, 64) * 2; // min 64, even number
+        numDims = randomIntBetween(10, 20) * 2; // even number
         int numDocs = randomIntBetween(10, 100);
         this.leftVectors = new ArrayList<>();
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
@@ -353,7 +353,6 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5));
 
         var CreateRequest = client.prepareCreate(indexName)
-            .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .setMapping(mapping)
             .setSettings(settingsBuilder.build());
         assertAcked(CreateRequest);
@@ -363,7 +362,10 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         mapping.startObject(fieldName)
             .field("type", "dense_vector")
             .field("similarity", "l2_norm")
-            .field("element_type", elementType.toString().toLowerCase(Locale.ROOT));
+            .field("element_type", elementType.toString().toLowerCase(Locale.ROOT))
+            .startObject("index_options")
+            .field("type", "hnsw")
+            .endObject();
         mapping.endObject();
     }
 }

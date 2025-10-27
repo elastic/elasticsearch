@@ -2700,6 +2700,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         new DenseVectorBlockLoaderProcessor.DenseVectorLoaderProcessor()
                     );
                 } else if (functionConfig instanceof VectorSimilarityFunctionConfig similarityConfig) {
+                    if (getElementType() == ElementType.BYTE) {
+                        similarityConfig = similarityConfig.forByteVector();
+                    }
                     return new DenseVectorBlockLoader<>(
                         name(),
                         dims,
@@ -3182,15 +3185,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, float[] vector) {
             this.similarityFunction = similarityFunction;
             this.vector = vector;
+
+        }
+
+        /**
+         * Call before calculating byte vector similarities
+         */
+        public VectorSimilarityFunctionConfig forByteVector() {
+            vectorAsBytes = new byte[vector.length];
+            for (int i = 0; i < vector.length; i++) {
+                vectorAsBytes[i] = (byte) vector[i];
+            }
+            return this;
         }
 
         public byte[] vectorAsBytes() {
-            if (vectorAsBytes == null) {
-                vectorAsBytes = new byte[vector.length];
-                for (int i = 0; i < vector.length; i++) {
-                    vectorAsBytes[i] = (byte) vector[i];
-                }
-            }
+            assert vectorAsBytes != null : "vectorAsBytes is null, call forByteVector() first";
             return vectorAsBytes;
         }
 

@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexShardCount;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -241,6 +242,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String METADATA_PREFIX = "meta-";
 
     /**
+     * Name prefix for the blobs that hold the global {@link IndexShardCount} for each index
+     * @see #SHARD_COUNT_NAME_FORMAT
+     */
+    public static final String SHARD_COUNT_PREFIX = "shard-count-";
+
+    /**
      * Name prefix for the blobs that hold top-level {@link SnapshotInfo} and shard-level {@link BlobStoreIndexShardSnapshot} metadata.
      * @see #SNAPSHOT_NAME_FORMAT
      */
@@ -259,6 +266,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @see #INDEX_METADATA_FORMAT
      */
     public static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s" + METADATA_BLOB_NAME_SUFFIX;
+
+    /**
+     * Blob name format for global {@link IndexShardCount} blobs.
+     * @see #INDEX_SHARD_COUNT_FORMAT
+     */
+    public static final String SHARD_COUNT_NAME_FORMAT = SHARD_COUNT_PREFIX + "%s" + METADATA_BLOB_NAME_SUFFIX;
 
     /**
      * Blob name format for top-level {@link SnapshotInfo} and shard-level {@link BlobStoreIndexShardSnapshot} blobs.
@@ -395,6 +408,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         METADATA_NAME_FORMAT,
         (repoName, parser) -> IndexMetadata.Builder.legacyFromXContent(parser),
         (repoName, parser) -> IndexMetadata.fromXContent(parser),
+        Function.identity()
+    );
+
+    public static final ChecksumBlobStoreFormat<IndexShardCount> INDEX_SHARD_COUNT_FORMAT = new ChecksumBlobStoreFormat<>(
+        "index-shard-count",
+        SHARD_COUNT_NAME_FORMAT,
+        (repoName, parser) -> IndexShardCount.fromXContent(parser),
         Function.identity()
     );
 
@@ -1327,13 +1347,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             private void getOneShardCount(String indexMetaGeneration) {
                 try {
                     updateShardCount(
-                        INDEX_METADATA_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry)
-                            .getNumberOfShards()
+                        INDEX_SHARD_COUNT_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry)
+                            .getCount()
                     );
                 } catch (Exception ex) {
-                    logger.warn(() -> format("[%s] [%s] failed to read metadata for index", indexMetaGeneration, indexId.getName()), ex);
+                    logger.warn(() -> format("[%s] [%s] failed to read shard count for index", indexMetaGeneration, indexId.getName()), ex);
                     // Definitely indicates something fairly badly wrong with the repo, but not immediately fatal here: we might get the
-                    // shard count from another metadata blob, or we might just not process these shards. If we skip these shards then the
+                    // shard count from a subsequent indexMetaGeneration, or we might just not process these shards. If we skip these shards
+                    // then the
                     // repository will technically enter an invalid state (these shards' index-XXX blobs will refer to snapshots that no
                     // longer exist) and may contain dangling blobs too. A subsequent delete that hits this index may repair the state if
                     // the metadata read error is transient, but if not then the stale indices cleanup will eventually remove this index
@@ -1904,21 +1925,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }));
 
-                    // Write the index metadata for each index in the snapshot
+                    // Write the index metadata and the shard count to memory for each index in the snapshot, so that it persists
+                    // even if the repository is deleted
                     for (IndexId index : indices) {
                         executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
                             final IndexMetadata indexMetaData = projectMetadata.index(index.getName());
+                            final IndexShardCount indexShardCount = new IndexShardCount(indexMetaData.getNumberOfShards());
                             if (writeIndexGens) {
                                 final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
                                 String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
                                 if (metaUUID == null) {
                                     // We don't yet have this version of the metadata so we write it
                                     metaUUID = UUIDs.base64UUID();
+                                    INDEX_SHARD_COUNT_FORMAT.write(indexShardCount, indexContainer(index), metaUUID, compress);
                                     INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
                                     metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
                                 } // else this task was largely a no-op - TODO no need to fork in that case
                                 metadataWriteResult.indexMetas().put(index, identifiers);
                             } else {
+                                INDEX_SHARD_COUNT_FORMAT.write(indexShardCount, indexContainer(index), snapshotId.getUUID(), compress);
                                 INDEX_METADATA_FORMAT.write(
                                     clusterMetadata.getProject(getProjectId()).index(index.getName()),
                                     indexContainer(index),

@@ -133,7 +133,9 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
         @Override
         public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
             final var pathParts = path().parts();
-            if (pathParts.size() == 2 && pathParts.get(0).equals("indices") && blobName.startsWith(BlobStoreRepository.METADATA_PREFIX)) {
+            if (pathParts.size() == 2
+                && pathParts.get(0).equals("indices")
+                && blobName.startsWith(BlobStoreRepository.SHARD_COUNT_PREFIX)) {
                 // reading index metadata, so mark index as active
                 assertTrue(activeIndices.add(pathParts.get(1)));
                 assertThat(activeIndices.size(), lessThanOrEqualTo(MAX_SNAPSHOT_THREADS));

@@ -25,6 +25,7 @@ public enum RepositoryFileType {
     SNAPSHOT_INFO("snap-UUID.dat"),
     GLOBAL_METADATA("meta-UUID.dat"),
     INDEX_METADATA("indices/UUID/meta-SHORTUUID.dat"),
+    INDEX_SHARD_COUNT("indices/UUID/shard-count-SHORTUUID.dat"),
     SHARD_GENERATION("indices/UUID/NUM/index-UUID"),
     SHARD_SNAPSHOT_INFO("indices/UUID/NUM/snap-UUID.dat"),
     SHARD_DATA("indices/UUID/NUM/__UUID"),

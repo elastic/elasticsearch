@@ -31,5 +31,5 @@ $$$bytes-options$$$
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 

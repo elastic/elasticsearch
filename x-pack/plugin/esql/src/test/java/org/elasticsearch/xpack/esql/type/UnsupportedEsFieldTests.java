@@ -32,7 +32,7 @@ public class UnsupportedEsFieldTests extends AbstractEsFieldTypeTests<Unsupporte
     }
 
     @Override
-    protected UnsupportedEsField mutate(UnsupportedEsField instance) {
+    protected UnsupportedEsField mutateInstance(UnsupportedEsField instance) {
         String name = instance.getName();
         List<String> originalTypes = instance.getOriginalTypes();
         String inherited = instance.getInherited();

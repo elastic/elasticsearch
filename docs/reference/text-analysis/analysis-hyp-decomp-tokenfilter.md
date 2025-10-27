@@ -29,7 +29,7 @@ GET _analyze
   "text": "Kaffeetasse"
 }
 ```
-%  TEST[skip: requires a valid hyphenation_patterns.xml file for DE-DR]
+% TEST[skip: requires a valid hyphenation_patterns.xml file for DE-DR]
 
 The filter produces the following tokens:
 

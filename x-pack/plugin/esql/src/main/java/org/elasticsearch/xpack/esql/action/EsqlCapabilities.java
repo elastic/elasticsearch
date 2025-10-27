@@ -1082,6 +1082,11 @@ public class EsqlCapabilities {
         FORK_UNION_TYPES,
 
         /**
+         * Support non-correlated subqueries in the FROM clause.
+         */
+        SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,
@@ -1462,6 +1467,10 @@ public class EsqlCapabilities {
         TS_COMMAND_V0(),
 
         /**
+         * Custom error for renamed timestamp
+         */
+        TS_RENAME_TIMESTAMP_ERROR_MESSAGE,
+        /**
          * Add support for counter doubles, ints, and longs in first_ and last_over_time
          */
         FIRST_LAST_OVER_TIME_COUNTER_SUPPORT,
@@ -1472,7 +1481,7 @@ public class EsqlCapabilities {
          * Percentile over time and other ts-aggregations
          */
         PERCENTILE_OVER_TIME,
-
+        VARIANCE_STDDEV_OVER_TIME,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1533,6 +1542,11 @@ public class EsqlCapabilities {
         FIX_FILTER_ORDINALS,
 
         /**
+         * Optional options argument for DATE_PARSE
+         */
+        DATE_PARSE_OPTIONS,
+
+        /**
          * Allow multiple patterns for GROK command
          */
         GROK_MULTI_PATTERN,
@@ -1571,6 +1585,11 @@ public class EsqlCapabilities {
         FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
 
         /**
+         * Catch-and-rethrow determinization complexity errors as 400s rather than 500s
+         */
+        HANDLE_DETERMINIZATION_COMPLEXITY,
+
+        /**
          * Support for the TRANGE function
          */
         FN_TRANGE,
@@ -1580,6 +1599,7 @@ public class EsqlCapabilities {
          */
         INLINE_STATS_WITH_NO_COLUMNS(INLINE_STATS.enabled),
 
+        FIX_MV_CONSTANT_EQUALS_FIELD,
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

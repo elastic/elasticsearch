@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -123,6 +124,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -217,7 +219,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveRefs(),
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
-            new ImplicitCastAggregateMetricDoubles()
+            new ImplicitCastAggregateMetricDoubles(),
+            new ResolveUnionTypesInUnionAll()
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
     );
@@ -912,7 +915,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the fork branch output.
                     var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
-                    return new Alias(source, attr.name(), new Literal(attr.source(), null, attrType));
+                    if (attrType.isCounter()) {
+                        attrType = attrType.noCounter();
+                    }
+                    // use the current fork branch's source as the source of the alias, instead of the original FieldAttribute's source.
+                    return new Alias(source, attr.name(), new Literal(source, null, attrType));
                 }).toList();
 
                 // add the missing columns
@@ -953,7 +960,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
 
-            return changed ? new Fork(fork.source(), newSubPlans, newOutput) : fork;
+            return fork.replaceSubPlansAndOutput(newSubPlans, newOutput);
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {
@@ -1137,6 +1144,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+            // if we already tried and failed to resolve this attribute, don't try again
             if (ua.customMessage()) {
                 return ua;
             }
@@ -1149,7 +1157,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
             Attribute resolved = ua;
-            var named = resolveAgainstList(ua, childrenOutput);
+            List<Attribute> named = resolveAgainstList(ua, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
@@ -2333,6 +2341,463 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
             }
             return null;
+        }
+    }
+
+    /**
+     * Handle union types in UnionAll:
+     * 1. Push down explicit conversion functions into the UnionAll branches
+     * 2. Replace the explicit conversion functions with the corresponding attributes in the UnionAll output
+     * 3. Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
+     * 4. Update the attributes referencing the updated UnionAll output
+     */
+    private static class ResolveUnionTypesInUnionAll extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            // The mapping between explicit conversion functions and the corresponding attributes in the UnionAll output,
+            // if the conversion functions in the main query are pushed down into the UnionAll branches, a new ReferenceAttribute
+            // is created for the corresponding output of UnionAll, the value is the new ReferenceAttribute
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes = new HashMap<>();
+
+            // The list of attributes in the UnionAll output that have been updated.
+            // The parent plans that reference these attributes need to be updated accordingly.
+            List<Attribute> updatedUnionAllOutput = new ArrayList<>();
+
+            // First push down the conversion functions into the UnionAll branches
+            LogicalPlan planWithConvertFunctionsPushedDown = plan.transformUp(
+                UnionAll.class,
+                unionAll -> unionAll.childrenResolved()
+                    ? maybePushDownConvertFunctions(unionAll, plan, convertFunctionsToAttributes)
+                    : unionAll
+            );
+
+            // Then replace the conversion functions with the corresponding attributes in the UnionAll output
+            LogicalPlan planWithConvertFunctionsReplaced = replaceConvertFunctions(
+                planWithConvertFunctionsPushedDown,
+                convertFunctionsToAttributes
+            );
+
+            // Next implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
+            LogicalPlan planWithImplicitCasting = planWithConvertFunctionsReplaced.transformUp(
+                UnionAll.class,
+                unionAll -> unionAll.resolved()
+                    ? implicitCastingUnionAllOutput(unionAll, planWithConvertFunctionsReplaced, updatedUnionAllOutput)
+                    : unionAll
+            );
+
+            // Finally update the attributes referencing the updated UnionAll output
+            return updatedUnionAllOutput.isEmpty()
+                ? planWithImplicitCasting
+                : updateAttributesReferencingUpdatedUnionAllOutput(planWithImplicitCasting, updatedUnionAllOutput);
+        }
+
+        /**
+         * Push down the explicit conversion functions into the UnionAll branches
+         */
+        private static LogicalPlan maybePushDownConvertFunctions(
+            UnionAll unionAll,
+            LogicalPlan plan,
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
+        ) {
+            // Collect all conversion functions that convert the UnionAll outputs to a different type
+            Map<String, Set<AbstractConvertFunction>> oldOutputToConvertFunctions = collectConvertFunctions(unionAll, plan);
+
+            if (oldOutputToConvertFunctions.isEmpty()) { // nothing to push down
+                return unionAll;
+            }
+
+            // push down the conversion functions into the unionAll branches
+            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+            Map<String, AbstractConvertFunction> newOutputToConvertFunctions = new HashMap<>();
+            boolean outputChanged = false;
+            for (LogicalPlan child : unionAll.children()) {
+                List<Attribute> childOutput = child.output();
+                List<Alias> newAliases = new ArrayList<>();
+                List<Attribute> newChildOutput = new ArrayList<>(childOutput.size());
+                for (Attribute oldAttr : childOutput) {
+                    newChildOutput.add(oldAttr);
+                    if (oldOutputToConvertFunctions.containsKey(oldAttr.name())) {
+                        Set<AbstractConvertFunction> converts = oldOutputToConvertFunctions.get(oldAttr.name());
+                        // create a new alias for each conversion function and add it to the new aliases list
+                        for (AbstractConvertFunction convert : converts) {
+                            // create a new alias for the conversion function
+                            String newAliasName = Attribute.rawTemporaryName(oldAttr.name(), "converted_to", convert.dataType().typeName());
+                            Alias newAlias = new Alias(
+                                oldAttr.source(),
+                                newAliasName, // oldAttrName$$converted_to$$targetType
+                                convert.replaceChildren(Collections.singletonList(oldAttr))
+                            );
+                            newAliases.add(newAlias);
+                            newChildOutput.add(newAlias.toAttribute());
+                            outputChanged = true;
+                            newOutputToConvertFunctions.putIfAbsent(newAliasName, convert);
+                        }
+                    }
+                }
+                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
+            }
+
+            // Populate convertFunctionsToAttributes. The values of convertFunctionsToAttributes are the new ReferenceAttributes
+            // in the new UnionAll outputs created for the updated unionAll output after pushing down the conversion functions.
+            return outputChanged
+                ? rebuildUnionAll(unionAll, newChildren, newOutputToConvertFunctions, convertFunctionsToAttributes)
+                : unionAll;
+        }
+
+        /**
+         * Collect all conversion functions in the plan that convert the unionAll outputs to a different type,
+         * the keys are the name of the old/existing attributes in the unionAll output, the values are all the conversion functions.
+         */
+        private static Map<String, Set<AbstractConvertFunction>> collectConvertFunctions(UnionAll unionAll, LogicalPlan plan) {
+            Map<String, Set<AbstractConvertFunction>> convertFunctions = new HashMap<>();
+            plan.forEachExpressionDown(AbstractConvertFunction.class, f -> {
+                if (f.field() instanceof Attribute attr) {
+                    // get the attribute from the UnionAll output by name and id
+                    unionAll.output()
+                        .stream()
+                        .filter(a -> a.name().equals(attr.name()) && a.id() == attr.id())
+                        .findFirst()
+                        .ifPresent(unionAllAttr -> convertFunctions.computeIfAbsent(attr.name(), k -> new HashSet<>()).add(f));
+                }
+            });
+            return convertFunctions;
+        }
+
+        /**
+         * Push down the conversion functions into the child plan by adding an Eval with the new aliases on top of the child plan.
+         */
+        private static LogicalPlan maybePushDownConvertFunctionsToChild(LogicalPlan child, List<Alias> aliases, List<Attribute> output) {
+            // Fork/UnionAll adds an EsqlProject on top of each child plan during resolveFork, check this pattern before pushing down
+            // If the pattern doesn't match, something unexpected happened, just return the child as is
+            if (aliases.isEmpty() == false && child instanceof EsqlProject esqlProject) {
+                LogicalPlan childOfProject = esqlProject.child();
+                Eval eval = new Eval(childOfProject.source(), childOfProject, aliases);
+                return new EsqlProject(esqlProject.source(), eval, output);
+            }
+            return child;
+        }
+
+        /**
+         * Rebuild the UnionAll with the new children and the new output after pushing down the conversion functions,
+         * and populate convertFunctionsToAttributes with the mapping between conversion functions and the
+         * new ReferenceAttributes in the new UnionAll output.
+         */
+        private static LogicalPlan rebuildUnionAll(
+            UnionAll unionAll,
+            List<LogicalPlan> newChildren,
+            Map<String, AbstractConvertFunction> newOutputToConvertFunctions,
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
+        ) {
+            // check if the new children has the same number of outputs, it could be different from the original unionAll output
+            // if there are multiple explicit conversion functions on the same unionAll output attribute
+            List<String> newChildrenOutputNames = newChildren.getFirst().output().stream().map(Attribute::name).toList();
+            Holder<Boolean> childrenMatch = new Holder<>(true);
+            newChildren.stream().skip(1).forEach(childPlan -> {
+                List<String> names = childPlan.output().stream().map(Attribute::name).toList();
+                if (names.equals(newChildrenOutputNames) == false) {
+                    childrenMatch.set(false);
+                }
+            });
+            if (childrenMatch.get() == false) {
+                // new UnionAll children outputs do not match after pushing down convert functions,
+                // cannot move on, return the original UnionAll
+                return unionAll;
+            }
+
+            // rebuild the unionAll output according to its new children's output, and populate convertFunctionsToAttributes
+            List<Attribute> newOutput = new ArrayList<>(newChildrenOutputNames.size());
+            List<Attribute> oldOutput = unionAll.output();
+            for (String attrName : newChildrenOutputNames) {
+                // find the old attribute by name
+                Attribute oldAttr = null;
+                for (Attribute attr : oldOutput) {
+                    if (attr.name().equals(attrName)) {
+                        oldAttr = attr;
+                        break;
+                    }
+                }
+                if (oldAttr != null) { // keep the old UnionAll output unchanged
+                    newOutput.add(oldAttr);
+                } else { // this is a new attribute created by pushing down convert functions find the corresponding convert function
+                    AbstractConvertFunction convert = newOutputToConvertFunctions.get(attrName);
+                    if (convert != null) {
+                        ReferenceAttribute newAttr = new ReferenceAttribute(
+                            convert.source(),
+                            null,
+                            attrName,
+                            convert.dataType(),
+                            convert.nullable(),
+                            null,
+                            true
+                        );
+                        newOutput.add(newAttr);
+                        convertFunctionsToAttributes.putIfAbsent(convert, newAttr);
+                    } else {
+                        // something unexpected happened, the attribute is neither the old attribute nor created by a convert function,
+                        // return the original UnionAll
+                        return unionAll;
+                    }
+                }
+            }
+            return new UnionAll(unionAll.source(), newChildren, newOutput);
+        }
+
+        /**
+         * Replace the conversion functions with the corresponding attributes in the UnionAll output
+         */
+        private static LogicalPlan replaceConvertFunctions(
+            LogicalPlan plan,
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
+        ) {
+            if (convertFunctionsToAttributes.isEmpty()) {
+                return plan;
+            }
+            return plan.transformExpressionsUp(AbstractConvertFunction.class, convertFunction -> {
+                if (convertFunction.field() instanceof Attribute attr) {
+                    for (Map.Entry<AbstractConvertFunction, Attribute> entry : convertFunctionsToAttributes.entrySet()) {
+                        AbstractConvertFunction candidate = entry.getKey();
+                        Attribute replacement = entry.getValue();
+                        if (candidate == convertFunction
+                            && candidate.field() instanceof Attribute candidateAttr
+                            && candidateAttr.id() == attr.id()) {
+                            // Make sure to match by attribute id, as ReferenceAttribute with the same name
+                            // but with different id might be considered equal
+                            return replacement;
+                        }
+                    }
+                }
+                return convertFunction;
+            });
+        }
+
+        /**
+         * Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
+         */
+        private static LogicalPlan implicitCastingUnionAllOutput(
+            UnionAll unionAll,
+            LogicalPlan plan,
+            List<Attribute> updatedUnionAllOutput
+        ) {
+            // build a map of UnionAll output to a list of LogicalPlan that reference this output
+            Map<Attribute, List<LogicalPlan>> outputToPlans = outputToPlans(unionAll, plan);
+
+            List<List<Attribute>> outputs = unionAll.children().stream().map(LogicalPlan::output).toList();
+            // only do implicit casting for date and date_nanos types for now, to be consistent with queries without subqueries
+            List<DataType> commonTypes = commonTypes(outputs);
+
+            Map<Integer, DataType> indexToCommonType = new HashMap<>();
+
+            // Cast each branch's output to the common type
+            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+            boolean outputChanged = false;
+            for (LogicalPlan child : unionAll.children()) {
+                List<Alias> newAliases = new ArrayList<>();
+                List<Attribute> oldChildOutput = child.output();
+                List<Attribute> newChildOutput = new ArrayList<>(oldChildOutput.size());
+                for (int i = 0; i < oldChildOutput.size(); i++) {
+                    Attribute oldOutput = oldChildOutput.get(i);
+                    DataType targetType = commonTypes.get(i);
+                    Attribute resolved = resolveAttribute(
+                        oldOutput,
+                        targetType,
+                        i,
+                        outputs,
+                        unionAll,
+                        outputToPlans,
+                        newAliases,
+                        indexToCommonType
+                    );
+                    newChildOutput.add(resolved);
+                    if (resolved != oldOutput) {
+                        outputChanged = true;
+                    }
+                }
+                // create a new eval for the casting expressions, and push it down under the EsqlProject
+                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
+            }
+
+            // Update common types with overrides
+            indexToCommonType.forEach(commonTypes::set);
+
+            return outputChanged ? rebuildUnionAllOutput(unionAll, newChildren, commonTypes, updatedUnionAllOutput) : unionAll;
+        }
+
+        /**
+         * Build a map of UnionAll output to a list of LogicalPlan that reference this output
+         */
+        private static Map<Attribute, List<LogicalPlan>> outputToPlans(UnionAll unionAll, LogicalPlan plan) {
+            Map<Attribute, List<LogicalPlan>> outputToPlans = new HashMap<>();
+            plan.forEachDown(p -> p.forEachExpression(Attribute.class, attr -> {
+                if (p instanceof UnionAll == false && p instanceof Project == false) {
+                    // get the attribute from the UnionAll output by name and id
+                    unionAll.output()
+                        .stream()
+                        .filter(a -> a.name().equals(attr.name()) && a.id() == attr.id())
+                        .findFirst()
+                        .ifPresent(unionAllAttr -> outputToPlans.computeIfAbsent(attr, k -> new ArrayList<>()).add(p));
+                }
+            }));
+            return outputToPlans;
+        }
+
+        private static List<DataType> commonTypes(List<List<Attribute>> outputs) {
+            int columnCount = outputs.get(0).size();
+            List<DataType> commonTypes = new ArrayList<>(columnCount);
+            for (int i = 0; i < columnCount; i++) {
+                DataType type = outputs.get(0).get(i).dataType();
+                for (List<Attribute> out : outputs) {
+                    type = commonType(type, out.get(i).dataType());
+                }
+                commonTypes.add(type);
+            }
+            return commonTypes;
+        }
+
+        private static DataType commonType(DataType t1, DataType t2) {
+            if (t1 == null || t2 == null) {
+                return null;
+            }
+            t1 = t1.isCounter() ? t1.noCounter() : t1;
+            t2 = t2.isCounter() ? t2.noCounter() : t2;
+            if (t1 == t2) {
+                return t1;
+            }
+            if (t1.isDate() && t2.isDate()) {
+                return DATE_NANOS;
+            }
+            return null;
+        }
+
+        /**
+         * Resolve the attribute to the target type, if target type is null, create:
+         * an UnsupportedAttribute if the attribute is referenced in the parent plans,
+         * a Null alias with keyword type if the attribute is not referenced in the parent plans.
+         */
+        private static Attribute resolveAttribute(
+            Attribute oldAttr,
+            DataType targetType,
+            int columnIndex,
+            List<List<Attribute>> outputs,
+            UnionAll unionAll,
+            Map<Attribute, List<LogicalPlan>> outputToPlans,
+            List<Alias> newAliases,
+            Map<Integer, DataType> indexToCommonType
+        ) {
+            if (targetType == null) {
+                return createUnsupportedOrNull(oldAttr, columnIndex, outputs, unionAll, outputToPlans, newAliases, indexToCommonType);
+            }
+
+            if (targetType != NULL && oldAttr.dataType() != targetType) {
+                var converterFactory = EsqlDataTypeConverter.converterFunctionFactory(targetType);
+                if (converterFactory != null) {
+                    var converter = converterFactory.apply(oldAttr.source(), oldAttr);
+                    if (converter != null) {
+                        Alias alias = new Alias(oldAttr.source(), oldAttr.name(), converter);
+                        newAliases.add(alias);
+                        return alias.toAttribute();
+                    }
+                }
+            }
+            return oldAttr;
+        }
+
+        private static Attribute createUnsupportedOrNull(
+            Attribute oldAttr,
+            int columnIndex,
+            List<List<Attribute>> outputs,
+            UnionAll unionAll,
+            Map<Attribute, List<LogicalPlan>> outputToPlans,
+            List<Alias> newAliases,
+            Map<Integer, DataType> indexToCommonType
+        ) {
+            Attribute unionAttr = unionAll.output().get(columnIndex);
+
+            if (outputToPlans.containsKey(unionAttr)) {
+                // Unsupported attribute
+                List<String> dataTypes = collectIncompatibleTypes(columnIndex, outputs);
+                UnsupportedAttribute unsupported = new UnsupportedAttribute(
+                    oldAttr.source(),
+                    oldAttr.name(),
+                    new UnsupportedEsField(oldAttr.name(), dataTypes),
+                    "Column [" + oldAttr.name() + "] has conflicting data types in subqueries: " + dataTypes,
+                    oldAttr.id()
+                );
+                newAliases.add(new Alias(oldAttr.source(), oldAttr.name(), unsupported));
+                indexToCommonType.putIfAbsent(columnIndex, UNSUPPORTED);
+                return unsupported;
+            } else {
+                // Null alias with keyword type
+                Alias nullAlias = new Alias(oldAttr.source(), oldAttr.name(), new Literal(oldAttr.source(), null, KEYWORD));
+                newAliases.add(nullAlias);
+                indexToCommonType.putIfAbsent(columnIndex, KEYWORD);
+                return nullAlias.toAttribute();
+            }
+        }
+
+        private static List<String> collectIncompatibleTypes(int columnIndex, List<List<Attribute>> outputs) {
+            List<String> dataTypes = new ArrayList<>();
+            for (List<Attribute> out : outputs) {
+                Attribute attr = out.get(columnIndex);
+                if (attr instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
+                    dataTypes.addAll(imf.types().stream().map(DataType::typeName).toList());
+                } else {
+                    dataTypes.add(attr.dataType().typeName());
+                }
+            }
+            return dataTypes;
+        }
+
+        /**
+         * Rebuild the UnionAll with the new children and the new output after implicit casting date and date_nanos types,
+         * and populate updatedUnionAllOutput with the list of attributes in the UnionAll output that have been updated.
+         */
+        private static UnionAll rebuildUnionAllOutput(
+            UnionAll unionAll,
+            List<LogicalPlan> newChildren,
+            List<DataType> commonTypes,
+            List<Attribute> updatedUnionAllOutput
+        ) {
+            // Rebuild the newUnionAll's output to ensure the correct attributes are used
+            List<Attribute> oldOutput = unionAll.output();
+            List<Attribute> newOutput = new ArrayList<>(oldOutput.size());
+
+            for (int i = 0; i < oldOutput.size(); i++) {
+                Attribute oldAttr = oldOutput.get(i);
+                DataType commonType = commonTypes.get(i);
+
+                if (oldAttr.dataType() != commonType) {
+                    // keep the id unchanged, otherwise the downstream operators won't recognize the attribute
+                    ReferenceAttribute newAttr = new ReferenceAttribute(
+                        oldAttr.source(),
+                        null,
+                        oldAttr.name(),
+                        commonType,
+                        oldAttr.nullable(),
+                        oldAttr.id(),
+                        oldAttr.synthetic()
+                    );
+                    newOutput.add(newAttr);
+                    updatedUnionAllOutput.add(newAttr);
+                } else {
+                    newOutput.add(oldAttr);
+                }
+            }
+            return new UnionAll(unionAll.source(), newChildren, newOutput);
+        }
+
+        /**
+         * Update the attributes referencing the updated UnionAll output
+         */
+        private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
+            LogicalPlan plan,
+            List<Attribute> updatedUnionAllOutput
+        ) {
+            Map<NameId, Attribute> idToUpdatedAttr = updatedUnionAllOutput.stream().collect(Collectors.toMap(Attribute::id, attr -> attr));
+            return plan.transformExpressionsUp(Attribute.class, expr -> {
+                Attribute updated = idToUpdatedAttr.get(expr.id());
+                return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
+            });
         }
     }
 }

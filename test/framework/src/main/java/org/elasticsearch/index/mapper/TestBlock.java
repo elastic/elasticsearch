@@ -396,6 +396,14 @@ public class TestBlock implements BlockLoader.Block {
                         }
                         return this;
                     }
+
+                    @Override
+                    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int ord, int length) {
+                        for (int i = 0; i < length; i++) {
+                            appendOrd(ord);
+                        }
+                        return this;
+                    }
                 }
                 return new SingletonOrdsBuilder();
             }

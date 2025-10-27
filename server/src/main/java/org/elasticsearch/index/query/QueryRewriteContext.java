@@ -364,7 +364,7 @@ public class QueryRewriteContext {
      * Returns <code>true</code> if there are any registered async actions.
      */
     public boolean hasAsyncActions() {
-        return asyncActions.isEmpty() == false;
+        return asyncActions.isEmpty() == false || remoteAsyncActions.isEmpty() == false;
     }
 
     /**

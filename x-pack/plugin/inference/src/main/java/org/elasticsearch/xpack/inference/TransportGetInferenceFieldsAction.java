@@ -147,6 +147,11 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap,
         ActionListener<GetInferenceFieldsAction.Response> listener
     ) {
+        if (inferenceIds.isEmpty()) {
+            listener.onResponse(new GetInferenceFieldsAction.Response(inferenceFieldsMap, Map.of()));
+            return;
+        }
+
         GroupedActionListener<Tuple<String, InferenceResults>> gal = new GroupedActionListener<>(
             inferenceIds.size(),
             listener.delegateFailureAndWrap((l, c) -> {

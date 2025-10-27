@@ -1036,8 +1036,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 case VALUE_STRING -> {
                     byte[] decodedVectorBytes = Base64.getDecoder().decode(context.parser().text());
                     if (decodedVectorBytes.length % Float.BYTES != 0) {
-                        throw new IllegalArgumentException(
-                            "Base64 decoded vector byte length ["
+                        throw new ParsingException(
+                            context.parser().getTokenLocation(),
+                            "Failed to parse object: Base64 decoded vector byte length ["
                                 + decodedVectorBytes.length
                                 + "] is not a multiple of ["
                                 + Float.BYTES

@@ -331,7 +331,12 @@ public class GroupingAggregatorImplementer {
         }
 
         for (Argument a : aggParams) {
-            builder.addStatement("$T $L = $L.asVector()", vectorType(a.elementType()), (a instanceof BlockArgument) ? (a.name() + "Vector") : a.vectorName(), a.blockName());
+            builder.addStatement(
+                "$T $L = $L.asVector()",
+                vectorType(a.elementType()),
+                (a instanceof BlockArgument) ? (a.name() + "Vector") : a.vectorName(),
+                a.blockName()
+            );
             builder.beginControlFlow("if ($L == null)", (a instanceof BlockArgument) ? (a.name() + "Vector") : a.vectorName());
             {
                 builder.addStatement(

@@ -672,12 +672,12 @@ public class DesiredBalanceReconciler {
             });
         }
 
-        private void logUndesiredShardDetails(ShardRouting shardRouting, TimeValue immovableDuration) {
+        private void logUndesiredShardDetails(ShardRouting shardRouting, TimeValue undesiredDuration) {
             final RoutingAllocation.DebugMode originalDebugMode = allocation.getDebugMode();
             allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
             try {
                 final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
-                logger.warn("Shard {} has been in an undesired allocation for {}", shardRouting.shardId(), immovableDuration);
+                logger.warn("Shard {} has been in an undesired allocation for {}", shardRouting.shardId(), undesiredDuration);
                 for (final var nodeId : assignment.nodeIds()) {
                     final var decision = allocation.deciders().canAllocate(shardRouting, routingNodes.node(nodeId), allocation);
                     logger.warn("Shard [{}] cannot be allocated on node [{}]: {}", shardRouting.shardId(), nodeId, decision);

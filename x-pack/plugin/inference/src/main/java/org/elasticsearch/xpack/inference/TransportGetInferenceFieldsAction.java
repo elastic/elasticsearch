@@ -155,7 +155,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         GroupedActionListener<Tuple<String, InferenceResults>> gal = new GroupedActionListener<>(
             inferenceIds.size(),
             listener.delegateFailureAndWrap((l, c) -> {
-                Map<String, InferenceResults> inferenceResultsMap = new HashMap<>();
+                Map<String, InferenceResults> inferenceResultsMap = new HashMap<>(inferenceIds.size());
                 c.forEach(t -> inferenceResultsMap.put(t.v1(), t.v2()));
 
                 GetInferenceFieldsAction.Response response = new GetInferenceFieldsAction.Response(inferenceFieldsMap, inferenceResultsMap);

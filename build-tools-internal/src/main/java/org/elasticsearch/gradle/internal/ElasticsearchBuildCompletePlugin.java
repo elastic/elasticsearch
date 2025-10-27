@@ -38,8 +38,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -66,7 +70,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             ? System.getenv("BUILD_NUMBER")
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
-        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false && OS.current() != OS.WINDOWS) {
+        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
             File targetFile = calculateTargetFile(target, buildNumber);
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
@@ -102,6 +106,23 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
     }
 
     private List<File> resolveProjectLogs(File projectDir) {
+        // HACK: Some tests leave behind symlinks, and gradle throws an exception if it encounters symlinks.
+        // Here we remove them before collecting logs to upload. We could instead build our own path matcher
+        // but that seemed more complex than just deleting the irrelevant files.
+        try {
+            Files.walkFileTree(projectDir.toPath(), new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (Files.isSymbolicLink(file)) {
+                        Files.delete(file);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         var projectDirFiles = getFileOperations().fileTree(projectDir);
         projectDirFiles.include("**/*.hprof");
         projectDirFiles.include("**/build/reports/configuration-cache/**");
@@ -276,7 +297,12 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
 
         @NotNull
         private static String calculateArchivePath(Path path, Path projectPath) {
-            return path.startsWith(projectPath) ? projectPath.relativize(path).toString() : path.getFileName().toString();
+            String archivePath = path.startsWith(projectPath) ? projectPath.relativize(path).toString() : path.getFileName().toString();
+            if (OS.current() == OS.WINDOWS) {
+                // tar always uses forward slashes
+                archivePath = archivePath.replace("\\", "/");
+            }
+            return archivePath;
         }
     }
 }

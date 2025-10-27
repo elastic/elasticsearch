@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.synonyms;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -40,6 +40,9 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
     }
 
     public static class Request extends LegacyActionRequest {
+
+        private static final TransportVersion SYNONYMS_REFRESH_PARAM = TransportVersion.fromName("synonyms_refresh_param");
+
         private final String synonymsSetId;
         private final SynonymRule synonymRule;
         private final boolean refresh;
@@ -59,7 +62,7 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             super(in);
             this.synonymsSetId = in.readString();
             this.synonymRule = new SynonymRule(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+            if (in.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
                 this.refresh = in.readBoolean();
             } else {
                 this.refresh = true;
@@ -105,7 +108,7 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             super.writeTo(out);
             out.writeString(synonymsSetId);
             synonymRule.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+            if (out.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
                 out.writeBoolean(refresh);
             }
         }

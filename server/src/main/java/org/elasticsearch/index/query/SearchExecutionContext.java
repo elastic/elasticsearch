@@ -109,8 +109,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final Integer requestSize;
     private final MapperMetrics mapperMetrics;
 
-    private Long rangeTimestampFrom;
-
     /**
      * Build a {@linkplain SearchExecutionContext}.
      */
@@ -744,23 +742,5 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public boolean rewriteToNamedQuery() {
         return rewriteToNamedQueries;
-    }
-
-    /**
-     * Returns the minimum lower bound across the time ranges filters against the @timestamp field included in the query
-     */
-    public Long getRangeTimestampFrom() {
-        return rangeTimestampFrom;
-    }
-
-    /**
-     * Records the lower bound of a time range filter against the @timestamp field included in the query. For telemetry purposes.
-     */
-    public void setRangeTimestampFrom(Long rangeTimestampFrom) {
-        if (this.rangeTimestampFrom == null) {
-            this.rangeTimestampFrom = rangeTimestampFrom;
-        } else {
-            this.rangeTimestampFrom = Math.min(rangeTimestampFrom, this.rangeTimestampFrom);
-        }
     }
 }

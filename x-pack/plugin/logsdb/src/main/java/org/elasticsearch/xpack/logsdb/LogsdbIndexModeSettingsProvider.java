@@ -47,7 +47,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED;
@@ -55,11 +58,13 @@ import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger LOGGER = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
     static final String LOGS_PATTERN = "logs-*-*";
-    private static final Set<String> MAPPING_INCLUDES = Set.of(
-        "_doc._source.*",
-        "_doc.properties.host**",
-        "_doc.properties.resource**",
-        "_doc.subobjects"
+    private static final Set<String> MAPPING_INCLUDES = Set.of("_source.*", "properties.host**", "properties.resource**", "subobjects")
+        .stream()
+        .flatMap(v -> Stream.of(v, "_doc." + v))
+        .collect(Collectors.toSet());
+    private static final Function<Map<String, Object>, Map<String, Object>> MAPPING_INCLUDES_FILTER = XContentMapValues.filter(
+        MAPPING_INCLUDES.toArray(String[]::new),
+        new String[0]
     );
 
     private final LogsdbLicenseService licenseService;
@@ -240,7 +245,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 // stored when _source.mode mapping attribute is stored is fine as it has no effect, but avoids creating MapperService.
                 var sourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
                 hasSyntheticSourceUsage = sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
-                if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexTemplateAndCreateRequestSettings).isEmpty() == false) {
+                if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.exists(indexTemplateAndCreateRequestSettings)) {
                     // Custom sort config, no point for further checks on [host.name] field.
                     return new MappingHints(hasSyntheticSourceUsage, false, false, true);
                 }
@@ -264,14 +269,13 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     // The _doc.properties.host* is needed to determine whether host.name field can be injected.
                     // The _doc.subobjects is needed to determine whether subobjects is enabled.
                     List<CompressedXContent> filteredMappings = new ArrayList<>(combinedTemplateMappings.size());
-                    String[] mappingIncludesArray = MAPPING_INCLUDES.toArray(String[]::new);
                     for (CompressedXContent mappingSource : combinedTemplateMappings) {
                         var ref = mappingSource.compressedReference();
                         Map<String, Object> map;
                         if (maybeUsesPatternText == false) {
                             var fullMap = XContentHelper.convertToMap(ref, true, XContentType.JSON).v2();
                             maybeUsesPatternText = checkMappingForPatternText(fullMap);
-                            map = XContentMapValues.filter(fullMap, mappingIncludesArray, new String[0]);
+                            map = MAPPING_INCLUDES_FILTER.apply(fullMap);
                         } else {
                             map = XContentHelper.convertToMap(ref, true, XContentType.JSON, MAPPING_INCLUDES, Set.of()).v2();
                         }
@@ -305,11 +309,11 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     @SuppressWarnings("unchecked")
     private boolean checkMappingForPatternText(Map<String, Object> mapping) {
         var docMapping = mapping.get("_doc");
-        if ((docMapping instanceof Map) == false) {
-            return false;
+        if (docMapping instanceof Map) {
+            mapping = (Map<String, Object>) docMapping;
         }
         boolean[] usesPatternText = { false };
-        MappingVisitor.visitMapping((Map<String, Object>) docMapping, (field, fieldMapping) -> {
+        MappingVisitor.visitMapping(mapping, (field, fieldMapping) -> {
             if (Objects.equals(fieldMapping.get("type"), PatternTextFieldType.CONTENT_TYPE)) {
                 usesPatternText[0] = true;
             }

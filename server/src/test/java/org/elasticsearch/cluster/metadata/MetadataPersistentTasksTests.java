@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -48,6 +47,8 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MetadataPersistentTasksTests extends ESTestCase {
+
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
 
     private Set<Long> assignedAllocationIds;
     private NamedWriteableRegistry namedWriteableRegistry;
@@ -134,7 +135,7 @@ public class MetadataPersistentTasksTests extends ESTestCase {
         final Metadata orig = randomMetadataWithPersistentTasks();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final var previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+        final var previousVersion = TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
         out.setTransportVersion(previousVersion);
         orig.writeTo(out);
 
@@ -168,7 +169,7 @@ public class MetadataPersistentTasksTests extends ESTestCase {
         final Diff<Metadata> diff = after.diff(before);
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final var previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+        final var previousVersion = TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
         out.setTransportVersion(previousVersion);
         diff.writeTo(out);
 
@@ -335,7 +336,7 @@ public class MetadataPersistentTasksTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+            return TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
         }
 
         @Override
@@ -366,7 +367,7 @@ public class MetadataPersistentTasksTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+            return TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
         }
 
         @Override

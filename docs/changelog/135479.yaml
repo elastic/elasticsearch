@@ -1,6 +1,0 @@
-pr: 135479
-summary: Correctly apply field path to JSON processor when adding contents to document
-  root
-area: Ingest Node
-type: bug
-issues: []

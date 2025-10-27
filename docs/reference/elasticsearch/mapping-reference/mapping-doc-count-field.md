@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-doc-count-field.html
 ---
@@ -106,5 +109,5 @@ We will get the following response:
     }
 }
 ```
-
+% TESTRESPONSE[skip:test not setup]
 

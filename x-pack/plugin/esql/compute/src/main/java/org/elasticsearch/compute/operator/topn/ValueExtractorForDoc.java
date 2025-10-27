@@ -13,14 +13,15 @@ import org.elasticsearch.core.RefCounted;
 
 class ValueExtractorForDoc implements ValueExtractor {
     private final DocVector vector;
+    private final TopNEncoder encoder;
 
     @Override
     public RefCounted getRefCountedForShard(int position) {
-        return vector().shardRefCounted().get(vector().shards().getInt(position));
+        return vector().shardRefCounted(position);
     }
 
     ValueExtractorForDoc(TopNEncoder encoder, DocVector vector) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE;
+        this.encoder = encoder;
         this.vector = vector;
     }
 
@@ -30,9 +31,9 @@ class ValueExtractorForDoc implements ValueExtractor {
 
     @Override
     public void writeValue(BreakingBytesRefBuilder values, int position) {
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(vector.shards().getInt(position), values);
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(vector.segments().getInt(position), values);
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(vector.docs().getInt(position), values);
+        encoder.encodeInt(vector.shards().getInt(position), values);
+        encoder.encodeInt(vector.segments().getInt(position), values);
+        encoder.encodeInt(vector.docs().getInt(position), values);
     }
 
     @Override

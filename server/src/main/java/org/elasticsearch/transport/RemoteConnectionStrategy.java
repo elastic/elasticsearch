@@ -95,11 +95,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         connectionManager.addListener(this);
     }
 
-    static ConnectionProfile buildConnectionProfile(LinkedProjectConfig config, boolean credentialsProtected) {
-        final String transportProfile = credentialsProtected
-            ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
-            : TransportSettings.DEFAULT_PROFILE;
-
+    static ConnectionProfile buildConnectionProfile(LinkedProjectConfig config, String transportProfile) {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder().setConnectTimeout(config.transportConnectTimeout())
             .setHandshakeTimeout(config.transportConnectTimeout())
             .setCompressionEnabled(config.connectionCompression())

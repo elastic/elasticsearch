@@ -1,5 +1,0 @@
-pr: 135414
-summary: "Change reindex to use ::es-redacted:: filtering"
-area: Audit
-type: enhancement
-issues: []

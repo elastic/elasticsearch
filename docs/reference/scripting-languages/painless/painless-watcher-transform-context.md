@@ -106,6 +106,7 @@ POST _watcher/watch/_execute
   }
 }
 ```
+% TEST[setup:seats]
 
 1. The Java Stream API is used in the transform. This API allows manipulation of the elements of the list in a pipeline.
 2. The stream filter removes items that do not meet the filter criteria.
@@ -169,6 +170,7 @@ POST _watcher/watch/_execute
   }
 }
 ```
+% TEST[setup:seats]
 
 This example uses the streaming API in a very similar manner. The differences below are subtle and worth calling out.
 
@@ -283,6 +285,7 @@ POST _watcher/watch/_execute
   }
 }
 ```
+% TEST[setup:seats]
 
 The following example shows the use of metadata and transforming dates into a readable format.
 
@@ -338,4 +341,4 @@ POST _watcher/watch/_execute
   }
 }
 ```
-
+% TEST[setup:seats]

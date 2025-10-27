@@ -55,20 +55,15 @@ setup:
             - snapshot_test_for_telemetry_v2
             - fn_byte_length
             - match_function_options
-            - first_over_time
-            - sum_over_time
-            - count_over_time
-            - count_distinct_over_time
+            - ts_command_v0
             - cosine_vector_similarity_function
-            - present_over_time
-            - absent_over_time
             - inline_stats
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 28 }
+  - length: { esql.features: 29 }
   - set: { esql.features.dissect: dissect_counter }
   - set: { esql.features.drop: drop_counter }
   - set: { esql.features.eval: eval_counter }
@@ -96,6 +91,7 @@ setup:
   - set: { esql.features.fuse: fuse_counter }
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
+  - set: { esql.features.subquery: subquery_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -223,7 +219,7 @@ setup:
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 28 }
+  - length: { esql.features: 29 }
   - set: { esql.features.dissect: dissect_counter }
   - set: { esql.features.drop: drop_counter }
   - set: { esql.features.eval: eval_counter }
@@ -251,6 +247,7 @@ setup:
   - set: { esql.features.fuse: fuse_counter }
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
+  - set: { esql.features.subquery: subquery_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -264,6 +261,7 @@ setup:
   - set: { esql.functions.to_long: functions_to_long }
   - set: { esql.functions.coalesce: functions_coalesce }
   - set: { esql.functions.categorize: functions_categorize }
+  - set: {esql.functions.text_embedding: functions_text_embedding}
 
   - do:
       esql.query:
@@ -307,6 +305,7 @@ setup:
   - gt: { esql.functions.to_long: $functions_to_long }
   - match: { esql.functions.coalesce: $functions_coalesce }
   - gt: { esql.functions.categorize: $functions_categorize }
+  - match: {esql.functions.text_embedding: $functions_text_embedding}
 
   - set: { esql.features.limit: limit_counter }
   - set: { esql.features.sort: sort_counter }
@@ -353,7 +352,7 @@ setup:
   - gt: { esql.queries._all.total: $all_total_counter }
   - match: { esql.queries._all.failed: $all_failed_counter }
   - gt: { esql.functions.min: $functions_min }
-  - gt: { esql.functions.min: $functions_avg_over_time }
+  - gt: { esql.functions.avg_over_time: $functions_avg_over_time }
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay

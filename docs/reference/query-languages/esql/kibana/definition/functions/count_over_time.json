@@ -234,7 +234,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS count=count(count_over_time(network.cost))\n  BY cluster, time_bucket = bucket(@timestamp,1minute)"
+    "TS k8s\n| STATS count=COUNT(COUNT_OVER_TIME(network.cost))\n  BY cluster, time_bucket = BUCKET(@timestamp,1minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

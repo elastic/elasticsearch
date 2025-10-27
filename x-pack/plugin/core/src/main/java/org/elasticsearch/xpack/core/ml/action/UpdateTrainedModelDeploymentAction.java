@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -46,6 +47,10 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
 
+        private static final TransportVersion UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE = TransportVersion.fromName(
+            "inference_update_trained_model_deployment_request_source"
+        );
+
         static {
             PARSER.declareString(Request::setDeploymentId, MODEL_ID);
             PARSER.declareInt(Request::setNumberOfAllocations, NUMBER_OF_ALLOCATIONS);
@@ -73,7 +78,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         private String deploymentId;
         private Integer numberOfAllocations;
         private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
-        private boolean isInternal;
+        private Source source = Source.API;
 
         private Request() {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
@@ -90,11 +95,17 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
                 numberOfAllocations = in.readVInt();
                 adaptiveAllocationsSettings = null;
-                isInternal = false;
+                source = Source.API;
             } else {
                 numberOfAllocations = in.readOptionalVInt();
                 adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-                isInternal = in.readBoolean();
+                if (in.getTransportVersion().supports(UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE)) {
+                    source = in.readEnum(Source.class);
+                } else {
+                    // we changed over from a boolean to an enum
+                    // when it was a boolean, true came from adaptive allocations and false came from the rest api
+                    source = in.readBoolean() ? Source.ADAPTIVE_ALLOCATIONS : Source.API;
+                }
             }
         }
 
@@ -119,11 +130,15 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         }
 
         public boolean isInternal() {
-            return isInternal;
+            return source == Source.INFERENCE_API || source == Source.ADAPTIVE_ALLOCATIONS;
         }
 
-        public void setIsInternal(boolean isInternal) {
-            this.isInternal = isInternal;
+        public void setSource(Source source) {
+            this.source = source != null ? source : this.source;
+        }
+
+        public Source getSource() {
+            return source;
         }
 
         public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
@@ -139,7 +154,14 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             } else {
                 out.writeOptionalVInt(numberOfAllocations);
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
-                out.writeBoolean(isInternal);
+                if (out.getTransportVersion().supports(UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE)) {
+                    out.writeEnum(source);
+                } else {
+                    // we changed over from a boolean to an enum
+                    // when it was a boolean, true came from adaptive allocations and false came from the rest api
+                    // treat "inference" as if it came from the api
+                    out.writeBoolean(isInternal());
+                }
             }
         }
 
@@ -161,10 +183,10 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (numberOfAllocations != null) {
-                if (numberOfAllocations < 0 || (isInternal == false && numberOfAllocations == 0)) {
+                if (numberOfAllocations < 0 || (isInternal() == false && numberOfAllocations == 0)) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
                 }
-                if (isInternal == false
+                if (isInternal() == false
                     && adaptiveAllocationsSettings != null
                     && adaptiveAllocationsSettings.getEnabled() == Boolean.TRUE) {
                     validationException.addValidationError(
@@ -183,7 +205,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings, isInternal);
+            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings, source);
         }
 
         @Override
@@ -198,12 +220,18 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             return Objects.equals(deploymentId, other.deploymentId)
                 && Objects.equals(numberOfAllocations, other.numberOfAllocations)
                 && Objects.equals(adaptiveAllocationsSettings, other.adaptiveAllocationsSettings)
-                && isInternal == other.isInternal;
+                && source == other.source;
         }
 
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        public enum Source {
+            API,
+            ADAPTIVE_ALLOCATIONS,
+            INFERENCE_API
         }
     }
 }

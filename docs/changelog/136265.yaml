@@ -1,0 +1,5 @@
+pr: 136265
+summary: Adding `match_only_text` subfield to `*.display_name` fields in `ecs@mappings` to be compliant with the latest additions in ECS
+area: Data streams
+type: feature
+issues: []

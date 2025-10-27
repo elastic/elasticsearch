@@ -45,7 +45,7 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         addTestCaseSuppliers(suppliers, new DataType[] { GEO_POINT }, GEOHEX, StGeohexTests::valueOf, StGeohexTests::boundedValueOf);
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static long valueOf(BytesRef wkb, int precision) {

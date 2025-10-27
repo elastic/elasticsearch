@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -45,6 +44,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -327,32 +328,32 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testOperatorsPrecedenceExpressionsEquality() {
-        assertThat(whereExpression("a-1>2 or b>=5 and c-1>=5"), equalTo(whereExpression("((a-1)>2 or (b>=5 and (c-1)>=5))")));
+        assertThat(whereExpression("a-1>2 or b>=5 and c-1>=5"), equalToIgnoringIds(whereExpression("((a-1)>2 or (b>=5 and (c-1)>=5))")));
         assertThat(
             whereExpression("a*5==25 and b>5 and c%4>=1 or true or false"),
-            equalTo(whereExpression("(((((a*5)==25) and (b>5) and ((c%4)>=1)) or true) or false)"))
+            equalToIgnoringIds(whereExpression("(((((a*5)==25) and (b>5) and ((c%4)>=1)) or true) or false)"))
         );
         assertThat(
             whereExpression("a*4-b*5<100 and b/2+c*6>=50 or c%5+x>=5"),
-            equalTo(whereExpression("((((a*4)-(b*5))<100) and (((b/2)+(c*6))>=50)) or (((c%5)+x)>=5)"))
+            equalToIgnoringIds(whereExpression("((((a*4)-(b*5))<100) and (((b/2)+(c*6))>=50)) or (((c%5)+x)>=5)"))
         );
         assertThat(
             whereExpression("true and false or true and c/12+x*5-y%2>=50"),
-            equalTo(whereExpression("((true and false) or (true and (((c/12)+(x*5)-(y%2))>=50)))"))
+            equalToIgnoringIds(whereExpression("((true and false) or (true and (((c/12)+(x*5)-(y%2))>=50)))"))
         );
         assertThat(
             whereExpression("10 days > 5 hours and 1/5 minutes > 8 seconds * 3 and -1 minutes > foo"),
-            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
+            equalToIgnoringIds(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
         );
         assertThat(
             whereExpression("10 DAYS > 5 HOURS and 1/5 MINUTES > 8 SECONDS * 3 and -1 MINUTES > foo"),
-            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
+            equalToIgnoringIds(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
         );
     }
 
     public void testFunctionExpressions() {
         assertEquals(new UnresolvedFunction(EMPTY, "fn", DEFAULT, new ArrayList<>()), whereExpression("fn()"));
-        assertEquals(
+        assertEqualsIgnoringIds(
             new UnresolvedFunction(
                 EMPTY,
                 "invoke",
@@ -366,13 +367,13 @@ public class ExpressionTests extends ESTestCase {
             ),
             whereExpression("invoke(a, b + c)")
         );
-        assertEquals(whereExpression("(invoke((a + b)))"), whereExpression("invoke(a+b)"));
-        assertEquals(whereExpression("((fn()) + fn(fn()))"), whereExpression("fn() + fn(fn())"));
+        assertEqualsIgnoringIds(whereExpression("(invoke((a + b)))"), whereExpression("invoke(a+b)"));
+        assertEqualsIgnoringIds(whereExpression("((fn()) + fn(fn()))"), whereExpression("fn() + fn(fn())"));
     }
 
     public void testUnquotedIdentifiers() {
         for (String identifier : List.of("a", "_a", "a_b", "a9", "abc123", "a_____9", "__a_b", "@a", "_1", "@2")) {
-            assertEquals(new UnresolvedAttribute(EMPTY, identifier), whereExpression(identifier));
+            assertEqualsIgnoringIds(new UnresolvedAttribute(EMPTY, identifier), whereExpression(identifier));
         }
     }
 
@@ -393,6 +394,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + "minute"));
         assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " minutes"));
         assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " min"));
+        assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " m"));
 
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 hour"));
         assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + "hour"));
@@ -660,7 +662,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     private LogicalPlan parse(String s) {
-        return parser.createStatement(s, EsqlTestUtils.TEST_CFG);
+        return parser.createStatement(s);
     }
 
     private Literal l(Object value, DataType type) {

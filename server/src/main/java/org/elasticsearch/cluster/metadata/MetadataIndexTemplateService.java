@@ -294,25 +294,26 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    // Public visible for testing
+    /**
+     * Add the given component template to the project. If {@code create} is true, we will fail if there exists a component template with
+     * the same name. If a component template with the same name exists, but the content is identical, no change will be made.
+     * This method will perform all necessary validation but assumes that the component template has already been normalized (see
+     * {@link #normalizeComponentTemplate(ComponentTemplate)}.
+     */
     public ProjectMetadata addComponentTemplate(
         final ProjectMetadata project,
         final boolean create,
         final String name,
         final ComponentTemplate template
-    ) throws Exception {
-        final ComponentTemplate existing = project.componentTemplates().get(name);
-        if (create && existing != null) {
-            throw new IllegalArgumentException("component template [" + name + "] already exists");
-        }
-
-        CompressedXContent mappings = template.template().mappings();
-        CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
-
-        // We may need to normalize index settings, so do that also
-        Settings finalSettings = template.template().settings();
-        if (finalSettings != null) {
-            finalSettings = Settings.builder().put(finalSettings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+    ) throws IOException {
+        final ComponentTemplate existingTemplate = project.componentTemplates().get(name);
+        if (existingTemplate != null) {
+            if (create) {
+                throw new IllegalArgumentException("component template [" + name + "] already exists");
+            }
+            if (template.contentEquals(existingTemplate)) {
+                return project;
+            }
         }
 
         // Collect all the composable (index) templates that use this component template, we'll use
@@ -325,9 +326,9 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         // if we're updating a component template, let's check if it's part of any V2 template that will yield the CT update invalid
-        if (create == false && finalSettings != null) {
+        if (create == false && template.template().settings() != null) {
             // if the CT is specifying the `index.hidden` setting it cannot be part of any global template
-            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(finalSettings)) {
+            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(template.template().settings())) {
                 List<String> globalTemplatesThatUseThisComponent = new ArrayList<>();
                 for (Map.Entry<String, ComposableIndexTemplate> entry : templatesUsingComponent.entrySet()) {
                     ComposableIndexTemplate templateV2 = entry.getValue();
@@ -351,47 +352,27 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
-        final long now = instantSource.instant().toEpochMilli();
-        final ComponentTemplate finalComponentTemplate;
-        if (existing == null) {
-            finalComponentTemplate = new ComponentTemplate(
-                finalTemplate,
-                template.version(),
-                template.metadata(),
-                template.deprecated(),
-                now,
-                now
-            );
-        } else {
-            final ComponentTemplate templateToCompareToExisting = new ComponentTemplate(
-                finalTemplate,
-                template.version(),
-                template.metadata(),
-                template.deprecated(),
-                existing.createdDateMillis().orElse(null),
-                existing.modifiedDateMillis().orElse(null)
-            );
-            if (templateToCompareToExisting.equals(existing)) {
-                return project;
-            }
-            finalComponentTemplate = new ComponentTemplate(
-                finalTemplate,
-                template.version(),
-                template.metadata(),
-                template.deprecated(),
-                existing.createdDateMillis().orElse(null),
-                now
-            );
-        }
+        final Long now = instantSource.instant().toEpochMilli();
+        final Long createdDateMillis = existingTemplate == null ? now : existingTemplate.createdDateMillis().orElse(null);
+        final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
+            template.template(),
+            template.version(),
+            template.metadata(),
+            template.deprecated(),
+            createdDateMillis,
+            now
+        );
 
-        validateTemplate(finalSettings, wrappedMappings, indicesService);
+        // These two validation checks are only scoped to the component template itself (and don't depend on any other entities in the
+        // cluster state) and could thus be done in the transport action. However, since we're parsing mappings here, we shouldn't be doing
+        // it directly on the transport thread. Instead, we should fork to a different threadpool (management/generic).
+        validateTemplate(finalComponentTemplate.template().settings(), finalComponentTemplate.template().mappings(), indicesService);
         validate(name, finalComponentTemplate.template(), List.of(), null);
 
         ProjectMetadata projectWithComponentTemplateAdded = ProjectMetadata.builder(project).put(name, finalComponentTemplate).build();
         // Validate all composable index templates that use this component template
         if (templatesUsingComponent.isEmpty() == false) {
-            Exception validationFailure = null;
+            IllegalArgumentException validationFailure = null;
             for (Map.Entry<String, ComposableIndexTemplate> entry : templatesUsingComponent.entrySet()) {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
@@ -425,8 +406,40 @@ public class MetadataIndexTemplateService {
                 .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), false);
         }
 
-        logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
+        logger.info("{} component template [{}]", existingTemplate == null ? "adding" : "updating", name);
         return projectWithComponentTemplateAdded;
+    }
+
+    /**
+     * Normalize the given component template by trying to normalize settings and wrapping mappings if necessary. Returns the same instance
+     * if nothing needs to be done.
+     */
+    public ComponentTemplate normalizeComponentTemplate(final ComponentTemplate componentTemplate) throws IOException {
+        Template template = componentTemplate.template();
+        // Normalize the index settings if necessary
+        Settings prefixedSettings = null;
+        if (template.settings() != null) {
+            prefixedSettings = template.settings().maybeNormalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
+        }
+        // TODO: theoretically, we could avoid parsing the mappings once by combining this wrapping with the mapping validation later on,
+        // but that refactoring will be non-trivial as we currently don't seem to have methods available to merge already-parsed mappings;
+        // we only allow merging mappings from CompressedXContent.
+        CompressedXContent wrappedMappings = MetadataIndexTemplateService.wrapMappingsIfNecessary(template.mappings(), xContentRegistry);
+
+        // No need to build a new component template if we didn't change anything.
+        // We can check for reference equality since `maybeNormalizePrefix` and `wrapMappingsIfNecessary` return the same instance if
+        // nothing needs to be done.
+        if (prefixedSettings == template.settings() && wrappedMappings == template.mappings()) {
+            return componentTemplate;
+        }
+        return new ComponentTemplate(
+            Template.builder(template).settings(prefixedSettings).mappings(wrappedMappings).build(),
+            componentTemplate.version(),
+            componentTemplate.metadata(),
+            componentTemplate.deprecated(),
+            componentTemplate.createdDateMillis().orElse(null),
+            componentTemplate.modifiedDateMillis().orElse(null)
+        );
     }
 
     /**
@@ -2048,7 +2061,7 @@ public class MetadataIndexTemplateService {
     }
 
     public static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
-        throws Exception {
+        throws IOException {
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
         if (settings == null) {

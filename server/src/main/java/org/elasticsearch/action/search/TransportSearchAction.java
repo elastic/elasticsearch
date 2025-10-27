@@ -46,8 +46,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -196,7 +198,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService);
+        SearchTransportService.registerRequestHandler(transportService, searchService, namedWriteableRegistry);
         SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
             searchTransportService,
             searchService,
@@ -422,6 +424,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
+            if (rewritten.indicesOptions().resolveCrossProjectIndexExpression()) {
+                IndicesOptions indicesOptions = IndicesOptions.builder(rewritten.indicesOptions())
+                    .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
+                    .build();
+                rewritten.indicesOptions(indicesOptions);
+            }
 
             final ActionListener<SearchResponse> searchResponseActionListener;
             if (collectSearchTelemetry) {
@@ -430,7 +438,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     Arrays.stream(resolvedIndices.getConcreteLocalIndices()).map(Index::getName).toArray(String[]::new)
                 );
                 if (collectCCSTelemetry == false || resolvedIndices.getRemoteClusterIndices().isEmpty()) {
-                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics, searchRequestAttributes);
+                    searchResponseActionListener = new SearchTelemetryListener(
+                        delegate,
+                        searchResponseMetrics,
+                        searchRequestAttributes,
+                        timeProvider.absoluteStartMillis()
+                    );
                 } else {
                     CCSUsage.Builder usageBuilder = new CCSUsage.Builder();
                     usageBuilder.setRemotesCount(resolvedIndices.getRemoteClusterIndices().size());
@@ -459,6 +472,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         delegate,
                         searchResponseMetrics,
                         searchRequestAttributes,
+                        timeProvider.absoluteStartMillis(),
                         usageService,
                         usageBuilder
                     );
@@ -1241,7 +1255,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     null,
                     null,
                     searchShardsGroup.preFiltered(),
-                    searchShardsGroup.skipped()
+                    searchShardsGroup.skipped(),
+                    // This parameter is specific to the resharding feature.
+                    // Resharding is currently not supported with CCS.
+                    SplitShardCountSummary.UNSET
                 );
                 remoteShardIterators.add(shardIterator);
             }
@@ -1294,7 +1311,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     perNode.getSearchContextId(),
                     searchContextKeepAlive,
                     false,
-                    false
+                    false,
+                    // This parameter is specific to the resharding feature.
+                    // Resharding is currently not supported with CCS.
+                    SplitShardCountSummary.UNSET
                 );
                 remoteShardIterators.add(shardIterator);
             }
@@ -1682,7 +1702,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusterState,
                         task,
                         clusters,
-                        client
+                        client,
+                        searchResponseMetrics
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -1703,7 +1724,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters,
                         client,
-                        searchService.batchQueryPhase()
+                        searchService.batchQueryPhase(),
+                        searchResponseMetrics
                     );
                 }
                 success = true;
@@ -1976,7 +1998,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         perNode.getSearchContextId(),
                         keepAlive,
                         false,
-                        false
+                        false,
+                        // This parameter is specific to the resharding feature.
+                        // It is used when creating a searcher to apply filtering needed to have correct search results
+                        // while resharding is in progress.
+                        // In context of PIT the searcher is reused or can be recreated only in read-only scenarios.
+                        // If a searcher is reused, this value won't be used
+                        // (it was calculated and used when PIT was created).
+                        // If the searcher is recreated, which will happen when PITs are relocatable, then we should supply
+                        // the same summary when recreating the search that was first used in order to produce the same
+                        // filtering decision. See ES-13264 for the work needed when relocatable PITs land.
+                        SplitShardCountSummary.UNSET
                     )
                 );
             }
@@ -2001,7 +2033,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.routing(),
             searchRequest.indices()
         );
-        List<ShardIterator> shardRoutings = clusterService.operationRouting()
+        List<SearchShardRouting> shardRoutings = clusterService.operationRouting()
             .searchShards(
                 projectState,
                 concreteIndices,
@@ -2018,11 +2050,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
         SearchShardIterator[] list = new SearchShardIterator[shardRoutings.size()];
         int i = 0;
-        for (ShardIterator shardRouting : shardRoutings) {
+        for (SearchShardRouting shardRouting : shardRoutings) {
             final ShardId shardId = shardRouting.shardId();
             OriginalIndices finalIndices = originalIndices.get(shardId.getIndex().getName());
             assert finalIndices != null;
-            list[i++] = new SearchShardIterator(clusterAlias, shardId, shardRouting.getShardRoutings(), finalIndices);
+            list[i++] = new SearchShardIterator(
+                clusterAlias,
+                shardId,
+                shardRouting.getShardRoutings(),
+                finalIndices,
+                shardRouting.reshardSplitShardCountSummary()
+            );
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here
         return Arrays.asList(list);
@@ -2046,6 +2084,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private static class SearchTelemetryListener extends DelegatingActionListener<SearchResponse, SearchResponse> {
         private final CCSUsage.Builder usageBuilder;
         private final SearchResponseMetrics searchResponseMetrics;
+        private final long nowInMillis;
         private final UsageService usageService;
         private final boolean collectCCSTelemetry;
         private final Map<String, Object> searchRequestAttributes;
@@ -2054,12 +2093,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             ActionListener<SearchResponse> listener,
             SearchResponseMetrics searchResponseMetrics,
             Map<String, Object> searchRequestAttributes,
+            long nowInMillis,
             UsageService usageService,
             CCSUsage.Builder usageBuilder
         ) {
             super(listener);
             this.searchResponseMetrics = searchResponseMetrics;
             this.searchRequestAttributes = searchRequestAttributes;
+            this.nowInMillis = nowInMillis;
             this.collectCCSTelemetry = true;
             this.usageService = usageService;
             this.usageBuilder = usageBuilder;
@@ -2068,11 +2109,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTelemetryListener(
             ActionListener<SearchResponse> listener,
             SearchResponseMetrics searchResponseMetrics,
-            Map<String, Object> searchRequestAttributes
+            Map<String, Object> searchRequestAttributes,
+            long nowInMillis
         ) {
             super(listener);
             this.searchResponseMetrics = searchResponseMetrics;
             this.searchRequestAttributes = searchRequestAttributes;
+            this.nowInMillis = nowInMillis;
             this.collectCCSTelemetry = false;
             this.usageService = null;
             this.usageBuilder = null;
@@ -2081,7 +2124,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public void onResponse(SearchResponse searchResponse) {
             try {
-                searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis(), searchRequestAttributes);
+                searchResponseMetrics.recordTookTime(
+                    searchResponse.getTookInMillis(),
+                    searchResponse.getTimeRangeFilterFromMillis(),
+                    nowInMillis,
+                    searchRequestAttributes
+                );
                 SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                     SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                 if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {

@@ -96,6 +96,15 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public static DenseVectorFieldMapper.VectorSimilarity randomGPUSupportedSimilarity(
+        DenseVectorFieldMapper.VectorIndexType vectorIndexType
+    ) {
+        if (vectorIndexType == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
+            return randomFrom(VectorSimilarity.L2_NORM, VectorSimilarity.COSINE, VectorSimilarity.DOT_PRODUCT);
+        }
+        return randomFrom(VectorSimilarity.values());
+    }
+
     public static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsAll() {
         List<DenseVectorFieldMapper.DenseVectorIndexOptions> options = new ArrayList<>(
             Arrays.asList(
@@ -136,7 +145,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             new DenseVectorFieldMapper.BBQIVFIndexOptions(
                 randomIntBetween(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 randomFloatBetween(0.0f, 100.0f, true),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
+                randomBoolean()
             )
         );
 
@@ -202,11 +212,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertFalse(bft.hasDocValues());
     }
 
-    public void testIsIndexed() {
+    public void testIndexType() {
         DenseVectorFieldType fft = createFloatFieldType();
-        assertEquals(indexed, fft.isIndexed());
+        assertEquals(indexed, fft.indexType().hasVectors());
         DenseVectorFieldType bft = createByteFieldType();
-        assertTrue(bft.isIndexed());
+        assertTrue(bft.indexType().hasVectors());
     }
 
     public void testIsSearchable() {

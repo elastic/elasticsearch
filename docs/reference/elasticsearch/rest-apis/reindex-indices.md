@@ -597,7 +597,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "<OTHER_HOST_URL>:9200",
+      "host": "<OTHER_HOST_URL>",
       "username": "user",
       "password": "pass"
     },
@@ -615,24 +615,59 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT my-index-000001\n/]
-% TEST[s/otherhost:9200",/\${host}",/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/"username": "user",/"username": "test_admin",/]
 % TEST[s/"password": "pass"/"password": "x-pack-test-password"/]
 
-The `host` parameter must contain a scheme, host, port (for example, `https://otherhost:9200`), and optional path (for example, `https://otherhost:9200/proxy`).
-The `username` and `password` parameters are optional, and when they are present the reindex API will connect to the remote {{es}} node using basic auth.
-Be sure to use `https` when using basic auth or the password will be sent in plain text. There are a range of settings available to configure the behaviour of the `https` connection.
+The `host` parameter must contain a scheme, host, port (for example, `https://<OTHER_HOST_URL>:9200`), and optional path (for example, `https://<OTHER_HOST_URL>:9200/proxy`).
 
-When using {{ecloud}}, it is also possible to authenticate against the remote cluster through the use of a valid API key:
+### Using basic auth [reindex-basic-auth]
 
+To authenticate with the remote cluster using basic auth, set the `username` and `password` parameters, as in the example above.
+Be sure to use `https` when using basic auth, or the password will be sent in plain text. There are a [range of settings](#reindex-ssl) available to configure the behaviour of the `https` connection.
+
+### Using an API key [reindex-api-key]
+
+It is also possible (and encouraged) to authenticate with the remote cluster through the use of a valid API key:
+
+::::{applies-switch}
+
+:::{applies-item} { "stack": "ga 9.3", "serverless": }
 ```console
 POST _reindex
 {
   "source": {
     "remote": {
-      "host": "<OTHER_HOST_URL>:9200",
+      "host": "<OTHER_HOST_URL>",
+      "api_key": "<API_KEY_VALUE>"
+    },
+    "index": "my-index-000001",
+    "query": {
+      "match": {
+        "test": "data"
+      }
+    }
+  },
+  "dest": {
+    "index": "my-new-index-000001"
+  }
+}
+```
+% TEST[setup:host]
+% TEST[s/^/PUT my-index-000001\n/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
+% TEST[s/"headers": \{[^}]*\}/"username": "test_admin", "password": "x-pack-test-password"/]
+:::
+
+:::{applies-item} { "stack": "ga 9.0" }
+```console
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "<OTHER_HOST_URL>",
       "headers": {
-        "Authorization": "ApiKey API_KEY_VALUE"
+        "Authorization": "<API_KEY_VALUE>"
       }
     },
     "index": "my-index-000001",
@@ -649,17 +684,28 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT my-index-000001\n/]
-% TEST[s/otherhost:9200",/\${host}",/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/"headers": \{[^}]*\}/"username": "test_admin", "password": "x-pack-test-password"/]
+:::
+
+::::
+
+
+Be sure to use `https` when using an API key, or it will be sent in plain text. There are a [range of settings](#reindex-ssl) available to configure the behaviour of the `https` connection.
+
+### Whitelisting remote hosts [reindex-remote-whitelist]
 
 Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the `reindex.remote.whitelist` property.
-It can be set to a comma delimited list of allowed remote `host` and `port` combinations. 
+It can be set to a comma-delimited list of allowed remote `host` and `port` combinations.
 Scheme is ignored, only the host and port are used. For example:
 
 ```yaml
 reindex.remote.whitelist: [otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"]
 ```
-The list of allowed hosts must be configured on any nodes that will coordinate the reindex.
+The list of allowed hosts must be configured on any node that will coordinate the reindex.
+
+### Compatibility [reindex-remote-compatibility]
+
 This feature should work with remote clusters of any version of {{es}} you are likely to find. This should allow you to upgrade from any version of {{es}} to the current version by reindexing from a cluster of the old version.
 ::::{warning}
 {{es}} does not support forward compatibility across major versions. For example, you cannot reindex from a 7.x cluster into a 6.x cluster.
@@ -670,8 +716,10 @@ To enable queries sent to older versions of {{es}} the `query` parameter is sent
 Reindexing from remote clusters does not support manual or automatic slicing.
 ::::
 
+### Tuning parameters [reindex-remote-tuning]
+
 Reindexing from a remote server uses an on-heap buffer that defaults to a maximum size of 100mb.
-If the remote index includes very large documents you'll need to use a smaller batch size. 
+If the remote index includes very large documents you'll need to use a smaller batch size.
 The example below sets the batch size to `10` which is very, very small.
 
 ```console
@@ -679,7 +727,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "<OTHER_HOST_URL>:9200",
+      "host": "<OTHER_HOST_URL>",
       ...
     },
     "index": "source",
@@ -697,7 +745,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT source\n/]
-% TEST[s/otherhost:9200/\${host}/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/\.\.\./"username": "test_admin", "password": "x-pack-test-password"/]
 
 It is also possible to set the socket read timeout on the remote connection with the `socket_timeout` field and the connection timeout with the `connect_timeout` field.
@@ -709,7 +757,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "<OTHER_HOST_URL>:9200",
+      "host": "<OTHER_HOST_URL>",
       ...,
       "socket_timeout": "1m",
       "connect_timeout": "10s"
@@ -728,7 +776,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT source\n/]
-% TEST[s/otherhost:9200/\${host}/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/\.\.\.,/"username": "test_admin", "password": "x-pack-test-password",/]
 
 ### Configuring SSL parameters [reindex-ssl]

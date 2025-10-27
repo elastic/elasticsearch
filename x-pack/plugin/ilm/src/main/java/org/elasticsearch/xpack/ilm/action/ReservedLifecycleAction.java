@@ -120,6 +120,11 @@ public class ReservedLifecycleAction implements ReservedProjectStateHandler<List
     }
 
     @Override
+    public ClusterState remove(ProjectId projectId, TransformState prevState) throws Exception {
+        return transform(projectId, List.of(), prevState).state();
+    }
+
+    @Override
     public List<LifecyclePolicy> fromXContent(XContentParser parser) throws IOException {
         List<LifecyclePolicy> result = new ArrayList<>();
 

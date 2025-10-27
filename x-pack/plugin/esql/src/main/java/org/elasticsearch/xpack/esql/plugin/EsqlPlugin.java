@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -94,42 +95,6 @@ import java.util.function.Supplier;
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
-
-    public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
-        "esql.query.result_truncation_max_size",
-        10000,
-        1,
-        1000000,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Integer> QUERY_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
-        "esql.query.result_truncation_default_size",
-        1000,
-        1,
-        10000,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
-        "esql.query.timeseries_result_truncation_default_size",
-        1_000_000,
-        1,
-        10_000_000,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
-        "esql.query.timeseries_result_truncation_max_size",
-        10_000_000,
-        1,
-        1_000_000_000,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
         "esql.query.allow_partial_results",
@@ -266,10 +231,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
-            QUERY_RESULT_TRUNCATION_MAX_SIZE,
-            QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
-            QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE,
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
             QUERY_ALLOW_PARTIAL_RESULTS,
             ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
             ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
@@ -280,6 +245,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
             PlannerSettings.LUCENE_TOPN_LIMIT,
             PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+            PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
             EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
             EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -105,7 +106,7 @@ final class RequestDispatcher {
         ProjectState project = projectResolver.getProjectState(clusterState);
 
         for (String index : indices) {
-            final List<ShardIterator> shardIts;
+            final List<SearchShardRouting> shardIts;
             try {
                 shardIts = clusterService.operationRouting().searchShards(project, new String[] { index }, null, null);
             } catch (Exception e) {
@@ -270,7 +271,7 @@ final class RequestDispatcher {
 
         IndexSelector(
             String clusterAlias,
-            List<ShardIterator> shardIts,
+            List<SearchShardRouting> shardIts,
             QueryBuilder indexFilter,
             long nowInMillis,
             CoordinatorRewriteContextProvider coordinatorRewriteContextProvider

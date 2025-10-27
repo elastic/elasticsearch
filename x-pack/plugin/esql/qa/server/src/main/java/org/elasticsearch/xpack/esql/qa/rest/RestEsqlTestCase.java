@@ -89,15 +89,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlTestCase.class);
 
+    private static final String MAPPING_FIELD;
     private static final String MAPPING_ALL_TYPES;
-
     private static final String MAPPING_ALL_TYPES_LOOKUP;
 
     static {
         String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
-        MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
-        String settings = "{\"settings\" : {\"mode\" : \"lookup\"}";
-        MAPPING_ALL_TYPES_LOOKUP = settings + ", " + "\"mappings\": " + properties + "}";
+        MAPPING_FIELD = "\"mappings\": " + properties;
+        MAPPING_ALL_TYPES = "{" + MAPPING_FIELD + "}";
+        String settings = "\"settings\" : {\"mode\" : \"lookup\"}";
+        MAPPING_ALL_TYPES_LOOKUP = "{" + settings + ", " + MAPPING_FIELD + "}";
     }
 
     private static final String DOCUMENT_TEMPLATE = """
@@ -404,10 +405,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         options.addHeader("Accept", "text/csv; header=absent");
         request.setOptions(options);
         Response response = performRequest(request);
-        assertWarnings(response, new AssertWarnings.NoWarnings());
         HttpEntity entity = response.getEntity();
         String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         assertEquals("keyword0,0\r\n", actual);
+        assertWarnings(response, new AssertWarnings.NoWarnings(), actual);
     }
 
     public void testOutOfRangeComparisons() throws IOException {
@@ -665,7 +666,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             error,
             containsString(
                 "Invalid interval value in [?n2::time_duration], expected integer followed by one of "
-                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 days]"
+                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 days]"
             )
         );
 
@@ -1154,6 +1155,24 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testPruneLeftJoinOnNullMatchingFieldAndShadowingAttributes() throws IOException {
+        var standardIndexName = "standard";
+        createIndex(standardIndexName, false, MAPPING_FIELD);
+        createIndex(testIndexName(), true);
+
+        var query = format(
+            null,
+            "FROM {}* | EVAL keyword = null::KEYWORD | LOOKUP JOIN {} ON keyword | KEEP keyword, integer, alias_integer | SORT keyword",
+            standardIndexName,
+            testIndexName()
+        );
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+        var values = as(result.get("values"), List.class);
+        assertThat(values.size(), is(0));
+
+        assertThat(deleteIndex(standardIndexName).isAcknowledged(), is(true));
+    }
+
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
         List<String> dateMathOverflowExpressions = List.of(
             "2147483647 day + 1 day",
@@ -1317,6 +1336,89 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());
+
+        RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("integer").field("gte", "5").endObject();
+            }
+            b.endObject();
+        }).query(query);
+
+        Map<String, Object> result = runEsql(builder);
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(8)));
+    }
+
+    public void testNestedSubqueries() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
+                        testIndexName(),
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("Nested subqueries are not supported"));
+    }
+
+    public void testSubqueryWithFork() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("FORK after subquery is not supported"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {} | where integer > 1 | fork (where long > 2) ( where ip == \"127.0.0.1\")) | stats count(*)",
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("FORK inside subquery is not supported"));
+    }
+
     private static String queryWithComplexFieldNames(int field) {
         StringBuilder query = new StringBuilder();
         query.append(" | keep ").append(randomAlphaOfLength(10)).append(1);
@@ -1414,7 +1516,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (supportsAsyncHeadersFix) {
             assertNoAsyncHeaders(response);
         }
-        assertWarnings(response, assertWarnings);
+        assertWarnings(response, assertWarnings, json);
 
         return json;
     }
@@ -1466,7 +1568,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             if (profileLogger != null) {
                 profileLogger.extractProfile(json, profileEnabled);
             }
-            assertWarnings(response, assertWarnings);
+            assertWarnings(response, assertWarnings, json);
             json.remove("is_running"); // remove this to not mess up later map assertions
             return Collections.unmodifiableMap(json);
         } else {
@@ -1479,7 +1581,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 if (profileLogger != null) {
                     profileLogger.extractProfile(json, profileEnabled);
                 }
-                assertWarnings(response, assertWarnings);
+                assertWarnings(response, assertWarnings, json);
                 // we already have the results, but let's remember them so that we can compare to async get
                 initialColumns = json.get("columns");
                 initialValues = json.get("values");
@@ -1519,7 +1621,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (profileLogger != null) {
             profileLogger.extractProfile(result, profileEnabled);
         }
-        assertWarnings(response, assertWarnings);
+        assertWarnings(response, assertWarnings, result);
         assertDeletable(id);
         return removeAsyncProperties(result);
     }
@@ -1782,12 +1884,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         Response response = performRequest(request);
-        assertWarnings(response, new AssertWarnings.NoWarnings());
         HttpEntity entity = response.getEntity();
 
         // get the content, it could be empty because the request might have not completed
         String initialValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         String id = response.getHeader("X-Elasticsearch-Async-Id");
+        assertWarnings(response, new AssertWarnings.NoWarnings(), initialValue);
 
         if (mode == SYNC) {
             assertThat(id, is(emptyOrNullString()));
@@ -1836,10 +1938,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             // if `addParam` is false, `options` will already have an `Accept` header
             getRequest.setOptions(options);
             response = performRequest(getRequest);
-            assertWarnings(response, new AssertWarnings.NoWarnings());
             entity = response.getEntity();
         }
         String newValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+        assertWarnings(response, new AssertWarnings.NoWarnings(), newValue);
 
         // assert initial contents, if any, are the same as async get contents
         if (initialValue != null && initialValue.isEmpty() == false) {
@@ -1892,13 +1994,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
     }
 
-    private static void assertWarnings(Response response, AssertWarnings assertWarnings) {
+    private static void assertWarnings(Response response, AssertWarnings assertWarnings, Object context) {
         List<String> warnings = new ArrayList<>(response.getWarnings());
         warnings.removeAll(mutedWarnings());
         if (shouldLog()) {
             LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
         }
-        assertWarnings.assertWarnings(warnings);
+        assertWarnings.assertWarnings(warnings, context);
     }
 
     private static Set<String> mutedWarnings() {

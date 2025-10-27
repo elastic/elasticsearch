@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -54,14 +55,18 @@ import org.elasticsearch.transport.TransportService;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.StreamSupport;
 
 import static java.util.stream.IntStream.range;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -130,7 +135,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         setUpMockTransportIndicesStatsResponse(
             harness.firstDiscoveryNode,
             indexMetadata.getNumberOfShards(),
-            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+            createShardStatsResponseForIndex(indexMetadata, harness.maxShardWriteLoad, harness.firstDataNodeId)
         );
         setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
         setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
@@ -235,7 +240,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         setUpMockTransportIndicesStatsResponse(
             harness.firstDiscoveryNode,
             indexMetadata.getNumberOfShards(),
-            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+            createShardStatsResponseForIndex(indexMetadata, harness.maxShardWriteLoad, harness.firstDataNodeId)
         );
         setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
         setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
@@ -333,7 +338,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         setUpMockTransportIndicesStatsResponse(
             harness.firstDiscoveryNode,
             indexMetadata.getNumberOfShards(),
-            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+            createShardStatsResponseForIndex(indexMetadata, harness.maxShardWriteLoad, harness.firstDataNodeId)
         );
         setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
         setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
@@ -429,15 +434,12 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          * will show that all shards have non-empty write load stats (so that the WriteLoadDecider will evaluate assigning them to a node).
          */
 
-        IndexMetadata indexMetadata = internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .state()
-            .getMetadata()
-            .getProject()
-            .index(harness.indexName);
+        final ClusterState originalClusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final IndexMetadata indexMetadata = originalClusterState.getMetadata().getProject().index(harness.indexName);
         setUpMockTransportIndicesStatsResponse(
             harness.firstDiscoveryNode,
             indexMetadata.getNumberOfShards(),
-            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+            createShardStatsResponseForIndex(indexMetadata, harness.maxShardWriteLoad, harness.firstDataNodeId)
         );
         setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
         setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
@@ -483,6 +485,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 harness.randomNumberOfShards,
                 countShardsStillAssignedToFirstNode + 1
             );
+            assertThatTheBestShardWasMoved(harness, originalClusterState, desiredBalanceResponse);
         } catch (AssertionError error) {
             ClusterState state = client().admin()
                 .cluster()
@@ -496,6 +499,36 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             logger.info("---> Failed to reach expected allocation state. Dumping assignments: " + state.getRoutingNodes());
             throw error;
         }
+    }
+
+    /**
+     * Determine which shard was moved and check that it's the "best" according to
+     * {@link org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator}
+     */
+    private void assertThatTheBestShardWasMoved(
+        TestHarness harness,
+        ClusterState originalClusterState,
+        DesiredBalanceResponse desiredBalanceResponse
+    ) {
+        int movedShardId = desiredBalanceResponse.getRoutingTable().get(harness.indexName).entrySet().stream().filter(e -> {
+            Set<String> desiredNodeIds = e.getValue().desired().nodeIds();
+            return desiredNodeIds.contains(harness.secondDiscoveryNode.getId())
+                || desiredNodeIds.contains(harness.thirdDiscoveryNode.getId());
+        }).findFirst().map(Map.Entry::getKey).orElseThrow(() -> new AssertionError("No shard was moved to a non-hot-spotting node"));
+
+        final BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator comparator =
+            new BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator(
+                desiredBalanceResponse.getClusterInfo(),
+                originalClusterState.getRoutingNodes().node(harness.firstDataNodeId)
+            );
+
+        final List<ShardRouting> bestShardsToMove = StreamSupport.stream(
+            originalClusterState.getRoutingNodes().node(harness.firstDataNodeId).spliterator(),
+            false
+        ).sorted(comparator).toList();
+
+        // The moved shard should be at the head of the sorted list
+        assertThat(movedShardId, equalTo(bestShardsToMove.get(0).shardId().id()));
     }
 
     public void testMaxQueueLatencyMetricIsPublished() {
@@ -659,16 +692,35 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     }
 
     /**
-     * Helper to create a list of dummy {@link ShardStats} for the given index, each shard reporting a {@code peakShardWriteLoad} stat.
+     * Helper to create a list of dummy {@link ShardStats} for the given index, each shard being randomly allocated a peak write load
+     * between 0 and {@code maximumShardWriteLoad}. There will always be at least one shard reporting the specified
+     * {@code maximumShardWriteLoad}.
      */
     private List<ShardStats> createShardStatsResponseForIndex(
         IndexMetadata indexMetadata,
-        float peakShardWriteLoad,
+        float maximumShardWriteLoad,
         String assignedShardNodeId
     ) {
-        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
+        // Randomly distribute shards' peak write-loads so that we can check later that shard movements are prioritized correctly
+        final double writeLoadThreshold = maximumShardWriteLoad
+            * BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
+        final List<Double> shardPeakWriteLoads = new ArrayList<>();
+        // Need at least one with the maximum write-load
+        shardPeakWriteLoads.add((double) maximumShardWriteLoad);
+        final int remainingShards = indexMetadata.getNumberOfShards() - 1;
+        // Some over-threshold, some under
+        for (int i = 0; i < remainingShards; ++i) {
+            if (randomBoolean()) {
+                shardPeakWriteLoads.add(randomDoubleBetween(writeLoadThreshold, maximumShardWriteLoad, true));
+            } else {
+                shardPeakWriteLoads.add(randomDoubleBetween(0.0, writeLoadThreshold, true));
+            }
+        }
+        assertThat(shardPeakWriteLoads, hasSize(indexMetadata.getNumberOfShards()));
+        Collections.shuffle(shardPeakWriteLoads, random());
+        final List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-            shardStats.add(createShardStats(indexMetadata, i, peakShardWriteLoad, assignedShardNodeId));
+            shardStats.add(createShardStats(indexMetadata, i, shardPeakWriteLoads.get(i), assignedShardNodeId));
         }
         return shardStats;
     }
@@ -719,7 +771,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         int randomUtilizationThresholdPercent = randomIntBetween(50, 100);
         int randomNumberOfWritePoolThreads = randomIntBetween(2, 20);
         long randomQueueLatencyThresholdMillis = randomLongBetween(1, 20_000);
-        float randomShardWriteLoad = randomFloatBetween(0.0f, 0.01f, false);
+        float maximumShardWriteLoad = randomFloatBetween(0.0f, 0.01f, false);
         Settings settings = enabledWriteLoadDeciderSettings(randomUtilizationThresholdPercent, randomQueueLatencyThresholdMillis);
 
         internalCluster().startMasterOnlyNode(settings);
@@ -756,8 +808,8 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 + randomUtilizationThresholdPercent
                 + ",  write threads: "
                 + randomNumberOfWritePoolThreads
-                + ", individual shard write loads: "
-                + randomShardWriteLoad
+                + ", maximum shard write load: "
+                + maximumShardWriteLoad
         );
 
         /**
@@ -775,7 +827,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         // Calculate the maximum utilization a node can report while still being able to accept all relocating shards
         int shardWriteLoadOverhead = shardLoadUtilizationOverhead(
-            randomShardWriteLoad * randomNumberOfShards,
+            maximumShardWriteLoad * randomNumberOfShards,
             randomNumberOfWritePoolThreads
         );
         int maxUtilBelowThresholdThatAllowsAllShardsToRelocate = randomUtilizationThresholdPercent - shardWriteLoadOverhead - 1;
@@ -819,7 +871,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             randomUtilizationThresholdPercent,
             randomNumberOfWritePoolThreads,
             randomQueueLatencyThresholdMillis,
-            randomShardWriteLoad,
+            maximumShardWriteLoad,
             indexName,
             randomNumberOfShards,
             maxUtilBelowThresholdThatAllowsAllShardsToRelocate
@@ -842,7 +894,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         int randomUtilizationThresholdPercent,
         int randomNumberOfWritePoolThreads,
         long randomQueueLatencyThresholdMillis,
-        float randomShardWriteLoad,
+        float maxShardWriteLoad,
         String indexName,
         int randomNumberOfShards,
         int maxUtilBelowThresholdThatAllowsAllShardsToRelocate

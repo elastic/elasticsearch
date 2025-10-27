@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
@@ -53,7 +54,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
@@ -187,6 +187,13 @@ public class IpFieldMapper extends FieldMapper {
                 dimension };
         }
 
+        private IndexType indexType() {
+            if (indexCreatedVersion.isLegacyIndexVersion()) {
+                return hasDocValues.get() ? IndexType.archivedPoints() : IndexType.NONE;
+            }
+            return IndexType.points(indexed.get(), hasDocValues.get());
+        }
+
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
             if (inheritDimensionParameterFromParentObject(context)) {
@@ -208,9 +215,8 @@ public class IpFieldMapper extends FieldMapper {
                 leafName(),
                 new IpFieldType(
                     context.buildFullName(leafName()),
-                    indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
+                    indexType(),
                     stored.getValue(),
-                    hasDocValues.getValue(),
                     parseNullValue(),
                     scriptValues(),
                     meta.getValue(),
@@ -237,23 +243,24 @@ public class IpFieldMapper extends FieldMapper {
         private final FieldValues<InetAddress> scriptValues;
         private final boolean isDimension;
         private final boolean isSyntheticSource;
+        private final boolean hasPoints;
 
         public IpFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             InetAddress nullValue,
             FieldValues<InetAddress> scriptValues,
             Map<String, String> meta,
             boolean isDimension,
             boolean isSyntheticSource
         ) {
-            super(name, indexed, stored, hasDocValues, meta);
+            super(name, indexType, stored, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;
             this.isSyntheticSource = isSyntheticSource;
+            this.hasPoints = indexType.hasPoints();
         }
 
         public IpFieldType(String name) {
@@ -265,7 +272,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         public IpFieldType(String name, boolean isIndexed, boolean hasDocValues) {
-            this(name, isIndexed, false, hasDocValues, null, null, Collections.emptyMap(), false, false);
+            this(name, IndexType.points(isIndexed, hasDocValues), false, null, null, Collections.emptyMap(), false, false);
         }
 
         @Override
@@ -275,7 +282,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return hasPoints || hasDocValues();
         }
 
         @Override
@@ -350,7 +357,7 @@ public class IpFieldMapper extends FieldMapper {
                     query = InetAddressPoint.newExactQuery(name(), address);
                 }
             }
-            if (isIndexed()) {
+            if (hasPoints) {
                 return query;
             } else {
                 return convertToDocValuesQuery(query);
@@ -372,7 +379,7 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed() == false) {
+            if (hasPoints == false) {
                 return super.termsQuery(values, context);
             }
             InetAddress[] addresses = new InetAddress[values.size()];
@@ -408,7 +415,7 @@ public class IpFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (lower, upper) -> {
                 Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
-                if (isIndexed()) {
+                if (hasPoints) {
                     if (hasDocValues()) {
                         return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
                     } else {
@@ -463,7 +470,7 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+                return new BytesRefsFromOrdsBlockLoader(name());
             }
 
             if (isStored()) {
@@ -474,12 +481,11 @@ public class IpFieldMapper extends FieldMapper {
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
-
             // see #indexValue
-            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isIndexed()
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && hasPoints
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext), lookup);
         }
 
         private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
@@ -496,8 +502,8 @@ public class IpFieldMapper extends FieldMapper {
             };
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(BlockLoaderContext blContext) {
+            return new SourceValueFetcher(blContext.sourcePaths(name()), nullValue, blContext.indexSettings().getIgnoredSourceFormat()) {
                 @Override
                 public InetAddress parseSourceValue(Object value) {
                     return parse(value);

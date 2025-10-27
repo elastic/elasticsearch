@@ -224,7 +224,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * of the array are the initial bits of each of the {@code n} vector dimensions; the next {@code n}
      * bits are the second bits of each of the {@code n} vector dimensions, and so on
      * (this algorithm is only valid for vectors with dimensions a multiple of 8).
-     * The striping is usually done by {@code BQSpaceUtils.transposeHalfByte}.
+     * The striping is usually done by {@code ESVectorUtil.transposeHalfByte}.
      * <p>
      * The data vector should be single-bit quantized.
      *
@@ -237,7 +237,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * <h4>The algorithm</h4>
      *
      * The transposition already applied to the query vector ensures there's a 1-to-1 correspondence
-     * between the data vector bits and query vector bits (see {@code BQSpaceUtils.transposeHalfByte)};
+     * between the data vector bits and query vector bits (see {@code ESVectorUtil.transposeHalfByte)};
      * this means we can use a bitwise {@code &} to keep only the bits of the vector elements we want to sum.
      * Essentially, the data vector is used as a selector for each of the striped bits of each vector dimension
      * as stored, concatenated together, in {@code q}.
@@ -248,7 +248,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * the result of each stripe of {@code n} bits can be added together by shifting the value {@code s} bits to the left,
      * where {@code s} is the stripe number (0-3), then adding to the overall result. Any carry is handled by the add operation.
      *
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code BQSpaceUtils.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
      * @param d data vector, 1-bit quantized
      * @return  inner product result
      */

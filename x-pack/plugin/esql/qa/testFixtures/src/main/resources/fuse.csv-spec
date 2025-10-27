@@ -281,6 +281,33 @@ _score:double | new_fork:keyword  | _id:keyword
 0.01587       | fork1             | 26
 ;
 
+fuseWithRrfAndDiscriminatorColumnWithDots
+required_capability: fork_v9
+required_capability: fuse_v6
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+required_capability: dots_in_fuse
+
+FROM books METADATA _id, _index, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
+| EVAL new.fork = _fork
+| DROP _fork
+| FUSE rrf GROUP BY new.fork
+| SORT _score DESC, _id, _index
+| EVAL new.fork = mv_sort(new.fork)
+| EVAL _score = round(_score, 5)
+| KEEP _score, new.fork, _id
+;
+
+_score:double | new.fork:keyword  | _id:keyword
+0.03279       | [fork1, fork2]    | 4
+0.01613       | fork1             | 56
+0.01613       | fork2             | 60
+0.01587       | fork2             | 1
+0.01587       | fork1             | 26
+;
+
 fuseWithRrfAndKeyColumns
 required_capability: fork_v9
 required_capability: fuse_v6

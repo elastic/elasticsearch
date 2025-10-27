@@ -30,10 +30,12 @@
     "params": {
       "wait_for_completion": {
         "type": "boolean",
+        "default": false,
         "description": "Wait for the matching tasks to complete (default: false)"
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       }
     }

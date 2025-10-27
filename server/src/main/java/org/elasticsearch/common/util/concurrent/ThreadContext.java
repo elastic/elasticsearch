@@ -79,6 +79,11 @@ public final class ThreadContext implements Writeable, TraceContext {
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
 
+    public enum HeadersFor {
+        LOCAL_CLUSTER,
+        REMOTE_CLUSTER
+    }
+
     /**
      * Name for the {@link #stashWithOrigin origin} attribute.
      */
@@ -108,14 +113,14 @@ public final class ThreadContext implements Writeable, TraceContext {
      * @return a stored context that will restore the current context to its state at the point this method was called
      */
     public StoredContext stashContext() {
-        return stashContextPreservingRequestHeaders(Collections.emptySet());
+        return stashContextPreservingRequestHeaders(HeadersFor.LOCAL_CLUSTER, Collections.emptySet());
     }
 
     /**
      * Just like {@link #stashContext()} but also preserves request headers specified via {@code requestHeaders},
      * if these exist in the context before stashing.
      */
-    public StoredContext stashContextPreservingRequestHeaders(Set<String> requestHeaders) {
+    public StoredContext stashContextPreservingRequestHeaders(HeadersFor headersFor, Set<String> requestHeaders) {
         final ThreadContextStruct context = threadLocal.get();
 
         /*
@@ -126,7 +131,7 @@ public final class ThreadContext implements Writeable, TraceContext {
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
          * The same is applied to Task.TRACE_ID and other values specified in `Task.HEADERS_TO_COPY`.
          */
-        final Set<String> requestHeadersToCopy = getRequestHeadersToCopy(requestHeaders);
+        final Set<String> requestHeadersToCopy = getRequestHeadersToCopy(headersFor, requestHeaders);
         boolean hasHeadersToCopy = false;
         if (context.requestHeaders.isEmpty() == false) {
             for (String header : requestHeadersToCopy) {
@@ -157,8 +162,8 @@ public final class ThreadContext implements Writeable, TraceContext {
         return storedOriginalContext(context);
     }
 
-    public StoredContext stashContextPreservingRequestHeaders(final String... requestHeaders) {
-        return stashContextPreservingRequestHeaders(Set.of(requestHeaders));
+    public StoredContext stashContextPreservingRequestHeaders(HeadersFor headersFor, final String... requestHeaders) {
+        return stashContextPreservingRequestHeaders(headersFor, Set.of(requestHeaders));
     }
 
     /**
@@ -285,12 +290,16 @@ public final class ThreadContext implements Writeable, TraceContext {
         return () -> threadLocal.set(originalContext);
     }
 
-    private static Set<String> getRequestHeadersToCopy(Set<String> requestHeaders) {
-        if (requestHeaders.isEmpty()) {
+    private static Set<String> getRequestHeadersToCopy(HeadersFor headersFor, Set<String> requestHeaders) {
+        if (requestHeaders.isEmpty() && headersFor == HeadersFor.LOCAL_CLUSTER) {
             return HEADERS_TO_COPY;
         }
-        final Set<String> allRequestHeadersToCopy = new HashSet<>(requestHeaders);
-        allRequestHeadersToCopy.addAll(HEADERS_TO_COPY);
+        final Set<String> allRequestHeadersToCopy = new HashSet<>(HEADERS_TO_COPY);
+        if (headersFor == HeadersFor.REMOTE_CLUSTER) {
+            // Don't send the current project id to a remote cluster/project
+            allRequestHeadersToCopy.remove(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
+        }
+        allRequestHeadersToCopy.addAll(requestHeaders);
         return Set.copyOf(allRequestHeadersToCopy);
     }
 

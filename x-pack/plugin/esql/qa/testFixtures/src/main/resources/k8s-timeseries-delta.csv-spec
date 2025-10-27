@@ -26,7 +26,6 @@ null               | 2024-05-10T00:01:00.000Z
 delta_of_integer
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS clients = avg(delta(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
 
 clients:double      | time_bucket:datetime
@@ -46,7 +45,6 @@ null                | 2024-05-10T00:01:00.000Z
 delta_of_integer_grouping
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS clients = avg(delta(network.eth0.currently_connected_clients)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
 
 clients:double | cluster:keyword | time_bucket:datetime
@@ -69,7 +67,7 @@ required_capability: delta_ts_agg
 // tag::delta[]
 TS k8s
 | WHERE pod == "one" 
-| STATS tx = sum(delta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| STATS tx = SUM(DELTA(network.bytes_in)) BY cluster, time_bucket = TBUCKET(10minute)
 // end::delta[]
 | SORT time_bucket, cluster | LIMIT 10;
 
@@ -126,7 +124,6 @@ avg_bytes:double    | cluster:keyword | time_bucket:datetime     | kb_minus_offs
 delta_multi_values
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
-required_capability: k8s_dataset_additional_fields
 TS k8s | WHERE @timestamp < "2024-05-10T00:10:00.000Z" | STATS events = sum(delta(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
 
 events:double | pod:keyword | time_bucket:datetime
@@ -146,7 +143,6 @@ null          | two         | 2024-05-10T00:07:00.000Z
 delta_null_values
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
-required_capability: k8s_dataset_additional_fields
 TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(delta(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
 
 events:double | pod:keyword | time_bucket:datetime
@@ -167,7 +163,6 @@ null          | two         | 2024-05-10T00:13:00.000Z
 delta_all_value_types
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS events = sum(delta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT events desc, pod, time_bucket | LIMIT 10 ;
 
 events:double | pod:keyword | time_bucket:datetime

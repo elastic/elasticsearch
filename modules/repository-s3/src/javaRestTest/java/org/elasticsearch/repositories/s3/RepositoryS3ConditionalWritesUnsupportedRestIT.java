@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
-import org.hamcrest.Matchers;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -35,6 +34,9 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
@@ -119,15 +121,15 @@ public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepo
         try (var ignored = testRepository.register(UnaryOperator.identity()); var logStream = cluster.getNodeLog(0, LogType.SERVER)) {
             assertThat(
                 Streams.readAllLines(logStream),
-                Matchers.hasItem(
-                    Matchers.allOf(
-                        Matchers.containsString("WARN"),
-                        Matchers.containsString(repoName),
-                        Matchers.containsString("""
+                hasItem(
+                    allOf(
+                        containsString("WARN"),
+                        containsString(repoName),
+                        containsString("""
                             is configured to unsafely avoid conditional writes which may lead to repository corruption; to resolve this \
                             warning, upgrade your storage to a system that is fully compatible with AWS S3 and then remove the \
                             [unsafely_incompatible_with_s3_conditional_writes] repository setting"""),
-                        Matchers.containsString(ReferenceDocs.S3_COMPATIBLE_REPOSITORIES.toString())
+                        containsString(ReferenceDocs.S3_COMPATIBLE_REPOSITORIES.toString())
                     )
                 )
             );

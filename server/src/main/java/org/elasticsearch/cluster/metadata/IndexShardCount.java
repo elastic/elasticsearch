@@ -75,23 +75,4 @@ public class IndexShardCount implements ToXContentFragment {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return x;
     }
-
-    // public static final String SHARD_COUNT_FILE_PREFIX = "shard-count-";
-    // /**
-    // * State format for {@link IndexMetadata} to only write shard count to and load from disk
-    // */
-    // public static final MetadataStateFormat<IndexShardCount> FORMAT =
-    // new MetadataStateFormat<IndexShardCount>(SHARD_COUNT_FILE_PREFIX) {
-    // @Override
-    // public void toXContent(XContentBuilder builder, IndexShardCount indexShardCount) throws IOException {
-    // builder.startObject();
-    // builder.field(KEY_SHARD_COUNT, indexShardCount.getCount());
-    // builder.endObject();
-    // }
-    //
-    // @Override
-    // public IndexShardCount fromXContent(XContentParser parser) throws IOException {
-    // return IndexShardCount.fromXContent(parser);
-    // }
-    // };
 }

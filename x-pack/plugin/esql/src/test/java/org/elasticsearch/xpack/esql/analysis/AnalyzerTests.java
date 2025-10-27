@@ -1649,7 +1649,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
+        final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
             + "or dense_vector or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",

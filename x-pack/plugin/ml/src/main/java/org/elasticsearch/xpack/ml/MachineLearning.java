@@ -751,7 +751,7 @@ public class MachineLearning extends Plugin
     public static final Setting<TimeValue> SCALE_UP_COOLDOWN_TIME = Setting.timeSetting(
         "xpack.ml.trained_models.adaptive_allocations.scale_up_cooldown_time",
         TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueSeconds(1),
         Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -766,7 +766,7 @@ public class MachineLearning extends Plugin
     public static final Setting<TimeValue> SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME = Setting.timeSetting(
         "xpack.ml.trained_models.adaptive_allocations.scale_to_zero_time",
         TimeValue.timeValueHours(24),
-        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueSeconds(1),
         Property.Dynamic,
         Setting.Property.NodeScope
     );

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -15,12 +16,15 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * A fork of the field-caps API for ES|QL. This fork allows us to gradually introduce features and optimizations to this internal
@@ -50,15 +54,42 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
-        fieldCapsAction.executeRequest(task, request, this::executeLinkedRequest, listener.map(EsqlResolveFieldsResponse::new));
-    }
+        fieldCapsAction.executeRequest(
+            task,
+            request,
+            new TransportFieldCapabilitiesAction.LinkedRequestExecutor<EsqlResolveFieldsResponse>() {
+                @Override
+                public void executeRemoteRequest(
+                    TransportService transportService,
+                    Transport.Connection conn,
+                    FieldCapabilitiesRequest remoteRequest,
+                    ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
+                ) {
+                    transportService.sendRequest(
+                        conn,
+                        RESOLVE_REMOTE_TYPE.name(),
+                        remoteRequest,
+                        TransportRequestOptions.EMPTY,
+                        responseHandler
+                    );
+                }
 
-    void executeLinkedRequest(
-        TransportService transportService,
-        Transport.Connection conn,
-        FieldCapabilitiesRequest request,
-        ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
-    ) {
-        transportService.sendRequest(conn, RESOLVE_REMOTE_TYPE.name(), request, TransportRequestOptions.EMPTY, responseHandler);
+                @Override
+                public EsqlResolveFieldsResponse read(StreamInput in) throws IOException {
+                    return new EsqlResolveFieldsResponse(in);
+                }
+
+                @Override
+                public EsqlResolveFieldsResponse wrapPrimary(FieldCapabilitiesResponse primary) {
+                    return new EsqlResolveFieldsResponse(primary);
+                }
+
+                @Override
+                public FieldCapabilitiesResponse unwrapPrimary(EsqlResolveFieldsResponse esqlResolveFieldsResponse) {
+                    return esqlResolveFieldsResponse.caps();
+                }
+            },
+            listener
+        );
     }
 }

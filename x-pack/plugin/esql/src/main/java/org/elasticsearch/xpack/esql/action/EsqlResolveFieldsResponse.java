@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.logging.LogManager;
 
 import java.io.IOException;
 
@@ -79,6 +80,7 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
             if (caps.minTransportVersion() != null) {
                 TransportVersion.writeVersion(caps.minTransportVersion(), out);
             }
+            return;
         }
         // Remote does not expect an optional min transport version so we don't send anything
     }

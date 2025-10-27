@@ -83,6 +83,7 @@ class IndicesAndAliasesResolver {
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
         this.crossProjectModeDecider = crossProjectModeDecider;
+        // TODO: This should be injected when we have the implementation provided from the serverless side
         this.crossProjectRoutingResolver = new CrossProjectRoutingResolver();
     }
 

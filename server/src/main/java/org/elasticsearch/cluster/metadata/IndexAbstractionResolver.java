@@ -78,7 +78,6 @@ public class IndexAbstractionResolver {
     ) {
         if (targetProjects == TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED) {
             final String message = "cannot resolve indices cross project if target set is local only";
-            ;
             assert false : message;
             throw new IllegalArgumentException(message);
         }

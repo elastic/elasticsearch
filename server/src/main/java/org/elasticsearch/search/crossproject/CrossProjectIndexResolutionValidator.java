@@ -84,15 +84,14 @@ public class CrossProjectIndexResolutionValidator {
             return null;
         }
 
+        final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
         logger.debug(
-            "Checking index existence for [{}] and [{}] with indices options [{}]",
+            "Checking index existence for [{}] and [{}] with indices options [{}]{}",
             localResolvedExpressions,
             remoteResolvedExpressions,
-            indicesOptions
+            indicesOptions,
+            hasProjectRouting ? " and project routing [" + projectRouting + "]" : ""
         );
-
-        final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
-        logger.info("--> validating local [{}] remote [{}]", localResolvedExpressions, remoteResolvedExpressions);
 
         for (ResolvedIndexExpression localResolvedIndices : localResolvedExpressions.expressions()) {
             String originalExpression = localResolvedIndices.original();

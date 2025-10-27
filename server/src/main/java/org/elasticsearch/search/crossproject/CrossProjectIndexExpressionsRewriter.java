@@ -96,7 +96,8 @@ public class CrossProjectIndexExpressionsRewriter {
     ) {
         maybeThrowOnUnsupportedResource(indexExpression);
 
-        // Always 404 when no project is available for index resolution
+        // Always 404 when no project is available for index resolution. This is matching error handling behaviour for resolving
+        // projects with qualified index patterns such as "missing-*:index".
         if (originProjectAlias == null && allProjectAliases.isEmpty()) {
             // TODO: add project_routing string to the exception message
             throw new NoMatchingProjectException("no matching project after applying project routing");

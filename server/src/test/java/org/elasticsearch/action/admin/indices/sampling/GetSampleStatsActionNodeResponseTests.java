@@ -52,6 +52,7 @@ public class GetSampleStatsActionNodeResponseTests extends AbstractWireSerializi
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomPositiveTimeValue(),
             randomPositiveTimeValue(),
             randomPositiveTimeValue(),

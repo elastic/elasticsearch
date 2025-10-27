@@ -58,12 +58,12 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_DIRECT_IO = 1;
     public static final int VERSION_CURRENT = VERSION_DIRECT_IO;
 
-    private static final DirectIOCapableFlatVectorsFormat rawVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+    private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
-        rawVectorFormat.getName(),
-        rawVectorFormat
+        float32VectorFormat.getName(),
+        float32VectorFormat
     );
 
     // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
@@ -79,6 +79,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
+    private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
 
     public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
         this(vectorPerCluster, centroidsPerParentCluster, false);
@@ -109,6 +110,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.useDirectIO = useDirectIO;
+        this.rawVectorFormat = float32VectorFormat;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */

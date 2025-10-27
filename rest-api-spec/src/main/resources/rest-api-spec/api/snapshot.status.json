@@ -57,6 +57,7 @@
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to ignore unavailable snapshots, defaults to false which means a SnapshotMissingException is thrown"
       }
     }

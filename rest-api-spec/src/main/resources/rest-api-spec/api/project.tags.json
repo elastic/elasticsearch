@@ -7,13 +7,17 @@
     "stability": "experimental",
     "visibility": "public",
     "headers": {
-      "accept": ["application/json"]
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_project/tags",
-          "methods": ["GET"]
+          "methods": [
+            "GET"
+          ]
         }
       ]
     }

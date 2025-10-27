@@ -15,14 +15,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Objects;
 
@@ -32,11 +30,6 @@ import java.util.Objects;
  * the bytes will be released.
  */
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
-
-    static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
-    static final VarHandle VH_LE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
-    static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-    static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
     private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
     private final Recycler<BytesRef> recycler;
@@ -148,7 +141,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
-    protected static int vIntLength(int value) {
+    public static int vIntLength(int value) {
         int leadingZeros = Integer.numberOfLeadingZeros(value);
         if (leadingZeros >= 25) {
             return 1;
@@ -177,7 +170,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             super.writeInt(i);
         } else {
             BytesRef currentPage = currentBytesRef;
-            VH_BE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            ByteUtils.writeIntBE(i, currentPage.bytes, currentPage.offset + currentPageOffset);
             this.currentPageOffset = currentPageOffset + 4;
         }
     }
@@ -189,7 +182,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             super.writeIntLE(i);
         } else {
             BytesRef currentPage = currentBytesRef;
-            VH_LE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            ByteUtils.writeIntLE(i, currentPage.bytes, currentPage.offset + currentPageOffset);
             this.currentPageOffset = currentPageOffset + 4;
         }
     }
@@ -201,7 +194,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             super.writeLong(i);
         } else {
             BytesRef currentPage = currentBytesRef;
-            VH_BE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            ByteUtils.writeLongBE(i, currentPage.bytes, currentPage.offset + currentPageOffset);
             this.currentPageOffset = currentPageOffset + 8;
         }
     }
@@ -213,7 +206,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             super.writeLongLE(i);
         } else {
             BytesRef currentPage = currentBytesRef;
-            VH_LE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            ByteUtils.writeLongLE(i, currentPage.bytes, currentPage.offset + currentPageOffset);
             this.currentPageOffset = currentPageOffset + 8;
         }
     }
@@ -238,6 +231,25 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 size -= writeSize;
                 tmpPage++;
             }
+        }
+    }
+
+    /**
+     * Attempt to get one page to perform a write directly into the page. The page will only be returned if the requested bytes can fit.
+     * If requested bytes cannot fit, null will be returned. This will advance the current position in the stream.
+     *
+     * @param bytes the number of bytes for the single write
+     * @return a direct page if there is enough space in current page, otherwise null
+     */
+    public BytesRef tryGetPageForWrite(int bytes) {
+        final int beforePageOffset = this.currentPageOffset;
+        if (bytes <= (pageSize - beforePageOffset)) {
+            BytesRef currentPage = currentBytesRef;
+            BytesRef bytesRef = new BytesRef(currentPage.bytes, currentPage.offset + beforePageOffset, bytes);
+            this.currentPageOffset = beforePageOffset + bytes;
+            return bytesRef;
+        } else {
+            return null;
         }
     }
 

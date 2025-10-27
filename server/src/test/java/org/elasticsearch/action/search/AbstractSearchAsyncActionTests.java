@@ -13,11 +13,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -25,6 +27,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -82,13 +85,16 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             null,
             request,
             listener,
-            Collections.singletonList(new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null)),
+            Collections.singletonList(
+                new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
+            ),
             timeProvider,
             ClusterState.EMPTY_STATE,
             null,
             results,
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            Mockito.mock(SearchResponseMetrics.class)
         ) {
             @Override
             protected SearchPhase getNextPhase() {
@@ -153,7 +159,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 clusterAlias,
                 new ShardId(new Index("name", "foo"), 1),
                 Collections.emptyList(),
-                new OriginalIndices(new String[] { "name", "name1" }, IndicesOptions.strictExpand())
+                new OriginalIndices(new String[] { "name", "name1" }, IndicesOptions.strictExpand()),
+                SplitShardCountSummary.UNSET
             );
             ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator, 10);
             assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());

@@ -20,13 +20,13 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.usage.SearchUsageHolder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -71,16 +71,7 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(parser -> {
-            RestSearchAction.parseSearchRequest(
-                searchRequest,
-                request,
-                parser,
-                clusterSupportsFeature,
-                setSize,
-                searchUsageHolder,
-                // This endpoint is not CPS-enabled.
-                Optional.empty()
-            );
+            RestSearchAction.parseSearchRequest(searchRequest, request, parser, clusterSupportsFeature, setSize, searchUsageHolder);
             String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
             final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
             for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
@@ -91,6 +82,9 @@ public class RestFleetSearchAction extends BaseRestHandler {
                 throw new IllegalArgumentException(
                     "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices1) + "]."
                 );
+            }
+            if (RemoteClusterService.isRemoteIndexName(indices1[0])) {
+                throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices1[0] + "].");
             }
             if (waitForCheckpoints.length != 0) {
                 searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices1[0], waitForCheckpoints));

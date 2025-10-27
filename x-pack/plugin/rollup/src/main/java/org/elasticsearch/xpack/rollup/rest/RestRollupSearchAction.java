@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -53,9 +52,7 @@ public class RestRollupSearchAction extends BaseRestHandler {
                 restRequest,
                 parser,
                 clusterSupportsFeature,
-                size -> searchRequest.source().size(size),
-                // This endpoint is not CPS-enabled.
-                Optional.empty()
+                size -> searchRequest.source().size(size)
             )
         );
         RestSearchAction.validateSearchRequest(restRequest, searchRequest);

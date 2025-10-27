@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    private static final String CERTIFICATE_IDENTITY_FIELD_FEATURE = "certificate_identity_field";
 
     public void testQueryRestTypeKeys() throws IOException {
         assumeTrue(
@@ -201,10 +203,20 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testCertificateIdentityBackwardsCompatibility() throws Exception {
+        final Set<TestNodeInfo> nodes = collectNodeInfos(adminClient());
+
+        final Set<TestNodeInfo> newVersionNodes = nodes.stream().filter(TestNodeInfo::isUpgradedVersionCluster).collect(toSet());
+        final Set<TestNodeInfo> oldVersionNodes = nodes.stream().filter(TestNodeInfo::isOriginalVersionCluster).collect(toSet());
+
         assumeTrue(
-            "certificate identity backwards compatibility only relevant when upgrading from pre-9.2.0",
-            UPGRADE_FROM_VERSION.before(Version.V_9_2_0)
+            "Old version nodes must not support certificate identity feature",
+            oldVersionNodes.stream().noneMatch(info -> info.supportsFeature(CERTIFICATE_IDENTITY_FIELD_FEATURE))
         );
+        assumeTrue(
+            "New version nodes must support certificate identity feature",
+            newVersionNodes.stream().allMatch(info -> info.supportsFeature(CERTIFICATE_IDENTITY_FIELD_FEATURE))
+        );
+
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 var exception = expectThrows(Exception.class, () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
@@ -373,22 +385,15 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
-    boolean nodeSupportApiKeyRemoteIndices(Map<String, Object> nodeDetails) {
-        String nodeVersionString = (String) nodeDetails.get("version");
-        TransportVersion transportVersion = getTransportVersionWithFallback(
-            nodeVersionString,
-            nodeDetails.get("transport_version"),
-            () -> TransportVersion.zero()
-        );
-
-        if (transportVersion.equals(TransportVersion.zero())) {
+    boolean nodeSupportApiKeyRemoteIndices(TestNodeInfo testNodeInfo) {
+        if (testNodeInfo.transportVersion().equals(TransportVersion.zero())) {
             // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
             // In that case, the node will be current (upgraded), and remote indices are supported for sure.
-            var nodeIsCurrent = nodeVersionString.equals(Build.current().version());
+            var nodeIsCurrent = testNodeInfo.version().equals(Build.current().version());
             assertTrue(nodeIsCurrent);
             return true;
         }
-        return transportVersion.onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
+        return testNodeInfo.transportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {
@@ -426,11 +431,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         apiKeysVerifier.accept(apiKeys);
     }
 
-    private boolean nodeSupportsCertificateIdentity(Map<String, Object> nodeDetails) {
-        String nodeVersionString = (String) nodeDetails.get("version");
-        Version nodeVersion = Version.fromString(nodeVersionString);
-        // Certificate identity was introduced in 9.3.0
-        return nodeVersion.onOrAfter(Version.V_9_3_0);
+    private boolean nodeSupportsCertificateIdentity(TestNodeInfo nodeDetails) {
+        return nodeDetails.supportsFeature(CERTIFICATE_IDENTITY_FIELD_FEATURE);
     }
 
     private Tuple<String, String> createCrossClusterApiKeyWithCertIdentity(String certificateIdentity) throws IOException {

@@ -281,7 +281,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
         return new Match(source, field, query, null, queryBuilder);
@@ -293,7 +293,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalNamedWriteable(queryBuilder());
         }
     }
@@ -400,6 +400,15 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
+            fieldVerifier(plan, this, field, failures);
+        };
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        // check plan again after predicates are pushed down into subqueries
+        return (plan, failures) -> {
+            super.postOptimizationPlanVerification().accept(plan, failures);
             fieldVerifier(plan, this, field, failures);
         };
     }

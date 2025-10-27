@@ -38,6 +38,7 @@
       },
       "detailed": {
         "type": "boolean",
+        "default": false,
         "description": "Return detailed task information (default: false)"
       },
       "parent_task_id": {

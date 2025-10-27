@@ -28,5 +28,23 @@ public interface ExponentialHistogramValuesReader {
      */
     ExponentialHistogram histogramValue() throws IOException;
 
-    // TODO: add accessors for min/max/sum/count which don't load the entire histogram
+    /**
+     * A shortcut for invoking {@link ExponentialHistogram#valueCount()} on the return value of {@link #histogramValue()}.
+     * This method is more performant because it avoids loading the unnecessary parts of the histogram.
+     * Must be called only after a successful call to {@link #advanceExact(int)}.
+     *
+     * @return the count of values in the histogram for the current document
+     */
+    long valuesCountValue() throws IOException;
+
+    /**
+     * A shortcut for invoking {@link ExponentialHistogram#sum()} on the return value of {@link #histogramValue()}.
+     * This method is more performant because it avoids loading the unnecessary parts of the histogram.
+     * Must be called only after a successful call to {@link #advanceExact(int)}.
+     *
+     * @return the sum of values in the histogram for the current document
+     */
+    double sumValue() throws IOException;
+
+    // TODO: add accessors for min/max/sum which don't load the entire histogram
 }

@@ -59,6 +59,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
@@ -315,6 +316,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // when
         MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
         doReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false)).when(blContext).fieldNames();
+        when(blContext.indexSettings()).thenReturn(indexSettings);
         BlockLoader blockLoader = ft.blockLoader(blContext);
 
         // then
@@ -362,6 +364,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // when
         MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(blContext.indexSettings()).thenReturn(indexSettings);
         doReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false)).when(blContext).fieldNames();
         BlockLoader blockLoader = ft.blockLoader(blContext);
 

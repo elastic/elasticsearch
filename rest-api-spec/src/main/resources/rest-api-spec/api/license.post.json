@@ -28,6 +28,7 @@
     "params": {
       "acknowledge": {
         "type": "boolean",
+        "default": false,
         "description": "whether the user has acknowledged acknowledge messages (default: false)"
       },
       "master_timeout": {
@@ -37,11 +38,13 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for acknowledgement of update from all nodes in cluster"
       }
     },
     "body": {
-      "description": "licenses to be installed"
+      "description": "licenses to be installed",
+      "required": false
     }
   }
 }

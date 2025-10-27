@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -24,10 +25,13 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+
+import java.util.List;
 
 /**
  * Evaluator for inference functions that performs constant folding by executing inference operations
@@ -76,11 +80,16 @@ public class InferenceFunctionEvaluator {
             listener.onFailure(new IllegalArgumentException("Inference function must be foldable"));
             return;
         }
+        if (f.dataType() == DataType.NULL) {
+            // If the function's return type is NULL, we can directly return a NULL literal without executing anything.
+            listener.onResponse(Literal.of(f, null));
+            return;
+        }
 
         // Set up a DriverContext for executing the inference operator.
         // This follows the same pattern as EvaluatorMapper but in a simplified context
         // suitable for constant folding during optimization.
-        CircuitBreaker breaker = foldContext.circuitBreakerView(f.source());
+        CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         BigArrays bigArrays = new BigArrays(null, new CircuitBreakerService() {
             @Override
             public CircuitBreaker getBreaker(String name) {
@@ -115,13 +124,16 @@ public class InferenceFunctionEvaluator {
                 // Execute the inference operation asynchronously and handle the result
                 // The operator will perform the actual inference call and return a page with the result
                 driverContext.waitForAsyncActions(listener.delegateFailureIgnoreResponseAndWrap(l -> {
-                    Page output = inferenceOperator.getOutput();
-
                     try {
+                        Page output = inferenceOperator.getOutput();
+
                         if (output == null) {
                             l.onFailure(new IllegalStateException("Expected output page from inference operator"));
                             return;
                         }
+
+                        output.allowPassingToDifferentDriver();
+                        l = ActionListener.releaseBefore(output, l);
 
                         if (output.getPositionCount() != 1 || output.getBlockCount() != 1) {
                             l.onFailure(new IllegalStateException("Expected a single block with a single value from inference operator"));
@@ -129,12 +141,11 @@ public class InferenceFunctionEvaluator {
                         }
 
                         // Convert the operator result back to an ESQL expression (Literal)
-                        l.onResponse(Literal.of(f, BlockUtils.toJavaObject(output.getBlock(0), 0)));
+                        l.onResponse(Literal.of(f, processValue(f.dataType(), BlockUtils.toJavaObject(output.getBlock(0), 0))));
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     } finally {
                         Releasables.close(inferenceOperator);
-                        if (output != null) {
-                            output.releaseBlocks();
-                        }
                     }
                 }));
             } catch (Exception e) {
@@ -146,6 +157,14 @@ public class InferenceFunctionEvaluator {
         } finally {
             driverContext.finish();
         }
+    }
+
+    private Object processValue(DataType dataType, Object value) {
+        if (dataType == DataType.DENSE_VECTOR && value instanceof List == false) {
+            value = List.of(value);
+        }
+
+        return value;
     }
 
     /**

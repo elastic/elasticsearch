@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -40,7 +39,6 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final Settings settings;
-    private final boolean inCpsContext;
 
     public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
         this(searchUsageHolder, clusterSupportsFeature, null);
@@ -54,7 +52,6 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
         this.settings = settings;
-        this.inCpsContext = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
     }
 
     @Override
@@ -74,10 +71,9 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         }
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
 
-        if (inCpsContext) {
+        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
-            submit.getSearchRequest().setCcsMinimizeRoundtrips(true);
         }
 
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
@@ -86,16 +82,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
         // Note that ccs_minimize_roundtrips is also set this way, which is a supported option.
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(
-                submit.getSearchRequest(),
-                request,
-                parser,
-                clusterSupportsFeature,
-                setSize,
-                searchUsageHolder,
-                // This endpoint is CPS-enabled so propagate the right value.
-                Optional.of(inCpsContext)
-            )
+            parser -> parseSearchRequest(submit.getSearchRequest(), request, parser, clusterSupportsFeature, setSize, searchUsageHolder)
         );
 
         if (request.hasParam("wait_for_completion_timeout")) {

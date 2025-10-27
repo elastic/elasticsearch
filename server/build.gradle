@@ -38,6 +38,7 @@ dependencies {
   api project(":libs:plugin-analysis-api")
   api project(':libs:grok')
   api project(":libs:tdigest")
+  api project(":libs:exponential-histogram")
   implementation project(":libs:simdvec")
   implementation project(":libs:entitlement")
 
@@ -77,6 +78,11 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
   }
+  testImplementation(testArtifact(project(":libs:exponential-histogram"))) {
+    // The test framework is manually included with excludes above
+    exclude group: 'org.elasticsearch.test', module: 'framework'
+  }
+
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }

@@ -40,8 +40,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -889,9 +889,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 var denseResult = (ChunkedInferenceEmbedding) results.getFirst();
                 assertThat(denseResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, "hello world".length()), denseResult.chunks().getFirst().offset());
-                assertThat(denseResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(denseResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
 
-                var embedding = (TextEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
+                var embedding = (DenseEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
                 assertArrayEquals(new float[] { 0.123f, -0.456f, 0.789f }, embedding.values(), 0.0f);
             }
 
@@ -901,9 +901,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 var denseResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(denseResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, "dense embedding".length()), denseResult.chunks().getFirst().offset());
-                assertThat(denseResult.chunks().getFirst().embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(denseResult.chunks().getFirst().embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
 
-                var embedding = (TextEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
+                var embedding = (DenseEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
                 assertArrayEquals(new float[] { 0.987f, -0.654f, 0.321f }, embedding.values(), 0.0f);
             }
 
@@ -971,15 +971,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                        "name": "Elastic",
                        "task_types": ["sparse_embedding", "chat_completion", "text_embedding"],
                        "configurations": {
-                           "rate_limit.requests_per_minute": {
-                               "description": "Minimize the number of rate limit errors.",
-                               "label": "Rate Limit",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
-                           },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
@@ -1028,15 +1019,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                        "name": "Elastic",
                        "task_types": [],
                        "configurations": {
-                           "rate_limit.requests_per_minute": {
-                               "description": "Minimize the number of rate limit errors.",
-                               "label": "Rate Limit",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
-                           },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
@@ -1256,7 +1238,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                       "task_types": ["embed/text/sparse"]
                     },
                     {
-                      "model_name": "multilingual-embed-v1",
+                      "model_name": "jina-embeddings-v3",
                       "task_types": ["embed/text/dense"]
                     },
                   {
@@ -1284,7 +1266,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                             service
                         ),
                         new InferenceService.DefaultConfigId(
-                            ".multilingual-embed-v1-elastic",
+                            ".jina-embeddings-v3",
                             MinimalServiceSettings.textEmbedding(
                                 ElasticInferenceService.NAME,
                                 ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
@@ -1316,7 +1298,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             var models = listener.actionGet(TIMEOUT);
             assertThat(models.size(), is(4));
             assertThat(models.get(0).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
-            assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".multilingual-embed-v1-elastic"));
+            assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".jina-embeddings-v3"));
             assertThat(models.get(2).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
             assertThat(models.get(3).getConfigurations().getInferenceEntityId(), is(".rerank-v1-elastic"));
         }

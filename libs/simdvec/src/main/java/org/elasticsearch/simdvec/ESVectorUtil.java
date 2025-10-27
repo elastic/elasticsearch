@@ -48,6 +48,16 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension);
     }
 
+    public static ESNextOSQVectorsScorer getESNextOSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength
+    ) throws IOException {
+        return ESVectorizationProvider.getInstance().newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
+    }
+
     public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
         return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension);
     }

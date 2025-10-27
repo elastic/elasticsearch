@@ -99,6 +99,13 @@ public abstract class IndexRouting {
     public abstract int indexShard(IndexRequest indexRequest);
 
     /**
+     * Called when indexing a document must be rerouted from the source shard to the target
+     * during resharding. Should be similar to {@link #indexShard(IndexRequest)} while avoiding
+     * the initial expense of having to calculate the routing parameters.
+     */
+    public abstract int rerouteToTarget(IndexRequest indexRequest);
+
+    /**
      * Called when updating a document to generate the shard id that should contain
      * a document with the provided {@code _id} and (optional) {@code _routing}.
      */
@@ -228,6 +235,11 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public int rerouteToTarget(IndexRequest indexRequest) {
+            return indexShard(indexRequest);
+        }
+
+        @Override
         public int updateShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
@@ -341,7 +353,23 @@ public abstract class IndexRouting {
             checkNoRouting(indexRequest.routing());
             hash = hashSource(indexRequest);
             int shardId = hashToShardId(hash);
-            return (rerouteWritesIfResharding(shardId));
+            return rerouteWritesIfResharding(shardId);
+        }
+
+        @Override
+        public int rerouteToTarget(IndexRequest indexRequest) {
+            if (trackTimeSeriesRoutingHash) {
+                String routing = indexRequest.routing();
+                if (routing == null) {
+                    throw new IllegalStateException("Routing should be set by the coordinator");
+                }
+                return hashToShardId(TimeSeriesRoutingHashFieldMapper.decode(indexRequest.routing()));
+            } else if (addIdWithRoutingHash) {
+                return hashToShardId(idToHash(indexRequest.id()));
+            } else {
+                checkNoRouting(indexRequest.routing());
+                return indexShard(indexRequest);
+            }
         }
 
         protected abstract int hashSource(IndexRequest indexRequest);
@@ -363,7 +391,7 @@ public abstract class IndexRouting {
         public int deleteShard(String id, @Nullable String routing) {
             checkNoRouting(routing);
             int shardId = idToHash(id);
-            return (rerouteWritesIfResharding(shardId));
+            return rerouteWritesIfResharding(shardId);
         }
 
         @Override
@@ -482,6 +510,7 @@ public abstract class IndexRouting {
 
             @Override
             protected int hashSource(IndexRequest indexRequest) {
+                // System.out.println("hashSource for tsid");
                 BytesRef tsid = indexRequest.tsid();
                 if (tsid == null) {
                     tsid = buildTsid(indexRequest.getContentType(), indexRequest.indexSource().bytes());

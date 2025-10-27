@@ -34,7 +34,6 @@ import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -1466,7 +1465,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         if (indexed) {
             assertTrue(fieldType.indexType().hasVectors());
         } else {
-            assertThat(fieldType.indexType(), equalTo(IndexType.NONE));
+            assertTrue(fieldType.indexType().hasOnlyDocValues());
         }
         assertEquals(fieldType.isSearchable(), indexed);
     }
@@ -2404,6 +2403,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
         SourceToParse source = source(b -> b.field(ft.name(), value));
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {

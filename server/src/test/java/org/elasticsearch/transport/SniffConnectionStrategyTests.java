@@ -93,7 +93,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             builder.setSecureSettings(secureSettings);
         }
         clientSettings = builder.build();
-        profile = RemoteConnectionStrategy.buildConnectionProfile(toConfig(clusterAlias, clientSettings), hasClusterCredentials);
+        profile = RemoteConnectionStrategy.buildConnectionProfile(
+            toConfig(clusterAlias, clientSettings),
+            hasClusterCredentials ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE : TransportSettings.DEFAULT_PROFILE
+        );
     }
 
     @Override

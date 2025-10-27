@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Date nanoseconds"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/date_nanos.html
@@ -16,6 +19,7 @@ Date formats can be customised, but if no `format` is specified then it uses the
 ```js
     "strict_date_optional_time_nanos||epoch_millis"
 ```
+% NOTCONSOLE
 
 For instance:
 
@@ -59,6 +63,7 @@ GET my-index-000001/_search
   ]
 }
 ```
+% TEST[s/_search/_search?filter_path=hits.hits/]
 
 1. The `date` field uses the default `format`.
 2. This document uses a plain date.
@@ -112,6 +117,7 @@ PUT idx/_doc/1
   "date": ["2015-01-01T12:10:30.000Z", "2014-01-01T12:10:30.000Z"]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -120,5 +126,5 @@ Will become:
   "date": ["2014-01-01T12:10:30.000Z", "2015-01-01T12:10:30.000Z"]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

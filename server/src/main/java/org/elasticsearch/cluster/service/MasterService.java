@@ -1607,13 +1607,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 } catch (Exception e) {
                     assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
                     task.onFailure(
-                        new FailedToCommitClusterStateException(
-                            "could not schedule timeout handler for [%s][%s] on queue [%s]",
-                            e,
-                            source,
-                            task,
-                            name
-                        )
+                        new NotMasterException("could not schedule timeout handler for [%s][%s] on queue [%s]", e, source, task, name)
                     );
                     return;
                 }

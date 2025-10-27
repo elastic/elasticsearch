@@ -37,6 +37,7 @@
     "params": {
       "allow_no_match": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard expression matches no jobs. (This includes `_all` string or when no jobs have been specified)"
       },
       "bytes": {
@@ -58,6 +59,7 @@
       },
       "h": {
         "type": "list",
+        "default": "buckets.count,data.processed_records,forecasts.total,id,model.bytes,model.memory_status,state",
         "description": "Comma-separated list of column names to display"
       },
       "help": {

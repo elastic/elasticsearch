@@ -1,0 +1,6 @@
+pr: 136143
+summary: Optionally ignore field when indexed field name exceeds length limit
+area: Mapping
+type: enhancement
+issues:
+ - 135700

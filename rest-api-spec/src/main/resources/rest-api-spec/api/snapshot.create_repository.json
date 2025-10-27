@@ -39,10 +39,12 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       },
       "verify": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to verify the repository after creation"
       }
     },

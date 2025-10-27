@@ -36,6 +36,7 @@
     "params": {
       "summary": {
         "type": "boolean",
+        "default": false,
         "description": "Return pipelines without their definitions (default: false)"
       },
       "master_timeout": {

@@ -101,7 +101,26 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         assertThat(metrics, hasSize(0));
     }
 
-    public void testNullGaugeRecord() throws Exception {
+    public void testLongWithInvalidAttribute() {
+        registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
+
+        AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
+        assertThat(error.getMessage(), equalTo("invalid metric attributes"));
+    }
+
+    public void testDoubleWithInvalidAttribute() {
+        registry.registerDoubleAsyncCounter(
+            "es.test.name.total",
+            "desc",
+            "unit",
+            () -> new DoubleWithAttributes(1.0, Map.of("has_timestamp", "false"))
+        );
+
+        AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
+        assertThat(error.getMessage(), equalTo("invalid metric attributes"));
+    }
+
+    public void testNullRecord() throws Exception {
         DoubleAsyncCounter dcounter = registry.registerDoubleAsyncCounter(
             "es.test.name.total",
             "desc",

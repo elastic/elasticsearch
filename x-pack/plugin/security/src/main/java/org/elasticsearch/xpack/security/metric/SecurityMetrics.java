@@ -69,10 +69,9 @@ public final class SecurityMetrics<C> {
      * Records a single failed execution.
      *
      * @param context       The context object which is used to attach additional attributes to failed metric.
-     * @param failureReason The optional failure reason which is stored as an attributed with recorded failure metric.
      */
-    public void recordFailure(final C context, final String failureReason) {
-        this.failuresCounter.incrementBy(1L, attributesBuilder.build(context, failureReason));
+    public void recordFailure(final C context) {
+        this.failuresCounter.incrementBy(1L, attributesBuilder.build(context));
     }
 
     /**

@@ -188,6 +188,10 @@ public class InferenceResolver {
 
         for (int i = 0; i < functionDescription.args().size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = functionDescription.args().get(i);
+            if (i >= f.arguments().size()) {
+                // Argument is missing. We will fail later during verifier, so just return null here.
+                return null;
+            }
 
             if (arg.name().equals(InferenceFunction.INFERENCE_ID_PARAMETER_NAME)) {
                 Expression inferenceId = f.arguments().get(i);

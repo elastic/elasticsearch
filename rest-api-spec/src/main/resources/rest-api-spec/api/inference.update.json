@@ -47,7 +47,8 @@
       ]
     },
     "body": {
-      "description": "The inference endpoint's task and service settings"
+      "description": "The inference endpoint's task and service settings",
+      "required": true
     }
   }
 }

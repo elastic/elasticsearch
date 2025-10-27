@@ -105,3 +105,10 @@ redirects:
   'reference/query-languages/esql/kibana/docs/functions/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
   'reference/query-languages/esql/kibana/docs/functions/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
   'reference/query-languages/esql/kibana/docs/functions/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+
+  'reference/elasticsearch/mapping-reference/text.md':
+    to: 'reference/elasticsearch/mapping-reference/text.md'
+    anchors: { } # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/elasticsearch/mapping-reference/match-only-text.md'
+        anchors: { 'match-only-text-field-type', 'match-only-text-params' }

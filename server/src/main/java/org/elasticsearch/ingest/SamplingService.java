@@ -10,6 +10,8 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
@@ -26,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -93,7 +94,6 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     private static final String TTL_JOB_ID = "sampling_ttl";
     private final ScriptService scriptService;
     private final ClusterService clusterService;
-    private final ProjectResolver projectResolver;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
     private final MasterServiceTaskQueue<UpdateSamplingConfigurationTask> updateSamplingConfigurationTaskQueue;
     private final MasterServiceTaskQueue<DeleteSampleConfigurationTask> deleteSamplingConfigurationTaskQueue;
@@ -120,26 +120,15 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     /*
      * This creates a new SamplingService, and configures various listeners on it.
      */
-    public static SamplingService create(
-        ScriptService scriptService,
-        ClusterService clusterService,
-        ProjectResolver projectResolver,
-        Settings settings
-    ) {
-        SamplingService samplingService = new SamplingService(scriptService, clusterService, projectResolver, settings);
+    public static SamplingService create(ScriptService scriptService, ClusterService clusterService, Settings settings) {
+        SamplingService samplingService = new SamplingService(scriptService, clusterService, settings);
         samplingService.configureListeners();
         return samplingService;
     }
 
-    private SamplingService(
-        ScriptService scriptService,
-        ClusterService clusterService,
-        ProjectResolver projectResolver,
-        Settings settings
-    ) {
+    private SamplingService(ScriptService scriptService, ClusterService clusterService, Settings settings) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
-        this.projectResolver = projectResolver;
         this.updateSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
             "update-sampling-configuration",
             Priority.NORMAL,
@@ -338,12 +327,9 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
         return sampleInfo == null ? new SampleStats() : sampleInfo.stats;
     }
 
-    public boolean atLeastOneSampleConfigured() {
+    public boolean atLeastOneSampleConfigured(ProjectMetadata projectMetadata) {
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
-            SamplingMetadata samplingMetadata = clusterService.state()
-                .projectState(projectResolver.getProjectId())
-                .metadata()
-                .custom(SamplingMetadata.TYPE);
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
             return samplingMetadata != null && samplingMetadata.getIndexToSamplingConfigMap().isEmpty() == false;
         } else {
             return false;
@@ -508,8 +494,14 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                 IndexMetadata current = currentProject.index(index.getIndex());
                 if (current == null) {
                     String indexName = index.getIndex().getName();
-                    logger.debug("Deleting sample configuration for {} because the index has been deleted", indexName);
-                    deleteSampleConfiguration(projectId, indexName);
+                    SamplingConfiguration samplingConfiguration = getSamplingConfiguration(
+                        event.state().projectState(projectId).metadata(),
+                        indexName
+                    );
+                    if (samplingConfiguration != null) {
+                        logger.debug("Deleting sample configuration for {} because the index has been deleted", indexName);
+                        deleteSampleConfiguration(projectId, indexName);
+                    }
                 }
             }
         }
@@ -866,6 +858,14 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                 "time_compiling_condition",
                 TimeValue.timeValueNanos(timeCompilingConditionInNanos.longValue())
             );
+            if (lastException != null) {
+                Throwable unwrapped = ExceptionsHelper.unwrapCause(lastException);
+                builder.startObject("last_exception");
+                builder.field("type", ElasticsearchException.getExceptionName(unwrapped));
+                builder.field("message", unwrapped.getMessage());
+                builder.field("stack_trace", ExceptionsHelper.limitedStackTrace(unwrapped, 5));
+                builder.endObject();
+            }
             builder.endObject();
             return builder;
         }

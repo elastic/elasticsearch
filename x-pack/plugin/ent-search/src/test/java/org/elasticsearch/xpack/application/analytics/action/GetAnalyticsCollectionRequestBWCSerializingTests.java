@@ -29,12 +29,18 @@ public class GetAnalyticsCollectionRequestBWCSerializingTests extends AbstractBW
 
     @Override
     protected GetAnalyticsCollectionAction.Request createTestInstance() {
-        return new GetAnalyticsCollectionAction.Request(TEST_REQUEST_TIMEOUT, new String[] { randomIdentifier() });
+        return new GetAnalyticsCollectionAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            randomArray(10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10))
+        );
     }
 
     @Override
     protected GetAnalyticsCollectionAction.Request mutateInstance(GetAnalyticsCollectionAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetAnalyticsCollectionAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            randomArrayOtherThan(instance.getNames(), () -> randomArray(10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10)))
+        );
     }
 
     @Override

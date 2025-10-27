@@ -41,7 +41,7 @@ public class ExponentialHistogramSumAggregatorTests extends ExponentialHistogram
     public void testMatchesNumericDocValues() throws IOException {
 
         List<ExponentialHistogram> histograms = createRandomHistograms(randomIntBetween(1, 1000));
-        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.sum() != 0);
 
         double expectedSum = histograms.stream().mapToDouble(ExponentialHistogram::sum).sum();
 
@@ -73,7 +73,7 @@ public class ExponentialHistogramSumAggregatorTests extends ExponentialHistogram
             .map(histo -> Map.entry(histo, randomBoolean()))
             .toList();
 
-        boolean anyMatch = histogramsWithFilter.stream().filter(entry -> entry.getKey().valueCount() > 0).anyMatch(Map.Entry::getValue);
+        boolean anyMatch = histogramsWithFilter.stream().filter(entry -> entry.getKey().sum() != 0).anyMatch(Map.Entry::getValue);
         double filteredSum = histogramsWithFilter.stream().filter(Map.Entry::getValue).mapToDouble(entry -> entry.getKey().sum()).sum();
 
         testCase(

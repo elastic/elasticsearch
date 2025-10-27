@@ -328,9 +328,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             return rewrittenBwC;
         }
 
-        // NOTE: This logic misses when ccs_minimize_roundtrips=false and only a remote cluster is querying a semantic text field.
-        // In this case, the remote data node will receive the original query, which will in turn result in an error about querying an
-        // unsupported field type.
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         Set<FullyQualifiedInferenceId> inferenceIds = getInferenceIdsForFields(
             resolvedIndices.getConcreteLocalIndicesMetadata().values(),
@@ -340,22 +337,24 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             useDefaultFields()
         );
 
-        // If we are handling a CCS request, always retain the intercepted query logic so that we can get inference results generated on
-        // the local cluster from the inference results map when rewriting on remote cluster data nodes. This can be necessary when:
-        // - A query specifies an inference ID override
-        // - Only non-inference fields are queried on the remote cluster
-        if (inferenceIds.isEmpty() && this.ccsRequest == false) {
-            // Not querying a semantic text field
+        boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
+        if (inferenceIds.isEmpty() && ccsRequest == false) {
+            // Not querying a semantic text field locally and no remote indices are specified
             return originalQuery;
         }
 
         // Validate early to prevent partial failures
+        // TODO: Probably need to delay this check until we are sure the query needs to be intercepted. Also, this check needs info
+        // about remote non-inference fields to be complete.
         coordinatorNodeValidate(resolvedIndices);
 
-        boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
         if (localInferenceResultsMapSupplier != null || remoteInferenceResultsMapSupplier != null) {
-            // TODO: Detect a lack of remote cluster inference fields here
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
+            if (detectNoInferenceFieldsCcsMinimizeRoundTripsFalse(localInferenceResultsMapSupplier, remoteInferenceResultsMapSupplier)) {
+                // Not querying a semantic text field locally or remotely
+                return originalQuery;
+            }
+
             return getNewInferenceResultsFromSupplier(
                 localInferenceResultsMapSupplier,
                 remoteInferenceResultsMapSupplier,
@@ -375,13 +374,18 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             inferenceResultsMap,
             getQuery()
         );
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newRemoteInferenceResultsMapSupplier = getRemoteInferenceResults(
-            queryRewriteContext,
-            resolvedIndices.getRemoteClusterIndices(),
-            inferenceResultsMap,
-            getFields().keySet().stream().toList(),
-            getQuery()
-        );
+
+        // Skip getting remote inference results if an inference ID override is set because overrides always refer to local inference IDs
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newRemoteInferenceResultsMapSupplier = null;
+        if (inferenceIdOverride != null) {
+            newRemoteInferenceResultsMapSupplier = getRemoteInferenceResults(
+                queryRewriteContext,
+                resolvedIndices.getRemoteClusterIndices(),
+                inferenceResultsMap,
+                getFields().keySet().stream().toList(),
+                getQuery()
+            );
+        }
 
         QueryBuilder rewritten = this;
         if (newLocalInferenceResultsMapSupplier == null && newRemoteInferenceResultsMapSupplier == null) {
@@ -507,5 +511,33 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
                 );
             }
         }
+    }
+
+    /**
+     * Detect when no inference fields are being queried, either locally or remotely, when using {@code ccs_minimize_roundtrips: false}
+     *
+     * @param localInferenceResultsMapSupplier The local inference results map supplier
+     * @param remoteInferenceResultsMapSupplier The remote inference results map supplier
+     * @return {@code true} if no inference fields are being queried, {@code false} otherwise
+     */
+    private static boolean detectNoInferenceFieldsCcsMinimizeRoundTripsFalse(
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> localInferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> remoteInferenceResultsMapSupplier
+    ) {
+        boolean noInferenceFields = false;
+
+        // We know no inference fields are being queried if all of these conditions are true:
+        // - The local inference results map supplier is null, indicating that there are no local inference IDs resolved
+        // - The remote inference results map supplier is non-null, indicating that:
+        // -- We are querying a remote cluster with `ccs_minimize_roundtrips: false`
+        // -- The query does not provide pre-computed inference results (i.e. if intercepted, this query would require query-time inference)
+        // - The map supplied by the remote inference results map supplier is non-null and empty. This is explicit proof that no remote
+        // inference fields are being queried.
+        if (localInferenceResultsMapSupplier == null && remoteInferenceResultsMapSupplier != null) {
+            Map<FullyQualifiedInferenceId, InferenceResults> remoteInferenceResultsMap = remoteInferenceResultsMapSupplier.get();
+            noInferenceFields = remoteInferenceResultsMap != null && remoteInferenceResultsMap.isEmpty();
+        }
+
+        return noInferenceFields;
     }
 }

@@ -94,9 +94,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
                     "index",
                     Map.of("max_shards_in_cluster", maxShardsPerNode),
                     "search",
-                    Map.of("max_shards_in_cluster", maxShardsPerNode),
-                    "settings",
-                    Map.of("health.shard_capacity.unhealthy_threshold.yellow", 10, "health.shard_capacity.unhealthy_threshold.red", 5)
+                    Map.of("max_shards_in_cluster", maxShardsPerNode)
                 )
             )
         );

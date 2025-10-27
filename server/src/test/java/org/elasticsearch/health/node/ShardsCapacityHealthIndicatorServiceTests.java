@@ -148,9 +148,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                     "data",
                     Map.of("max_shards_in_cluster", maxShardsPerNode),
                     "frozen",
-                    Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen),
-                    "settings",
-                    Map.of("health.shard_capacity.unhealthy_threshold.yellow", 10, "health.shard_capacity.unhealthy_threshold.red", 5)
+                    Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                 )
             )
         );
@@ -199,9 +197,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                         "data",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 8),
                         "frozen",
-                        Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen),
-                        "settings",
-                        Map.of("health.shard_capacity.unhealthy_threshold.yellow", 10, "health.shard_capacity.unhealthy_threshold.red", 5)
+                        Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                     )
                 )
             );
@@ -227,9 +223,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                         "data",
                         Map.of("max_shards_in_cluster", maxShardsPerNode),
                         "frozen",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 8),
-                        "settings",
-                        Map.of("health.shard_capacity.unhealthy_threshold.yellow", 10, "health.shard_capacity.unhealthy_threshold.red", 5)
+                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 8)
                     )
                 )
             );
@@ -256,9 +250,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                         "data",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 8),
                         "frozen",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 8),
-                        "settings",
-                        Map.of("health.shard_capacity.unhealthy_threshold.yellow", 10, "health.shard_capacity.unhealthy_threshold.red", 5)
+                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 8)
                     )
                 )
             );
@@ -284,9 +276,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                         "data",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 22),
                         "frozen",
-                        Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen),
-                        "settings",
-                        Map.of("health.shard_capacity.unhealthy_threshold.yellow", 10, "health.shard_capacity.unhealthy_threshold.red", 5)
+                        Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                     )
                 )
             );
@@ -312,9 +302,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                         "data",
                         Map.of("max_shards_in_cluster", maxShardsPerNode),
                         "frozen",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 22),
-                        "settings",
-                        Map.of("health.shard_capacity.unhealthy_threshold.yellow", 10, "health.shard_capacity.unhealthy_threshold.red", 5)
+                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 22)
                     )
                 )
             );
@@ -341,9 +329,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                         "data",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 22),
                         "frozen",
-                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 22),
-                        "settings",
-                        Map.of("health.shard_capacity.unhealthy_threshold.yellow", 10, "health.shard_capacity.unhealthy_threshold.red", 5)
+                        Map.of("max_shards_in_cluster", 25, "current_used_shards", 22)
                     )
                 )
             );

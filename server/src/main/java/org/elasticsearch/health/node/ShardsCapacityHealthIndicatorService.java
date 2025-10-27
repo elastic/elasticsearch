@@ -288,18 +288,6 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
                 }
                 builder.endObject();
             }
-            if (healthMetadata != null && healthMetadata.getShardLimitsMetadata() != null) {
-                builder.startObject("settings");
-                builder.field(
-                    SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(),
-                    healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdYellow()
-                );
-                builder.field(
-                    SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(),
-                    healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdRed()
-                );
-                builder.endObject();
-            }
             builder.endObject();
             return builder;
         };

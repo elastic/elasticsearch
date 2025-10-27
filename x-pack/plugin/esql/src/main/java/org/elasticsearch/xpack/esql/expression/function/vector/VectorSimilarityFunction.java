@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalar
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderFunctionConfigProvider;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     implements
         EvaluatorMapper,
         VectorFunction,
-        BlockLoaderFunctionConfigProvider {
+    BlockLoaderExpression {
 
     protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
         super(source, left, right);

@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.blockloader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 /**
- * {@link org.elasticsearch.xpack.esql.core.expression.function.Function}s that can be implemented as part of value loading implement this
+ * {@link org.elasticsearch.xpack.esql.core.expression.Expression}s that can be implemented as part of value loading implement this
  * interface to provide the {@link MappedFieldType.BlockLoaderFunctionConfig} that will be used to load and
  * transform the value of the field.
  */
-public interface BlockLoaderFunctionConfigProvider {
+public interface BlockLoaderExpression {
 
     /**
      * Returns the configuration that will be used to load the value of the field and transform it

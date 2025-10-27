@@ -270,9 +270,6 @@ tests:
 - class: org.elasticsearch.index.IndexingPressureIT
   method: testWriteCanRejectOnPrimaryBasedOnMaxOperationSize
   issue: https://github.com/elastic/elasticsearch/issues/130281
-- class: org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutorTests
-  method: testSuccessfulExecution
-  issue: https://github.com/elastic/elasticsearch/issues/130306
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
@@ -288,9 +285,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreTests
   method: testSerializationOfSimple {TestCase=<boolean>}
   issue: https://github.com/elastic/elasticsearch/issues/131334
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testMatchInsideEval
-  issue: https://github.com/elastic/elasticsearch/issues/131336
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test071BindMountCustomPathWithDifferentUID
   issue: https://github.com/elastic/elasticsearch/issues/120917
@@ -399,12 +393,6 @@ tests:
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/126748
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:stats.CountDistinctWithConditions}
-  issue: https://github.com/elastic/elasticsearch/issues/134984
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:stats.CountDistinctWithConditions}
-  issue: https://github.com/elastic/elasticsearch/issues/134993
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/135122
@@ -444,9 +432,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
   method: testConcurrentAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/135777
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:date.EvalDateTruncQuarterlyIntervalWithGTInRange}
-  issue: https://github.com/elastic/elasticsearch/issues/136102
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/117249

@@ -30,7 +30,7 @@ public class VoyageAIMultimodalEmbeddingsTaskSettingsTests extends AbstractWireS
         var taskSettingsMap = getTaskSettingsMap(InputType.INGEST);
         var taskSettings = VoyageAIMultimodalEmbeddingsTaskSettings.fromMap(taskSettingsMap);
 
-        MatcherAssert.assertThat(taskSettings, is(new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.INGEST)));
+        MatcherAssert.assertThat(taskSettings, is(new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.INGEST, null)));
     }
 
     public void testFromMap_WithNullInputType() {
@@ -40,7 +40,7 @@ public class VoyageAIMultimodalEmbeddingsTaskSettingsTests extends AbstractWireS
     }
 
     public void testToXContent_WithoutInputType() throws IOException {
-        var taskSettings = new VoyageAIMultimodalEmbeddingsTaskSettings((InputType) null);
+        var taskSettings = new VoyageAIMultimodalEmbeddingsTaskSettings(null, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         taskSettings.toXContent(builder, null);
@@ -50,7 +50,7 @@ public class VoyageAIMultimodalEmbeddingsTaskSettingsTests extends AbstractWireS
     }
 
     public void testToXContent_WithInputType() throws IOException {
-        var taskSettings = new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.INGEST);
+        var taskSettings = new VoyageAIMultimodalEmbeddingsTaskSettings(InputType.INGEST, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         taskSettings.toXContent(builder, null);
@@ -76,7 +76,7 @@ public class VoyageAIMultimodalEmbeddingsTaskSettingsTests extends AbstractWireS
 
     private static VoyageAIMultimodalEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomFrom(InputType.INGEST, InputType.SEARCH) : null;
-        return new VoyageAIMultimodalEmbeddingsTaskSettings(inputType);
+        return new VoyageAIMultimodalEmbeddingsTaskSettings(inputType, null);
     }
 
     public static Map<String, Object> getTaskSettingsMap(@Nullable InputType inputType) {

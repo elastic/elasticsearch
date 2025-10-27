@@ -29,5 +29,5 @@ $$$terminate-options$$$
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 

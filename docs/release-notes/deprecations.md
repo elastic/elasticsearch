@@ -16,6 +16,10 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
+## 9.1.6 [elasticsearch-9.1.6-deprecations]
+
+There are no deprecations associated with this release.
+
 ## 9.2.0 [elasticsearch-9.2.0-deprecations]
 
 Cluster Coordination:

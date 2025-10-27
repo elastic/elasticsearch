@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -116,6 +117,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+
+/**
+ * Only parses a plan and builds an AST/Logical Plan for it.
+ * Analysis is not run, so the plan will contain unresolved references.
+ * Use this class to test cases where we throw a Parsing exception
+ * especially if it is throw before we get to the Analysis phase
+ */
 public class StatementParserTests extends AbstractStatementParserTests {
 
     private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
@@ -1226,10 +1234,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
         if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
-            expectError(
-                "explain ( from foo ) metadata _index",
-                "line 1:22: mismatched input 'metadata' expecting {'|', ',', ')', 'metadata'}"
-            );
+            expectError("explain ( from foo ) metadata _index", "line 1:22: token recognition error at: 'm'");
         }
     }
 
@@ -1314,7 +1319,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo\" | GROK a \"(?P<justification>.+)\"",
-            "line 1:17: Invalid GROK pattern [(?P<justification>.+)]: [undefined group option]"
+            "line 1:24: Invalid GROK pattern [(?P<justification>.+)]: [undefined group option]"
         );
 
         expectError(
@@ -1325,8 +1330,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo\" | GROK a \"%{WORD:foo}\", \"(?P<justification>.+)\"",
-            "line 1:17: Invalid GROK patterns [%{WORD:foo}, (?P<justification>.+)]: [undefined group option]"
+            "line 1:39: Invalid GROK pattern [(?P<justification>.+)]: [undefined group option]"
         );
+
+        // when combining the pattern, the resulting string could be valid, but the single patterns are invalid
+        expectError("""
+            ROW a = "foo bar"
+            | GROK a "(%{WORD:word}", "x)"
+            """, "line 2:10: Invalid GROK pattern [(%{WORD:word}]: [end pattern with unmatched parenthesis]");
     }
 
     public void testLikeRLike() {
@@ -1352,6 +1363,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:16: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
                 + "[Invalid sequence - escape character is not followed by special wildcard char]"
         );
+    }
+
+    public void testIdentifierPatternTooComplex() {
+        // It is incredibly unlikely that we will see this limit hit in practice
+        // The repetition value 2450 was a ballpark estimate and validated experimentally
+        String explodingWildcard = "a*".repeat(2450);
+        expectError("FROM a | KEEP " + explodingWildcard, "Pattern was too complex to determinize");
     }
 
     public void testEnrich() {
@@ -3541,6 +3559,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         expectError(
+            "FROM test  | LOOKUP JOIN test2 ON "
+                + singleExpressionJoinClause()
+                + " AND ("
+                + randomIdentifier()
+                + " OR "
+                + singleExpressionJoinClause()
+                + ")",
+            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON "
+                + singleExpressionJoinClause()
+                + " AND ("
+                + randomIdentifier()
+                + "OR"
+                + randomIdentifier()
+                + ")",
+            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
+        );
+
+        expectError(
             "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " AND " + randomIdentifier(),
             "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
         );
@@ -3701,6 +3741,78 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectError("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause, "no viable alternative at input");
             }
         }
+    }
+
+    public void testLookupJoinOnExpressionWithNamedQueryParameters() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+
+        // Test LOOKUP JOIN ON expression with named query parameters and MATCH function
+        var plan = statement(
+            "FROM test | LOOKUP JOIN test2 ON left_field >= right_field AND match(left_field, ?search_term)",
+            new QueryParams(List.of(paramAsConstant("search_term", "elasticsearch")))
+        );
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test"));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test2"));
+
+        // Verify the join condition contains both the comparison and MATCH function
+        var condition = join.config().joinOnConditions();
+        assertThat(condition, instanceOf(And.class));
+        var andCondition = (And) condition;
+
+        // Check that we have both conditions in the correct order
+        assertThat(andCondition.children().size(), equalTo(2));
+
+        // First child should be a binary comparison (left_field >= right_field)
+        var firstChild = andCondition.children().get(0);
+        assertThat("First condition should be binary comparison", firstChild, instanceOf(EsqlBinaryComparison.class));
+
+        // Second child should be a MATCH function (match(left_field, ?search_term))
+        var secondChild = andCondition.children().get(1);
+        assertThat("Second condition should be UnresolvedFunction", secondChild, instanceOf(UnresolvedFunction.class));
+        var function = (UnresolvedFunction) secondChild;
+        assertThat("Second condition should be MATCH function", function.name(), equalTo("match"));
+    }
+
+    public void testLookupJoinOnExpressionWithPositionalQueryParameters() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+
+        // Test LOOKUP JOIN ON expression with positional query parameters and MATCH function
+        var plan = statement(
+            "FROM test | LOOKUP JOIN test2 ON left_field >= right_field AND match(left_field, ?2)",
+            new QueryParams(List.of(paramAsConstant(null, "dummy"), paramAsConstant(null, "elasticsearch")))
+        );
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test"));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test2"));
+
+        // Verify the join condition contains both the comparison and MATCH function
+        var condition = join.config().joinOnConditions();
+        assertThat(condition, instanceOf(And.class));
+        var andCondition = (And) condition;
+
+        // Check that we have both conditions in the correct order
+        assertThat(andCondition.children().size(), equalTo(2));
+
+        // First child should be a binary comparison (left_field >= right_field)
+        var firstChild = andCondition.children().get(0);
+        assertThat("First condition should be binary comparison", firstChild, instanceOf(EsqlBinaryComparison.class));
+
+        // Second child should be a MATCH function (match(left_field, ?))
+        var secondChild = andCondition.children().get(1);
+        assertThat("Second condition should be UnresolvedFunction", secondChild, instanceOf(UnresolvedFunction.class));
+        var function = (UnresolvedFunction) secondChild;
+        assertThat("Second condition should be MATCH function", function.name(), equalTo("match"));
+        assertEquals(2, function.children().size());
+        assertEquals("elasticsearch", function.children().get(1).toString());
     }
 
     public void testInvalidInsistAsterisk() {
@@ -3951,7 +4063,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testExplainErrors() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         // TODO this one is incorrect
-        expectError("explain ( from test ) | limit 1", "line 1:23: mismatched input '|' expecting {'|', ',', ')', 'metadata'}");
+        expectError("explain ( from test ) | limit 1", "line 1:1: EXPLAIN does not support downstream commands");
         expectError(
             "explain (row x=\"Elastic\" | eval y=concat(x,to_upper(\"search\"))) | mv_expand y",
             "line 1:1: EXPLAIN does not support downstream commands"
@@ -5080,7 +5192,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     expectError(
                         LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
                         List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
-                        "JOIN ON clause only supports fields or AND of Binary Expressions at the moment"
+                        "JOIN ON clause must be a comma separated list of fields or a single expression, found"
                     );
 
                 }
@@ -5200,8 +5312,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectSuccessForBracketsWithinQuotes(pattern);
         }
 
-        expectError("from test)", "line 1:10: extraneous input ')' expecting <EOF>");
-        expectError("from te()st", "line 1:8: token recognition error at: '('");
+        expectError("from test)", "line -1:-1: Invalid query [from test)]");
+        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', ',', 'metadata'");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {

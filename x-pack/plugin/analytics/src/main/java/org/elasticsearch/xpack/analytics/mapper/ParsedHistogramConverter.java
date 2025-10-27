@@ -17,25 +17,25 @@ public class ParsedHistogramConverter {
     /**
      * Converts exponential histograms to t-digests using the very same algorithm as the built-in OTLP metrics endpoint.
      *
-     * @param exponential
-     * @return
+     * @param expHisto the exponential histogram to convert
+     * @return the resulting t-digest histogram
      */
-    public static HistogramParser.ParsedHistogram exponentialToTDigest(ExponentialHistogramParser.ParsedExponentialHistogram exponential) {
+    public static HistogramParser.ParsedHistogram exponentialToTDigest(ExponentialHistogramParser.ParsedExponentialHistogram expHisto) {
         // We don't want to reuse the code across the OTLP intake an the field mappers because they use different data models
         // and shuffling the data into a common format or interface would be more expensive and complex than just duplicating the logic.
         List<Double> centroids = new ArrayList<>(); // sorted from descending to ascending
         List<Long> counts = new ArrayList<>();
 
-        List<IndexWithCount> neg = exponential.negativeBuckets();
+        List<IndexWithCount> neg = expHisto.negativeBuckets();
         for (int i = neg.size() - 1; i >= 0; i--) {
-            appendBucketCentroid(centroids, counts, neg.get(i), exponential.scale(), -1);
+            appendBucketCentroid(centroids, counts, neg.get(i), expHisto.scale(), -1);
         }
-        if (exponential.zeroCount() > 0) {
+        if (expHisto.zeroCount() > 0) {
             centroids.add(0.0);
-            counts.add(exponential.zeroCount());
+            counts.add(expHisto.zeroCount());
         }
-        for (IndexWithCount positiveBucket : exponential.positiveBuckets()) {
-            appendBucketCentroid(centroids, counts, positiveBucket, exponential.scale(), 1);
+        for (IndexWithCount positiveBucket : expHisto.positiveBuckets()) {
+            appendBucketCentroid(centroids, counts, positiveBucket, expHisto.scale(), 1);
         }
         assert centroids.size() == counts.size();
         assert centroids.stream().sorted().toList().equals(centroids);

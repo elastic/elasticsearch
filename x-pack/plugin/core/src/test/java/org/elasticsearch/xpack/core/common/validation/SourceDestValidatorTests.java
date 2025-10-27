@@ -125,7 +125,6 @@ public class SourceDestValidatorTests extends ESTestCase {
         remoteClusterService,
         null,
         ingestService,
-        false,
         "node_id",
         "license"
     );
@@ -652,7 +651,6 @@ public class SourceDestValidatorTests extends ESTestCase {
                 remoteClusterService,
                 remoteClusterLicenseCheckerBasic,
                 ingestService,
-                false,
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
                 null,
@@ -679,7 +677,6 @@ public class SourceDestValidatorTests extends ESTestCase {
                 remoteClusterService,
                 remoteClusterLicenseCheckerBasic,
                 ingestService,
-                false,
                 new String[] { SOURCE_1 },
                 "dest",
                 null,
@@ -701,7 +698,6 @@ public class SourceDestValidatorTests extends ESTestCase {
                 remoteClusterService,
                 remoteClusterLicenseCheckerBasic,
                 ingestService,
-                false,
                 new String[] { REMOTE_BASIC + ":" + SOURCE_1 },
                 "dest",
                 null,
@@ -711,29 +707,10 @@ public class SourceDestValidatorTests extends ESTestCase {
         );
 
         assertValidationWithContext(listener -> REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION.validate(context, listener), c -> {
-            assertThat(c.getValidationException().getMessage(), containsString("remote source indices are not supported"));
-        }, null);
-    }
-
-    public void testRemoteSourceNotSupportedValidationWithCrossProjectIndex() throws InterruptedException {
-        Context context = spy(
-            new SourceDestValidator.Context(
-                CLUSTER_STATE,
-                indexNameExpressionResolver,
-                remoteClusterService,
-                remoteClusterLicenseCheckerBasic,
-                ingestService,
-                true,
-                new String[] { "project1:" + SOURCE_1 },
-                "dest",
-                null,
-                "node_id",
-                "license"
-            )
-        );
-
-        assertValidationWithContext(listener -> REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION.validate(context, listener), c -> {
-            assertThat(c.getValidationException().getMessage(), containsString("cross-project indices are not supported"));
+            assertThat(
+                c.getValidationException().getMessage(),
+                containsString("remote source and cross-project indices are not supported")
+            );
         }, null);
     }
 
@@ -745,7 +722,6 @@ public class SourceDestValidatorTests extends ESTestCase {
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithBasicLicense, platinumFeature),
                 ingestService,
-                false,
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
                 null,
@@ -777,7 +753,6 @@ public class SourceDestValidatorTests extends ESTestCase {
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithPlatinumLicense, platinumFeature),
                 ingestService,
-                false,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 null,
@@ -800,7 +775,6 @@ public class SourceDestValidatorTests extends ESTestCase {
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithPlatinumLicense, platinumFeature),
                 ingestService,
-                false,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
@@ -824,7 +798,6 @@ public class SourceDestValidatorTests extends ESTestCase {
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithTrialLicense, platinumFeature),
                 ingestService,
-                false,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
@@ -850,7 +823,6 @@ public class SourceDestValidatorTests extends ESTestCase {
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense, platinumFeature),
                 ingestService,
-                false,
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
                 null,
@@ -879,7 +851,6 @@ public class SourceDestValidatorTests extends ESTestCase {
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense, platinumFeature),
                 ingestService,
-                false,
                 new String[] { "non_existing_remote:" + "SOURCE_1" },
                 "dest",
                 null,

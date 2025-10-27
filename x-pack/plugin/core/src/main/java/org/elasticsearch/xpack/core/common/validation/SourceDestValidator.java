@@ -69,8 +69,8 @@ public final class SourceDestValidator {
         + "alias [{0}], at least a [{1}] license is required, found license [{2}]";
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
-    public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
-    public static final String CROSS_PROJECT_INDICES_NOT_SUPPORTED = "cross-project indices are not supported";
+    public static final String REMOTE_SOURCE_AND_CROSS_PROJECT_INDICES_ARE_NOT_SUPPORTED =
+        "remote source and cross-project indices are not supported";
     public static final String REMOTE_CLUSTERS_TRANSPORT_TOO_OLD =
         "remote clusters are expected to run at least version [{0}] (reason: [{1}])," + " but the following clusters were too old: [{2}]";
     public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
@@ -79,7 +79,6 @@ public final class SourceDestValidator {
     private final RemoteClusterService remoteClusterService;
     private final RemoteClusterLicenseChecker remoteClusterLicenseChecker;
     private final IngestService ingestService;
-    private final boolean crossProjectEnabled;
     private final String nodeName;
     private final String license;
 
@@ -92,7 +91,6 @@ public final class SourceDestValidator {
         private final RemoteClusterService remoteClusterService;
         private final RemoteClusterLicenseChecker remoteClusterLicenseChecker;
         private final IngestService ingestService;
-        private final boolean crossProjectEnabled;
         private final String[] source;
         private final String destIndex;
         private final String destPipeline;
@@ -110,7 +108,6 @@ public final class SourceDestValidator {
             final RemoteClusterService remoteClusterService,
             final RemoteClusterLicenseChecker remoteClusterLicenseChecker,
             final IngestService ingestService,
-            boolean crossProjectEnabled,
             final String[] source,
             final String destIndex,
             final String destPipeline,
@@ -122,7 +119,6 @@ public final class SourceDestValidator {
             this.remoteClusterService = remoteClusterService;
             this.remoteClusterLicenseChecker = remoteClusterLicenseChecker;
             this.ingestService = ingestService;
-            this.crossProjectEnabled = crossProjectEnabled;
             this.source = source;
             this.destIndex = destIndex;
             this.destPipeline = destPipeline;
@@ -168,10 +164,6 @@ public final class SourceDestValidator {
 
         public String getLicense() {
             return license;
-        }
-
-        private boolean crossProjectEnabled() {
-            return crossProjectEnabled;
         }
 
         public SortedSet<String> resolveSource() {
@@ -275,18 +267,16 @@ public final class SourceDestValidator {
      * Create a new Source Dest Validator
      *
      * @param indexNameExpressionResolver A valid IndexNameExpressionResolver object
-     * @param remoteClusterService        A valid RemoteClusterService object
+     * @param remoteClusterService A valid RemoteClusterService object
      * @param remoteClusterLicenseChecker A RemoteClusterLicenseChecker or null if CCS is disabled
-     * @param crossProjectEnabled         Determines if cross-project is enabled for this cluster
-     * @param nodeName                    the name of this node
-     * @param license                     the license of the feature validated for
+     * @param nodeName the name of this node
+     * @param license the license of the feature validated for
      */
     public SourceDestValidator(
         IndexNameExpressionResolver indexNameExpressionResolver,
         RemoteClusterService remoteClusterService,
         RemoteClusterLicenseChecker remoteClusterLicenseChecker,
         IngestService ingestService,
-        boolean crossProjectEnabled,
         String nodeName,
         String license
     ) {
@@ -294,7 +284,6 @@ public final class SourceDestValidator {
         this.remoteClusterService = remoteClusterService;
         this.remoteClusterLicenseChecker = remoteClusterLicenseChecker;
         this.ingestService = ingestService;
-        this.crossProjectEnabled = crossProjectEnabled;
         this.nodeName = nodeName;
         this.license = license;
     }
@@ -323,7 +312,6 @@ public final class SourceDestValidator {
             remoteClusterService,
             remoteClusterLicenseChecker,
             ingestService,
-            crossProjectEnabled,
             source,
             destIndex,
             destPipeline,
@@ -568,9 +556,7 @@ public final class SourceDestValidator {
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
             if (context.resolveRemoteSource().isEmpty() == false) {
-                context.addValidationError(
-                    context.crossProjectEnabled() ? CROSS_PROJECT_INDICES_NOT_SUPPORTED : REMOTE_SOURCE_INDICES_NOT_SUPPORTED
-                );
+                context.addValidationError(REMOTE_SOURCE_AND_CROSS_PROJECT_INDICES_ARE_NOT_SUPPORTED);
             }
             listener.onResponse(context);
         }

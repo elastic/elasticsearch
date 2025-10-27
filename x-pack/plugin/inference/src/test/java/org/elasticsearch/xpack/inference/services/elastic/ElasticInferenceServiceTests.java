@@ -1242,7 +1242,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                       "task_types": ["embed/text/dense"]
                     },
                   {
-                      "model_name": "rerank-v1",
+                      "model_name": "elastic-rerank-v1",
                       "task_types": ["rerank/text/text-similarity"]
                     }
                 ]
@@ -1260,6 +1260,11 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 service.defaultConfigIds(),
                 is(
                     List.of(
+                        new InferenceService.DefaultConfigId(
+                            ".elastic-rerank-v1",
+                            MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
+                            service
+                        ),
                         new InferenceService.DefaultConfigId(
                             ".elser-2-elastic",
                             MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
@@ -1279,11 +1284,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                             ".rainbow-sprinkles-elastic",
                             MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
                             service
-                        ),
-                        new InferenceService.DefaultConfigId(
-                            ".rerank-v1-elastic",
-                            MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
-                            service
                         )
                     )
                 )
@@ -1297,10 +1297,10 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             service.defaultConfigs(listener);
             var models = listener.actionGet(TIMEOUT);
             assertThat(models.size(), is(4));
-            assertThat(models.get(0).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
-            assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".jina-embeddings-v3"));
-            assertThat(models.get(2).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
-            assertThat(models.get(3).getConfigurations().getInferenceEntityId(), is(".rerank-v1-elastic"));
+            assertThat(models.get(0).getConfigurations().getInferenceEntityId(), is(".elastic-rerank-v1"));
+            assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
+            assertThat(models.get(2).getConfigurations().getInferenceEntityId(), is(".jina-embeddings-v3"));
+            assertThat(models.get(3).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
         }
     }
 

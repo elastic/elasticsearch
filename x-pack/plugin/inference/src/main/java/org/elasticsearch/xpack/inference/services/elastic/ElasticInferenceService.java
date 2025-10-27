@@ -121,8 +121,8 @@ public class ElasticInferenceService extends SenderService {
     static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = ".jina-embeddings-v3";
 
     // rerank-v1
-    static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
-    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
+    static final String DEFAULT_RERANK_MODEL_ID_V1 = "elastic-rerank-v1";
+    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = ".elastic-rerank-v1";
 
     /**
      * The task types that the {@link InferenceAction.Request} can accept.

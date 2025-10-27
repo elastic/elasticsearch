@@ -179,24 +179,6 @@ tests:
   - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
     method: testThreadPoolMetrics
     issue: https://github.com/elastic/elasticsearch/issues/108320
-  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues SYNC}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
-  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues ASYNC}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
-  - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
-  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues SYNC}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
-  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues ASYNC}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
-  - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues}
-    issue: https://github.com/elastic/elasticsearch/issues/116945
   - class: org.elasticsearch.xpack.inference.InferenceRestIT
     method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
     issue: https://github.com/elastic/elasticsearch/issues/117027

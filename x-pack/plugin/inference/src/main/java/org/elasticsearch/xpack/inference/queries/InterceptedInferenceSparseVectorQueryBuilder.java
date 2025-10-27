@@ -62,10 +62,11 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     private InterceptedInferenceSparseVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> localInferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> remoteInferenceResultsMapSupplier,
         boolean ccsRequest
     ) {
-        super(other, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        super(other, inferenceResultsMap, localInferenceResultsMapSupplier, remoteInferenceResultsMapSupplier, ccsRequest);
     }
 
     @Override
@@ -118,10 +119,17 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     @Override
     protected QueryBuilder copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> localInferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> remoteInferenceResultsMapSupplier,
         boolean ccsRequest
     ) {
-        return new InterceptedInferenceSparseVectorQueryBuilder(this, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        return new InterceptedInferenceSparseVectorQueryBuilder(
+            this,
+            inferenceResultsMap,
+            localInferenceResultsMapSupplier,
+            remoteInferenceResultsMapSupplier,
+            ccsRequest
+        );
     }
 
     @Override

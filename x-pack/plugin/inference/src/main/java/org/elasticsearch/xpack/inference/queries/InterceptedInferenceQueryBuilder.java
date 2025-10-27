@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEM
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getInferenceResults;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getNewInferenceResultsFromSupplier;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getRemoteInferenceResults;
 
 /**
  * <p>
@@ -70,7 +71,8 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     protected final T originalQuery;
     protected final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
-    protected final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier;
+    protected final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> localInferenceResultsMapSupplier;
+    protected final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> remoteInferenceResultsMapSupplier;
     protected final boolean ccsRequest;
 
     protected InterceptedInferenceQueryBuilder(T originalQuery) {
@@ -81,7 +83,8 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         Objects.requireNonNull(originalQuery, "original query must not be null");
         this.originalQuery = originalQuery;
         this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
-        this.inferenceResultsMapSupplier = null;
+        this.localInferenceResultsMapSupplier = null;
+        this.remoteInferenceResultsMapSupplier = null;
         this.ccsRequest = false;
     }
 
@@ -104,18 +107,21 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             this.ccsRequest = false;
         }
 
-        this.inferenceResultsMapSupplier = null;
+        this.localInferenceResultsMapSupplier = null;
+        this.remoteInferenceResultsMapSupplier = null;
     }
 
     protected InterceptedInferenceQueryBuilder(
         InterceptedInferenceQueryBuilder<T> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> localInferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> remoteInferenceResultsMapSupplier,
         boolean ccsRequest
     ) {
         this.originalQuery = other.originalQuery;
         this.inferenceResultsMap = inferenceResultsMap;
-        this.inferenceResultsMapSupplier = inferenceResultsMapSupplier;
+        this.localInferenceResultsMapSupplier = localInferenceResultsMapSupplier;
+        this.remoteInferenceResultsMapSupplier = remoteInferenceResultsMapSupplier;
         this.ccsRequest = ccsRequest;
     }
 
@@ -156,13 +162,15 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * Generate a copy of {@code this}.
      *
      * @param inferenceResultsMap The inference results map
-     * @param inferenceResultsMapSupplier The inference results map supplier
+     * @param localInferenceResultsMapSupplier The local inference results map supplier
+     * @param remoteInferenceResultsMapSupplier The local inference results map supplier
      * @param ccsRequest Flag indicating if this is a CCS request
      * @return A copy of {@code this} with the provided inference results map
      */
     protected abstract QueryBuilder copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> localInferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> remoteInferenceResultsMapSupplier,
         boolean ccsRequest
     );
 
@@ -209,9 +217,14 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (inferenceResultsMapSupplier != null) {
+        if (localInferenceResultsMapSupplier != null) {
             throw new IllegalStateException(
-                "inferenceResultsMapSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
+                "localInferenceResultsMapSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
+            );
+        }
+        if (remoteInferenceResultsMapSupplier != null) {
+            throw new IllegalStateException(
+                "remoteInferenceResultsMapSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
             );
         }
 
@@ -258,13 +271,20 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected boolean doEquals(InterceptedInferenceQueryBuilder<T> other) {
         return Objects.equals(originalQuery, other.originalQuery)
             && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
-            && Objects.equals(inferenceResultsMapSupplier, other.inferenceResultsMapSupplier)
+            && Objects.equals(localInferenceResultsMapSupplier, other.localInferenceResultsMapSupplier)
+            && Objects.equals(remoteInferenceResultsMapSupplier, other.remoteInferenceResultsMapSupplier)
             && Objects.equals(ccsRequest, other.ccsRequest);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(originalQuery, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        return Objects.hash(
+            originalQuery,
+            inferenceResultsMap,
+            localInferenceResultsMapSupplier,
+            remoteInferenceResultsMapSupplier,
+            ccsRequest
+        );
     }
 
     @Override
@@ -333,18 +353,15 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         coordinatorNodeValidate(resolvedIndices);
 
         boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
-        if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
-            throw new IllegalArgumentException(
-                originalQuery.getName()
-                    + " query does not support cross-cluster search when querying a ["
-                    + SemanticTextFieldMapper.CONTENT_TYPE
-                    + "] field when [ccs_minimize_roundtrips] is false"
-            );
-        }
-
-        if (inferenceResultsMapSupplier != null) {
+        if (localInferenceResultsMapSupplier != null || remoteInferenceResultsMapSupplier != null) {
+            // TODO: Detect a lack of remote cluster inference fields here
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
-            return getNewInferenceResultsFromSupplier(inferenceResultsMapSupplier, this, m -> copy(m, null, ccsRequest));
+            return getNewInferenceResultsFromSupplier(
+                localInferenceResultsMapSupplier,
+                remoteInferenceResultsMapSupplier,
+                this,
+                m -> copy(m, null, null, ccsRequest)
+            );
         }
 
         FullyQualifiedInferenceId inferenceIdOverride = getInferenceIdOverride();
@@ -352,15 +369,22 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             inferenceIds = Set.of(inferenceIdOverride);
         }
 
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newLocalInferenceResultsMapSupplier = getInferenceResults(
             queryRewriteContext,
             inferenceIds,
             inferenceResultsMap,
             getQuery()
         );
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newRemoteInferenceResultsMapSupplier = getRemoteInferenceResults(
+            queryRewriteContext,
+            resolvedIndices.getRemoteClusterIndices(),
+            inferenceResultsMap,
+            getFields().keySet().stream().toList(),
+            getQuery()
+        );
 
         QueryBuilder rewritten = this;
-        if (newInferenceResultsMapSupplier == null) {
+        if (newLocalInferenceResultsMapSupplier == null && newRemoteInferenceResultsMapSupplier == null) {
             // No additional inference results are required
             if (inferenceResultsMap != null) {
                 // The inference results map is fully populated, so we can perform error checking
@@ -369,10 +393,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
                 // No inference results have been collected yet, indicating we don't need any to rewrite this query.
                 // This can happen when pre-computed inference results are provided by the user.
                 // Set an empty inference results map so that rewriting can continue.
-                rewritten = copy(Map.of(), null, ccsRequest);
+                rewritten = copy(Map.of(), null, null, ccsRequest);
             }
         } else {
-            rewritten = copy(inferenceResultsMap, newInferenceResultsMapSupplier, ccsRequest);
+            rewritten = copy(inferenceResultsMap, newLocalInferenceResultsMapSupplier, newRemoteInferenceResultsMapSupplier, ccsRequest);
         }
 
         return rewritten;

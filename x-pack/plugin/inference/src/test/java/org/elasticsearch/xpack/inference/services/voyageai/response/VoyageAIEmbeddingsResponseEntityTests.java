@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests.createModel;
+import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -508,7 +508,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         var modelWithInt8 = new org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModel(
             multimodalModel.getInferenceEntityId(),
             multimodalModel.getTaskType().name(),
-            multimodalModel.getConfigurations().service(),
+            multimodalModel.getConfigurations().getService(),
             new org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsServiceSettings(
                 multimodalModel.getServiceSettings().getCommonSettings(),
                 org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingType.INT8,
@@ -518,7 +518,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                 false
             ),
             multimodalModel.getTaskSettings(),
-            multimodalModel.getChunkingSettings(),
+            multimodalModel.getConfigurations().getChunkingSettings(),
             multimodalModel.getSecretSettings()
         );
 

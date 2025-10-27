@@ -826,10 +826,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 case START_ARRAY -> parseVectorArray(context, dims, dimChecker, similarity);
                 case VALUE_STRING -> {
                     String s = context.parser().text();
-                    if (s.length() == dims * 2) {
-                        yield parseHexEncodedVector(s, dimChecker, similarity);
+                    if (s.length() == dims * 2 && isMaybeHexString(s)) {
+                        try {
+                            yield parseHexEncodedVector(s, dimChecker, similarity);
+                        } catch (IllegalArgumentException e) {
+                            yield parseBase64EncodedVector(s, dimChecker, similarity);
+                        }
                     } else {
-                        yield parseBase64EncodedVector(s, dimChecker, similarity);
+                        try {
+                            yield parseBase64EncodedVector(s, dimChecker, similarity);
+                        } catch (IllegalArgumentException e) {
+                            yield parseHexEncodedVector(s, dimChecker, similarity);
+                        }
                     }
                 }
                 default -> throw new ParsingException(
@@ -877,13 +885,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 case VALUE_STRING -> {
                     String v = context.parser().text();
-                    final byte[] decodedVector;
-                    if (isMaybeHexString(v)) {
-                        decodedVector = HexFormat.of().parseHex(v);
+                    if (isMaybeHexString(v) && v.length() % 2 == 0) {
+                        try {
+                            yield HexFormat.of().parseHex(v).length;
+                        } catch (IllegalArgumentException e) {
+                            yield Base64.getDecoder().decode(v).length;
+                        }
                     } else {
-                        decodedVector = Base64.getDecoder().decode(v);
+                        try {
+                            yield Base64.getDecoder().decode(v).length;
+                        } catch (IllegalArgumentException e) {
+                            yield HexFormat.of().parseHex(v).length;
+                        }
                     }
-                    yield decodedVector.length;
                 }
                 default -> throw new ParsingException(
                     context.parser().getTokenLocation(),
@@ -1122,7 +1136,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         VectorDataAndMagnitude parseBase64EncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, int dims)
             throws IOException {
-            ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getDecoder().decode(context.parser().text())).order(ByteOrder.LITTLE_ENDIAN);
+            ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getDecoder().decode(context.parser().text())).order(ByteOrder.BIG_ENDIAN);
             if (byteBuffer.remaining() != dims * Float.BYTES) {
                 throw new IllegalArgumentException(
                     "Base64 decoded vector byte length ["

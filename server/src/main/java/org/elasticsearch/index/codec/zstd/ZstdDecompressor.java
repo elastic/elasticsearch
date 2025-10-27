@@ -26,8 +26,7 @@ public final class ZstdDecompressor extends Decompressor {
     // to benefit from bulk copying and low enough to keep heap usage under control.
     final byte[] copyBuffer = new byte[4096];
 
-    public ZstdDecompressor() {
-    }
+    public ZstdDecompressor() {}
 
     @Override
     public void decompress(DataInput in, int originalLength, int offset, int length, BytesRef bytes) throws IOException {

@@ -405,7 +405,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 // Subtract additional 1 so that index points to lower bound of doc range, which is the blockId
                 index = -2 - index;
             }
-            assert index < numBlocks: "invalid range " + index + " for doc " + docNumber + " in numBlocks " + numBlocks;
+            assert index < numBlocks : "invalid range " + index + " for doc " + docNumber + " in numBlocks " + numBlocks;
 
             startDocNumForBlock = docOffsets.get(index);
             limitDocNumForBlock = docOffsets.get(index + 1);
@@ -414,9 +414,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         BytesRef decode(int docNumber, int numBlocks) throws IOException {
             // docNumber, rather than docId, because these are dense and could be indices from a DISI
-            long blockId = docNumber < limitDocNumForBlock
-                ? lastBlockId
-                : findAndUpdateBlock(docRanges, lastBlockId, docNumber, numBlocks);
+            long blockId = docNumber < limitDocNumForBlock ? lastBlockId : findAndUpdateBlock(docRanges, lastBlockId, docNumber, numBlocks);
 
             int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
             int idxInBlock = (int) (docNumber - startDocNumForBlock);

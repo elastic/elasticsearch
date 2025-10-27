@@ -7,22 +7,13 @@
 
 package org.elasticsearch.search.ccs;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String LOCAL_INDEX_NAME = "local-index";

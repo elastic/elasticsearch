@@ -23,15 +23,12 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 
 /**
@@ -72,14 +69,11 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
 
                 A following header will contain the failure reason and the offending value:
 
-                `"java.lang.NumberFormatException: For input string: \"foo\""`"""
-            ),
+                `"java.lang.NumberFormatException: For input string: \"foo\""`"""),
             @Example(file = "ints", tag = "to_long_base-str", explanation = """
                 Parse string as a long number in the specified base.  Java's `Long.parseLong(string, radix)`.
                 Note like the eql 'number' function, a leading '0x' prefix is allowed for base 16.
-                """
-            )
-        },
+                """) },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.3.0") }
     )
     public ToLongSurrogate(
@@ -165,7 +159,7 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
     @Override
     public Expression surrogate() {
         if (base != null) {
-            if (DataType.isString( field.dataType() ) == false) {
+            if (DataType.isString(field.dataType()) == false) {
                 throw new UnsupportedOperationException("may not specify base with non-string field");
             }
             if (base.dataType().isWholeNumber() == false) {

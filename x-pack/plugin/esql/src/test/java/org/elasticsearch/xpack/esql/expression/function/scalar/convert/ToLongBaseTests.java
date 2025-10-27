@@ -40,8 +40,8 @@ public class ToLongBaseTests extends AbstractScalarFunctionTestCase {
         for (var stringType : DataType.stringTypes()) {
             suppliers.addAll(
                 List.of(
-                    createTestCase("ToLong 0x32 16 = 50  ", "0x32", 16,  50L, stringType),
-                    createTestCase("ToLong 0x32  8 = null", "0x32",  8, null, stringType)
+                    createTestCase("ToLong 0x32 16 = 50  ", "0x32", 16, 50L, stringType),
+                    createTestCase("ToLong 0x32  8 = null", "0x32", 8, null, stringType)
                 )
             );
         }
@@ -51,13 +51,7 @@ public class ToLongBaseTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(suppliers);
     }
 
-    private static TestCaseSupplier createTestCase(
-        String testName,
-        String string,
-        Integer base,
-        Long result,
-        DataType stringType
-    ) {
+    private static TestCaseSupplier createTestCase(String testName, String string, Integer base, Long result, DataType stringType) {
         TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
             List.of(
                 new TestCaseSupplier.TypedData(new BytesRef(string), stringType, "string"),
@@ -69,25 +63,19 @@ public class ToLongBaseTests extends AbstractScalarFunctionTestCase {
         );
         if (result == null) {
             List<String> expectedWarnings = List.of(
-               "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-               (
-                   "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert ["
-                   + string
-                   + "] to number of base ["
-                   + base
-                   + "]"
-               )
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                ("Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert ["
+                    + string
+                    + "] to number of base ["
+                    + base
+                    + "]")
             );
             for (String warning : expectedWarnings) {
                 testCase = testCase.withWarning(warning);
             }
         }
         TestCaseSupplier.TestCase finalTestCase = testCase;
-        return new TestCaseSupplier(
-            testName,
-            List.of(stringType, DataType.INTEGER),
-            () -> finalTestCase
-        );
+        return new TestCaseSupplier(testName, List.of(stringType, DataType.INTEGER), () -> finalTestCase);
     }
 
     @Override

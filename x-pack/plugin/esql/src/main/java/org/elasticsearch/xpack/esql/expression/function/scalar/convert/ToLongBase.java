@@ -22,18 +22,16 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
-
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
 
 //
 public class ToLongBase extends EsqlScalarFunction {
@@ -41,7 +39,9 @@ public class ToLongBase extends EsqlScalarFunction {
     private static final TransportVersion ESQL_TO_LONG_BASE_TV = TransportVersion.fromName("esql_to_long_base_tv");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class, "ToLongBase", ToLongBase::new
+        Expression.class,
+        "ToLongBase",
+        ToLongBase::new
     );
 
     private final Expression string;
@@ -54,11 +54,7 @@ public class ToLongBase extends EsqlScalarFunction {
     }
 
     private ToLongBase(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -94,7 +90,7 @@ public class ToLongBase extends EsqlScalarFunction {
         return string.foldable() && base.foldable();
     }
 
-    @Evaluator( warnExceptions = { InvalidArgumentException.class })
+    @Evaluator(warnExceptions = { InvalidArgumentException.class })
     static long process(BytesRef string, int base) {
         var value = string.utf8ToString();
         try {
@@ -137,7 +133,7 @@ public class ToLongBase extends EsqlScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var stringEval = toEvaluator.apply(string);
-        var baseEval   = toEvaluator.apply(base);
+        var baseEval = toEvaluator.apply(base);
         return new ToLongBaseEvaluator.Factory(source(), stringEval, baseEval);
     }
 }

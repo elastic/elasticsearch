@@ -29,7 +29,7 @@ public class ToLongBaseSerializationTests extends AbstractExpressionSerializatio
         Expression string = instance.string();
         Expression base = instance.base();
         if (randomBoolean()) {
-            string  = randomValueOtherThan(string, AbstractExpressionSerializationTests::randomChild);
+            string = randomValueOtherThan(string, AbstractExpressionSerializationTests::randomChild);
         } else {
             base = randomValueOtherThan(base, AbstractExpressionSerializationTests::randomChild);
         }

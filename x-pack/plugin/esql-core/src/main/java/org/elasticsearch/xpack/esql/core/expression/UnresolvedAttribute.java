@@ -46,12 +46,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         this(source, qualifier, name, null, unresolvedMessage);
     }
 
-    public UnresolvedAttribute(
-        Source source,
-        String name,
-        @Nullable NameId id,
-        @Nullable String unresolvedMessage
-    ) {
+    public UnresolvedAttribute(Source source, String name, @Nullable NameId id, @Nullable String unresolvedMessage) {
         this(source, null, name, id, unresolvedMessage);
     }
 

@@ -24,26 +24,13 @@ public class UnresolvedTimestamp extends UnresolvedAttribute {
         this(source, null, MetadataAttribute.TIMESTAMP_FIELD, null, null);
     }
 
-    public UnresolvedTimestamp(
-        Source source,
-        String qualifier,
-        String name,
-        NameId id,
-        String unresolvedMessage
-    ) {
+    public UnresolvedTimestamp(Source source, String qualifier, String name, NameId id, String unresolvedMessage) {
         super(source, qualifier, name, id, unresolvedMessage);
     }
 
     @Override
     protected NodeInfo<UnresolvedTimestamp> info() {
-        return NodeInfo.create(
-            this,
-            UnresolvedTimestamp::new,
-            qualifier(),
-            name(),
-            id(),
-            super.unresolvedMessage()
-        );
+        return NodeInfo.create(this, UnresolvedTimestamp::new, qualifier(), name(), id(), super.unresolvedMessage());
     }
 
     @Override

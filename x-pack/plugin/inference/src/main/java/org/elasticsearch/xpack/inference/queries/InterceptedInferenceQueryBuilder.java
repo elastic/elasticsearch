@@ -377,7 +377,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
         // Skip getting remote inference results if an inference ID override is set because overrides always refer to local inference IDs
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newRemoteInferenceResultsMapSupplier = null;
-        if (inferenceIdOverride != null) {
+        if (inferenceIdOverride == null) {
             newRemoteInferenceResultsMapSupplier = getRemoteInferenceResults(
                 queryRewriteContext,
                 resolvedIndices.getRemoteClusterIndices(),

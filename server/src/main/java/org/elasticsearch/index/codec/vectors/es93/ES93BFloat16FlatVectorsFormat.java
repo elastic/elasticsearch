@@ -48,7 +48,7 @@ public final class ES93BFloat16FlatVectorsFormat extends DirectIOCapableFlatVect
     }
 
     @Override
-    protected FlatVectorsScorer flatVectorsScorer() {
+    public FlatVectorsScorer flatVectorsScorer() {
         return vectorsScorer;
     }
 

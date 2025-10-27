@@ -15,6 +15,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -602,6 +603,11 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+
+        /**
+         * Appends a single ord for the next N positions
+         */
+        SingletonOrdinalsBuilder appendOrds(int ord, int length);
 
         SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd);
     }

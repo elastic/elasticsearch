@@ -93,7 +93,7 @@ public class VoyageAIContextualizedEmbeddingsRequestTests extends ESTestCase {
             VoyageAIContextualEmbeddingsModelTests.createModel(
                 "url",
                 "secret",
-                new VoyageAIContextualEmbeddingsTaskSettings(null),
+                new VoyageAIContextualEmbeddingsTaskSettings((InputType) null),
                 null,
                 null,
                 "voyage-context-3"

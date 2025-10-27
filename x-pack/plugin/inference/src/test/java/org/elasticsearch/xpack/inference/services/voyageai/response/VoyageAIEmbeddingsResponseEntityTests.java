@@ -507,8 +507,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         // Create a model with INT8 embedding type
         var modelWithInt8 = new org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModel(
             multimodalModel.getInferenceEntityId(),
-            multimodalModel.getTaskType().name(),
             multimodalModel.getConfigurations().getService(),
+            "url",
             new org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsServiceSettings(
                 multimodalModel.getServiceSettings().getCommonSettings(),
                 org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingType.INT8,
@@ -519,7 +519,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             ),
             multimodalModel.getTaskSettings(),
             multimodalModel.getConfigurations().getChunkingSettings(),
-            multimodalModel.getSecretSettings()
+            (org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings) multimodalModel.getSecretSettings()
         );
 
         VoyageAIMultimodalEmbeddingsRequest request = new VoyageAIMultimodalEmbeddingsRequest(

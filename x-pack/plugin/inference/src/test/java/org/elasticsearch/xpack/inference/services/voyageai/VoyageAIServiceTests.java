@@ -848,6 +848,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             var model = org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
+                org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 randomNonNegativeInt(),
                 randomNonNegativeInt(),
                 randomAlphaOfLength(10),

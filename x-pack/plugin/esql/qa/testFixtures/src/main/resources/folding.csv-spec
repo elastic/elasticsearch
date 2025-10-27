@@ -103,3 +103,69 @@ a:s    | b:s      | x:i | y:s          | z:s
 "some" | "string" | 4   | "somestring" | "anotherstring"
 ;
 
+mvBoolean_Equals_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+
+FROM employees
+| WHERE is_rehired == ([true, false])
+| KEEP is_rehired
+;
+warning:Line 2:9: evaluation of [is_rehired == ([true, false])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    is_rehired:boolean
+;
+
+computedBoolean_Equals_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+
+FROM employees
+| EVAL x = gender IS NULL
+| WHERE x == [true, false]
+| KEEP x
+;
+warning:Line 3:9: evaluation of [x == [true, false]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    x:boolean
+;
+
+computedBoolean_Equals_SingleMultiValueConstant
+required_capability: fix_mv_constant_equals_field
+
+FROM employees
+| EVAL x = gender IS NULL
+| WHERE x == [true]
+| KEEP x
+| LIMIT 1
+;
+
+    x:boolean
+    true
+;
+
+mvDouble_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+
+FROM employees
+| WHERE salary_change IN ([1,2,3])
+| KEEP salary_change
+;
+warning:Line 2:9: evaluation of [salary_change IN ([1,2,3])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    salary_change:double
+;
+
+mvDouble_Equals_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+
+FROM employees
+| WHERE salary_change == [1,2,3]
+| KEEP salary_change
+;
+warning:Line 2:9: evaluation of [salary_change == [1,2,3]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    salary_change:double
+;

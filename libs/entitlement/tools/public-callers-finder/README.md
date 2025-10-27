@@ -15,7 +15,7 @@ it treats calls to `super` in `S.m` as regular calls (e.g. `example() -> S.m() -
 
 In order to run the tool, use:
 ```shell
-./gradlew :libs:entitlement:tools:public-callers-finder:run [-Druntime.java=25] --args="<input-file> [--transitive] [--check-instrumentation]"
+./gradlew :libs:entitlement:tools:public-callers-finder:run [-Druntime.java=25] --args="<input-file> [--transitive] [--check-instrumentation] [--include-incubator]"
 ```
 
 - `input-file` is a `TAB`-separated TSV file containing the following columns:
@@ -30,6 +30,8 @@ In order to run the tool, use:
 - optional: `--transitive` to not stop at the first public method, but continue to find the transitive public surface.
 
 - optional: `--check-instrumentation` to check if methods are instrumented for entitlements.
+
+- optional: `--include-incubator` to include incubator modules (e.g. `jdk.incubator.vector`).
 
 If `-Druntime.java` is not provided, the bundled JDK is used.
 

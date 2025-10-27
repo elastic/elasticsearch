@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.tools;
 
+import org.elasticsearch.core.Tuple;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
@@ -23,6 +24,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 
@@ -53,7 +55,7 @@ public class AccessibleJdkMethods {
             .thenComparing(ModuleClass::clazz);
     }
 
-    public static Map<ModuleClass, Set<AccessibleMethod>> loadAccessibleMethods(Predicate<String> modulePredicate) throws IOException {
+    public static Stream<Tuple<ModuleClass, AccessibleMethod>> loadAccessibleMethods(Predicate<String> modulePredicate) throws IOException {
         // 1st: map class names to module names (including later excluded modules) for lookup in 2nd step
         final Map<String, String> moduleNameByClass = Utils.loadClassToModuleMapping();
         final Map<String, Set<String>> exportsByModule = Utils.loadExportsByModule();
@@ -66,7 +68,7 @@ public class AccessibleJdkMethods {
             }
         });
 
-        return visitor.getAccessibleMethods();
+        return visitor.getAccessibleMethods().entrySet().stream().flatMap(e -> e.getValue().stream().map(m -> Tuple.tuple(e.getKey(), m)));
     }
 
     private static class AccessibleMethodsVisitor extends ClassVisitor {

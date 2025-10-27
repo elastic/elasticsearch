@@ -49,6 +49,10 @@ public class Utils {
         && m.contains(".internal.") == false
         && m.contains(".incubator.") == false;
 
+    public static final Predicate<String> modulePredicate(boolean includeIncubator) {
+        return includeIncubator == false ? DEFAULT_MODULE_PREDICATE : DEFAULT_MODULE_PREDICATE.or(m -> m.contains(".incubator."));
+    }
+
     public static Map<String, Set<String>> loadExportsByModule() throws IOException {
         var modulesExports = new HashMap<String, Set<String>>();
         try (var stream = Files.walk(JRT_FS.getPath("modules"))) {
@@ -71,7 +75,7 @@ public class Utils {
         return Collections.unmodifiableMap(modulesExports);
     }
 
-    public static Map<String, String> loadClassToModuleMapping() throws IOException{
+    public static Map<String, String> loadClassToModuleMapping() throws IOException {
         Map<String, String> moduleNameByClass = new HashMap<>();
         Utils.walkJdkModules(m -> true, Collections.emptyMap(), (moduleName, moduleClasses, moduleExports) -> {
             for (var classFile : moduleClasses) {
@@ -83,7 +87,6 @@ public class Utils {
         });
         return Collections.unmodifiableMap(moduleNameByClass);
     }
-
 
     public interface JdkModuleConsumer {
         void accept(String moduleName, List<Path> moduleClasses, Set<String> moduleExports);

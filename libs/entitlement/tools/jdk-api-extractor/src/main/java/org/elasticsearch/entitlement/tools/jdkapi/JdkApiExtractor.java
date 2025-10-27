@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.tools.jdkapi;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.entitlement.tools.AccessibleJdkMethods;
 import org.elasticsearch.entitlement.tools.AccessibleJdkMethods.AccessibleMethod;
 import org.elasticsearch.entitlement.tools.AccessibleJdkMethods.ModuleClass;
@@ -21,7 +22,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -37,14 +37,9 @@ public class JdkApiExtractor {
 
     public static void main(String[] args) throws IOException {
         validateArgs(args);
-        Predicate<String> modulePredicate = Utils.DEFAULT_MODULE_PREDICATE.or(
-            m -> optionalArgs(args).anyMatch(INCLUDE_INCUBATOR::equals) && m.contains(".incubator.")
-        );
-        writeFile(
-            Path.of(args[0]),
-            AccessibleJdkMethods.loadAccessibleMethods(modulePredicate),
-            optionalArgs(args).anyMatch(DEPRECATIONS_ONLY::equals)
-        );
+        boolean includeIncubator = optionalArgs(args).anyMatch(INCLUDE_INCUBATOR::equals);
+        boolean deprecationsOnly = optionalArgs(args).anyMatch(DEPRECATIONS_ONLY::equals);
+        writeFile(Path.of(args[0]), AccessibleJdkMethods.loadAccessibleMethods(Utils.modulePredicate(includeIncubator)), deprecationsOnly);
     }
 
     private static Stream<String> optionalArgs(String[] args) {
@@ -94,17 +89,11 @@ public class JdkApiExtractor {
     }
 
     @SuppressForbidden(reason = "cli tool printing to standard err/out")
-    private static void writeFile(Path path, Map<ModuleClass, Set<AccessibleMethod>> methods, boolean deprecationsOnly) throws IOException {
+    private static void writeFile(Path path, Stream<Tuple<ModuleClass, AccessibleMethod>> methods, boolean deprecationsOnly)
+        throws IOException {
         System.out.println("Writing result for " + Runtime.version() + " to " + path.toAbsolutePath());
-        Predicate<AccessibleMethod> predicate = deprecationsOnly ? AccessibleMethod::isDeprecated : m -> true;
-        Files.write(
-            path,
-            () -> methods.entrySet()
-                .stream()
-                .flatMap(t -> t.getValue().stream().filter(predicate).map(method -> writeLine(t.getKey(), method)))
-                .iterator(),
-            StandardCharsets.UTF_8
-        );
+        Predicate<Tuple<ModuleClass, AccessibleMethod>> predicate = deprecationsOnly ? t -> t.v2().isDeprecated() : t -> true;
+        Files.write(path, () -> methods.filter(predicate).map(t -> writeLine(t.v1(), t.v2())).iterator(), StandardCharsets.UTF_8);
     }
 
 }

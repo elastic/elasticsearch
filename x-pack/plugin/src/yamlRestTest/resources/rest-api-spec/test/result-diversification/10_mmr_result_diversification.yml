@@ -13,8 +13,6 @@ setup:
       "test_runner_features": "contains"
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
         index: test-result-diversification-index
         body:
@@ -32,7 +30,6 @@ setup:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
         Content-Type: application/json
       bulk:
         index: test-result-diversification-index
@@ -57,8 +54,6 @@ teardown:
       features: headers
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA"
       indices.delete:
         index: test-result-diversification-index
         ignore: 404

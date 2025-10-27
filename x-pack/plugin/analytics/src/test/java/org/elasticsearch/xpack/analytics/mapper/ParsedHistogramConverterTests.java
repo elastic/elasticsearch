@@ -52,7 +52,7 @@ public class ParsedHistogramConverterTests extends ESTestCase {
             if (actual != expected) {
                 double relativeError = Math.abs(actual - expected) / Math.abs(actual);
                 assertThat(
-                    String.format("centroid %d: actual=%f, expected=%f, relative error=%f", i, actual, expected, relativeError),
+                    "centroid " + i + ": actual=" + actual + " expected=" + expected + ", relative error=" + relativeError,
                     relativeError,
                     closeTo(0, 0.000001)
                 );

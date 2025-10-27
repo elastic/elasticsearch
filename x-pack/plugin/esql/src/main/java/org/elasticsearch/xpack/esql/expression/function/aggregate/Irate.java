@@ -16,7 +16,7 @@ import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -52,7 +52,11 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         examples = { @Example(file = "k8s-timeseries-irate", tag = "irate") }
     )
     public Irate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
-        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
+        this(
+            source,
+            field,
+            new UnresolvedTimestamp(source, "Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
     }
 
     public Irate(

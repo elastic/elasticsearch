@@ -10,13 +10,9 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RemoteException;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
@@ -36,9 +32,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -74,7 +67,6 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -720,19 +712,6 @@ public class ComputeService {
         });
     }
 
-    QueryRewriteContext buildQueryRewriteContext(long startTimeInMillis, String clusterAlias, OriginalIndices originalIndices) {
-        ClusterState clusterState = clusterService.state();
-        ResolvedIndices resolvedIndices = buildResolvedIndices(clusterState, originalIndices);
-        return searchService.getRewriteContext(
-            () -> startTimeInMillis,
-            clusterState.getMinTransportVersion(),
-            clusterAlias,
-            resolvedIndices,
-            null,
-            null
-        );
-    }
-
     static ReductionPlan reductionPlan(
         PlannerSettings plannerSettings,
         EsqlFlags flags,
@@ -798,21 +777,6 @@ public class ComputeService {
 
     public EsqlFlags createFlags() {
         return new EsqlFlags(clusterService.getClusterSettings());
-    }
-
-    private static ResolvedIndices buildResolvedIndices(ClusterState clusterState, OriginalIndices originalIndices) {
-        ProjectMetadata projectMetadata = clusterState.getMetadata().getProject();
-        Map<Index, IndexMetadata> indexMetadataMap = new HashMap<>();
-        for (String indexName : originalIndices.indices()) {
-            IndexMetadata indexMetadata = projectMetadata.index(indexName);
-            if (indexMetadata == null) {
-                throw new IndexNotFoundException(indexName);
-            }
-
-            indexMetadataMap.put(indexMetadata.getIndex(), indexMetadata);
-        }
-
-        return new ResolvedIndices(Map.of(), originalIndices, indexMetadataMap);
     }
 
     private static class ComputeGroupTaskRequest extends AbstractTransportRequest {

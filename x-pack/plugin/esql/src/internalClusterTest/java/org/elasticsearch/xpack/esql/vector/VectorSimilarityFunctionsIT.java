@@ -352,9 +352,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5));
 
-        var CreateRequest = client.prepareCreate(indexName)
-            .setMapping(mapping)
-            .setSettings(settingsBuilder.build());
+        var CreateRequest = client.prepareCreate(indexName).setMapping(mapping).setSettings(settingsBuilder.build());
         assertAcked(CreateRequest);
     }
 

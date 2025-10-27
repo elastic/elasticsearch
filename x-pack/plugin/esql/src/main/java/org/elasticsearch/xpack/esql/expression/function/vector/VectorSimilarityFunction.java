@@ -47,7 +47,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     implements
         EvaluatorMapper,
         VectorFunction,
-    BlockLoaderExpression {
+        BlockLoaderExpression {
 
     protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
         super(source, left, right);

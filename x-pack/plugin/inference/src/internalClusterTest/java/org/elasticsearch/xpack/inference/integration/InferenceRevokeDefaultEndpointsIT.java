@@ -203,7 +203,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                           "task_types": ["chat"]
                         },
                         {
-                          "model_name": "multilingual-embed-v1",
+                          "model_name": "jina-embeddings-v3",
                           "task_types": ["embed/text/dense"]
                         },
                         {
@@ -234,7 +234,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                             service
                         ),
                         new InferenceService.DefaultConfigId(
-                            ".multilingual-embed-v1-elastic",
+                            ".jina-embeddings-v3",
                             MinimalServiceSettings.textEmbedding(
                                 ElasticInferenceService.NAME,
                                 ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
@@ -258,10 +258,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
                 service.defaultConfigs(listener);
                 assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
-                assertThat(
-                    listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(),
-                    is(".multilingual-embed-v1-elastic")
-                );
+                assertThat(listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(), is(".jina-embeddings-v3"));
                 assertThat(listener.actionGet(TIMEOUT).get(2).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
                 assertThat(listener.actionGet(TIMEOUT).get(3).getConfigurations().getInferenceEntityId(), is(".rerank-v1-elastic"));
 
@@ -287,7 +284,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                           "task_types": ["rerank/text/text-similarity"]
                         },
                         {
-                          "model_name": "multilingual-embed-v1",
+                          "model_name": "jina-embeddings-v3",
                           "task_types": ["embed/text/dense"]
                         }
                     ]
@@ -309,7 +306,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                             service
                         ),
                         new InferenceService.DefaultConfigId(
-                            ".multilingual-embed-v1-elastic",
+                            ".jina-embeddings-v3",
                             MinimalServiceSettings.textEmbedding(
                                 ElasticInferenceService.NAME,
                                 ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,

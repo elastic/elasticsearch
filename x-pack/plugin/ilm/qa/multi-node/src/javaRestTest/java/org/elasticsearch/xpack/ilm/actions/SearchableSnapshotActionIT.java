@@ -1033,11 +1033,17 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, phase, new SearchableSnapshotAction(snapshotRepo, true));
 
+        final var indexSettings = indexSettings(numberOfPrimaries, numberOfReplicas);
+        // Randomly enable auto-expand replicas to test that we remove the setting for the clone with 0 replicas.
+        if (numberOfReplicas > 0 && randomBoolean()) {
+            logger.info("--> enabling auto-expand replicas on backing index");
+            indexSettings.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "1-all");
+        }
         createComposableTemplate(
             client(),
             randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
-            new Template(indexSettings(numberOfPrimaries, numberOfReplicas).build(), null, null)
+            new Template(indexSettings.build(), null, null)
         );
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);

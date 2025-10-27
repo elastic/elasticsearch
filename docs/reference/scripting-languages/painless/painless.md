@@ -3,6 +3,9 @@ navigation_title: Painless
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/index.html
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-guide.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---

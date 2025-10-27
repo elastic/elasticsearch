@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-functions.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---

@@ -79,17 +79,56 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
     }
 
     void loadValue(int valueIndex, CompressedExponentialHistogram resultHistogram, BytesRef tempBytesRef) {
-        BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), tempBytesRef);
-        double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
-        long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
-        double sum = sums.getDouble(sums.getFirstValueIndex(valueIndex));
-        double min = valueCount == 0 ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(valueIndex));
-        double max = valueCount == 0 ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(valueIndex));
+        BytesRef bytes = getEncodedHistogramBytes(valueIndex, tempBytesRef);
+        double zeroThreshold = getHistogramZeroThreshold(valueIndex);
+        long valueCount = getHistogramValueCount(valueIndex);
+        double sum = getHistogramSum(valueIndex);
+        double min = getHistogramMin(valueIndex);
+        double max = getHistogramMax(valueIndex);
         try {
             resultHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
         } catch (IOException e) {
             throw new IllegalStateException("error loading histogram", e);
         }
+    }
+
+    void serializeValue(int valueIndex, SerializedOutput out, BytesRef tempBytesRef) {
+        long valueCount = getHistogramValueCount(valueIndex);
+        out.appendLong(valueCount);
+        out.appendDouble(getHistogramSum(valueIndex));
+        out.appendDouble(getHistogramZeroThreshold(valueIndex));
+        if (valueCount > 0) {
+            // min / max are only non-null for non-empty histograms
+            out.appendDouble(getHistogramMin(valueIndex));
+            out.appendDouble(getHistogramMax(valueIndex));
+        }
+        out.appendBytesRef(getEncodedHistogramBytes(valueIndex, tempBytesRef));
+    }
+
+    private double getHistogramMin(int valueIndex) {
+        int minimaValIndex = minima.getFirstValueIndex(valueIndex);
+        return minima.isNull(minimaValIndex) ? Double.NaN : minima.getDouble(minimaValIndex);
+    }
+
+    private double getHistogramMax(int valueIndex) {
+        int maximaValIndex = maxima.getFirstValueIndex(valueIndex);
+        return maxima.isNull(maximaValIndex) ? Double.NaN : maxima.getDouble(maximaValIndex);
+    }
+
+    private double getHistogramSum(int valueIndex) {
+        return sums.getDouble(sums.getFirstValueIndex(valueIndex));
+    }
+
+    private long getHistogramValueCount(int valueIndex) {
+        return valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
+    }
+
+    private double getHistogramZeroThreshold(int valueIndex) {
+        return zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
+    }
+
+    private BytesRef getEncodedHistogramBytes(int valueIndex, BytesRef tempBytesRef) {
+        return encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), tempBytesRef);
     }
 
     @Override

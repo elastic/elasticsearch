@@ -38,11 +38,29 @@ public class ExponentialHistogramBlockAccessor {
         assert block.isReleased() == false;
         ExponentialHistogramArrayBlock arrayBlock = (ExponentialHistogramArrayBlock) block;
         if (reusedHistogram == null) {
-            tempBytesRef = new BytesRef();
             reusedHistogram = new CompressedExponentialHistogram();
+        }
+        if (tempBytesRef == null) {
+            tempBytesRef = new BytesRef();
         }
         arrayBlock.loadValue(valueIndex, reusedHistogram, tempBytesRef);
         return reusedHistogram;
+    }
+
+    /**
+     * Encodes and appends a histogram value, so that it can be later deserialized
+     * via {@link ExponentialHistogramBlockBuilder#deserializeAndAppend(ExponentialHistogramBlock.SerializedInput)}.
+     *
+     * @param output the output to deserialize into
+     */
+    public void serializeValue(int valueIndex, ExponentialHistogramBlock.SerializedOutput output) {
+        assert block.isNull(valueIndex) == false;
+        assert block.isReleased() == false;
+        ExponentialHistogramArrayBlock arrayBlock = (ExponentialHistogramArrayBlock) block;
+        if (tempBytesRef == null) {
+            tempBytesRef = new BytesRef();
+        }
+        arrayBlock.serializeValue(valueIndex, output, tempBytesRef);
     }
 
 }

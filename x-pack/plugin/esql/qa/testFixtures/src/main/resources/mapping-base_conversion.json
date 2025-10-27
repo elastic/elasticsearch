@@ -12,9 +12,6 @@
         "expect_long" : {
             "type" : "long"
         },
-        "expect_integer": {
-            "type": "integer"
-        },
         "notes": {
             "type": "keyword"
         }

@@ -1585,6 +1585,11 @@ public class EsqlCapabilities {
         FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
 
         /**
+         * Catch-and-rethrow determinization complexity errors as 400s rather than 500s
+         */
+        HANDLE_DETERMINIZATION_COMPLEXITY,
+
+        /**
          * Support for the TRANGE function
          */
         FN_TRANGE,

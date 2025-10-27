@@ -82,6 +82,7 @@ public class PkiRealmTests extends ESTestCase {
         globalSettings = Settings.builder()
             .put("path.home", createTempDir())
             .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
+            .put(RealmSettings.getFullSettingKey(REALM_NAME, PkiRealmSettings.USERNAME_RDN_ENABLED_SETTING), randomBoolean())
             .build();
         licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
@@ -233,6 +234,7 @@ public class PkiRealmTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put(globalSettings)
             .put("xpack.security.authc.realms.pki.my_pki.username_pattern", "OU=(.*?),")
+            .put("xpack.security.authc.realms.pki.my_pki.username_rdn.type", "2.5.4.11")
             .build();
         ThreadContext threadContext = new ThreadContext(settings);
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
@@ -253,6 +255,7 @@ public class PkiRealmTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put(globalSettings)
             .put("xpack.security.authc.realms.pki.my_pki.username_pattern", "OU=(mismatch.*?),")
+            .put("xpack.security.authc.realms.pki.my_pki.username_rdn.type", "1.3.6.1.4.1.50000.1.1")
             .build();
         ThreadContext threadContext = new ThreadContext(settings);
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));

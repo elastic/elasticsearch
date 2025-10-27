@@ -29,6 +29,18 @@ public final class PkiRealmSettings {
         key -> new Setting<>(key, DEFAULT_USERNAME_PATTERN, s -> Pattern.compile(s, Pattern.CASE_INSENSITIVE), Setting.Property.NodeScope)
     );
 
+    public static final Setting.AffixSetting<Boolean> USERNAME_RDN_ENABLED_SETTING = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "username_rdn.enabled",
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<String> USERNAME_RDN_TYPE_SETTING = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "username_rdn.type",
+        key -> Setting.simpleString(key, "2.5.4.3", Setting.Property.NodeScope)
+    );
+
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueMinutes(20);
     public static final Setting.AffixSetting<TimeValue> CACHE_TTL_SETTING = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
@@ -75,6 +87,8 @@ public final class PkiRealmSettings {
     public static Set<Setting.AffixSetting<?>> getSettings() {
         Set<Setting.AffixSetting<?>> settings = new HashSet<>();
         settings.add(USERNAME_PATTERN_SETTING);
+        settings.add(USERNAME_RDN_ENABLED_SETTING);
+        settings.add(USERNAME_RDN_TYPE_SETTING);
         settings.add(CACHE_TTL_SETTING);
         settings.add(CACHE_MAX_USERS_SETTING);
         settings.add(DELEGATION_ENABLED_SETTING);

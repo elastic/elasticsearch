@@ -5,3 +5,6 @@
 `field`
 :   Input value. The input can be a single- or multi-valued column or an expression.
 
+`base`
+:   (Optional) Radix or base used to convert the string. Defaults to base 10.
+

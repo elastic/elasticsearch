@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
+package org.elasticsearch.xpack.inference.services.voyageai.embeddings.text;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;

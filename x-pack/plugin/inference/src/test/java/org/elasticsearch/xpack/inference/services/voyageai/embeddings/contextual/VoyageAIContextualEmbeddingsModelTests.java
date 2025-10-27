@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
+package org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -15,75 +15,107 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
-import org.hamcrest.MatcherAssert;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual.VoyageAIContextualEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 
-public class VoyageAIEmbeddingsModelTests extends ESTestCase {
+public class VoyageAIContextualEmbeddingsModelTests extends ESTestCase {
 
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
-        var model = createModel("url", "api_key", null, null, "model");
+        var model = createModel("url", "api_key", null, null, "voyage-context-3");
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, Map.of());
-        MatcherAssert.assertThat(overriddenModel, is(model));
+        var overriddenModel = VoyageAIContextualEmbeddingsModel.of(model, Map.of());
+        assertThat(overriddenModel, is(model));
     }
 
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull() {
-        var model = createModel("url", "api_key", null, null, "model");
+        var model = createModel("url", "api_key", null, null, "voyage-context-3");
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, null);
-        MatcherAssert.assertThat(overriddenModel, is(model));
+        var overriddenModel = VoyageAIContextualEmbeddingsModel.of(model, null);
+        assertThat(overriddenModel, is(model));
     }
 
     public void testOverrideWith_SetsInputType_FromRequestTaskSettings_IfValid_OverridingStoredTaskSettings() {
-        var model = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null), null, null, "model");
+        var model = createModel(
+            "url",
+            "api_key",
+            new VoyageAIContextualEmbeddingsTaskSettings(InputType.INGEST),
+            null,
+            null,
+            "voyage-context-3"
+        );
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH));
-        var expectedModel = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null), null, null, "model");
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
+        var overriddenModel = VoyageAIContextualEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH));
+        var expectedModel = createModel(
+            "url",
+            "api_key",
+            new VoyageAIContextualEmbeddingsTaskSettings(InputType.SEARCH),
+            null,
+            null,
+            "voyage-context-3"
+        );
+        assertThat(overriddenModel, is(expectedModel));
     }
 
     public void testOverrideWith_DoesNotOverrideInputType_WhenRequestTaskSettingsIsNull() {
-        var model = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null), null, null, "model");
+        var model = createModel(
+            "url",
+            "api_key",
+            new VoyageAIContextualEmbeddingsTaskSettings(InputType.INGEST),
+            null,
+            null,
+            "voyage-context-3"
+        );
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
-        var expectedModel = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null), null, null, "model");
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
+        var overriddenModel = VoyageAIContextualEmbeddingsModel.of(model, getTaskSettingsMap(null));
+        var expectedModel = createModel(
+            "url",
+            "api_key",
+            new VoyageAIContextualEmbeddingsTaskSettings(InputType.INGEST),
+            null,
+            null,
+            "voyage-context-3"
+        );
+        assertThat(overriddenModel, is(expectedModel));
     }
 
-    public static VoyageAIEmbeddingsModel createModel(String url, String apiKey, @Nullable Integer tokenLimit, @Nullable String model) {
-        return createModel(url, apiKey, VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, tokenLimit, null, model);
+    public static VoyageAIContextualEmbeddingsModel createModel(
+        String url,
+        String apiKey,
+        @Nullable Integer tokenLimit,
+        @Nullable String model
+    ) {
+        return createModel(url, apiKey, VoyageAIContextualEmbeddingsTaskSettings.EMPTY_SETTINGS, tokenLimit, null, model);
     }
 
-    public static VoyageAIEmbeddingsModel createModel(
+    public static VoyageAIContextualEmbeddingsModel createModel(
         String url,
         String apiKey,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
         String model
     ) {
-        return createModel(url, apiKey, VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, tokenLimit, dimensions, model);
+        return createModel(url, apiKey, VoyageAIContextualEmbeddingsTaskSettings.EMPTY_SETTINGS, tokenLimit, dimensions, model);
     }
 
-    public static VoyageAIEmbeddingsModel createModel(
+    public static VoyageAIContextualEmbeddingsModel createModel(
         String url,
         String apiKey,
-        VoyageAIEmbeddingsTaskSettings taskSettings,
+        VoyageAIContextualEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
         String model
     ) {
-        return new VoyageAIEmbeddingsModel(
+        return new VoyageAIContextualEmbeddingsModel(
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
+            new VoyageAIContextualEmbeddingsServiceSettings(
                 new VoyageAIServiceSettings(model, null),
-                VoyageAIEmbeddingType.FLOAT,
+                VoyageAIContextualEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
                 tokenLimit,
@@ -95,21 +127,21 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
         );
     }
 
-    public static VoyageAIEmbeddingsModel createModel(
+    public static VoyageAIContextualEmbeddingsModel createModel(
         String url,
         String apiKey,
-        VoyageAIEmbeddingsTaskSettings taskSettings,
+        VoyageAIContextualEmbeddingsTaskSettings taskSettings,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
         String model
     ) {
-        return new VoyageAIEmbeddingsModel(
+        return new VoyageAIContextualEmbeddingsModel(
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
+            new VoyageAIContextualEmbeddingsServiceSettings(
                 new VoyageAIServiceSettings(model, null),
-                VoyageAIEmbeddingType.FLOAT,
+                VoyageAIContextualEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
                 tokenLimit,
@@ -121,20 +153,20 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
         );
     }
 
-    public static VoyageAIEmbeddingsModel createModel(
+    public static VoyageAIContextualEmbeddingsModel createModel(
         String url,
         String apiKey,
-        VoyageAIEmbeddingsTaskSettings taskSettings,
+        VoyageAIContextualEmbeddingsTaskSettings taskSettings,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
         String model,
-        VoyageAIEmbeddingType embeddingType
+        VoyageAIContextualEmbeddingType embeddingType
     ) {
-        return new VoyageAIEmbeddingsModel(
+        return new VoyageAIContextualEmbeddingsModel(
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
+            new VoyageAIContextualEmbeddingsServiceSettings(
                 new VoyageAIServiceSettings(model, null),
                 embeddingType,
                 SimilarityMeasure.DOT_PRODUCT,
@@ -148,10 +180,10 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
         );
     }
 
-    public static VoyageAIEmbeddingsModel createModel(
+    public static VoyageAIContextualEmbeddingsModel createModel(
         String url,
         String apiKey,
-        VoyageAIEmbeddingsTaskSettings taskSettings,
+        VoyageAIContextualEmbeddingsTaskSettings taskSettings,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
         String model,
@@ -182,13 +214,13 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
         String model,
         @Nullable SimilarityMeasure similarityMeasure
     ) {
-        return new VoyageAIEmbeddingsModel(
+        return new VoyageAIContextualEmbeddingsModel(
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
+            new VoyageAIContextualEmbeddingsServiceSettings(
                 new VoyageAIServiceSettings(model, null),
-                VoyageAIEmbeddingType.FLOAT,
+                VoyageAIContextualEmbeddingType.FLOAT,
                 similarityMeasure,
                 dimensions,
                 tokenLimit,

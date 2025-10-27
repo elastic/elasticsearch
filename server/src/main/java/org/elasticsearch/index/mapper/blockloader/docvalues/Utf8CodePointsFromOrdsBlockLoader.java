@@ -30,6 +30,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
      * entries for a cache.
      */
     static final int LOW_CARDINALITY = 1024;
+    
     private final String fieldName;
 
     public Utf8CodePointsFromOrdsBlockLoader(String fieldName) {

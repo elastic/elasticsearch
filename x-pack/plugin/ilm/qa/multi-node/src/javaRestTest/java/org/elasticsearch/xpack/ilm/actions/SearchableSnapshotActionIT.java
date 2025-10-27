@@ -21,9 +21,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.TimeSeriesRestDriver;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SearchableSnapshotActionIT extends ESRestTestCase {
+public class SearchableSnapshotActionIT extends IlmESRestTestCase {
 
     private String policy;
     private String dataStream;
@@ -1033,11 +1033,17 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, phase, new SearchableSnapshotAction(snapshotRepo, true));
 
+        final var indexSettings = indexSettings(numberOfPrimaries, numberOfReplicas);
+        // Randomly enable auto-expand replicas to test that we remove the setting for the clone with 0 replicas.
+        if (numberOfReplicas > 0 && randomBoolean()) {
+            logger.info("--> enabling auto-expand replicas on backing index");
+            indexSettings.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "1-all");
+        }
         createComposableTemplate(
             client(),
             randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
-            new Template(indexSettings(numberOfPrimaries, numberOfReplicas).build(), null, null)
+            new Template(indexSettings.build(), null, null)
         );
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);

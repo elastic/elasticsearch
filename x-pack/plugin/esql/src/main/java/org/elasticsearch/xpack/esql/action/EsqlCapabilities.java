@@ -1082,6 +1082,11 @@ public class EsqlCapabilities {
         FORK_UNION_TYPES,
 
         /**
+         * Support non-correlated subqueries in the FROM clause.
+         */
+        SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,
@@ -1280,7 +1285,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SET command.
          */
-        SET_COMMAND(Build.current().isSnapshot()),
+        SET_COMMAND,
 
         /**
          * (Re)Added EXPLAIN command
@@ -1476,7 +1481,7 @@ public class EsqlCapabilities {
          * Percentile over time and other ts-aggregations
          */
         PERCENTILE_OVER_TIME,
-
+        VARIANCE_STDDEV_OVER_TIME,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1578,6 +1583,11 @@ public class EsqlCapabilities {
          * Temporarily forbid the use of an explicit or implicit LIMIT before INLINE STATS.
          */
         FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled),
+
+        /**
+         * Catch-and-rethrow determinization complexity errors as 400s rather than 500s
+         */
+        HANDLE_DETERMINIZATION_COMPLEXITY,
 
         /**
          * Support for the TRANGE function

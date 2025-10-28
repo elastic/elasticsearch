@@ -1,0 +1,5 @@
+pr: 135795
+summary: Grants `kibana_system` the ability to forcemerge certain indices
+area: Authorization
+type: bug
+issues: []

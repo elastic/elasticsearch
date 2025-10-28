@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.action.index.IndexRequest;
@@ -25,9 +26,11 @@ import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -325,6 +328,23 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
         }
         SampleInfo sampleInfo = sampleInfoReference.get();
         return sampleInfo == null ? new SampleStats() : sampleInfo.stats;
+    }
+
+    /*
+     * Throws an IndexNotFoundException if the first index in the IndicesRequest is not a data stream or a single index that exists
+     */
+    public static void throwIndexNotFoundExceptionIfNotDataStreamOrIndex(
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
+        ClusterState state,
+        IndicesRequest request
+    ) {
+        assert request.indices().length == 1 : "Expected IndicesRequest to have a single index but found " + request.indices().length;
+        assert request.includeDataStreams() : "Expected IndicesRequest to include data streams but it did not";
+        boolean isDataStream = projectResolver.getProjectMetadata(state).dataStreams().containsKey(request.indices()[0]);
+        if (isDataStream == false) {
+            indexNameExpressionResolver.concreteIndexNames(state, request);
+        }
     }
 
     public boolean atLeastOneSampleConfigured(ProjectMetadata projectMetadata) {

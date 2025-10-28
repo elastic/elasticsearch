@@ -49,8 +49,8 @@ public class PromqlLogicalPlanBuilder extends ExpressionBuilder {
         this(null, null, 0, 0);
     }
 
-    PromqlLogicalPlanBuilder(Instant start, Instant stop, int startLine, int startColumn) {
-        super(start, stop, startLine, startColumn);
+    PromqlLogicalPlanBuilder(Instant start, Instant end, int startLine, int startColumn) {
+        super(start, end, startLine, startColumn);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {

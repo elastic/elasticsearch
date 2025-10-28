@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
@@ -1189,12 +1190,12 @@ public class VerifierTests extends ESTestCase {
     public void testRenameOrDropTimestmapWithRate() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(rate(network.total_cost))", k8s),
-            equalTo("1:38: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -1204,12 +1205,12 @@ public class VerifierTests extends ESTestCase {
                 "TS k8s | RENAME @timestamp AS newTs | STATS max(last_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
                 k8s
             ),
-            equalTo("1:49: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [last_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(last_over_time(network.eth0.tx))", k8s),
-            equalTo("1:38: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [last_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -1219,72 +1220,72 @@ public class VerifierTests extends ESTestCase {
                 "TS k8s | RENAME @timestamp AS newTs | STATS max(first_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
                 k8s
             ),
-            equalTo("1:49: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [first_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(first_over_time(network.eth0.tx))", k8s),
-            equalTo("1:38: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [first_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithIncrease() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(increase(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [increase(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(increase(network.eth0.tx))", k8s),
-            equalTo("1:38: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [increase(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithIRate() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(irate(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [irate(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(irate(network.eth0.tx))", k8s),
-            equalTo("1:38: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [irate(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithDelta() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(delta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [delta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(delta(network.eth0.tx))", k8s),
-            equalTo("1:38: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [delta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithIDelta() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(idelta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [idelta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(idelta(network.eth0.tx))", k8s),
-            equalTo("1:38: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [idelta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestampWithTBucket() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)", k8s),
-            equalTo("1:95: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:95: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(max_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)", k8s),
-            equalTo("1:83: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:83: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -2732,7 +2733,7 @@ public class VerifierTests extends ESTestCase {
     public void testInvalidTBucketCalls() {
         assertThat(
             error("from test | stats max(emp_no) by tbucket(1 hour)"),
-            equalTo("1:34: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:34: [tbucket(1 hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
@@ -2758,7 +2759,7 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1 hour\")", oddSampleDataAnalyzer),
             equalTo(
-                "1:42: second argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
+                "1:42: implicit argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
             )
         );
         for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {

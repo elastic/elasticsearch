@@ -360,6 +360,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this.normalizer.get() != null;
         }
 
+        public boolean isNormalizerSkipStoreOriginalValue() {
+            return this.normalizerSkipStoreOriginalValue.getValue();
+        }
+
         Builder nullValue(String nullValue) {
             this.nullValue.setValue(nullValue);
             return this;

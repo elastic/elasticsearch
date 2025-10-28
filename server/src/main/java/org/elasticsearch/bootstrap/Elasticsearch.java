@@ -62,6 +62,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.Security;
 import java.util.Collection;
 import java.util.HashMap;
@@ -478,6 +479,19 @@ class Elasticsearch {
                     }
                     return false;
                 });
+            }
+        }
+
+        if (IOUtils.LINUX) {
+            // The coredump filter determines which types of memory are added to core dumps. By default, Java
+            // includes memory mapped files, bits 2 and 3. Here we disable those bits. Note that the VM
+            // has special options to disable these, but the filter is then inherited from the parent process
+            // which is the server CLI, which is also a JVM so it has these bits set. Thus, we set it explicitly.
+            // See https://man7.org/linux/man-pages/man5/core.5.html for more info on the relevant bits of the filter
+            try {
+                Files.writeString(Paths.get("/proc/self/coredump_filter"), "0x23");
+            } catch (IOException e) {
+                throw new RuntimeException("Could not set coredump filter", e);
             }
         }
 

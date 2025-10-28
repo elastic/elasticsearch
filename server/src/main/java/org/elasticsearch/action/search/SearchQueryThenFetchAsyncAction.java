@@ -599,7 +599,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             }
                             onPhaseFailure(getName(), "", cause);
                         }
-                        onNodeQueryFailure(e, request, routing);
                     }
                 });
         });

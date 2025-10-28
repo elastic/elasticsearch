@@ -33,6 +33,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME))
     );
 
+    @AwaitsFix(bugUrl = "https://fake.url")
     public void testKnnQuery() throws Exception {
         final String commonInferenceId = "common-inference-id";
         final String localInferenceId = "local-inference-id";

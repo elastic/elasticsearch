@@ -261,8 +261,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     public void testGetFromTranslogBySyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        final var datastreamName = randomIdentifier();
-        putDataStreamTemplate(datastreamName, 1);
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(dataStreamName, 1);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -272,7 +272,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         //
         // For convenience, the metric value maps the index in the bulk response items
         var results = createDocuments(
-            datastreamName,
+            dataStreamName,
             // t + 0s
             document(timestamp, "vm-dev01", "cpu-load", 0),
             document(timestamp, "vm-dev02", "cpu-load", 1),
@@ -295,7 +295,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // The documents are in memory buffers: the first GET will trigger the refresh of the internal reader
         // (see InternalEngine.REAL_TIME_GET_REFRESH_SOURCE) to have an up-to-date searcher to resolve documents ids and versions. It will
         // also enable the tracking of the locations of documents in the translog (see InternalEngine.trackTranslogLocation) so that next
-        // GETs will be resolved with the translog.
+        // GETs will be resolved using the translog.
         var randomDocs = randomSubsetOf(randomIntBetween(1, results.length), results);
         for (var doc : randomDocs) {
             var getResponse = client().prepareGet(doc.getIndex(), doc.getId()).setRealtime(true).setFetchSource(true).execute().actionGet();
@@ -310,7 +310,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         // Index 5 more docs
         results = createDocuments(
-            datastreamName,
+            dataStreamName,
             // t + 2s
             document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", metricOffset),
             document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", metricOffset + 1),
@@ -342,7 +342,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(metricOffset + doc.getItemId()));
         }
 
-        flushAndRefresh(datastreamName);
+        flushAndRefresh(dataStreamName);
 
         // Check that synthetic _id field have no postings on disk
         var indices = new HashSet<>(docs.values());
@@ -352,7 +352,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
         }
 
-        assertHitCount(client().prepareSearch(datastreamName).setSize(0), 10L);
+        assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
     }
 
     private static XContentBuilder document(Instant timestamp, String hostName, String metricField, Integer metricValue)

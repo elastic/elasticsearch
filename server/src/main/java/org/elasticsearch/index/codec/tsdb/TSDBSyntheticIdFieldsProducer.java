@@ -37,6 +37,10 @@ import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.S
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.TIMESTAMP;
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.TS_ID;
 
+/**
+ * Produces synthetic _id terms that are computed at runtime from the doc values of other fields like _tsid, @timestamp and
+ * _ts_routing_hash.
+ */
 public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
     private static final Set<String> FIELDS_NAMES = Set.of(SYNTHETIC_ID);
@@ -402,6 +406,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             if (current == NO_MORE_DOCS) {
                 return null;
             }
+
             int docID = (current != null) ? current.docID + 1 : 0;
             if (maxDocs <= docID) {
                 current = NO_MORE_DOCS;
@@ -420,6 +425,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
         @Override
         public SeekStatus seekCeil(BytesRef id) throws IOException {
+
             assert id != null;
             assert Long.BYTES + Integer.BYTES < id.length : id.length;
             if (id == null || id.length <= Long.BYTES + Integer.BYTES) {
@@ -455,15 +461,13 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             // _tsid found, extract the timestamp
             final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
 
-            Ici on doit chercher après le dernier doc.
-
             // Slow scan to the first document matching the _tsid
             final int startDocID = docValues.slowScanToFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
             assert 0 <= startDocID : startDocID;
 
             int docID = startDocID;
             int docTsIdOrd = tsIdOrd;
-            long docTimestamp = -1;
+            long docTimestamp;
 
             // Iterate over documents to find the first one matching the timestamp
             for (; docID < maxDocs; docID++) {
@@ -482,21 +486,8 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                     break;
                 }
             }
-
-            if (docID == maxDocs -1) {
-                current = NO_MORE_DOCS;
-                return SeekStatus.END;
-            }
-
-            // set the terms enum on the first non-matching document
-            current = new SyntheticTerm(
-                docID,
-                docTsIdOrd,
-                docValues.lookupTsIdOrd(docTsIdOrd),
-                docTimestamp,
-                docValues.docRoutingHash(docID)
-            );
-            return SeekStatus.NOT_FOUND;
+            current = NO_MORE_DOCS;
+            return SeekStatus.END;
         }
 
         @Override

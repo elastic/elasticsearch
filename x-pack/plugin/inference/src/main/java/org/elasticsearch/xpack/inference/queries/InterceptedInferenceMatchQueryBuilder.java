@@ -62,7 +62,7 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
 
     @Override
     protected String getQuery() {
-        return (String) originalQuery.value();
+        return originalQuery.value().toString();
     }
 
     @Override

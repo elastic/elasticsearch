@@ -128,20 +128,20 @@ public class AccessibleJdkMethods {
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
             final Set<AccessibleMethod> currentInheritedAccess = newSortedSet();
             if (superName != null) {
-                var superModuleClass = getModuleClass(superName);
+                var superModuleClass = getModuleClassFromName(superName);
                 visitOnce(superModuleClass);
                 currentInheritedAccess.addAll(inheritableAccessByClass.getOrDefault(superModuleClass, emptySet()));
             }
             if (interfaces != null && interfaces.length > 0) {
                 for (var interfaceName : interfaces) {
-                    var interfaceModuleClass = getModuleClass(interfaceName);
+                    var interfaceModuleClass = getModuleClassFromName(interfaceName);
                     visitOnce(interfaceModuleClass);
                     currentInheritedAccess.addAll(inheritableAccessByClass.getOrDefault(interfaceModuleClass, emptySet()));
                 }
             }
             // only initialize local state AFTER visiting all dependencies above!
             super.visit(version, access, name, signature, superName, interfaces);
-            this.moduleClass = getModuleClass(name);
+            this.moduleClass = getModuleClassFromName(name);
             this.isExported = getModuleExports(moduleClass.module()).contains(getPackageName(name));
             this.isPublicClass = (access & Opcodes.ACC_PUBLIC) != 0;
             this.isFinalClass = (access & Opcodes.ACC_FINAL) != 0;
@@ -150,7 +150,7 @@ public class AccessibleJdkMethods {
             this.accessibleImplementations = newSortedSet();
         }
 
-        private ModuleClass getModuleClass(String name) {
+        private ModuleClass getModuleClassFromName(String name) {
             String module = moduleNameByClass.get(name);
             if (module == null) {
                 throw new IllegalStateException("Unknown module for class: " + name);

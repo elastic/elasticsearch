@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -107,12 +106,10 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "ChunkScorerConfig{"
-            + "size=" + sizeOrDefault()
-            + ", inferenceText=[" + inferenceText + ']'
-            + ", chunkingSettings=" + chunkingSettings
-            + "}";
-      
+        return "ChunkScorerConfig{" + "size=" + sizeOrDefault() + ", inferenceText=[" + inferenceText + ']' + ", chunkingSettings="
+            + chunkingSettings + "}";
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

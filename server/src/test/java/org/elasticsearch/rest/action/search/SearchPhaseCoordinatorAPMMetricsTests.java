@@ -84,7 +84,9 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
             "1"
         );
         assertMeasurements(List.of(QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC));
-        assertNotMeasured(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC, OPEN_PIT_SEARCH_PHASE_METRIC));
+        assertNotMeasured(
+            List.of(CAN_MATCH_SEARCH_PHASE_METRIC, DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC, OPEN_PIT_SEARCH_PHASE_METRIC)
+        );
     }
 
     public void testDfsSearch() {
@@ -132,7 +134,9 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
                     .setQuery(simpleQueryStringQuery("doc1")),
                 "1"
             );
-            assertMeasurements(List.of(OPEN_PIT_SEARCH_PHASE_METRIC, CAN_MATCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC));
+            assertMeasurements(
+                List.of(OPEN_PIT_SEARCH_PHASE_METRIC, CAN_MATCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC)
+            );
             assertNotMeasured(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC));
         } finally {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pointInTimeId)).actionGet();

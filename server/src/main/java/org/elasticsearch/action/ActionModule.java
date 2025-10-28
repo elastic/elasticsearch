@@ -128,16 +128,19 @@ import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.elasticsearch.action.admin.indices.sampling.DeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.GetAllSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.PutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestDeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.RestGetAllSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.RestPutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportDeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportGetAllSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleStatsAction;
@@ -836,6 +839,7 @@ public class ActionModule extends AbstractModule {
             actions.register(GetSampleStatsAction.INSTANCE, TransportGetSampleStatsAction.class);
             actions.register(DeleteSampleConfigurationAction.INSTANCE, TransportDeleteSampleConfigurationAction.class);
             actions.register(GetSampleConfigurationAction.INSTANCE, TransportGetSampleConfigurationAction.class);
+            actions.register(GetAllSampleConfigurationAction.INSTANCE, TransportGetAllSampleConfigurationAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -1073,6 +1077,7 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestGetSampleStatsAction());
             registerHandler.accept(new RestDeleteSampleConfigurationAction());
             registerHandler.accept(new RestGetSampleConfigurationAction());
+            registerHandler.accept(new RestGetAllSampleConfigurationAction());
         }
     }
 

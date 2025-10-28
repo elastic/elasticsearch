@@ -112,7 +112,7 @@ public final class AnalyzerTestUtils {
         );
     }
 
-    private static Map<IndexPattern, IndexResolution> mergeIndexResolutions(
+    public static Map<IndexPattern, IndexResolution> mergeIndexResolutions(
         Map<IndexPattern, IndexResolution> indexResolutions,
         Map<IndexPattern, IndexResolution> more
     ) {
@@ -235,7 +235,9 @@ public final class AnalyzerTestUtils {
             "languages_lookup",
             loadMapping("mapping-languages.json", "languages_lookup", IndexMode.LOOKUP),
             "test_lookup",
-            loadMapping("mapping-basic.json", "test_lookup", IndexMode.LOOKUP)
+            loadMapping("mapping-basic.json", "test_lookup", IndexMode.LOOKUP),
+            "spatial_lookup",
+            loadMapping("mapping-multivalue_geometries.json", "spatial_lookup", IndexMode.LOOKUP)
         );
     }
 
@@ -307,7 +309,9 @@ public final class AnalyzerTestUtils {
             new IndexPattern(Source.EMPTY, "sample_data"),
             loadMapping("mapping-sample_data.json", "sample_data"),
             new IndexPattern(Source.EMPTY, "test_mixed_types"),
-            loadMapping("mapping-default-incompatible.json", "test_mixed_types")
+            loadMapping("mapping-default-incompatible.json", "test_mixed_types"),
+            new IndexPattern(Source.EMPTY, "k8s"),
+            loadMapping("k8s-downsampled-mappings.json", "k8s", IndexMode.TIME_SERIES)
         );
     }
 
@@ -362,6 +366,10 @@ public final class AnalyzerTestUtils {
 
     public static IndexResolution tsdbIndexResolution() {
         return loadMapping("tsdb-mapping.json", "test");
+    }
+
+    public static IndexResolution k8sIndexResolution() {
+        return loadMapping("k8s-mappings.json", "k8s");
     }
 
     public static <E> E randomValueOtherThanTest(Predicate<E> exclude, Supplier<E> supplier) {

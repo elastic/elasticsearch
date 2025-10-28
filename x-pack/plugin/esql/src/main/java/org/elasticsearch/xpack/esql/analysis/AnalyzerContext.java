@@ -17,15 +17,14 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.Map;
 
-public record AnalyzerContext(
-    Configuration configuration,
-    EsqlFunctionRegistry functionRegistry,
-    Map<IndexPattern, IndexResolution> indexResolution,
-    Map<String, IndexResolution> lookupResolution,
-    EnrichResolution enrichResolution,
-    InferenceResolution inferenceResolution,
-    TransportVersion minimumVersion
-) {
+public class AnalyzerContext {
+    private final Configuration configuration;
+    private final EsqlFunctionRegistry functionRegistry;
+    private final Map<IndexPattern, IndexResolution> indexResolution;
+    private final Map<String, IndexResolution> lookupResolution;
+    private final EnrichResolution enrichResolution;
+    private final InferenceResolution inferenceResolution;
+    private final TransportVersion minimumVersion;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -47,6 +46,34 @@ public record AnalyzerContext(
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert minimumVersion.onOrBefore(TransportVersion.current())
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
+    }
+
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    public EsqlFunctionRegistry functionRegistry() {
+        return functionRegistry;
+    }
+
+    public Map<IndexPattern, IndexResolution> indexResolution() {
+        return indexResolution;
+    }
+
+    public Map<String, IndexResolution> lookupResolution() {
+        return lookupResolution;
+    }
+
+    public EnrichResolution enrichResolution() {
+        return enrichResolution;
+    }
+
+    public InferenceResolution inferenceResolution() {
+        return inferenceResolution;
+    }
+
+    public TransportVersion minimumVersion() {
+        return minimumVersion;
     }
 
     public AnalyzerContext(Configuration configuration, EsqlFunctionRegistry functionRegistry, EsqlSession.PreAnalysisResult result) {

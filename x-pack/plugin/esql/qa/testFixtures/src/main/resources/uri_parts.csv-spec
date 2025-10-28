@@ -2,11 +2,15 @@ uri_parts extract domain
 required_capability: uri_parts
 
 // tag::uri_parts[]
-ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment" | EVAL my_url_domain = uri_parts(my_url, "domain") | KEEP my_url_domain;
+ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment"
+| EVAL my_url_domain = uri_parts(my_url, "domain")
 // end::uri_parts[]
+;
 
-my_url_domain:keyword
-example.org
+// tag::uri_parts-result[]
+my_url:keyword | my_url_domain:keyword
+http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment | example.org
+// end::uri_parts-result[]
 ;
 
 uri_parts extract path

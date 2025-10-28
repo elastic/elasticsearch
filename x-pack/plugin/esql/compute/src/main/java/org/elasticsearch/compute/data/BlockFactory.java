@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.util.BitSet;
 
@@ -462,6 +463,19 @@ public class BlockFactory {
                 } else {
                     builder.count().appendNull();
                 }
+            }
+            return builder.build();
+        }
+    }
+
+    public ExponentialHistogramBlockBuilder newExponentialHistogramBlockBuilder(int estimatedSize) {
+        return new ExponentialHistogramBlockBuilder(estimatedSize, this);
+    }
+
+    public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
+        try (ExponentialHistogramBlockBuilder builder = newExponentialHistogramBlockBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                builder.append(value);
             }
             return builder.build();
         }

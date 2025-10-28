@@ -27,7 +27,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 
@@ -47,7 +49,7 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
     @Override
     protected LogicalPlan rule(LogicalPlan plan, LocalLogicalOptimizerContext context) {
         if (plan instanceof Eval || plan instanceof Filter || plan instanceof Aggregate) {
-            AttributeSet.Builder addedAttrs = AttributeSet.builder();
+            Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
             LogicalPlan transformedPlan = plan.transformExpressionsOnly(
                 VectorSimilarityFunction.class,
                 similarityFunction -> replaceFieldsForFieldTransformations(similarityFunction, addedAttrs, context)
@@ -59,15 +61,19 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
 
             List<Attribute> previousAttrs = transformedPlan.output();
             // Transforms EsRelation to extract the new attribute
-            AttributeSet attrSet = addedAttrs.build();
+
+            List<Attribute> addedAttrsList = addedAttrs.values().stream().toList();
             transformedPlan = transformedPlan.transformDown(
                 EsRelation.class,
-                esRelation -> esRelation.withAttributes(attrSet.combine(esRelation.outputSet()).stream().toList())
+                esRelation -> {
+                    AttributeSet updatedOutput = esRelation.outputSet().combine(AttributeSet.of(addedAttrsList));
+                    return esRelation.withAttributes(updatedOutput.stream().toList());
+                }
             );
             // Transforms Projects so the new attribute is not discarded
             transformedPlan = transformedPlan.transformDown(EsqlProject.class, esProject -> {
                 List<NamedExpression> projections = new ArrayList<>(esProject.projections());
-                projections.addAll(attrSet.stream().toList());
+                projections.addAll(addedAttrsList);
                 return esProject.withProjections(projections);
             });
 
@@ -79,7 +85,7 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
 
     private static Expression replaceFieldsForFieldTransformations(
         VectorSimilarityFunction similarityFunction,
-        AttributeSet.Builder addedAttrs,
+        Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs,
         LocalLogicalOptimizerContext context
     ) {
         // Only replace if exactly one side is a literal and the other a field attribute
@@ -102,8 +108,10 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
         @SuppressWarnings("unchecked")
         List<Number> vectorList = (List<Number>) literal.value();
         float[] vectorArray = new float[vectorList.size()];
+        int arrayHashCode = 0;
         for (int i = 0; i < vectorList.size(); i++) {
             vectorArray[i] = vectorList.get(i).floatValue();
+            arrayHashCode = 31 * arrayHashCode + Float.floatToIntBits(vectorArray[i]);
         }
 
         // Change the similarity function to a reference of a transformation on the field
@@ -112,19 +120,24 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
             similarityFunction.dataType(),
             similarityFunction.getBlockLoaderFunctionConfig()
         );
-        var nameId = new NameId();
-        var name = rawTemporaryName(fieldAttr.name(), similarityFunction.nodeName(), nameId.toString());
-        var functionAttr = new FieldAttribute(
+        var name = rawTemporaryName(fieldAttr.name(), similarityFunction.nodeName(), String.valueOf(arrayHashCode));
+        // TODO: Check if exists before adding, retrieve the previous one
+        var newFunctionAttr = new FieldAttribute(
             fieldAttr.source(),
             fieldAttr.parentName(),
             fieldAttr.qualifier(),
             name,
             functionEsField,
             fieldAttr.nullable(),
-            nameId,
+            new NameId(),
             true
         );
-        addedAttrs.add(functionAttr);
-        return functionAttr;
+        Attribute.IdIgnoringWrapper key = newFunctionAttr.ignoreId();
+        if (addedAttrs.containsKey(key)) {;
+            return addedAttrs.get(key);
+        }
+
+        addedAttrs.put(key, newFunctionAttr);
+        return newFunctionAttr;
     }
 }

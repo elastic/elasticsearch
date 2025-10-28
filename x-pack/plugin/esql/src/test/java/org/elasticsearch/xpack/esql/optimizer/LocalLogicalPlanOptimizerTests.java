@@ -49,6 +49,8 @@ import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -1415,6 +1417,84 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // EsRelation[test_all][$$dense_vector$CosineSimilarity$33{f}#33, !alias_in..]
         var esRelation = as(innerProject.child(), EsRelation.class);
         assertTrue(esRelation.output().contains(fieldAttr));
+    }
+
+    public void testVectorFunctionsWithDuplicateFunctions() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            from test_all
+            | eval s1 = v_dot_product(dense_vector, [1.0, 2.0, 3.0]), s2 = v_dot_product(dense_vector, [1.0, 2.0, 3.0]) * 2 / 3
+            | eval s3 = v_dot_product(dense_vector, [1.0, 2.0, 3.0]) + 5, r1 = v_dot_product(dense_vector, [4.0, 5.0, 6.0])
+            | eval r2 = v_dot_product(dense_vector, [4.0, 5.0, 6.0]) + v_cosine(dense_vector, [4.0, 5.0, 6.0])
+            | keep s1, s2, r1, r2
+            """;
+
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+
+        // EsqlProject[[s1{r}#5, s2{r}#8, r1{r}#14, r2{r}#18]]
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), contains("s1", "s2", "r1", "r2"));
+
+        // Eval with s1, s2, r1, r2
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(4));
+
+        // Check s1 = $$dense_vector$DotProduct$...
+        var s1Alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(s1Alias.name(), equalTo("s1"));
+        var s1FieldAttr = as(s1Alias.child(), FieldAttribute.class);
+        assertThat(s1FieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(s1FieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        var s1Field = as(s1FieldAttr.field(), FunctionEsField.class);
+        var s1Config = as(s1Field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
+        assertThat(s1Config.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+        assertThat(s1Config.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+
+        // Check s2 = $$dense_vector$DotProduct$1606418432 * 2 / 3 (same field as s1)
+        var s2Alias = as(eval.fields().get(1), Alias.class);
+        assertThat(s2Alias.name(), equalTo("s2"));
+        var s2Div = as(s2Alias.child(), Div.class);
+        var s2Mul = as(s2Div.left(), Mul.class);
+        var s2FieldAttr = as(s2Mul.left(), FieldAttribute.class);
+        assertThat(s1FieldAttr, is(s2FieldAttr));
+
+        // Check r1 = $$dense_vector$DotProduct$882900992 (vector [4.0, 5.0, 6.0])
+        var r1Alias = as(eval.fields().get(2), Alias.class);
+        assertThat(r1Alias.name(), equalTo("r1"));
+        var r1FieldAttr = as(r1Alias.child(), FieldAttribute.class);
+        assertThat(r1FieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(r1FieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        var r1Field = as(r1FieldAttr.field(), FunctionEsField.class);
+        var r1Config = as(r1Field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
+        assertThat(r1Config.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+        assertThat(r1Config.vector(), equalTo(new float[] { 4.0f, 5.0f, 6.0f }));
+
+        // Check r2 = $$dense_vector$DotProduct$882900992 + $$dense_vector$CosineSimilarity$882900992
+        var r2Alias = as(eval.fields().get(3), Alias.class);
+        assertThat(r2Alias.name(), equalTo("r2"));
+        var r2Add = as(r2Alias.child(), Add.class);
+
+        // Left side: DotProduct field (same as r1)
+        var r2DotProductFieldAttr = as(r2Add.left(), FieldAttribute.class);
+        assertThat(r2DotProductFieldAttr, is(r1FieldAttr));
+
+        // Right side: CosineSimilarity field
+        var r2CosineFieldAttr = as(r2Add.right(), FieldAttribute.class);
+        assertThat(r2CosineFieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(r2CosineFieldAttr.name(), startsWith("$$dense_vector$CosineSimilarity"));
+        var r2CosineField = as(r2CosineFieldAttr.field(), FunctionEsField.class);
+        var r2CosineConfig = as(r2CosineField.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
+        assertThat(r2CosineConfig.similarityFunction(), is(CosineSimilarity.SIMILARITY_FUNCTION));
+        assertThat(r2CosineConfig.vector(), equalTo(new float[] { 4.0f, 5.0f, 6.0f }));
+
+        // Limit[1000[INTEGER],false,false]
+        var limit = as(eval.child(), Limit.class);
+
+        // EsRelation[test_all][!alias_integer, boolean{f}#24, byte{f}#25, constant..]
+        var esRelation = as(limit.child(), EsRelation.class);
+        assertTrue(esRelation.output().contains(s1FieldAttr));
+        assertTrue(esRelation.output().contains(r1FieldAttr));
+        assertTrue(esRelation.output().contains(r2CosineFieldAttr));
     }
 
     private IsNotNull isNotNull(Expression field) {

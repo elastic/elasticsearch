@@ -1,5 +1,0 @@
-pr: 135198
-summary: Enable `chunk_rescorer` in `text_similarity_reranker`
-area: Relevance
-type: enhancement
-issues: []

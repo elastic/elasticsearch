@@ -16,12 +16,15 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -40,6 +43,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRemoteClusterSecurityTestCase {
+
+    // Date Time Formatter used for audit log timestamps.
+    // Copied from AuditIT for consistent parsing.
+    private static final java.time.format.DateTimeFormatter TSTAMP_FORMATTER = java.time.format.DateTimeFormatter.ofPattern(
+        "yyyy-MM-dd'T'HH:mm:ss,SSSZ"
+    );
 
     private static final AtomicReference<Map<String, Object>> MY_REMOTE_API_KEY_MAP_REF = new AtomicReference<>();
     private static final String TEST_ACCESS_JSON = """
@@ -207,16 +216,23 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
         assertThat(responseException.getMessage(), containsString(expectedMessage));
 
         try {
-            assertAuditLogContainsNewEvent(startTimeMillis, "authentication_failed");
+            assertAuditLogContainsNewEvent(startTimeMillis, AuditLevel.AUTHENTICATION_FAILED.name().toLowerCase(Locale.ROOT));
         } catch (Exception e) {
-            throw new RuntimeException("Audit log assertion failed after client-side check passed.", e);
+            fail(e, "Audit log assertion failed due to an underlying exception (e.g. IOException) when reading the log file.");
         }
     }
 
     private void assertCrossClusterSearchSuccessfulWithoutResult() throws IOException {
+        final long startTimeMillis = System.currentTimeMillis();
         boolean alsoSearchLocally = randomBoolean();
         final Response response = simpleCrossClusterSearch(alsoSearchLocally);
         assertOK(response);
+        try {
+            assertAuditLogContainsNewEvent(startTimeMillis, AuditLevel.AUTHENTICATION_FAILED.name().toLowerCase(Locale.ROOT));
+        } catch (Exception e) {
+            fail(e, "Audit log assertion failed due to an underlying exception (e.g. IOException) when reading the log file.");
+        }
+
     }
 
     private void assertCrossClusterSearchSuccessfulWithResult() throws IOException {
@@ -226,11 +242,9 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
         assertOK(response);
 
         try {
-            // Call the generic assertion function with the expected 'authentication_success' event
-            assertAuditLogContainsNewEvent(startTimeMillis, "authentication_success");
+            assertAuditLogContainsNewEvent(startTimeMillis, AuditLevel.AUTHENTICATION_SUCCESS.name().toLowerCase(Locale.ROOT));
         } catch (Exception e) {
-            // Re-throw the exception so the test fails if the log isn't found
-            throw new RuntimeException("Audit log assertion failed after client-side success check passed.", e);
+            fail(e, "Audit log assertion failed due to an underlying exception (e.g. IOException) when reading the log file.");
         }
 
         final SearchResponse searchResponse;
@@ -337,20 +351,18 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
     }
 
     private String extractJsonValue(String jsonLine, String fieldName) {
-        String pattern = "\"" + fieldName + "\":\"([^\"]*)\"";
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(pattern).matcher(jsonLine);
-        if (matcher.find()) {
-            return matcher.group(1);
+        Map<String, Object> jsonMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), jsonLine, false);
+        Object value = jsonMap.get(fieldName);
+        if (value == null) {
+            throw new IllegalArgumentException("Field [" + fieldName + "] not found in log line: " + jsonLine);
         }
-        throw new IllegalArgumentException("Field [" + fieldName + "] not found in log line: " + jsonLine);
+
+        return value.toString();
     }
 
     private long parseLogTimestamp(String timestamp) {
         try {
-            String standardized = timestamp.replace(',', '.');
-            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-
-            return java.time.OffsetDateTime.parse(standardized, formatter).toInstant().toEpochMilli();
+            return java.time.ZonedDateTime.parse(timestamp, TSTAMP_FORMATTER).toInstant().toEpochMilli();
         } catch (java.time.format.DateTimeParseException e) {
             throw new RuntimeException("Failed to parse log timestamp: " + timestamp, e);
         }
@@ -386,10 +398,11 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
                         equalTo(true)
                     );
                 } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                    logger.warn("Failed to read audit log for node [{}].", i, e);
+                    throw e;
                 }
             }
-        }, 10, java.util.concurrent.TimeUnit.SECONDS);
+        });
     }
 
     protected static Map<String, Object> createCrossClusterAccessApiKey(String accessJson, String certificateIdentity) {

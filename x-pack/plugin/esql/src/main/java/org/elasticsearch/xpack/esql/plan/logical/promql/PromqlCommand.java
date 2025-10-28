@@ -8,23 +8,29 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+
 /**
  * Container plan for embedded PromQL queries.
  * Gets eliminated by the analyzer once the query is validated.
  */
-public class PromqlCommand extends UnaryPlan implements TelemetryAware {
+public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
 
     private final LogicalPlan promqlPlan;
     private final Expression start, end, step;
@@ -122,5 +128,30 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware {
         sb.append(promqlPlan.toString());
         sb.append("\n<>]]");
         return sb.toString();
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        promqlPlan().collectFirstChildren(PromqlFunctionCall.class::isInstance)
+            .stream()
+            .filter(WithinSeriesAggregate.class::isInstance)
+            .forEach(
+                withinSeriesAggregate -> failures.add(
+                    fail(
+                        withinSeriesAggregate,
+                        "within time series aggregate function [{}] "
+                            + "can only be used inside an across time series aggregate function at this time",
+                        withinSeriesAggregate.sourceText()
+                    )
+                )
+            );
+        promqlPlan().forEachDown(Selector.class, s -> {
+            if (s.labelMatchers().nameLabel().matcher().isRegex()) {
+                failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
+            }
+            if (s.evaluation().offset() != null && s.evaluation().offset() != TimeValue.ZERO) {
+                failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
+            }
+        });
     }
 }

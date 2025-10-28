@@ -60,6 +60,10 @@ public class LabelMatcher {
             this.value = value;
             this.isRegex = isRegex;
         }
+
+        public boolean isRegex() {
+            return isRegex;
+        }
     }
 
     private final String name;

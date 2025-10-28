@@ -32,7 +32,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 
 /**
- * Replaces vector similarity functions with a field function attribute that applies
+ * Replaces vector similarity functions with a field attribute that applies
  * the similarity function during value loading, when one side of the function is a literal.
  * It also adds the new field function attribute to the EsRelation output, and adds a projection after it to remove it from the output.
  */

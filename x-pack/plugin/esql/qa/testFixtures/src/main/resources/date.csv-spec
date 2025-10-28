@@ -1091,7 +1091,7 @@ set time_zone="+07:00"\;
 from employees
 | sort hire_date
 | eval hour = date_extract("hour_of_day", hire_date)
-| keep emp_no, hire_date, dat
+| keep emp_no, hire_date, hour
 | limit 2;
 
 emp_no:integer | hire_date:date           | hour:long

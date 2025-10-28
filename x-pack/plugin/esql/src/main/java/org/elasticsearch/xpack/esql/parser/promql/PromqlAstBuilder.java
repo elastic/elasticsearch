@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.time.Instant;
 
-public class PromqlAstBuilder extends LogicalPlanBuilder {
+public class PromqlAstBuilder extends PromqlLogicalPlanBuilder {
 
     public static final int MAX_EXPRESSION_DEPTH = 200;
 

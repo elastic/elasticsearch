@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -41,6 +42,7 @@ public final class Ascii extends UnaryScalarFunction {
         description = "Escape non ASCII characters.",
         examples = @Example(file = "string", tag = "ascii")
     )
+
     public Ascii(
         Source source,
         @Param(
@@ -107,9 +109,9 @@ public final class Ascii extends UnaryScalarFunction {
             codePoint = UnicodeUtil.codePointAt(val.bytes, offset, codePoint);
 
             BytesRef input = new BytesRef(val.bytes, offset, codePoint.numBytes);
-            var escaped = escapeCodePoint(input, codePoint);
+            var maybeEscaped = escapeCodePoint(codePoint);
 
-            finalSize += escaped.length;
+            finalSize += maybeEscaped.orElse(input).length;
 
             offset += codePoint.numBytes;
         }
@@ -123,9 +125,9 @@ public final class Ascii extends UnaryScalarFunction {
             codePoint = UnicodeUtil.codePointAt(val.bytes, offset, codePoint);
 
             BytesRef input = new BytesRef(val.bytes, offset, codePoint.numBytes);
-            var escaped = escapeCodePoint(input, codePoint);
+            var maybeEscaped = escapeCodePoint(codePoint);
 
-            scratch.append(escaped);
+            scratch.append(maybeEscaped.orElse(input));
 
             offset += codePoint.numBytes;
         }
@@ -133,16 +135,13 @@ public final class Ascii extends UnaryScalarFunction {
         return scratch.bytesRefView();
     }
 
-    /**
-     * Escapes a Unicode code point similar to Python's ascii() function.
-     * Returns the input BytesRef for printable ASCII characters that don't need escaping.
-     */
-    private static BytesRef escapeCodePoint(BytesRef input, UnicodeUtil.UTF8CodePoint codePoint) {
+
+    private static Optional<BytesRef> escapeCodePoint(UnicodeUtil.UTF8CodePoint codePoint) {
         var code = codePoint.codePoint;
 
         // Printable ASCII characters (32-126) don't need escaping
         if (code >= 32 && code <= 126) {
-            return input;
+            return Optional.empty();
         }
 
         String resultStr = switch (code) {
@@ -160,23 +159,26 @@ public final class Ascii extends UnaryScalarFunction {
         };
 
         if (resultStr != null) {
-            return new BytesRef(resultStr);
+            return Optional.of(new BytesRef(resultStr));
         }
 
-        // ASCII control characters (0-31, 127)
+        String formatStr;
+
         if (code < 128) {
-            resultStr = String.format("\\\\x%02x", code);
+            formatStr = "\\\\x%02x";
         } else if (code <= 0xFF) {
             // Use xHH for code points 128-255
-            resultStr = String.format("\\\\x%02x", code);
+            formatStr = "\\\\x%02x";
         } else if (code <= 0xFFFF) {
             // Use uHHHH for code points 256-65535
-            resultStr = String.format("\\\\u%04x", code);
+            formatStr = "\\\\u%04x";
         } else {
             // Use UHHHHHHHH for code points above 65535
-            resultStr = String.format("\\\\U%08x", code);
+            formatStr = "\\\\U%08x";
         }
 
-        return new BytesRef(resultStr);
+        resultStr = String.format(formatStr, code);
+
+        return Optional.of(new BytesRef(resultStr));
     }
 }

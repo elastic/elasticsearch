@@ -436,6 +436,9 @@
 
 ---
 teardown:
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
 
   - do:
       indices.delete_data_stream:

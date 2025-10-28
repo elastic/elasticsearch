@@ -16,6 +16,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -23,6 +24,8 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -44,6 +47,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterTimeSeriesIT extends ESRestTestCase {
@@ -325,11 +329,48 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
         }
 
-        assertMap(result, mapMatcher.entry("columns", expectedResult.get("columns")).entry("values", expectedResult.get("values")));
+        assertMap(
+            result,
+            mapMatcher.entry("columns", expectedResult.get("columns")).entry("values", matcherFor(expectedResult.get("values")))
+        );
 
         if (includeCCSMetadata) {
             assertClusterDetailsMap(result, remoteOnly);
         }
+    }
+
+    /**
+     * Converts an unknown {@link Object} to an equality {@link Matcher}
+     * for the public API methods that take {@linkplain Object}.
+     * <br/>
+     * This is a copy of org.elasticsearch.test.MapMatcher#matcherFor(java.lang.Object) to add support for Double values comparison
+     * with a given error.
+     */
+    private static Matcher<?> matcherFor(Object value) {
+        if (value == null) {
+            return nullValue();
+        }
+        if (value instanceof List) {
+            return matchesList((List<?>) value);
+        }
+        if (value instanceof Map) {
+            return matchesMap((Map<?, ?>) value);
+        }
+        if (value instanceof Matcher) {
+            return (Matcher<?>) value;
+        }
+        if (value instanceof Double dvalue) {
+            return Matchers.closeTo(dvalue, 0.0000001);
+        }
+        return equalTo(value);
+    }
+
+    public static ListMatcher matchesList(List<?> list) {
+        ListMatcher matcher = ListMatcher.matchesList();
+        for (Object item : list) {
+            matcher = matcher.item(matcherFor(matcherFor(item)));
+        }
+        return matcher;
     }
 
     private void assertClusterDetailsMap(Map<String, Object> result, boolean remoteOnly) {

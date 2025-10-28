@@ -116,10 +116,21 @@ public class SenderServiceTests extends ESTestCase {
             var model = mock(Model.class);
             when(model.getTaskType()).thenReturn(TaskType.RERANK);
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-
-            testService.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, null, listener);
-            var exception = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
+            var exception = expectThrows(
+                ValidationException.class,
+                () -> testService.infer(
+                    model,
+                    null,
+                    null,
+                    null,
+                    List.of("test input"),
+                    false,
+                    Map.of(),
+                    InputType.SEARCH,
+                    null,
+                    new PlainActionFuture<>()
+                )
+            );
 
             assertThat(exception.getMessage(), containsString("Rerank task type requires a non-null query field"));
         }

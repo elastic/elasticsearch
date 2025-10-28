@@ -899,22 +899,22 @@ public class CohereServiceTests extends ESTestCase {
                 new DefaultSecretSettings(new SecureString(secret.toCharArray()))
             );
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                // null query string will trigger validation error
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+            var exception = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    // null query string will trigger validation error
+                    null,
+                    null,
+                    null,
+                    List.of("abc"),
+                    false,
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    new PlainActionFuture<>()
+                )
             );
-
-            var exception = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(exception.getMessage(), containsString("Rerank task type requires a non-null query field"));
         }

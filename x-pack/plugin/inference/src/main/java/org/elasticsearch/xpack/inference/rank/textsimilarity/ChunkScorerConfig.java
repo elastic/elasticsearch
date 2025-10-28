@@ -106,8 +106,15 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "ChunkScorerConfig{" + "size=" + sizeOrDefault() + ", inferenceText=[" + inferenceText + ']' + ", chunkingSettings="
-            + chunkingSettings + "}";
+        return "ChunkScorerConfig{"
+            + "size="
+            + sizeOrDefault()
+            + ", inferenceText=["
+            + inferenceText
+            + ']'
+            + ", chunkingSettings="
+            + chunkingSettings
+            + "}";
     }
 
     @Override

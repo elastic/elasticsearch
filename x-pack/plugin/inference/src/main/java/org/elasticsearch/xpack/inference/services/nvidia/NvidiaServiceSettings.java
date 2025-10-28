@@ -49,7 +49,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
     }
 
     protected NvidiaServiceSettings(String modelId, @Nullable URI uri, @Nullable RateLimitSettings rateLimitSettings) {
-        this.modelId = modelId;
+        this.modelId = Objects.requireNonNull(modelId);
         this.uri = uri;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }

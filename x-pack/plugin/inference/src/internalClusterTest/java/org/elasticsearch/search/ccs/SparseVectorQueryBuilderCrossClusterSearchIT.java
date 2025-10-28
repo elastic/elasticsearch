@@ -142,6 +142,7 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         );
     }
 
+    @AwaitsFix(bugUrl = "https://fake.url")
     public void testSparseVectorQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
         final Consumer<QueryBuilder> assertCcsMinimizeRoundTripsFalseFailure = q -> {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(q);

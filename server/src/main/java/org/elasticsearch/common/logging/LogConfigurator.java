@@ -36,6 +36,7 @@ import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.logging.log4j.util.Unbox;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.logging.internal.LoggerFactoryImpl;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -55,6 +56,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -352,6 +354,7 @@ public class LogConfigurator {
         Loggers.LOG_LEVEL_SETTING.getAllConcreteSettings(settings)
             // do not set a log level for a logger named level (from the default log setting)
             .filter(s -> s.getKey().equals(Loggers.LOG_DEFAULT_LEVEL_SETTING.getKey()) == false)
+            .sorted(Comparator.comparing(Setting::getKey))
             .forEach(s -> {
                 final Level level = s.get(settings);
                 Loggers.setLevel(LogManager.getLogger(s.getKey().substring("logger.".length())), level);

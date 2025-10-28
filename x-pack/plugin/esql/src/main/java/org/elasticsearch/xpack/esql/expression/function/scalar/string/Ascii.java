@@ -25,10 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -102,6 +99,9 @@ public final class Ascii extends UnaryScalarFunction {
 
         int finalSize = 0;
 
+        /* A first iteration determines the total grow size. This is used to grow the scratch array
+            just once which guarantees O(n) as worst case time complexity for the appending operation.
+         */
         int offset = val.offset;
         while (offset < val.offset + val.length) {
             codePoint = UnicodeUtil.codePointAt(val.bytes, offset, codePoint);
@@ -117,6 +117,7 @@ public final class Ascii extends UnaryScalarFunction {
         scratch.grow(finalSize);
         scratch.clear();
 
+        //The second pass fills in the escaped values
         offset = val.offset;
         while (offset < val.offset + val.length) {
             codePoint = UnicodeUtil.codePointAt(val.bytes, offset, codePoint);

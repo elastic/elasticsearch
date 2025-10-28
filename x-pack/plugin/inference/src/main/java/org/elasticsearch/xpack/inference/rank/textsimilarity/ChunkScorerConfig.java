@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -100,5 +101,14 @@ public class ChunkScorerConfig implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(size, inferenceText, chunkingSettings);
+    }
+
+    @Override
+    public String toString() {
+        return "ChunkScorerConfig{"
+            + "size=" + sizeOrDefault()
+            + ", inferenceText=[" + inferenceText + ']'
+            + ", chunkingSettings=" + chunkingSettings
+            + "}";
     }
 }

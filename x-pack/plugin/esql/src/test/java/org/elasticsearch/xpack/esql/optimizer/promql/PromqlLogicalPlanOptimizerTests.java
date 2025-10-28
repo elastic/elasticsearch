@@ -218,6 +218,47 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         System.out.println(plan);
     }
 
+    public void testGrammar() {
+        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
+        // \"{{from}}\"
+        // | WHERE attributes.state IN (\"used\", \"free\")
+        // | STATS sums = SUM(LAST_OVER_TIME(system.filesystem.usage)) by host.name, attributes.mountpoint
+        // | STATS top = TOP(sums, 5, \"desc\") by host.name, attributes.mountpoint
+        // | LIMIT 5
+
+        // topk(5, sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m])))
+        String testQuery = """
+            TS k8s
+            | promql step 5m (
+                foo or bar
+                )
+            """;
+
+        var plan = planPromql(testQuery);
+        System.out.println(plan);
+    }
+
+//    public void testPromqlArithmetricOperators() {
+//        // TODO doesn't parse
+//        //  line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; expected LogicalPlan but found VectorBinaryArithmetic
+//        assertThat(
+//            error("TS test | PROMQL step 5m (1+1)", tsdb),
+//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+//        );
+//        assertThat(
+//            error("TS test | PROMQL step 5m ( foo and bar )", tsdb),
+//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+//        );
+//        assertThat(
+//            error("TS test | PROMQL step 5m (1+foo)", tsdb),
+//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+//        );
+//        assertThat(
+//            error("TS test | PROMQL step 5m (foo+bar)", tsdb),
+//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+//        );
+//    }
+
     protected LogicalPlan planPromql(String query) {
         var analyzed = tsAnalyzer.analyze(parser.createStatement(query));
         System.out.println(analyzed);

@@ -119,12 +119,16 @@ public class PromqlLogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         Evaluation evaluation = visitEvaluation(ctx.evaluation());
-        TimeValue range = visitDuration(ctx.duration());
-        // TODO: TimeValue might not be needed after all
-        Expression rangeEx = new Literal(source(ctx.duration()), Duration.ofSeconds(range.getSeconds()), DataType.TIME_DURATION);
-        // fall back to default
-        if (evaluation == null) {
-            evaluation = new Evaluation(start);
+        var durationCtx = ctx.duration();
+        Expression rangeEx = null;
+        if (durationCtx != null) {
+            TimeValue range = visitDuration(durationCtx);
+            // TODO: TimeValue might not be needed after all
+            rangeEx = new Literal(source(ctx.duration()), Duration.ofSeconds(range.getSeconds()), DataType.TIME_DURATION);
+            // fall back to default
+            if (evaluation == null) {
+                evaluation = Evaluation.NONE;
+            }
         }
 
         final LabelMatchers matchers = new LabelMatchers(labels);
@@ -132,7 +136,7 @@ public class PromqlLogicalPlanBuilder extends ExpressionBuilder {
 
         UnresolvedAttribute timestamp = new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD);
 
-        return range == null
+        return rangeEx == null
             ? new InstantSelector(source, series, labelExpressions, matchers, finalEvaluation, timestamp)
             : new RangeSelector(source, series, labelExpressions, matchers, rangeEx, finalEvaluation, timestamp);
     }

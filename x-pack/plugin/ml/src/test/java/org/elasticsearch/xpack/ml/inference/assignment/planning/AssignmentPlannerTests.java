@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Deployment;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1165,7 +1167,28 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
         assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
         assertThat(assignmentPlan.getRemainingNodeCores(node1.id()), greaterThanOrEqualTo(0));
+    }
 
+    public void testDeploymentWithZeroAllocationsIsPreserved() {
+        Node node = new Node("n_1", ByteSizeValue.ofGb(4).getBytes(), 4);
+        Deployment deployment = new Deployment(
+            "m_1",
+            "m_1",
+            ByteSizeValue.ofMb(500).getBytes(),
+            0,
+            1,
+            Map.of(),
+            0,
+            new AdaptiveAllocationsSettings(true, 0, 42),
+            0,
+            0
+        );
+
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
+
+        assertThat(assignmentPlan.deployments(), contains(deployment));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node.id()), equalTo(ByteSizeValue.ofGb(4).getBytes()));
+        assertThat(assignmentPlan.getRemainingNodeCores(node.id()), equalTo(4));
     }
 
     public static List<Deployment> createDeploymentsFromPlan(AssignmentPlan plan) {

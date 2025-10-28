@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -190,15 +191,13 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
     private AssignmentPlan(
         Map<Deployment, Map<Node, Integer>> assignments,
-        Map<Node, Long> remainingNodeMemory,
-        Map<Node, Integer> remainingNodeCores,
+        Map<String, Long> remainingNodeMemory,
+        Map<String, Integer> remainingNodeCores,
         Map<Deployment, Integer> remainingModelAllocations
     ) {
         this.assignments = Objects.requireNonNull(assignments);
-        this.remainingNodeMemory = remainingNodeMemory.entrySet()
-            .stream()
-            .collect(Collectors.toMap(e -> e.getKey().id(), e -> e.getValue()));
-        this.remainingNodeCores = remainingNodeCores.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().id(), e -> e.getValue()));
+        this.remainingNodeMemory = Objects.requireNonNull(remainingNodeMemory);
+        this.remainingNodeCores = Objects.requireNonNull(remainingNodeCores);
         this.remainingModelAllocations = Objects.requireNonNull(remainingModelAllocations);
     }
 
@@ -313,6 +312,14 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             }
         }
         return new Quality(isSatisfyingPreviousAssignments, weighedAllocationsScore, memoryScore);
+    }
+
+    public AssignmentPlan withDeploymentsWithZeroAllocations(Collection<Deployment> deploymentsWithZeroAllocations) {
+        Map<Deployment, Map<Node, Integer>> newAssignments = new HashMap<>(assignments);
+        for (Deployment deployment : deploymentsWithZeroAllocations) {
+            newAssignments.put(deployment, Collections.emptyMap());
+        }
+        return new AssignmentPlan(newAssignments, remainingNodeMemory, remainingNodeCores, remainingModelAllocations);
     }
 
     public String prettyPrint() {
@@ -477,7 +484,12 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 }
                 finalAssignments.put(m, allocationsPerNode);
             }
-            return new AssignmentPlan(finalAssignments, remainingNodeMemory, remainingNodeCores, remainingModelAllocations);
+            return new AssignmentPlan(
+                finalAssignments,
+                remainingNodeMemory.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue)),
+                remainingNodeCores.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue)),
+                remainingModelAllocations
+            );
         }
     }
 

@@ -83,7 +83,7 @@ public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, Logi
             } else if (namesRequiredForProjectionAliases.contains(name)) {
                 // Not a basic renaming, needs to remain in the eval.
                 // The field may shadow one of the attributes that we will need to correctly perform the subsequent projection.
-                // If so, rename it in the eval!
+                // So, rename it in the eval!
 
                 Alias newField = new Alias(field.source(), locallyUniqueTemporaryName(name), child, null, true);
                 Attribute newAttribute = newField.toAttribute();

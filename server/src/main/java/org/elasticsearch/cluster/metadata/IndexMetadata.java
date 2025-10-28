@@ -3075,12 +3075,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 "the number of target shards (" + numTargetShards + ") must be greater than the shard id: " + shardId
             );
         }
+        // TODO: Simplify validation for new version
+        final int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
+        assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
         if (sourceIndexMetadata.getCreationVersion().onOrAfter(IndexVersions.MOD_ROUTING_FUNCTION)) {
             return new ShardId(sourceIndexMetadata.getIndex(), Math.floorMod(shardId, sourceIndexMetadata.getNumberOfShards()));
 
         } else {
-            final int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
-            assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
             return new ShardId(sourceIndexMetadata.getIndex(), shardId / routingFactor);
         }
     }

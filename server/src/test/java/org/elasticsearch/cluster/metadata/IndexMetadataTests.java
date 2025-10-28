@@ -303,7 +303,7 @@ public class IndexMetadataTests extends ESTestCase {
     public void testSelectShrinkShards() {
         int numberOfReplicas = randomIntBetween(0, 10);
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(indexSettings(32, numberOfReplicas).put("index.version.created", 1))
+            .settings(indexSettings(32, numberOfReplicas).put("index.version.created", IndexVersions.MOD_ROUTING_FUNCTION.id()))
             .creationDate(randomLong())
             .build();
         Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(0, metadata, 8);
@@ -374,7 +374,7 @@ public class IndexMetadataTests extends ESTestCase {
 
     public void testSelectSplitShard() {
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(indexSettings(2, 0).put("index.version.created", 1))
+            .settings(indexSettings(2, 0).put("index.version.created", IndexVersions.MOD_ROUTING_FUNCTION.id()))
             .creationDate(randomLong())
             .setRoutingNumShards(4)
             .build();

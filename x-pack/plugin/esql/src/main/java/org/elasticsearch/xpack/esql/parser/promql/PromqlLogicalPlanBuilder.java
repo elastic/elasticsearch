@@ -39,7 +39,6 @@ import java.util.Locale;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.WITHIN_SERIES_AGGREGATION;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.NAME;
@@ -47,11 +46,11 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMat
 public class PromqlLogicalPlanBuilder extends ExpressionBuilder {
 
     PromqlLogicalPlanBuilder() {
-        this(null, null);
+        this(null, null, 0, 0);
     }
 
-    PromqlLogicalPlanBuilder(Instant start, Instant stop) {
-        super(start, stop);
+    PromqlLogicalPlanBuilder(Instant start, Instant stop, int startLine, int startColumn) {
+        super(start, stop, startLine, startColumn);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {

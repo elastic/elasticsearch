@@ -47,7 +47,6 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AND;
@@ -77,10 +76,11 @@ class ExpressionBuilder extends IdentifierBuilder {
     protected final Instant start, stop;
 
     ExpressionBuilder() {
-        this(null, null);
+        this(null, null, 0, 0);
     }
 
-    ExpressionBuilder(Instant start, Instant stop) {
+    ExpressionBuilder(Instant start, Instant stop, int startLine, int startColumn) {
+        super(startLine, startColumn);
         Instant now = null;
         if (start == null || stop == null) {
             now = DateUtils.nowWithMillisResolution().toInstant();

@@ -12,7 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
@@ -31,7 +30,7 @@ public class PromqlAstTests extends ESTestCase {
             String q = line.v1();
             try {
                 PromqlParser parser = new PromqlParser();
-                LogicalPlan plan = parser.createStatement(q, null, null);
+                parser.createStatement(q);
             } catch (ParsingException pe) {
                 fail(format(null, "Error parsing line {}:{} '{}' [{}]", line.v2(), pe.getColumnNumber(), pe.getErrorMessage(), q));
             } catch (Exception e) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.parser.promql.ParsingUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
@@ -1194,28 +1196,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         // TODO: Perform type and value validation
         var queryCtx = ctx.promqlQueryPart();
-
-        String promqlQuery = queryCtx == null || queryCtx.isEmpty()
-            ? StringUtils.EMPTY
-            // copy the query verbatim to avoid missing tokens interpreted by the enclosing lexer
-            : source(queryCtx.get(0).start, queryCtx.get(queryCtx.size() - 1).stop).text();
-
-        if (promqlQuery.isEmpty()) {
+        if (queryCtx == null || queryCtx.isEmpty()) {
             throw new ParsingException(source, "PromQL expression cannot be empty");
         }
 
-        int promqlStartLine = source.source().getLineNumber();
-        int promqlStartColumn = queryCtx != null && !queryCtx.isEmpty()
-            ? queryCtx.get(0).start.getCharPositionInLine()
-            : source.source().getColumnNumber();
+        Token startToken = queryCtx.getFirst().start;
+        Token stopToken = queryCtx.getLast().stop;
+        // copy the query verbatim to avoid missing tokens interpreted by the enclosing lexer
+        String promqlQuery = source(startToken, stopToken).text();
+        if (promqlQuery.isBlank()) {
+            throw new ParsingException(source, "PromQL expression cannot be empty");
+        }
+
+        int promqlStartLine = startToken.getLine();
+        int promqlStartColumn = startToken.getCharPositionInLine();
 
         PromqlParser promqlParser = new PromqlParser();
         LogicalPlan promqlPlan;
         try {
             // The existing PromqlParser is used to parse the inner query
-            promqlPlan = promqlParser.createStatement(promqlQuery);
+            promqlPlan = promqlParser.createStatement(promqlQuery, null, null, promqlStartLine, promqlStartColumn);
         } catch (ParsingException pe) {
-            throw getParsingException(pe, promqlStartLine, promqlStartColumn);
+            throw ParsingUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
         return plan -> time != null
@@ -1223,17 +1225,4 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             : new PromqlCommand(source, plan, promqlPlan, start, end, step);
     }
 
-    private static ParsingException getParsingException(ParsingException pe, int promqlStartLine, int promqlStartColumn) {
-        int adjustedLine = promqlStartLine + (pe.getLineNumber() - 1);
-        int adjustedColumn = (pe.getLineNumber() == 1 ? promqlStartColumn + pe.getColumnNumber() : pe.getColumnNumber()) - 1;
-
-        ParsingException adjusted = new ParsingException(
-            pe.getErrorMessage(),
-            pe.getCause() instanceof Exception ? (Exception) pe.getCause() : null,
-            adjustedLine,
-            adjustedColumn
-        );
-        adjusted.setStackTrace(pe.getStackTrace());
-        return adjusted;
-    }
 }

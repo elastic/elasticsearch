@@ -11,6 +11,10 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IdentifierCon
 
 abstract class IdentifierBuilder extends AbstractBuilder {
 
+    IdentifierBuilder(int startLine, int startColumn) {
+        super(startLine, startColumn);
+    }
+
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
         return ctx == null ? null : ctx.getText();

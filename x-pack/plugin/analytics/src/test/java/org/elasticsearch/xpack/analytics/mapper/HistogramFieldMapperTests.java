@@ -157,7 +157,6 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         } else {
             ParsedDocument doc = defaultMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
             List<IndexableField> fields = doc.rootDoc().getFields("field");
-            docValueToParsedHistogram(fields.get(0));
             assertThat(fields.size(), equalTo(1));
             assertThat(docValueToParsedHistogram(fields.getFirst()), equalTo(expectedCoerced));
 

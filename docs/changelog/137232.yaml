@@ -1,0 +1,5 @@
+pr: 137232
+summary: '`HasFrozenCacheAllocationDecider` returns No decision for unknown node'
+area: Allocation
+type: enhancement
+issues: []

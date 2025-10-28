@@ -142,7 +142,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                         fail(
                             withinSeriesAggregate,
                             "within time series aggregate function [{}] "
-                            + "can only be used inside an across time series aggregate function at this time",
+                                + "can only be used inside an across time series aggregate function at this time",
                             withinSeriesAggregate.sourceText()
                         )
                     );

@@ -121,13 +121,13 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
                 : "If the local resolution result is SUCCESS, exception must be null";
             Objects.requireNonNull(exception);
 
-            var message = "Exception is already set: " + exception.getMessage();
-            if (this.exception != null && Objects.equals(this.exception.getMessage(), exception.getMessage()) == false) {
+            if (this.exception == null) {
+                this.exception = exception;
+            } else if (Objects.equals(this.exception.getMessage(), exception.getMessage()) == false) {
                 // see https://github.com/elastic/elasticsearch/issues/135799
+                var message = "Exception is already set: " + exception.getMessage();
                 logger.debug(message);
                 assert false : message;
-            } else {
-                this.exception = exception;
             }
         }
 

@@ -152,7 +152,10 @@ final class CanMatchPreFilterSearchPhase {
         listener.addListener(new ActionListener<>() {
             @Override
             public void onResponse(List<SearchShardIterator> shardsIts) {
-                // searchResponseMetrics is null for node can-match requests
+                // we only want to record the phase duration if this call to execute is running on the coordinator node
+                // as part of the can-match phase or a search request. It will be null if this is the data node round trip can-match
+                // execution
+                // or an open PIT request
                 if (searchResponseMetrics != null) {
                     searchResponseMetrics.recordSearchPhaseDuration(PHASE_NAME, System.nanoTime() - phaseStartTimeInNanos);
                 }

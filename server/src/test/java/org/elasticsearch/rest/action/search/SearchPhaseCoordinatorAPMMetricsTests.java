@@ -84,6 +84,7 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
             "1"
         );
         assertMeasurements(List.of(QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC));
+        assertNotMeasured(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC, OPEN_PIT_SEARCH_PHASE_METRIC));
     }
 
     public void testDfsSearch() {
@@ -92,10 +93,12 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
             "1"
         );
         assertMeasurements(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC));
+        assertNotMeasured(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, OPEN_PIT_SEARCH_PHASE_METRIC));
     }
 
     public void testPointInTime() {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueMinutes(10));
+        request.indexFilter(simpleQueryStringQuery("doc1"));
         OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         BytesReference pointInTimeId = response.getPointInTimeId();
 
@@ -108,6 +111,29 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
                 "1"
             );
             assertMeasurements(List.of(OPEN_PIT_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC));
+            assertNotMeasured(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC));
+        } finally {
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pointInTimeId)).actionGet();
+        }
+    }
+
+    public void testPointInTimeWithPreFiltering() {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueMinutes(10));
+        request.indexFilter(simpleQueryStringQuery("doc1"));
+        OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+        BytesReference pointInTimeId = response.getPointInTimeId();
+
+        try {
+            assertSearchHitsWithoutFailures(
+                client().prepareSearch()
+                    .setPointInTime(new PointInTimeBuilder(pointInTimeId))
+                    .setSize(1)
+                    .setPreFilterShardSize(1)
+                    .setQuery(simpleQueryStringQuery("doc1")),
+                "1"
+            );
+            assertMeasurements(List.of(OPEN_PIT_SEARCH_PHASE_METRIC, CAN_MATCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC));
+            assertNotMeasured(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC));
         } finally {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pointInTimeId)).actionGet();
         }
@@ -123,6 +149,7 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
         );
 
         assertMeasurements(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC));
+        assertNotMeasured(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC, OPEN_PIT_SEARCH_PHASE_METRIC));
     }
 
     private void resetMeter() {
@@ -131,6 +158,13 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
 
     private TestTelemetryPlugin getTestTelemetryPlugin() {
         return getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().get(0);
+    }
+
+    private void assertNotMeasured(Collection<String> metricNames) {
+        for (var metricName : metricNames) {
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(metricName);
+            assertThat(measurements, hasSize(0));
+        }
     }
 
     private void assertMeasurements(Collection<String> metricNames) {

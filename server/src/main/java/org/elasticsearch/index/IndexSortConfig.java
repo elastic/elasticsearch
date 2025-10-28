@@ -22,7 +22,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
@@ -107,12 +106,16 @@ public final class IndexSortConfig {
     );
 
     public static class IndexSortConfigDefaults {
-        public static final FieldSortSpec[] TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
+        public static final FieldSortSpec[] TIME_SERIES_SORT, TIME_SERIES_WITH_SYNTHETIC_ID_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT,
+            HOSTNAME_TIMESTAMP_BWC_SORT;
 
         static {
             FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             timeStampSpec.order = SortOrder.DESC;
             TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
+            TIME_SERIES_WITH_SYNTHETIC_ID_SORT = new FieldSortSpec[] {
+                new FieldSortSpec(TimeSeriesIdFieldMapper.NAME),
+                new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
             TIMESTAMP_SORT = new FieldSortSpec[] { timeStampSpec };
 
             FieldSortSpec hostnameSpec = new FieldSortSpec(IndexMode.HOST_NAME);
@@ -141,6 +144,12 @@ public final class IndexSortConfig {
             }
 
             if (IndexMode.TIME_SERIES.getName().equals(indexMode)) {
+                if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+                    var s = settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey());
+                    if (s != null) {
+                        return TIME_SERIES_WITH_SYNTHETIC_ID_SORT;
+                    }
+                }
                 return TIME_SERIES_SORT;
             } else if (IndexMode.LOGSDB.getName().equals(indexMode)) {
                 var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);

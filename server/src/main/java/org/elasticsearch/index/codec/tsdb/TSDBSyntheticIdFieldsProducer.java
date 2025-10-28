@@ -150,7 +150,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         private final FieldInfo routingHashFieldInfo;
         private final DocValuesProducer docValuesProducer;
 
-        private SortedNumericDocValues timestampDocValues; // sorted desc. order
+        private SortedNumericDocValues timestampDocValues; // sorted asc. order
         private SortedDocValues routingHashDocValues; // sorted asc. order
         private SortedDocValues tsIdDocValues; // sorted asc. order
         // Keep around the latest tsId ordinal and value
@@ -482,7 +482,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                     return SeekStatus.FOUND;
                 }
                 // Remaining docs don't match, stop here
-                if (tsIdOrd < docTsIdOrd || docTimestamp < timestamp) {
+                if (tsIdOrd < docTsIdOrd || timestamp < docTimestamp) {
                     break;
                 }
             }

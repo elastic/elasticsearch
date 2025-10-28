@@ -158,9 +158,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         // when applying doc values updates in Lucene, or when routing GET or DELETE requests to the corresponding shard, or when replaying
         // translog operations. Since the synthetic _id is not indexed and not really stored on disk we consider it fine if it is longer
         // that standard ids.
+        //
+        // Also, when applying doc values updates Lucene expects _id to be sorted: it stops applying updates for a term "_id:ABC" if it
+        // seeks to a term "BCD" as it knows there won't be more documents matching "_id:ABC" past the term "BCD". So it is important to
+        // generate an _id that reflects the ordering of the terms it is synthesized from, ie _tsid and @timestamp.
         byte[] bytes = new byte[tsid.length + Long.BYTES + Integer.BYTES];
-        System.arraycopy(tsid.bytes, 0, bytes, 0, tsid.length);
-        ByteUtils.writeLongBE(timestamp, bytes, tsid.length);
+        System.arraycopy(tsid.bytes, tsid.offset, bytes, 0, tsid.length);
+        ByteUtils.writeLongBE(timestamp, bytes, tsid.length); // Big Endian as we want to most significant byte first
         ByteUtils.writeIntBE(routingHash, bytes, tsid.length + Long.BYTES);
         return new BytesRef(bytes);
     }

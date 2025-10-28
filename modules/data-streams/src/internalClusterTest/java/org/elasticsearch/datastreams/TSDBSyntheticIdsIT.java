@@ -31,7 +31,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -102,11 +101,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         );
     }
 
-    @TestLogging(reason = "debug", value = "org.elasticsearch.index.engine.Engine:TRACE")
     public void testSyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, 1);
+        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5));
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -204,21 +202,18 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         refresh(dataStreamName);
 
-        assertCheckedResponse(
-            client().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(100),
-            searchResponse -> {
-                assertHitCount(searchResponse, docs.size() - deletedDocs.size());
+        assertCheckedResponse(client().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(100), searchResponse -> {
+            assertHitCount(searchResponse, docs.size() - deletedDocs.size());
 
-                // Verify that search response does not contain deleted docs
-                for (var searchHit : searchResponse.getHits()) {
-                    assertThat(
-                        "Document with id [" + searchHit.getId() + "] is deleted",
-                        deletedDocs.contains(searchHit.getId()),
-                        equalTo(false)
-                    );
-                }
+            // Verify that search response does not contain deleted docs
+            for (var searchHit : searchResponse.getHits()) {
+                assertThat(
+                    "Document with id [" + searchHit.getId() + "] is deleted",
+                    deletedDocs.contains(searchHit.getId()),
+                    equalTo(false)
+                );
             }
-        );
+        });
 
         // Search by synthetic _id
         var otherDocs = randomSubsetOf(Sets.difference(docs.keySet(), Sets.newHashSet(deletedDocs)));

@@ -75,8 +75,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests.buildExpectationRerank;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;

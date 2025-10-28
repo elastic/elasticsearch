@@ -18,9 +18,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -34,7 +35,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BucketTests extends AbstractScalarFunctionTestCase {
+public class BucketTests extends AbstractConfigurationFunctionTestCase {
     public BucketTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -317,14 +318,14 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         Expression from = null;
         Expression to = null;
         if (args.size() > 2) {
             from = args.get(2);
             to = args.get(3);
         }
-        return new Bucket(source, args.get(0), args.get(1), from, to);
+        return new Bucket(source, args.get(0), args.get(1), from, to, configuration);
     }
 
     /**

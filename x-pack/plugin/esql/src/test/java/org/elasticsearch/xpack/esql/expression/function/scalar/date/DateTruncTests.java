@@ -14,8 +14,9 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matchers;
 
 import java.time.Duration;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Parameterized testing for {@link DateTrunc}.  See also {@link DateTruncRoundingTests} for non-parametrized tests.
  */
-public class DateTruncTests extends AbstractScalarFunctionTestCase {
+public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
 
     public DateTruncTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -159,7 +160,7 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new DateTrunc(source, args.get(0), args.get(1));
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        return new DateTrunc(source, args.get(0), args.get(1), configuration);
     }
 }

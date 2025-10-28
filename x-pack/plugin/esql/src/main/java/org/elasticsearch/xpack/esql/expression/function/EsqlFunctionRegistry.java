@@ -344,7 +344,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Bucket.class, Bucket::new, "bucket", "bin"),
                 def(Categorize.class, Categorize::new, "categorize"),
-                def(TBucket.class, uni(TBucket::new), "tbucket") },
+                def(TBucket.class, (UnaryConfigurationAwareBuilder<TBucket>) TBucket::new, "tbucket") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -1274,6 +1274,43 @@ public class EsqlFunctionRegistry {
 
     protected interface TernaryConfigurationAwareBuilder<T> {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a quaternary function that is configuration aware.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        QuaternaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            if (OptionalArgument.class.isAssignableFrom(function)) {
+                if (children.size() > 4 || children.size() < 3) {
+                    throw new QlIllegalArgumentException("expects three or four arguments");
+                }
+            } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
+                if (children.size() > 4 || children.size() < 2) {
+                    throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
+                }
+            } else if (children.size() != 4) {
+                throw new QlIllegalArgumentException("expects exactly four arguments");
+            }
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.get(1),
+                children.size() > 2 ? children.get(2) : null,
+                children.size() > 3 ? children.get(3) : null,
+                cfg
+            );
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface QuaternaryConfigurationAwareBuilder<T> {
+        T build(Source source, Expression one, Expression two, Expression three, Expression four, Configuration configuration);
     }
 
     //

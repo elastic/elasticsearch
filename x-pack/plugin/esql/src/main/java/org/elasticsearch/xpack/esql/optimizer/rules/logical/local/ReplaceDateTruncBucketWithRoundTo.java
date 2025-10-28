@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 
 public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
@@ -54,34 +53,34 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
-        return context.searchStats() != null ? plan.transformUp(Eval.class, eval -> substitute(eval, context.searchStats())) : plan;
+        return context.searchStats() != null ? plan.transformUp(Eval.class, eval -> substitute(eval, context)) : plan;
     }
 
-    private LogicalPlan substitute(Eval eval, SearchStats searchStats) {
+    private LogicalPlan substitute(Eval eval, LocalLogicalOptimizerContext context) {
         // check the filter in children plans
-        return eval.transformExpressionsOnly(Function.class, f -> substitute(f, eval, searchStats));
+        return eval.transformExpressionsOnly(Function.class, f -> substitute(f, eval, context));
     }
 
     /**
      * Perform the actual substitution with {@code SearchStats} and predicates in the query.
      */
-    private Expression substitute(Expression e, Eval eval, SearchStats searchStats) {
+    private Expression substitute(Expression e, Eval eval, LocalLogicalOptimizerContext context) {
         Expression roundTo = null;
         if (e instanceof DateTrunc dateTrunc) {
             roundTo = maybeSubstituteWithRoundTo(
                 dateTrunc.source(),
                 dateTrunc.field(),
                 dateTrunc.interval(),
-                searchStats,
+                context.searchStats(),
                 eval,
-                (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, DEFAULT_TZ, minValue, maxValue)
+                (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, context.configuration().zoneId(), minValue, maxValue)
             );
         } else if (e instanceof Bucket bucket) {
             roundTo = maybeSubstituteWithRoundTo(
                 bucket.source(),
                 bucket.field(),
                 bucket.buckets(),
-                searchStats,
+                context.searchStats(),
                 eval,
                 (interval, minValue, maxValue) -> bucket.getDateRounding(FoldContext.small(), minValue, maxValue)
             );

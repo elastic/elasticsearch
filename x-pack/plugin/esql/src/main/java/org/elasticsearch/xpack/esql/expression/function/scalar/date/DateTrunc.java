@@ -23,8 +23,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -39,9 +40,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 
-public class DateTrunc extends EsqlScalarFunction {
+public class DateTrunc extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateTrunc",
@@ -83,15 +83,21 @@ public class DateTrunc extends EsqlScalarFunction {
             type = { "date_period", "time_duration" },
             description = "Interval; expressed using the timespan literal syntax."
         ) Expression interval,
-        @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field
+        @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field,
+        Configuration configuration
     ) {
-        super(source, List.of(interval, field));
+        super(source, List.of(interval, field), configuration);
         this.interval = interval;
         this.timestampField = field;
     }
 
     private DateTrunc(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration()
+        );
     }
 
     @Override
@@ -144,30 +150,17 @@ public class DateTrunc extends EsqlScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new DateTrunc(source(), newChildren.get(0), newChildren.get(1));
+        return new DateTrunc(source(), newChildren.get(0), newChildren.get(1), configuration());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateTrunc::new, children().get(0), children().get(1));
+        return NodeInfo.create(this, DateTrunc::new, children().get(0), children().get(1), configuration());
     }
 
     @Override
     public boolean foldable() {
         return interval.foldable() && timestampField.foldable();
-    }
-
-    static Rounding.Prepared createRounding(final Object interval) {
-        return createRounding(interval, DEFAULT_TZ);
-    }
-
-    public static Rounding.Prepared createRounding(final Object interval, final ZoneId timeZone) {
-        if (interval instanceof Period period) {
-            return createRounding(period, timeZone, null, null);
-        } else if (interval instanceof Duration duration) {
-            return createRounding(duration, timeZone, null, null);
-        }
-        throw new IllegalArgumentException("Time interval is not supported");
     }
 
     public static Rounding.Prepared createRounding(final Object interval, final ZoneId timeZone, Long min, Long max) {
@@ -259,7 +252,7 @@ public class DateTrunc extends EsqlScalarFunction {
                 "Function [" + sourceText() + "] has invalid interval [" + interval.sourceText() + "]. " + e.getMessage()
             );
         }
-        return evaluator(dataType(), source(), fieldEvaluator, DateTrunc.createRounding(foldedInterval, DEFAULT_TZ));
+        return evaluator(dataType(), source(), fieldEvaluator, createRounding(foldedInterval, configuration().zoneId(), null, null));
     }
 
     public static ExpressionEvaluator.Factory evaluator(

@@ -2131,7 +2131,7 @@ dt:date                  | monthName:keyword
 ;
 
 monthNameSetTimezoneFrom
-required_capability:fn_month_name
+required_capability: global_timezone_parameter
 
 set time_zone="-10:00"\;
 from employees 

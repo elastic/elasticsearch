@@ -51,7 +51,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
-import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -522,10 +521,7 @@ public class AuthorizationService {
                         targetProjects.originProject(),
                         targetProjects.linkedProjects()
                     );
-                    var originOrNull = projectRoutingInfos.stream()
-                        .filter(targetProjects.originProject()::equals)
-                        .findAny()
-                        .orElse(null);
+                    var originOrNull = projectRoutingInfos.stream().filter(targetProjects.originProject()::equals).findAny().orElse(null);
                     var linkedProjects = projectRoutingInfos.stream()
                         .filter(Predicate.not(targetProjects.originProject()::equals))
                         .toList();

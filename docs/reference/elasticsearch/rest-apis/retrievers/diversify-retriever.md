@@ -1,21 +1,21 @@
 ---
 applies_to:
   stack: all
-  serverless:
+  serverless: ga
 ---
 
 # Diversify retriever [diversify-retriever]
 
-The diversify retriever is able to pare down results from another retriever to
-apply diversification to the top-N results.
+The `diversify` retriever is able to reduce the results from another retriever, applying a diversification strategy to the top-N results.
 This is particularly useful in cases where you need to have relevant, but
-non-similar results returned from your query. An example of this may be to
-provide more diverse context to a RAG prompt.
+non-similar results returned from your query.
+Some examples of where this could be useful are in eCommerce applications where you want to show the end user a better variety of results, or in a RAG workflow to provide more diverse context in your LLM prompt.
 
 Using MMR (Maximum Marginal Relevance) diversification, the retriever discards
 any inner retriever results that are too similar to each other based on
-the `field` parameter and in reference to any `query_vector` that is provided.
-Note that the order of the results from the inner retriever is not changed.
+the `field` parameter and in reference to the provided `query_vector`.
+Note that the order of the results returned from the inner retriever is not changed.
+This is based on the paper "[The Use of MMR, Diversity-Based Reranking for Reordering Documents and Producing Summaries](https://www.cs.cmu.edu/~jgc/publication/The_Use_MMR_Diversity_Based_LTMIR_1998.pdf)" from Jaime Carbonell and Jade Goldstein at CMU.
 
 ## Parameters [diversify-retriever-parameters]
 
@@ -82,3 +82,4 @@ GET my_index/_search
     }
   }
 }
+```

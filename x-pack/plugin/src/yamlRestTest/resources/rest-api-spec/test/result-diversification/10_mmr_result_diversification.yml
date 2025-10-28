@@ -1,16 +1,14 @@
-# This test uses the simple model defined in
-# TextExpansionQueryIT.java to create the token weights.
-
+# To run this test via the command line:
 # ./gradlew ":x-pack:plugin:yamlRestTest" --tests "org.elasticsearch.xpack.test.rest.XPackRestIT.test {p0=result-diversification/10_mmr_result_diversification/*}"
 setup:
   - requires:
       cluster_features: [ "retriever.result_diversification_mmr" ]
       reason: "Added retriever for result diversification using MMR"
-  - skip:
-      features: headers
 
   - requires:
-      "test_runner_features": "contains"
+      test_runner_features:
+        - contains
+        - headers
 
   - do:
       indices.create:
@@ -50,16 +48,35 @@ setup:
 
 ---
 teardown:
-  - skip:
-      features: headers
-
   - do:
       indices.delete:
         index: test-result-diversification-index
         ignore: 404
 
+  - do:
+      indices.refresh: { }
+
 ---
 "Test MMR result diversification":
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            knn:
+              field: "textvector"
+              query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+              k: 6
+              num_candidates: 6
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "third text" }
+  - match: { hits.hits.2._source.textbody: "first text" }
+  - match: { hits.hits.3._source.textbody: "sixth text" }
+  - match: { hits.hits.4._source.textbody: "fourth text" }
+  - match: { hits.hits.5._source.textbody: "fifth text" }
+
   - do:
       search:
         index: test-result-diversification-index
@@ -154,33 +171,6 @@ teardown:
             diversify:
               type: "mmr"
               field: "textvector"
-              lambda: 0.7
-              num_candidates: 3
-              retriever:
-                - knn:
-                    field: "textvector"
-                    query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
-                    k: 6
-                    num_candidates: 6
-                - knn:
-                    field: "textvector"
-                    query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
-                    k: 6
-                    num_candidates: 6
-
-  - match: { status: 400 }
-  - match: { error.type: x_content_parse_exception }
-  - contains: { error.reason: "[diversify] retriever doesn't support values of type: START_ARRAY" }
-
-  - do:
-      catch: bad_request
-      search:
-        index: test-result-diversification-index
-        body:
-          retriever:
-            diversify:
-              type: "mmr"
-              field: "textvector"
               num_candidates: 3
               retriever:
                 knn:
@@ -262,7 +252,7 @@ teardown:
   - match: { error.type: status_exception }
   - contains: { error.reason: "[diversify] search failed - retrievers '[diversify]'" }
   - match: { error.suppressed.0.type: status_exception }
-  - match: { error.suppressed.0.reason: "Could not retrieve any vectors for field [unknown_field]. Is it a populated [dense_vector] field?" }
+  - match: { error.suppressed.0.reason: "Failed to retrieve vectors for field [unknown_field]. Is it a [dense_vector] field?" }
 
   - do:
       catch: bad_request
@@ -286,7 +276,7 @@ teardown:
   - match: { error.type: status_exception }
   - contains: { error.reason: "[diversify] search failed - retrievers '[diversify]'" }
   - match: { error.suppressed.0.type: status_exception }
-  - match: { error.suppressed.0.reason: "Failed to parse field [keywordfield]. Is it a [dense_vector] field?" }
+  - match: { error.suppressed.0.reason: "Failed to retrieve vectors for field [keywordfield]. Is it a [dense_vector] field?" }
 
   - do:
       catch: bad_request
@@ -310,4 +300,4 @@ teardown:
   - match: { error.type: status_exception }
   - contains: { error.reason: "[diversify] search failed" }
   - match: { error.suppressed.0.type: illegal_argument_exception }
-  - match: { error.suppressed.0.reason: "Failed to retrieve values for diversification on field [textbody]. Is it a [dense_vector] field?" }
+  - match: { error.suppressed.0.reason: "Failed to retrieve vectors for field [textbody]. Is it a [dense_vector] field?" }

@@ -157,13 +157,13 @@ public class JwkSetLoaderTests extends ESTestCase {
         var now = Instant.now();
         int ticks = 0;
         var watcher = new JwkSetLoader.FileChangeWatcher(path);
-        assertThat(watcher.changed(), is(true));
+        assertThat(watcher.changedSinceLastCall(), is(true));
         Files.setLastModifiedTime(path, FileTime.from(now.plusSeconds(++ticks)));
-        assertThat(watcher.changed(), is(true));
-        assertThat(watcher.changed(), is(false));
+        assertThat(watcher.changedSinceLastCall(), is(true));
+        assertThat(watcher.changedSinceLastCall(), is(false));
         Files.setLastModifiedTime(path, FileTime.from(now.plusSeconds(++ticks)));
-        assertThat(watcher.changed(), is(true));
-        assertThat(watcher.changed(), is(false));
+        assertThat(watcher.changedSinceLastCall(), is(true));
+        assertThat(watcher.changedSinceLastCall(), is(false));
     }
 
     public void testFilePkcJwkSetLoader() throws IOException {
@@ -181,7 +181,9 @@ public class JwkSetLoaderTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         CountingCallback callback = new CountingCallback();
 
-        new JwkSetLoader.FilePkcJwkSetLoader(realmConfig, threadPool, path.toString(), callback).start(); // schedules task
+        var loader = new JwkSetLoader.FilePkcJwkSetLoader(realmConfig, threadPool, path.toString(), callback);
+        loader.start(); // schedules task
+
         ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(threadPool, times(1)).scheduleWithFixedDelay(taskCaptor.capture(), any(TimeValue.class), isNull());
 
@@ -198,6 +200,15 @@ public class JwkSetLoaderTests extends ESTestCase {
         taskCaptor.getValue().run(); // run third time, change detected
         assertThat(callback.content, is(equalTo(goodbye)));
         assertThat(callback.count, is(2));
+
+        loader.stop();
+
+        Files.writeString(path, "too late");
+        Files.setLastModifiedTime(path, FileTime.from(Instant.now().plusSeconds(1))); // ensure mod time changes
+
+        taskCaptor.getValue().run(); // run fourth time, callback not invoked due to closure
+        assertThat(callback.content, is(equalTo(goodbye)));
+        assertThat(callback.count, is(2));
     }
 
     public void testUrlPkcJwkSetLoader() throws IOException {
@@ -209,12 +220,18 @@ public class JwkSetLoaderTests extends ESTestCase {
 
         CountingCallback callback = new CountingCallback();
 
-        new JwkSetLoader.UrlPkcJwkSetLoader(realmConfig, threadPool, uri, httpClient, callback).start(); // schedules task
+        var loader = new JwkSetLoader.UrlPkcJwkSetLoader(realmConfig, threadPool, uri, httpClient, callback);
+        loader.start(); // schedules task
 
         int iterations = randomIntBetween(5, 10);
         for (int i = 0; i < iterations; i++) {
             verifySchedulingIteration(callback, threadPool, httpClient, i + 1);
         }
+
+        loader.stop();
+        verify(httpClient, times(1)).close();
+        verifySchedulingIteration(callback, threadPool, httpClient, iterations + 1); // last schedule call, no subsequent reschedule
+        verify(threadPool, never()).schedule(any(Runnable.class), any(TimeValue.class), isNull());
     }
 
     public void testUrlPkcJwkSetLoaderListenerException() throws IOException {
@@ -230,7 +247,7 @@ public class JwkSetLoaderTests extends ESTestCase {
 
         int iterations = randomIntBetween(5, 10);
         for (int i = 0; i < iterations; i++) {
-            verifySchedulingIterationWithListenerException(threadPool, httpClient, i + 1);
+            verifySchedulingIterationWithListenerException(threadPool, httpClient);
         }
     }
 
@@ -263,8 +280,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         byte[] bytes = "x".repeat(iteration).getBytes(StandardCharsets.UTF_8);
         HttpResponse response = makeHttpResponse(bytes, randomBoolean());
 
-        reset(threadPool);
-        reset(httpClient);
+        reset(threadPool, httpClient);
 
         // invoke response handler
         responseFn.getValue().completed(response);
@@ -272,7 +288,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         assertThat(callback.count, is(iteration));
     }
 
-    private void verifySchedulingIterationWithListenerException(ThreadPool threadPool, CloseableHttpAsyncClient httpClient, int iteration)
+    private void verifySchedulingIterationWithListenerException(ThreadPool threadPool, CloseableHttpAsyncClient httpClient)
         throws IOException {
         // capture scheduled task and delay
         ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -289,8 +305,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         verify(httpClient, times(1)).execute(any(HttpGet.class), responseFn.capture());
         HttpResponse response = makeHttpResponse(new byte[0], randomBoolean());
 
-        reset(threadPool);
-        reset(httpClient);
+        reset(threadPool, httpClient);
 
         // invoke response handler
         responseFn.getValue().completed(response);

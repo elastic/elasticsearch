@@ -262,25 +262,25 @@ public class JwtRealmSettings {
 
     public static final Setting.AffixSetting<Boolean> PKC_JWKSET_RELOAD_ENABLED = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
-        "pkc_jwkset_reload_enabled",
+        "pkc_jwkset_reload.enabled",
         key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<TimeValue> PKC_JWKSET_RELOAD_FILE_INTERVAL = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
-        "pkc_jwkset_reload_file_interval",
+        "pkc_jwkset_reload.file_interval",
         key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), TimeValue.timeValueMinutes(5), Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<TimeValue> PKC_JWKSET_RELOAD_URL_INTERVAL_MIN = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
-        "pkc_jwkset_reload_url_interval_min",
+        "pkc_jwkset_reload.url_interval_min",
         key -> Setting.timeSetting(key, TimeValue.timeValueHours(1), TimeValue.timeValueMinutes(5), Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<TimeValue> PKC_JWKSET_RELOAD_URL_INTERVAL_MAX = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
-        "pkc_jwkset_reload_url_interval_max",
+        "pkc_jwkset_reload.url_interval_max",
         key -> Setting.timeSetting(key, TimeValue.timeValueDays(5), TimeValue.timeValueMinutes(5), Setting.Property.NodeScope)
     );
 

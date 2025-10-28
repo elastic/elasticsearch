@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -498,10 +499,10 @@ public class JwtUtil {
         return false;
     }
 
-    record JwksResponse(byte[] content, Instant expires, Integer maxAgeSeconds) {
+    record JwksResponse(byte[] content, @Nullable Instant expires, @Nullable Integer maxAgeSeconds) {
         private static final Pattern MAX_AGE_PATTERN = Pattern.compile("\\bmax-age\\s*=\\s*(\\d+)\\b", Pattern.CASE_INSENSITIVE);
 
-        JwksResponse(byte[] content, String expires, String cacheControl) {
+        JwksResponse(byte[] content, @Nullable String expires, @Nullable String cacheControl) {
             this(content, parseExpires(expires), parseMaxAge(cacheControl));
         }
 
@@ -510,7 +511,7 @@ public class JwtUtil {
          * The Expires header follows RFC 7231 format (e.g., "Thu, 01 Jan 2024 00:00:00 GMT").
          * @return the parsed Instant, or null if the header is null or cannot be parsed
          */
-        static Instant parseExpires(String expires) {
+        static Instant parseExpires(@Nullable String expires) {
             if (expires == null) {
                 return null;
             }
@@ -525,10 +526,10 @@ public class JwtUtil {
         }
 
         /**
-         * Parse the Cache-Control header to extract the max-age value.
+         * Parse the Cache-Control header to extract the max-age value defined in RFC 7234.
          * @return the parsed max-age value as Integer, or null if the header is null or cannot be parsed
          */
-        static Integer parseMaxAge(String cacheControl) {
+        static Integer parseMaxAge(@Nullable String cacheControl) {
             if (cacheControl == null) {
                 return null;
             }

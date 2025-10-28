@@ -239,7 +239,7 @@ class JwkSetLoader implements Releasable {
                 return;
             }
             try {
-                if (fileWatcher.changed() == false) {
+                if (fileWatcher.changedSinceLastCall() == false) {
                     logger.debug("No changes detected in PKC JWK set file [{}], aborting", jwkSetPath);
                     return;
                 }
@@ -267,6 +267,7 @@ class JwkSetLoader implements Releasable {
 
         @Override
         public void stop() {
+            closed = true;
             if (task != null) {
                 task.cancel();
             }
@@ -394,7 +395,7 @@ class JwkSetLoader implements Releasable {
             this.fileWatcher.addListener(this);
         }
 
-        boolean changed() throws IOException {
+        boolean changedSinceLastCall() throws IOException {
             fileWatcher.checkAndNotify(); // may call onFileInit, onFileChanged
             boolean c = changed;
             changed = false;

@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 
@@ -19,7 +21,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ChunkScorerConfig implements Writeable {
+public class ChunkScorerConfig implements Writeable, ToXContentObject {
 
     public final Integer size;
     private final String inferenceText;
@@ -110,5 +112,15 @@ public class ChunkScorerConfig implements Writeable {
             + ", inferenceText=[" + inferenceText + ']'
             + ", chunkingSettings=" + chunkingSettings
             + "}";
+      
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("size", size);
+        builder.field("inference_text", inferenceText);
+        builder.field("chunking_settings");
+        chunkingSettings.toXContent(builder, params);
+        builder.endObject();
+        return builder;
     }
 }

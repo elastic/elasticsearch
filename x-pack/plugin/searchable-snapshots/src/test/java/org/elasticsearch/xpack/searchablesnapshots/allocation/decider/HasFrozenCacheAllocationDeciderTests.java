@@ -40,8 +40,7 @@ public class HasFrozenCacheAllocationDeciderTests extends ESTestCase {
 
         final var partialSearchableSnapshotIndexMetadata = IndexMetadata.builder(randomIdentifier())
             .settings(
-                indexSettings(IndexVersion.current(), between(1, 10), between(0, 2))
-                    .put(INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
+                indexSettings(IndexVersion.current(), between(1, 10), between(0, 2)).put(INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
                     .put(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, true)
             )
             .build();

@@ -49,7 +49,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
+import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -106,6 +108,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
@@ -504,12 +507,38 @@ public class AuthorizationService {
             final SubscribableListener<TargetProjects> targetProjectListener;
             if (indicesAndAliasesResolver.resolvesCrossProject(request)) {
                 targetProjectListener = new SubscribableListener<>();
+                // Get list of projects from cluster state
+                // Remove projects from list that user lacks permissions to access
                 authorizedProjectsResolver.resolveAuthorizedProjects(targetProjectListener);
+
+                // project routing resolution could go here
+                // regardless of location, it would look something like...
+                targetProjectListener.andThenApply(targetProjects -> {
+                    // we'd inject the CrossProjectRoutingResolver
+                    // we somehow pipe project_routing through to here,
+                    // perhaps setting it in the SearchRequest so we can access it via RequestInfo.getRequest()
+                    var projectRoutingInfos = new CrossProjectRoutingResolver().resolve(
+                        "*",
+                        targetProjects.originProject(),
+                        targetProjects.linkedProjects()
+                    );
+                    var originOrNull = projectRoutingInfos.stream()
+                        .filter(targetProjects.originProject()::equals)
+                        .findAny()
+                        .orElse(null);
+                    var linkedProjects = projectRoutingInfos.stream()
+                        .filter(Predicate.not(targetProjects.originProject()::equals))
+                        .toList();
+                    // perhaps we change the CrossProjectRoutingResolver API to accept and return TargetProjects?
+                    return new TargetProjects(originOrNull, linkedProjects);
+                });
             } else {
                 targetProjectListener = SubscribableListener.newSucceeded(TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
             }
 
             targetProjectListener.addListener(ActionListener.wrap(targetProjects -> {
+                // this will eventually rewrite the index expression based on the targetProjects,
+                // so filtering by project_routing should go before here
                 final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = makeResolvedIndicesAsyncSupplier(
                     targetProjects,
                     requestInfo,

@@ -383,6 +383,7 @@ class IndicesAndAliasesResolver {
 
                     Set<String> remoteIndices = Collections.emptySet();
                     if (crossProjectModeDecider.resolvesCrossProject(replaceable)) {
+                        // project routing resolution could go here, before the index expression is generated
                         remoteIndices = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                             indexExpression,
                             authorizedProjects.originProjectAlias(),

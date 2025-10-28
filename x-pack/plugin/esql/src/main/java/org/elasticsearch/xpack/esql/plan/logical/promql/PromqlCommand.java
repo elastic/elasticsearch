@@ -108,9 +108,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
 
-        PromqlCommand other = (PromqlCommand) obj;
-        return Objects.equals(child(), other.child()) && Objects.equals(promqlPlan, other.promqlPlan);
-    }
+            PromqlCommand other = (PromqlCommand) obj;
+            return Objects.equals(child(), other.child()) && Objects.equals(promqlPlan, other.promqlPlan);
+        }
 
         return false;
     }
@@ -132,26 +132,35 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        promqlPlan().collectFirstChildren(PromqlFunctionCall.class::isInstance)
-            .stream()
-            .filter(WithinSeriesAggregate.class::isInstance)
-            .forEach(
-                withinSeriesAggregate -> failures.add(
-                    fail(
-                        withinSeriesAggregate,
-                        "within time series aggregate function [{}] "
+        promqlPlan().forEachDownMayReturnEarly((lp, breakEarly) -> {
+            if (lp instanceof PromqlFunctionCall fc) {
+                if (fc instanceof AcrossSeriesAggregate) {
+                    breakEarly.set(true);
+                    fc.forEachDown((childLp -> verifyNonFunctionCall(failures, childLp)));
+                } else if (fc instanceof WithinSeriesAggregate withinSeriesAggregate) {
+                    failures.add(
+                        fail(
+                            withinSeriesAggregate,
+                            "within time series aggregate function [{}] "
                             + "can only be used inside an across time series aggregate function at this time",
-                        withinSeriesAggregate.sourceText()
-                    )
-                )
-            );
-        promqlPlan().forEachDown(Selector.class, s -> {
+                            withinSeriesAggregate.sourceText()
+                        )
+                    );
+                }
+            } else {
+                verifyNonFunctionCall(failures, lp);
+            }
+        });
+    }
+
+    private void verifyNonFunctionCall(Failures failures, LogicalPlan logicalPlan) {
+        if (logicalPlan instanceof Selector s) {
             if (s.labelMatchers().nameLabel().matcher().isRegex()) {
                 failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
             }
             if (s.evaluation().offset() != null && s.evaluation().offset() != TimeValue.ZERO) {
                 failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
             }
-        });
+        }
     }
 }

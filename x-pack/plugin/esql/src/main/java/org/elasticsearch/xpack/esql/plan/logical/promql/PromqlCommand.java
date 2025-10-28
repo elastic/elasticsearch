@@ -108,9 +108,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
 
-        PromqlCommand other = (PromqlCommand) obj;
-        return Objects.equals(child(), other.child()) && Objects.equals(promqlPlan, other.promqlPlan);
-    }
+            PromqlCommand other = (PromqlCommand) obj;
+            return Objects.equals(child(), other.child()) && Objects.equals(promqlPlan, other.promqlPlan);
+        }
 
         return false;
     }

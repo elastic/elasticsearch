@@ -144,6 +144,7 @@ public final class Ascii extends UnaryScalarFunction {
             return Optional.empty();
         }
 
+        // Handle special ASCII control characters
         String resultStr = switch (code) {
             case '\n' -> "\\\\n";
             case '\r' -> "\\\\r";
@@ -154,8 +155,6 @@ public final class Ascii extends UnaryScalarFunction {
             case '\'' -> "\\\\'";
             case '\"' -> "\\\\\"";
             default -> null;
-
-            // Handle special ASCII control characters
         };
 
         if (resultStr != null) {

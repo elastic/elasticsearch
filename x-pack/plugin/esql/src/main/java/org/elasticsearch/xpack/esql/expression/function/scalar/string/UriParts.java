@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -89,6 +90,7 @@ public class UriParts extends EsqlScalarFunction {
         return KEYWORD;
     }
 
+    @SuppressForbidden(reason = "URL.getPath is used only if URI.getPath is unavailable")
     private static Map<String, Object> getUriParts(URI uri, URL fallbackUrl) {
         var uriParts = new HashMap<String, Object>();
         String domain;

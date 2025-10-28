@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -197,7 +198,6 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     public static List<String> chunkText(String content, ChunkingSettings chunkingSettings, int numChunks) {
         Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
-
         return chunker.chunk(content, chunkingSettings)
             .stream()
             .map(offset -> content.substring(offset.start(), offset.end()))
@@ -225,11 +225,11 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         return new ChunkBytesRefEvaluator.Factory(
             source(),
             toEvaluator.apply(field),
-            optionsMap != null && optionsMap.containsKey("num_chunks")
-                ? toEvaluator.apply(optionsMap.get("num_chunks"))
+            optionsMap != null && optionsMap.containsKey(NUM_CHUNKS)
+                ? toEvaluator.apply(optionsMap.get(NUM_CHUNKS))
                 : toEvaluator.apply(new Literal(source(), DEFAULT_NUM_CHUNKS, DataType.INTEGER)),
-            optionsMap != null && optionsMap.containsKey("chunk_size")
-                ? toEvaluator.apply(optionsMap.get("chunk_size"))
+            optionsMap != null && optionsMap.containsKey(CHUNK_SIZE)
+                ? toEvaluator.apply(optionsMap.get(CHUNK_SIZE))
                 : toEvaluator.apply(new Literal(source(), DEFAULT_CHUNK_SIZE, DataType.INTEGER))
         );
     }

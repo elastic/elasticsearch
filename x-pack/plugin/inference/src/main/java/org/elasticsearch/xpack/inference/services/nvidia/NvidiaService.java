@@ -101,7 +101,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
     );
 
     /**
-     * Constructor for creating a NvidiaService with specified HTTP request sender factory and service components.
+     * Constructor for creating an NvidiaService with specified HTTP request sender factory and service components.
      *
      * @param factory the factory to create HTTP request senders
      * @param serviceComponents the components required for the inference service
@@ -139,7 +139,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
     }
 
     /**
-     * Creates a NvidiaModel based on the provided parameters.
+     * Creates an NvidiaModel based on the provided parameters.
      *
      * @param inferenceId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for

@@ -23,7 +23,7 @@ import java.util.Objects;
  */
 public abstract class NvidiaModel extends RateLimitGroupingModel {
     /**
-     * Constructor for creating a NvidiaModel with specified configurations and secrets.
+     * Constructor for creating an NvidiaModel with specified configurations and secrets.
      *
      * @param configurations the model configurations
      * @param secrets the secret settings for the model
@@ -33,7 +33,7 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
     }
 
     /**
-     * Constructor for creating a NvidiaModel with specified model, service settings, and secret settings.
+     * Constructor for creating an NvidiaModel with specified model, service settings, and secret settings.
      * @param model the model configurations
      * @param serviceSettings the settings for the inference service
      */
@@ -42,7 +42,7 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
     }
 
     /**
-     * Constructor for creating a NvidiaModel with specified model, service settings, and secret settings.
+     * Constructor for creating an NvidiaModel with specified model, service settings, and secret settings.
      * @param model the model configurations
      * @param taskSettings the task settings for the inference task
      */

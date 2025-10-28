@@ -32,7 +32,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating a NvidiaEmbeddingsModel with specified parameters.
+     * Constructor for creating an NvidiaEmbeddingsModel with specified parameters.
      *
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
@@ -65,7 +65,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating a NvidiaEmbeddingsModel with specified parameters.
+     * Constructor for creating an NvidiaEmbeddingsModel with specified parameters.
      *
      * @param model the base NvidiaEmbeddingsModel to copy properties from
      * @param serviceSettings the settings for the inference service, specific to embeddings
@@ -75,7 +75,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating a NvidiaEmbeddingsModel with specified parameters.
+     * Constructor for creating an NvidiaEmbeddingsModel with specified parameters.
      *
      * @param model the base NvidiaEmbeddingsModel to copy properties from
      * @param taskSettings the task-specific settings to be applied
@@ -85,7 +85,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating a NvidiaEmbeddingsModel with specified parameters.
+     * Constructor for creating an NvidiaEmbeddingsModel with specified parameters.
      *
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for

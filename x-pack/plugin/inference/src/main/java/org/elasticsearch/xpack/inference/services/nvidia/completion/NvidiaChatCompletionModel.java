@@ -23,13 +23,13 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.util.Map;
 
 /**
- * Represents a Nvidia chat completion model for inference.
+ * Represents an Nvidia chat completion model for inference.
  * This class extends the NvidiaModel and provides specific configurations and settings for chat completion tasks.
  */
 public class NvidiaChatCompletionModel extends NvidiaModel {
 
     /**
-     * Constructor for creating a NvidiaChatCompletionModel with specified parameters.
+     * Constructor for creating an NvidiaChatCompletionModel with specified parameters.
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
@@ -55,7 +55,7 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating a NvidiaChatCompletionModel with specified parameters.
+     * Constructor for creating an NvidiaChatCompletionModel with specified parameters.
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
@@ -76,7 +76,7 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
     }
 
     /**
-     * Factory method to create a NvidiaChatCompletionModel with overridden model settings based on the request.
+     * Factory method to create an NvidiaChatCompletionModel with overridden model settings based on the request.
      * If the request does not specify a model, the original model is returned.
      *
      * @param model the original NvidiaChatCompletionModel

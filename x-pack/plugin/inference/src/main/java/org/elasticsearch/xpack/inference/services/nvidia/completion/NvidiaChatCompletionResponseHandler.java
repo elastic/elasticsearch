@@ -23,7 +23,7 @@ public class NvidiaChatCompletionResponseHandler extends OpenAiUnifiedChatComple
         .createErrorParserWithStringify(NVIDIA_ERROR);
 
     /**
-     * Constructor for creating a NvidiaChatCompletionResponseHandler with specified request type and response parser.
+     * Constructor for creating an NvidiaChatCompletionResponseHandler with specified request type and response parser.
      *
      * @param requestType the type of request this handler will process
      * @param parseFunction the function to parse the response

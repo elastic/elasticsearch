@@ -33,8 +33,8 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
 
         List<TestCaseSupplier> cases = new ArrayList<>();
 
-        // Test with ASCII printable characters (should not be escaped)
-        cases.add(new TestCaseSupplier("ASCII printable characters", List.of(DataType.KEYWORD), () -> {
+        // Test with ASCII printable characters (should not be escaped) - KEYWORD
+        cases.add(new TestCaseSupplier("ASCII printable characters keyword", List.of(DataType.KEYWORD), () -> {
             String input = randomAlphaOfLength(between(1, 100));
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
@@ -44,20 +44,21 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        // Test with null input
-        cases.add(new TestCaseSupplier("null input", List.of(DataType.KEYWORD), () -> {
+        // Test with ASCII printable characters (should not be escaped) - TEXT
+        cases.add(new TestCaseSupplier("ASCII printable characters text", List.of(DataType.TEXT), () -> {
+            String input = randomAlphaOfLength(between(1, 100));
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(null, DataType.KEYWORD, "str")),
+                List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.TEXT, "str")),
                 "AsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                null
+                equalTo(new BytesRef(input))
             );
         }));
-        /*
+
         // Test with Spanish accents
         cases.add(new TestCaseSupplier("Spanish accents", List.of(DataType.KEYWORD), () -> {
             String input = "Café naïve résumé";
-            String expected = "Caf\\xe9 na\\xefve r\\xe9sum\\xe9";
+            String expected = "Caf\\\\xe9 na\\\\xefve r\\\\xe9sum\\\\xe9";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
                 "AsciiEvaluator[val=Attribute[channel=0]]",
@@ -69,7 +70,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
         // Test with control characters
         cases.add(new TestCaseSupplier("control characters", List.of(DataType.KEYWORD), () -> {
             String input = "hello\nworld\r\ttab";
-            String expected = "hello\\nworld\\r\\ttab";
+            String expected = "hello\\\\nworld\\\\r\\\\ttab";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
                 "AsciiEvaluator[val=Attribute[channel=0]]",
@@ -81,7 +82,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
         // Test with Chinese characters
         cases.add(new TestCaseSupplier("Chinese characters", List.of(DataType.KEYWORD), () -> {
             String input = "你好世界";
-            String expected = "\\u4f60\\u597d\\u4e16\\u754c";
+            String expected = "\\\\u4f60\\\\u597d\\\\u4e16\\\\u754c";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
                 "AsciiEvaluator[val=Attribute[channel=0]]",
@@ -93,7 +94,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
         // Test with Japanese characters
         cases.add(new TestCaseSupplier("Japanese characters", List.of(DataType.KEYWORD), () -> {
             String input = "こんにちは";
-            String expected = "\\u3053\\u3093\\u306b\\u3061\\u306f";
+            String expected = "\\\\u3053\\\\u3093\\\\u306b\\\\u3061\\\\u306f";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
                 "AsciiEvaluator[val=Attribute[channel=0]]",
@@ -105,7 +106,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
         // Test with emojis (require 8-digit Unicode escape)
         cases.add(new TestCaseSupplier("emojis", List.of(DataType.KEYWORD), () -> {
             String input = "🚀🔥💧🪨";
-            String expected = "\\U0001f680\\U0001f525\\U0001f327\\U0001faa8";
+            String expected = "\\\\U0001f680\\\\U0001f525\\\\U0001f4a7\\\\U0001faa8";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
                 "AsciiEvaluator[val=Attribute[channel=0]]",
@@ -117,7 +118,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
         // Test with Greek letters
         cases.add(new TestCaseSupplier("Greek letters", List.of(DataType.KEYWORD), () -> {
             String input = "αβγδε";
-            String expected = "\\u03b1\\u03b2\\u03b3\\u03b4\\u03b5";
+            String expected = "\\\\u03b1\\\\u03b2\\\\u03b3\\\\u03b4\\\\u03b5";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
                 "AsciiEvaluator[val=Attribute[channel=0]]",
@@ -129,7 +130,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
         // Test with mixed content
         cases.add(new TestCaseSupplier("mixed content", List.of(DataType.KEYWORD), () -> {
             String input = "Hello 世界! 🌍";
-            String expected = "Hello \\u4e16\\u754c! \\U0001f30d";
+            String expected = "Hello \\\\u4e16\\\\u754c! \\\\U0001f30d";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
                 "AsciiEvaluator[val=Attribute[channel=0]]",
@@ -151,14 +152,14 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
         // Test with TEXT type
         cases.add(new TestCaseSupplier("TEXT type", List.of(DataType.TEXT), () -> {
             String input = "Café";
-            String expected = "Caf\\xe9";
+            String expected = "Caf\\\\xe9";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.TEXT, "str")),
                 "AsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(expected))
             );
-        }));*/
+        }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
     }

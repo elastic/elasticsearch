@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -38,6 +39,10 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Types;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -289,6 +294,17 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case TSID_DATA_TYPE -> {
                     BytesRef tsIdValue = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value();
                     ((BytesRefBlock.Builder) builder).appendBytesRef(tsIdValue);
+                }
+                case EXPONENTIAL_HISTOGRAM -> {
+                    ExponentialHistogramBlockBuilder expBuilder = (ExponentialHistogramBlockBuilder) builder;
+                    int valueCount = randomIntBetween(0, 500);
+                    int bucketCount = randomIntBetween(4, Math.max(4, valueCount));
+                    ExponentialHistogram histo = ExponentialHistogram.create(
+                        bucketCount,
+                        ExponentialHistogramCircuitBreaker.noop(),
+                        randomDoubles(valueCount).toArray()
+                    );
+                    expBuilder.append(histo);
                 }
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
@@ -1261,6 +1277,16 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         // This has been added just to test a round trip. In reality, TSID should never be taken from XContent
                         byte[] decode = Base64.getUrlDecoder().decode(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(decode));
+                    }
+                    case EXPONENTIAL_HISTOGRAM -> {
+                        ExponentialHistogramBlockBuilder expHistoBuilder = (ExponentialHistogramBlockBuilder) builder;
+                        Map<String, Object> serializedHisto = Types.forciblyCast(value);
+                        ExponentialHistogram parsed = ExponentialHistogramXContent.parseForTesting(serializedHisto);
+                        if (parsed == null) {
+                            expHistoBuilder.appendNull();
+                        } else {
+                            expHistoBuilder.append(parsed);
+                        }
                     }
                 }
             }

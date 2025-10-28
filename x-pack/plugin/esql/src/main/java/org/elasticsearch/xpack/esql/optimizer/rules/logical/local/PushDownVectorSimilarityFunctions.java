@@ -109,7 +109,7 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
         // Change the similarity function to a reference of a transformation on the field
         FunctionEsField functionEsField = new FunctionEsField(
             fieldAttr.field(),
-            similarityFunction,
+            similarityFunction.dataType(),
             similarityFunction.getBlockLoaderFunctionConfig()
         );
         var nameId = new NameId();

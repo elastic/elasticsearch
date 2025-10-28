@@ -26,10 +26,10 @@ public class FunctionEsField extends EsField {
     // Not serialized as it will be created on the data node
     private final transient MappedFieldType.BlockLoaderFunctionConfig functionConfig;
 
-    public FunctionEsField(EsField esField, Function function, MappedFieldType.BlockLoaderFunctionConfig functionConfig) {
+    public FunctionEsField(EsField esField, DataType dataType, MappedFieldType.BlockLoaderFunctionConfig functionConfig) {
         this(
             esField.getName(),
-            function.dataType(),
+            dataType,
             esField.getProperties(),
             esField.isAggregatable(),
             esField.isAlias(),

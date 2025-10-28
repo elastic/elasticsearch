@@ -44,14 +44,14 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.NAME;
 
-public class LogicalPlanBuilder extends ExpressionBuilder {
+public class PromqlLogicalPlanBuilder extends ExpressionBuilder {
 
-    LogicalPlanBuilder() {
+    PromqlLogicalPlanBuilder() {
         this(null, null);
     }
 
-    LogicalPlanBuilder(Instant start, Instant stop) {
-        super(start, stop);
+    PromqlLogicalPlanBuilder(Instant start, Instant end) {
+        super(start, end);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {

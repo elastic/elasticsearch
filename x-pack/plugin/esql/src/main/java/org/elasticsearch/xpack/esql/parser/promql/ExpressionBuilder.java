@@ -74,20 +74,20 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.UNLESS;
 
 class ExpressionBuilder extends IdentifierBuilder {
 
-    protected final Instant start, stop;
+    protected final Instant start, end;
 
     ExpressionBuilder() {
         this(null, null);
     }
 
-    ExpressionBuilder(Instant start, Instant stop) {
+    ExpressionBuilder(Instant start, Instant end) {
         Instant now = null;
-        if (start == null || stop == null) {
+        if (start == null || end == null) {
             now = DateUtils.nowWithMillisResolution().toInstant();
         }
 
         this.start = start != null ? start : now;
-        this.stop = stop != null ? stop : now;
+        this.end = end != null ? end : now;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -282,7 +282,7 @@ class ExpressionBuilder extends IdentifierBuilder {
             if (atCtx.AT_START() != null) {
                 at = start;
             } else if (atCtx.AT_END() != null) {
-                at = stop;
+                at = end;
             } else {
                 TimeValue timeValue = visitTimeValue(atCtx.timeValue());
                 // the value can have a floating point

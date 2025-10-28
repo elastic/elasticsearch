@@ -142,6 +142,13 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     }
 
     /**
+     * Build a new response replacing the {@link #minTransportVersion()}.
+     */
+    public FieldCapabilitiesResponse withMinTransportVersion(TransportVersion newMin) {
+        return new FieldCapabilitiesResponse(indices, fields, indexResponses, failures, newMin);
+    }
+
+    /**
      * Returns <code>true</code> if the provided field is a metadata field.
      */
     public boolean isMetadataField(String field) {

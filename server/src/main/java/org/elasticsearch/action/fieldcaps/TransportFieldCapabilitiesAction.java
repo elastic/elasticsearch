@@ -16,6 +16,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -58,6 +60,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -131,19 +134,54 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
-        executeRequest(task, request, listener);
+        executeRequest(task, request, new LinkedRequestExecutor<FieldCapabilitiesResponse>() {
+            @Override
+            public void executeRemoteRequest(
+                TransportService transportService,
+                Transport.Connection conn,
+                FieldCapabilitiesRequest remoteRequest,
+                ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
+            ) {
+                transportService.sendRequest(conn, REMOTE_TYPE.name(), remoteRequest, TransportRequestOptions.EMPTY, responseHandler);
+            }
+
+            @Override
+            public FieldCapabilitiesResponse read(StreamInput in) throws IOException {
+                return new FieldCapabilitiesResponse(in);
+            }
+
+            @Override
+            public FieldCapabilitiesResponse wrapPrimary(FieldCapabilitiesResponse primary) {
+                return primary;
+            }
+
+            @Override
+            public FieldCapabilitiesResponse unwrapPrimary(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+                return fieldCapabilitiesResponse;
+            }
+        }, listener);
     }
 
-    public void executeRequest(Task task, FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
+    public <R extends ActionResponse> void executeRequest(
+        Task task,
+        FieldCapabilitiesRequest request,
+        LinkedRequestExecutor<R> linkedRequestExecutor,
+        ActionListener<R> listener
+    ) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, linkedRequestExecutor, l)));
     }
 
-    private void doExecuteForked(Task task, FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
+    private <R extends ActionResponse> void doExecuteForked(
+        Task task,
+        FieldCapabilitiesRequest request,
+        LinkedRequestExecutor<R> linkedRequestExecutor,
+        ActionListener<R> listener
+    ) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
-        final Executor singleThreadedExecutor = buildSingleThreadedExecutor(searchCoordinationExecutor, LOGGER);
+        final Executor singleThreadedExecutor = buildSingleThreadedExecutor();
         assert task instanceof CancellableTask;
         final CancellableTask fieldCapTask = (CancellableTask) task;
         // retrieve the initial timestamp in case the action is a cross-cluster search
@@ -159,7 +197,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             : Strings.EMPTY_ARRAY;
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
-            listener.onResponse(FieldCapabilitiesResponse.builder().withMinTransportVersion(minTransportVersion.get()).build());
+            listener.onResponse(
+                linkedRequestExecutor.wrapPrimary(
+                    FieldCapabilitiesResponse.builder().withMinTransportVersion(minTransportVersion.get()).build()
+                )
+            );
             return;
         }
 
@@ -235,7 +277,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (fieldCapTask.notifyIfCancelled(listener)) {
                 releaseResourcesOnCancel.run();
             } else {
-                mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, minTransportVersion, listener);
+                mergeIndexResponses(
+                    request,
+                    fieldCapTask,
+                    indexResponses,
+                    indexFailures,
+                    minTransportVersion,
+                    listener.map(linkedRequestExecutor::wrapPrimary)
+                );
             }
         })) {
             // local cluster
@@ -307,12 +356,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         true,
                         ActionListener.releaseAfter(remoteListener, refs.acquire())
                     ).delegateFailure(
-                        (responseListener, conn) -> transportService.sendRequest(
+                        (responseListener, conn) -> linkedRequestExecutor.executeRemoteRequest(
+                            transportService,
                             conn,
-                            REMOTE_TYPE.name(),
                             remoteRequest,
-                            TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(responseListener, FieldCapabilitiesResponse::new, singleThreadedExecutor)
+                            new ActionListenerResponseHandler<>(
+                                responseListener,
+                                in -> linkedRequestExecutor.unwrapPrimary(linkedRequestExecutor.read(in)),
+                                singleThreadedExecutor
+                            )
                         )
                     )
                 );
@@ -325,7 +377,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    public static Executor buildSingleThreadedExecutor(Executor searchCoordinationExecutor, Logger logger) {
+    private Executor buildSingleThreadedExecutor() {
         final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("field_caps", 1, searchCoordinationExecutor);
         return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
             @Override
@@ -348,7 +400,22 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         });
     }
 
-    public static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {
+    public interface LinkedRequestExecutor<R extends ActionResponse> {
+        void executeRemoteRequest(
+            TransportService transportService,
+            Transport.Connection conn,
+            FieldCapabilitiesRequest remoteRequest,
+            ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
+        );
+
+        R read(StreamInput in) throws IOException;
+
+        R wrapPrimary(FieldCapabilitiesResponse primary);
+
+        FieldCapabilitiesResponse unwrapPrimary(R r);
+    }
+
+    private static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {
         var blocks = projectState.blocks();
         var projectId = projectState.projectId();
         if (blocks.global(projectId).isEmpty() && blocks.indices(projectId).isEmpty()) {
@@ -404,7 +471,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    public static FieldCapabilitiesRequest prepareRemoteRequest(
+    private static FieldCapabilitiesRequest prepareRemoteRequest(
         String clusterAlias,
         FieldCapabilitiesRequest request,
         OriginalIndices originalIndices,
@@ -610,10 +677,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
      * This collector can contain a failure for an index even if one of its shards was successful. When building the final
      * list, these failures will be skipped because they have no affect on the final response.
      */
-    public static final class FailureCollector {
+    private static final class FailureCollector {
         private final Map<String, Exception> failuresByIndex = new HashMap<>();
 
-        public List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
+        List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
             Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = new HashMap<>();
             for (Map.Entry<String, Exception> failure : failuresByIndex.entrySet()) {
                 String index = failure.getKey();
@@ -642,15 +709,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             return new ArrayList<>(indexFailures.values());
         }
 
-        public void collect(String index, Exception e) {
+        void collect(String index, Exception e) {
             failuresByIndex.putIfAbsent(index, e);
         }
 
-        public void clear() {
+        void clear() {
             failuresByIndex.clear();
         }
 
-        public boolean isEmpty() {
+        boolean isEmpty() {
             return failuresByIndex.isEmpty();
         }
     }
@@ -713,8 +780,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    public static class ForkingOnFailureActionListener<Response> extends AbstractThreadedActionListener<Response> {
-        public ForkingOnFailureActionListener(Executor executor, boolean forceExecution, ActionListener<Response> delegate) {
+    private static class ForkingOnFailureActionListener<Response> extends AbstractThreadedActionListener<Response> {
+        ForkingOnFailureActionListener(Executor executor, boolean forceExecution, ActionListener<Response> delegate) {
             super(executor, forceExecution, delegate);
         }
 

@@ -8,22 +8,10 @@ applies_to:
 
 # Retrievers [retriever]
 
-A retriever is a specification to describe top documents returned from a search.
-A retriever replaces other elements of
-the [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search)
-that also return top documents such
-as [`query`](/reference/query-languages/querydsl.md)
-and [`knn`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-knn).
-A retriever may have child retrievers where a retriever with two or more
-children is considered a compound retriever. This allows for complex behavior to
-be depicted in a tree-like structure, called the retriever tree, which clarifies
-the order of operations that occur during a search.
+A retriever is a specification to describe top documents returned from a search. A retriever replaces other elements of the [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) that also return top documents such as [`query`](/reference/query-languages/querydsl.md) and [`knn`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-knn). A retriever may have child retrievers where a retriever with two or more children is considered a compound retriever. This allows for complex behavior to be depicted in a tree-like structure, called the retriever tree, which clarifies the order of operations that occur during a search.
 
 ::::{tip}
-Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md)
-for a high level overview of the retrievers abstraction. Refer
-to [Retrievers examples](retrievers/retrievers-examples.md) for additional
-examples.
+Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) for a high level overview of the retrievers abstraction. Refer to [Retrievers examples](retrievers/retrievers-examples.md) for additional examples.
 
 ::::
 
@@ -36,8 +24,7 @@ The following retrievers are available:
 :   The [knn](retrievers/knn-retriever.md) retriever replaces the functionality of a [knn search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-knn).
 
 `linear`
-:   The [linear](retrievers/linear-retriever.md) retriever linearly combines the
-scores of other retrievers for the top documents.
+:   The [linear](retrievers/linear-retriever.md) retriever linearly combines the scores of other retrievers for the top documents.
 
 `pinned` {applies_to}`stack: GA 9.1`
 :   The [pinned](retrievers/pinned-retriever.md) retriever always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
@@ -55,19 +42,20 @@ scores of other retrievers for the top documents.
 :   The [standard](retrievers/standard-retriever.md) retriever replaces the functionality of a traditional [query](/reference/query-languages/querydsl.md).
 
 `text_similarity_reranker`
-:
-The [text_similarity_reranker](retrievers/text-similarity-reranker-retriever.md)
-retriever enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
+:   The [text_similarity_reranker](retrievers/text-similarity-reranker-retriever.md) retriever enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
 
 ## Common usage guidelines [retriever-common-parameters]
 
+
 ### Using `from` and `size` with a retriever tree [retriever-size-pagination]
 
-The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-from-param) and [`size`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param) parameters are provided globally as part of the general [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search).They are applied to all retrievers in a retriever tree, unless a specific retriever overrides the `size` parameter using a different parameter such as `rank_window_size`. Though, the final search hits are always limited to `size`.
+The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-from-param) and [`size`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param) parameters are provided globally as part of the general [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search). They are applied to all retrievers in a retriever tree, unless a specific retriever overrides the `size` parameter using a different parameter such as `rank_window_size`. Though, the final search hits are always limited to `size`.
+
 
 ### Using aggregations with a retriever tree [retriever-aggregations]
 
 [Aggregations](/reference/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
+
 
 ### Restrictions on search parameters when specifying a retriever [retriever-restrictions]
 
@@ -80,26 +68,30 @@ When a retriever is specified as part of a search, the following elements are no
 * [`sort`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-sort-param)
 * [`rescore`](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore) use a [rescorer retriever](retrievers/rescorer-retriever.md) instead
 
-## Multi-field query format [multi-field-query-format]
 
+## Multi-field query format [multi-field-query-format]
 ```yaml {applies_to}
 stack: ga 9.1
 ```
 
-The [`linear`](retrievers/linear-retriever.md)
-and [`rrf`](retrievers/rrf-retriever.md) retrievers support a multi-field query format that provides a simplified way to define searches across multiple fields without explicitly specifying inner retrievers. This format automatically generates appropriate inner retrievers based on the field types and query parameters. This is a great way to search an index, knowing little to nothing about its schema, while also handling normalization across lexical and semantic matches.
+The [`linear`](retrievers/linear-retriever.md) and [`rrf`](retrievers/rrf-retriever.md) retrievers support a multi-field query format that provides a simplified way to define searches across multiple fields without explicitly specifying inner retrievers.
+This format automatically generates appropriate inner retrievers based on the field types and query parameters.
+This is a great way to search an index, knowing little to nothing about its schema, while also handling normalization across lexical and semantic matches.
 
 ### Field grouping [multi-field-field-grouping]
 
 The multi-field query format groups queried fields into two categories:
 
-- **Lexical fields**: fields that support term queries, such as `keyword`  and `text` fields.
+- **Lexical fields**: fields that support term queries, such as `keyword` and `text` fields.
 - **Semantic fields**: [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
 
-Each field group is queried separately and the scores/ranks are normalized such that each contributes 50% to the final score/rank. This balances the importance of lexical and semantic fields. Most indices contain more lexical than semantic fields, and without this grouping the results would often bias towards lexical field matches.
+Each field group is queried separately and the scores/ranks are normalized such that each contributes 50% to the final score/rank.
+This balances the importance of lexical and semantic fields.
+Most indices contain more lexical than semantic fields, and without this grouping the results would often bias towards lexical field matches.
 
 ::::{warning}
-In the `linear` retriever, this grouping relies on using a normalizer other than `none` (i.e., `minmax` or `l2_norm`). If you use the `none` normalizer, the scores across field groups will not be normalized and the results may be biased towards lexical field matches.
+In the `linear` retriever, this grouping relies on using a normalizer other than `none` (i.e., `minmax` or `l2_norm`).
+If you use the `none` normalizer, the scores across field groups will not be normalized and the results may be biased towards lexical field matches.
 ::::
 
 ### Linear retriever field boosting [multi-field-field-boosting]
@@ -210,7 +202,8 @@ GET books/_search
 2. 2x weight
 3. 1x weight (default)
 
-Due to how the [field group scores](#multi-field-field-grouping) are normalized, per-field boosts have no effect on the range of the final score. Instead, they affect the importance of the field's score within its group.
+Due to how the [field group scores](#multi-field-field-grouping) are normalized, per-field boosts have no effect on the range of the final score.
+Instead, they affect the importance of the field's score within its group.
 
 For example, if the schema looks like:
 
@@ -237,7 +230,6 @@ PUT /books
   }
 }
 ```
-
 % TEST[continued]
 
 And we run this query:
@@ -259,17 +251,16 @@ GET books/_search
   }
 }
 ```
-
 % TEST[continued]
 
 The score breakdown would be:
 
 * Lexical fields (50% of score):
-    * `title`: 50% of lexical fields group score, 25% of final score
-    * `description`: 50% of lexical fields group score, 25% of final score
+  * `title`: 50% of lexical fields group score, 25% of final score
+  * `description`: 50% of lexical fields group score, 25% of final score
 * Semantic fields (50% of score):
-    * `title_semantic`: 50% of semantic fields group score, 25% of final score
-    * `description_semantic`: 50% of semantic fields group score, 25% of final score
+  * `title_semantic`: 50% of semantic fields group score, 25% of final score
+  * `description_semantic`: 50% of semantic fields group score, 25% of final score
 
 If we apply per-field boosts like so:
 
@@ -290,7 +281,6 @@ GET books/_search
   }
 }
 ```
-
 % TEST[continued]
 
 The score breakdown would change to:
@@ -320,7 +310,6 @@ GET books/_search
   }
 }
 ```
-
 % TEST[continued]
 
 1. Match fields that start with `title`

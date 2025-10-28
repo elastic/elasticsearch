@@ -36,10 +36,11 @@ public final class TypeResolutions {
         SECOND,
         THIRD,
         FOURTH,
-        FIFTH;
+        FIFTH,
+        IMPLICIT;
 
         public static ParamOrdinal fromIndex(int index) {
-            return switch (index) {
+            return index < 0 ? IMPLICIT : switch (index) {
                 case 0 -> FIRST;
                 case 1 -> SECOND;
                 case 2 -> THIRD;

@@ -64,8 +64,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.IntStream.range;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -146,7 +144,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          * second node, since the third is reporting as hot-spotted and should not accept any shards.
          */
 
-        logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
+        logger.info("--> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
         refreshClusterInfo();
 
         var temporaryClusterStateListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
@@ -165,7 +163,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         try {
             logger.info(
-                "---> Update the filter to exclude " + harness.firstDataNodeName + " so shards will be reassigned away to the other nodes"
+                "--> Update the filter to exclude " + harness.firstDataNodeName + " so shards will be reassigned away to the other nodes"
             );
             // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
             updateClusterSettings(
@@ -176,17 +174,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
             safeAwait(temporaryClusterStateListener);
         } catch (AssertionError error) {
-            ClusterState state = internalCluster().client()
-                .admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .clear()
-                .setMetadata(true)
-                .setNodes(true)
-                .setRoutingTable(true)
-                .get()
-                .getState();
-            logger.info("---> Failed to reach expected allocation state. Dumping assignments: " + state.getRoutingNodes());
+            dumpClusterState();
             throw error;
         }
     }
@@ -255,7 +243,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          * the second and third node reporting hot-spotting: a canRemain::NO response should override a canAllocate::NOT_PREFERRED answer.
          */
 
-        logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
+        logger.info("--> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
         refreshClusterInfo();
 
         var temporaryClusterStateListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
@@ -269,25 +257,13 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         });
 
         try {
-            logger.info(
-                "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
-            );
+            logger.info("--> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only");
             // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
-            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+            updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._name"));
 
             safeAwait(temporaryClusterStateListener);
         } catch (AssertionError error) {
-            ClusterState state = internalCluster().client()
-                .admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .clear()
-                .setMetadata(true)
-                .setNodes(true)
-                .setRoutingTable(true)
-                .get()
-                .getState();
-            logger.info("---> Failed to reach expected allocation state. Dumping assignments: " + state.getRoutingNodes());
+            dumpClusterState();
             throw error;
         }
     }
@@ -355,17 +331,15 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         // Wait for the DesiredBalance to be recomputed as a result of the ClusterInfo refresh. Ensures no async computation.
         MockLog.awaitLogger(() -> {
-            logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with hot-spot stats");
+            logger.info("--> Refreshing the cluster info to pull in the dummy thread pool stats with hot-spot stats");
             refreshClusterInfo();
         }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
 
         // Wait for the DesiredBalance to be recomputed as a result of the settings change.
         MockLog.awaitLogger(() -> {
-            logger.info(
-                "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
-            );
+            logger.info("--> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only");
             // Updating the cluster settings will trigger a reroute request.
-            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+            updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._name"));
         }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
 
         try {
@@ -375,23 +349,14 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
             );
             Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(harness.indexName);
-            logger.info("---> Checking desired shard assignments are still on the first data node. Desired assignments: " + shardsMap);
+            logger.info("--> Checking desired shard assignments are still on the first data node. Desired assignments: " + shardsMap);
             for (var desiredShard : shardsMap.values()) {
                 for (var desiredNodeId : desiredShard.desired().nodeIds()) {
                     assertEquals("Found a shard assigned to an unexpected node: " + shardsMap, desiredNodeId, harness.firstDataNodeId);
                 }
             }
         } catch (AssertionError error) {
-            ClusterState state = client().admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .clear()
-                .setMetadata(true)
-                .setNodes(true)
-                .setRoutingTable(true)
-                .get()
-                .getState();
-            logger.info("---> Failed to reach expected allocation state. Dumping assignments: " + state.getRoutingNodes());
+            dumpClusterState();
             throw error;
         }
     }
@@ -456,17 +421,15 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         // Wait for the DesiredBalance to be recomputed as a result of the ClusterInfo refresh. This way nothing async is running.
         MockLog.awaitLogger(() -> {
-            logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with hot-spot stats");
+            logger.info("--> Refreshing the cluster info to pull in the dummy thread pool stats with hot-spot stats");
             refreshClusterInfo();
         }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
 
         // Wait for the DesiredBalance to be recomputed as a result of the settings change.
         MockLog.awaitLogger(() -> {
-            logger.info(
-                "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
-            );
+            logger.info("--> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only");
             // Updating the cluster settings will trigger a reroute request.
-            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+            updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._name"));
         }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
 
         try {
@@ -475,7 +438,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
             );
             Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(harness.indexName);
-            logger.info("---> Checking desired shard assignments. Desired assignments: " + shardsMap);
+            logger.info("--> Checking desired shard assignments. Desired assignments: " + shardsMap);
             int countShardsStillAssignedToFirstNode = 0;
             for (var desiredShard : shardsMap.values()) {
                 for (var desiredNodeId : desiredShard.desired().nodeIds()) {
@@ -491,16 +454,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             );
             assertThatTheBestShardWasMoved(harness, originalClusterState, desiredBalanceResponse);
         } catch (AssertionError error) {
-            ClusterState state = client().admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .clear()
-                .setMetadata(true)
-                .setNodes(true)
-                .setRoutingTable(true)
-                .get()
-                .getState();
-            logger.info("---> Failed to reach expected allocation state. Dumping assignments: " + state.getRoutingNodes());
+            dumpClusterState();
             throw error;
         }
     }
@@ -793,7 +747,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final DiscoveryNode thirdDiscoveryNode = getDiscoveryNode(thirdDataNodeName);
 
         logger.info(
-            "---> first node name "
+            "--> first node name "
                 + firstDataNodeName
                 + " and ID "
                 + firstDataNodeId
@@ -808,7 +762,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         );
 
         logger.info(
-            "---> utilization threshold: "
+            "--> utilization threshold: "
                 + randomUtilizationThresholdPercent
                 + ",  write threads: "
                 + randomNumberOfWritePoolThreads
@@ -821,7 +775,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          * Then create an index with many shards, which will all be assigned to the first data node.
          */
 
-        logger.info("---> Limit shard assignment to node " + firstDataNodeName + " by excluding the other nodes");
+        logger.info("--> Limit shard assignment to node " + firstDataNodeName + " by excluding the other nodes");
         updateClusterSettings(
             Settings.builder().put("cluster.routing.allocation.exclude._name", secondDataNodeName + "," + thirdDataNodeName)
         );
@@ -853,14 +807,16 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             );
         });
 
-        createIndex(
-            indexName,
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomNumberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex(indexName, randomNumberOfShards, 0);
         ensureGreen(indexName);
 
-        logger.info("---> Waiting for all [" + randomNumberOfShards + "] shards to be assigned to node " + firstDataNodeName);
-        safeAwait(verifyAssignmentToFirstNodeListener);
+        logger.info("--> Waiting for all [" + randomNumberOfShards + "] shards to be assigned to node " + firstDataNodeName);
+        try {
+            safeAwait(verifyAssignmentToFirstNodeListener);
+        } catch (AssertionError error) {
+            dumpClusterState();
+            throw error;
+        }
 
         return new TestHarness(
             firstDataNodeName,
@@ -880,6 +836,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             randomNumberOfShards,
             maxUtilBelowThresholdThatAllowsAllShardsToRelocate
         );
+    }
+
+    private void dumpClusterState() {
+        logger.info("--> Failed to reach expected allocation state. Dumping cluster state");
+        logClusterState();
     }
 
     /**

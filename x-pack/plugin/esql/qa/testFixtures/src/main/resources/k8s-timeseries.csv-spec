@@ -594,6 +594,84 @@ max_cost:integer | pod:keyword | time_bucket:datetime     | max_cluster_cost:int
 973              | two         | 2024-05-10T00:00:00.000Z | 1209                     | staging
 ;
 
+max_of_stddev_over_time
+required_capability: ts_command_v0
+required_capability: variance_stddev_over_time
+// tag::stddev_over_time[]
+TS k8s
+| STATS max_stddev_cost=MAX(STDDEV_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+// end::stddev_over_time[]
+| EVAL max_stddev_cost = ROUND(max_stddev_cost, 6)
+| SORT max_stddev_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+// tag::stddev_over_time-result[]
+cluster:keyword | time_bucket:datetime     | max_stddev_cost:double
+staging         | 2024-05-10T00:03:00.000Z | 5.4375
+staging         | 2024-05-10T00:09:00.000Z | 5.1875
+qa              | 2024-05-10T00:18:00.000Z | 4.097764
+qa              | 2024-05-10T00:21:00.000Z | 4.0
+staging         | 2024-05-10T00:20:00.000Z | 3.9375
+// end::stddev_over_time-result[]
+prod            | 2024-05-10T00:18:00.000Z | 3.93353
+qa              | 2024-05-10T00:08:00.000Z | 3.89444
+qa              | 2024-05-10T00:17:00.000Z | 3.882385
+staging         | 2024-05-10T00:13:00.000Z | 3.835597
+staging         | 2024-05-10T00:12:00.000Z | 3.8125
+
+;
+
+avg_variance_over_time
+required_capability: ts_command_v0
+required_capability: variance_stddev_over_time
+// tag::variance_over_time[]
+TS k8s
+| STATS avg_var_cost=AVG(VARIANCE_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+// end::variance_over_time[]
+| EVAL avg_var_cost = ROUND(avg_var_cost, 6)
+| SORT avg_var_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+// tag::variance_over_time-result[]
+cluster:keyword | time_bucket:datetime     | avg_var_cost:double
+staging         | 2024-05-10T00:03:00.000Z | 20.478516
+qa              | 2024-05-10T00:21:00.000Z | 16.0
+qa              | 2024-05-10T00:18:00.000Z | 11.192274
+staging         | 2024-05-10T00:09:00.000Z | 10.446904
+// end::variance_over_time-result[]
+qa              | 2024-05-10T00:17:00.000Z | 10.398003
+qa              | 2024-05-10T00:08:00.000Z | 10.114583
+staging         | 2024-05-10T00:20:00.000Z | 7.910156
+staging         | 2024-05-10T00:13:00.000Z | 7.355903
+prod            | 2024-05-10T00:02:00.000Z | 6.570313
+prod            | 2024-05-10T00:18:00.000Z | 5.157552
+
+;
+
+stddev_sq_and_var_over_time_are_consistent
+required_capability: ts_command_v0
+required_capability: variance_stddev_over_time
+
+TS k8s
+| STATS sd=max(stddev_over_time(network.cost)), var=max(variance_over_time(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+| EVAL sd_squared = sd * sd
+| EVAL sd_squared = ROUND(sd_squared, 6), var = ROUND(var, 6), sd = ROUND(sd, 6)
+| KEEP sd, var, sd_squared, cluster, time_bucket
+| SORT cluster, time_bucket
+| LIMIT 10;
+
+sd:double | var:double | sd_squared:double | cluster:keyword | time_bucket:datetime
+1.4375    | 2.066406   | 2.066406          | prod            | 2024-05-10T00:00:00.000Z
+0.0       | 0.0        | 0.0               | prod            | 2024-05-10T00:01:00.000Z
+3.625     | 13.140625  | 13.140625         | prod            | 2024-05-10T00:02:00.000Z
+0.0       | 0.0        | 0.0               | prod            | 2024-05-10T00:03:00.000Z
+0.0       | 0.0        | 0.0               | prod            | 2024-05-10T00:04:00.000Z
+2.75      | 7.5625     | 7.5625            | prod            | 2024-05-10T00:05:00.000Z
+0.0       | 0.0        | 0.0               | prod            | 2024-05-10T00:06:00.000Z
+1.9375    | 3.753906   | 3.753906          | prod            | 2024-05-10T00:08:00.000Z
+3.406999  | 11.607639  | 11.607639         | prod            | 2024-05-10T00:09:00.000Z
+0.0       | 0.0        | 0.0               | prod            | 2024-05-10T00:10:00.000Z
+
+;
+
 Max of Rate with Bucket
 required_capability: ts_command_v0
 
@@ -641,4 +719,5 @@ TS k8s
 mx:integer | tbucket:datetime
 1716       | 2024-05-10T00:00:00.000Z
 ;
+
 

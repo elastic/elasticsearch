@@ -33,8 +33,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.mockito.ArgumentMatchers.any;
 
 public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
+
+    public void testCanAlwaysAllocateDuringReplace() {
+        var wld = new WriteLoadConstraintDecider(ClusterSettings.createBuiltInClusterSettings());
+        assertEquals(Decision.YES, wld.canForceAllocateDuringReplace(any(), any(), any()));
+    }
 
     /**
      * Test the write load decider behavior when disabled

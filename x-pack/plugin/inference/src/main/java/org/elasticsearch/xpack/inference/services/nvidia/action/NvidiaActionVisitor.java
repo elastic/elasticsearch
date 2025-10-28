@@ -22,6 +22,7 @@ public interface NvidiaActionVisitor {
      * Creates an executable action for the given Nvidia embeddings model.
      *
      * @param model the Nvidia embeddings model
+     * @param taskSettings the task settings for the embeddings model
      * @return an executable action for the embeddings model
      */
     ExecutableAction create(NvidiaEmbeddingsModel model, Map<String, Object> taskSettings);

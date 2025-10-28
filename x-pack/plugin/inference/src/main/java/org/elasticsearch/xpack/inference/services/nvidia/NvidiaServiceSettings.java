@@ -71,7 +71,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
     }
 
     /**
-     * Returns the URI of the Nvidia chat completion service.
+     * Returns the URI of the Nvidia service.
      *
      * @return the URI of the service
      */
@@ -80,7 +80,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
     }
 
     /**
-     * Returns the rate limit settings for the Nvidia chat completion service.
+     * Returns the rate limit settings for the Nvidia service.
      *
      * @return the rate limit settings
      */

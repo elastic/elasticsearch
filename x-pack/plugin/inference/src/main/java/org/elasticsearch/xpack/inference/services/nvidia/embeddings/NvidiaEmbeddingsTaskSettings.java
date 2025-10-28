@@ -41,6 +41,11 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
     private final InputType inputType;
     private final CohereTruncation truncation;
 
+    /**
+     * Creates a new {@link NvidiaEmbeddingsTaskSettings} from a map of settings.
+     * @param map the map of settings
+     * @return a constructed {@link NvidiaEmbeddingsTaskSettings}
+     */
     public static NvidiaEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;

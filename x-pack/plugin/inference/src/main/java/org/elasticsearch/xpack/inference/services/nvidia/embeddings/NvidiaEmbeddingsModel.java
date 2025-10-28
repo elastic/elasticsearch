@@ -91,6 +91,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to embeddings
+     * @param taskSettings the task-specific settings to be applied
      * @param chunkingSettings the chunking settings for processing input data
      * @param secrets the secret settings for the model, such as API keys or tokens
      */

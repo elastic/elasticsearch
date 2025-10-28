@@ -81,11 +81,7 @@ public final class Ascii extends UnaryScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var field = toEvaluator.apply(field());
-        return new AsciiEvaluator.Factory(
-            source(),
-            context -> new BreakingBytesRefBuilder(context.breaker(), "ascii"),
-            field
-        );
+        return new AsciiEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "ascii"), field);
     }
 
     @Override
@@ -99,10 +95,7 @@ public final class Ascii extends UnaryScalarFunction {
     }
 
     @Evaluator
-    static BytesRef process(
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
-        BytesRef val
-    ) {
+    static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef val) {
         UnicodeUtil.UTF8CodePoint codePoint = new UnicodeUtil.UTF8CodePoint();
 
         int finalSize = 0;
@@ -125,7 +118,7 @@ public final class Ascii extends UnaryScalarFunction {
         scratch.grow(finalSize);
         scratch.clear();
 
-        //The second pass fills in the escaped values
+        // The second pass fills in the escaped values
         offset = val.offset;
         while (offset < val.offset + val.length) {
             codePoint = UnicodeUtil.codePointAt(val.bytes, offset, codePoint);
@@ -140,7 +133,6 @@ public final class Ascii extends UnaryScalarFunction {
 
         return scratch.bytesRefView();
     }
-
 
     private static Optional<BytesRef> escapeCodePoint(UnicodeUtil.UTF8CodePoint codePoint) {
         var code = codePoint.codePoint;

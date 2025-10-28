@@ -158,6 +158,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
 import java.util.zip.ZipEntry;
 
@@ -233,8 +234,15 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute findFieldAttribute(LogicalPlan plan, String name) {
+        return findFieldAttribute(plan, name, (unused) -> true);
+    }
+
+    public static FieldAttribute findFieldAttribute(LogicalPlan plan, String name, Predicate<EsRelation> inThisRelation) {
         Holder<FieldAttribute> result = new Holder<>();
         plan.forEachDown(EsRelation.class, relation -> {
+            if (inThisRelation.test(relation) == false) {
+                return;
+            }
             for (Attribute attr : relation.output()) {
                 if (attr.name().equals(name)) {
                     assertNull("Multiple matching field attributes found", result.get());

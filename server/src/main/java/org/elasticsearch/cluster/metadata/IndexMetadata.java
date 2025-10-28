@@ -3075,10 +3075,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 "the number of target shards (" + numTargetShards + ") must be greater than the shard id: " + shardId
             );
         }
-        final int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
-        assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
-        return new ShardId(sourceIndexMetadata.getIndex(), Math.floorMod(shardId, sourceIndexMetadata.getNumberOfShards()));
-        // return new ShardId(sourceIndexMetadata.getIndex(), shardId / routingFactor);
+        if (sourceIndexMetadata.getCreationVersion().onOrAfter(IndexVersions.MOD_ROUTING_FUNCTION)) {
+            return new ShardId(sourceIndexMetadata.getIndex(), Math.floorMod(shardId, sourceIndexMetadata.getNumberOfShards()));
+
+        } else {
+            final int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
+            assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
+            return new ShardId(sourceIndexMetadata.getIndex(), shardId / routingFactor);
+        }
     }
 
     /**
@@ -3168,12 +3172,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         int routingFactor = getRoutingFactor(sourceIndexMetadata.getNumberOfShards(), numTargetShards);
         Set<ShardId> shards = Sets.newHashSetWithExpectedSize(routingFactor);
-        for (int i = shardId; i < sourceIndexMetadata.getNumberOfShards(); i += numTargetShards) {
-            assert Math.floorMod(i, numTargetShards) == shardId;
-            shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
-        }
-        for (int i = shardId * routingFactor; i < routingFactor * shardId + routingFactor; i++) {
-            // shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
+        if (sourceIndexMetadata.getCreationVersion().onOrAfter(IndexVersions.MOD_ROUTING_FUNCTION)) {
+            for (int i = shardId; i < sourceIndexMetadata.getNumberOfShards(); i += numTargetShards) {
+                assert Math.floorMod(i, numTargetShards) == shardId;
+                shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
+            }
+        } else {
+            for (int i = shardId * routingFactor; i < routingFactor * shardId + routingFactor; i++) {
+                shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
+            }
         }
         return shards;
     }

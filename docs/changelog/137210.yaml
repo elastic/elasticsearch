@@ -1,0 +1,5 @@
+pr: 137210
+summary: "[WIP] Introduce INDEX_SHARD_COUNT_FORMAT"
+area: Snapshot/Restore
+type: bug
+issues: []

@@ -661,7 +661,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // only create the following maps if we detect a change
         Map<ShardId, SearchContextIdForNode> updatedShardMap = null;
         Collection<SearchContextIdForNode> contextsToClose = null;
-        logger.info("---> Re-encoding PIT id for node changes");
+        logger.debug("checking search result shards to detect PIT node changes");
         for (Result result : results) {
             SearchShardTarget searchShardTarget = result.getSearchShardTarget();
             ShardId shardId = searchShardTarget.getShardId();
@@ -670,8 +670,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 // check if the node is different, if so we need to re-encode the PIT
                 String originalNode = originalShard.getNode();
                 if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
-                    logger.debug("---> node id change for pit id [{}], new node [{}].", originalShard, searchShardTarget.getNodeId());
-
                     // the target node for this shard entry in the PIT has changed, we need to update it
                     idChanged = true;
                     if (updatedShardMap == null) {
@@ -685,7 +683,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         result.getContextId()
                     );
 
-                    logger.info("---> changing id for [{}] to [{}]", originalShard, updatedId);
+                    logger.debug("changing node for PIT shard id from [{}] to [{}]", originalShard, updatedId);
                     updatedShardMap.put(shardId, updatedId);
                     contextsToClose.add(original.shards().get(shardId));
 

@@ -362,7 +362,6 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 reEncodedId
             );
             assertEquals(originalShardIdMap.size(), reEncodedPit.shards().size());
-            logger.info(freedContexts);
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode original = originalShardIdMap.get(shardId);
                 SearchContextIdForNode reEncoded = reEncodedPit.shards().get(shardId);

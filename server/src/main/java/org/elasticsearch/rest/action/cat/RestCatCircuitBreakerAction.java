@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -55,6 +56,11 @@ public class RestCatCircuitBreakerAction extends AbstractCatAction {
     @Override
     protected Set<String> responseParams() {
         return RESPONSE_PARAMS;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(Set.of("cat_circuit_breaker"), super.supportedCapabilities());
     }
 
     @Override

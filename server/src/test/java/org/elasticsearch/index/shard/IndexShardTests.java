@@ -4465,6 +4465,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -5308,6 +5310,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -5359,6 +5363,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -5564,6 +5570,8 @@ public class IndexShardTests extends IndexShardTestCase {
                             });
                             assertThat(preparedForReset.get(), equalTo(true));
                             l.onResponse(null);
+                        } catch (Exception e) {
+                            l.onFailure(e);
                         }
                     }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 } catch (Exception e) {

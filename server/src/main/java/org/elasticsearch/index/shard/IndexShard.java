@@ -4634,16 +4634,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
      * Reseting the engine can prevent non-blocking engine refreshes (see {@link Engine#maybeRefresh(String, ActionListener)} to be
      * immediately executed, so it is expected that the new engine instance provides refreshed readers (if supported) after the reset.
+     * <p>
+     *     Throws if reset could not be completed or previous engine could not be closed.
+     * </p>
      *
      * @param postResetNewEngineConsumer A consumer that will be called with the newly created engine after the reset
      *                                   is complete, allowing for post-reset operations on the new engine instance.
      *                                   The provided engine reference should not be retained by the consumer.
      */
-    public void resetEngine(Consumer<Engine> postResetNewEngineConsumer) {
+    public void resetEngine(Consumer<Engine> postResetNewEngineConsumer) throws IOException {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert waitForEngineOrClosedShardListeners.isDone();
         assert assertNoEngineResetLock();
         Engine previousEngine = null;
+        Exception primaryException = null;
         try {
             synchronized (engineMutex) {
                 verifyNotClosed();
@@ -4667,9 +4671,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } catch (Exception e) {
                     // we want to fail the shard in the case prepareForEngineReset throws
                     failShard("unable to reset engine", e);
+                    throw e;
                 }
             }
             onSettingsChanged();
+        } catch (Exception e) {
+            primaryException = e;
+            throw e;
         } finally {
             if (previousEngine != null) {
                 assert engineResetLock.isReadLockedByCurrentThread();
@@ -4677,6 +4685,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     IOUtils.close(previousEngine);
                 } catch (Exception e) {
                     failShard("unable to close previous engine after reset", e);
+
+                    if (primaryException != null) {
+                        primaryException.addSuppressed(e);
+                    } else {
+                        throw e;
+                    }
                 } finally {
                     engineResetLock.readLock().unlock();
                 }

@@ -152,8 +152,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             final byte[] toEncode;
             if (elementType == ElementType.FLOAT) {
                 float[] array = randomNormalizedVector(this.dims);
-                final ByteBuffer buffer =
-                    ByteBuffer.allocate(Float.BYTES * array.length);
+                final ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * array.length);
                 buffer.asFloatBuffer().put(array);
                 toEncode = buffer.array();
             } else {

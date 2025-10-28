@@ -1,3 +1,4 @@
+* [`ASCII`](../../functions-operators/string-functions.md#ascii)
 * [`BIT_LENGTH`](../../functions-operators/string-functions.md#esql-bit_length)
 * [`BYTE_LENGTH`](../../functions-operators/string-functions.md#esql-byte_length)
 * [`CONCAT`](../../functions-operators/string-functions.md#esql-concat)

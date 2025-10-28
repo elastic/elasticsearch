@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexShardCount;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -242,12 +241,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String METADATA_PREFIX = "meta-";
 
     /**
-     * Name prefix for the blobs that hold the global {@link IndexShardCount} for each index
-     * @see #SHARD_COUNT_NAME_FORMAT
-     */
-    public static final String SHARD_COUNT_PREFIX = "shard-count-";
-
-    /**
      * Name prefix for the blobs that hold top-level {@link SnapshotInfo} and shard-level {@link BlobStoreIndexShardSnapshot} metadata.
      * @see #SNAPSHOT_NAME_FORMAT
      */
@@ -266,12 +259,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @see #INDEX_METADATA_FORMAT
      */
     public static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s" + METADATA_BLOB_NAME_SUFFIX;
-
-    /**
-     * Blob name format for global {@link IndexShardCount} blobs.
-     * @see #INDEX_SHARD_COUNT_FORMAT
-     */
-    public static final String SHARD_COUNT_NAME_FORMAT = SHARD_COUNT_PREFIX + "%s" + METADATA_BLOB_NAME_SUFFIX;
 
     /**
      * Blob name format for top-level {@link SnapshotInfo} and shard-level {@link BlobStoreIndexShardSnapshot} blobs.
@@ -411,10 +398,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Function.identity()
     );
 
-    public static final ChecksumBlobStoreFormat<IndexShardCount> INDEX_SHARD_COUNT_FORMAT = new ChecksumBlobStoreFormat<>(
-        "index-shard-count",
-        SHARD_COUNT_NAME_FORMAT,
-        (repoName, parser) -> IndexShardCount.fromXContent(parser),
+    public static final ChecksumBlobStoreFormat<IndexMetadata.IndexShardCount> INDEX_SHARD_COUNT_FORMAT = new ChecksumBlobStoreFormat<>(
+        "index-metadata",
+        METADATA_NAME_FORMAT,
+        (repoName, parser) -> IndexMetadata.IndexShardCount.fromLegacyIndexMetaData(parser),
+        (repoName, parser) -> IndexMetadata.IndexShardCount.fromIndexMetaData(parser),
         Function.identity()
     );
 
@@ -1930,20 +1918,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     for (IndexId index : indices) {
                         executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
                             final IndexMetadata indexMetaData = projectMetadata.index(index.getName());
-                            final IndexShardCount indexShardCount = new IndexShardCount(indexMetaData.getNumberOfShards());
                             if (writeIndexGens) {
                                 final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
                                 String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
                                 if (metaUUID == null) {
                                     // We don't yet have this version of the metadata so we write it
                                     metaUUID = UUIDs.base64UUID();
-                                    INDEX_SHARD_COUNT_FORMAT.write(indexShardCount, indexContainer(index), metaUUID, compress);
                                     INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
                                     metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
                                 } // else this task was largely a no-op - TODO no need to fork in that case
                                 metadataWriteResult.indexMetas().put(index, identifiers);
                             } else {
-                                INDEX_SHARD_COUNT_FORMAT.write(indexShardCount, indexContainer(index), snapshotId.getUUID(), compress);
                                 INDEX_METADATA_FORMAT.write(
                                     clusterMetadata.getProject(getProjectId()).index(index.getName()),
                                     indexContainer(index),

@@ -2881,13 +2881,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         Settings settings = Settings.fromXContent(parser);
-                        if (SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).isLegacyIndexVersion() == false) {
-                            throw new IllegalStateException(
-                                "this method should only be used to parse older incompatible index metadata versions "
-                                    + "but got "
-                                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).toReleaseVersion()
-                            );
-                        }
+                        checkSettingIndexVersionCompatibility(settings);
                         builder.settings(settings);
                     } else if ("mappings".equals(currentFieldName)) {
                         Map<String, Object> mappingSourceBuilder = new HashMap<>();
@@ -2977,6 +2971,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else if (mapping.size() > 1) {
                 builder.putMapping(new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mapping));
             }
+        }
+    }
+
+    private static void checkSettingIndexVersionCompatibility(Settings settings) {
+        if (SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).isLegacyIndexVersion() == false) {
+            throw new IllegalStateException(
+                "this method should only be used to parse older incompatible index metadata versions "
+                    + "but got "
+                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).toReleaseVersion()
+            );
         }
     }
 
@@ -3226,6 +3230,111 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             );
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse the index name [" + indexName + "] to extract the counter", e);
+        }
+    }
+
+    /**
+     * A subset of {@link IndexMetadata} storing only the shard count of an index
+     * Prior to v9.3, the entire {@link IndexMetadata} object was stored in heap and then loaded during snapshotting to determine
+     * the shard count. As per ES-12539, this is replaced with the {@link IndexShardCount} class that writes and loads only the index's
+     * shard count to and from heap memory, reducing the possibility of smaller nodes going OOMe during snapshotting
+     */
+    public static class IndexShardCount implements ToXContentFragment {
+        private static final String KEY_SHARD_COUNT = "shard_count";
+        private final int shardCount;
+
+        public IndexShardCount(int count) {
+            this.shardCount = count;
+        }
+
+        public int getCount() {
+            return shardCount;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(KEY_SHARD_COUNT, shardCount);
+            return builder;
+        }
+
+        public static IndexShardCount.Builder builder() {
+            return new IndexShardCount.Builder();
+        }
+
+        public static class Builder {
+            private int count;
+
+            public IndexShardCount.Builder setCount(int count) {
+                this.count = count;
+                return this;
+            }
+
+            public IndexShardCount build() {
+                return new IndexShardCount(count);
+            }
+        }
+
+        /**
+         * Parses an {@link IndexMetadata} object, reading only the shard count and skipping the rest
+         * @param parser The parser of the {@link IndexMetadata} object
+         * @return Returns an {@link IndexShardCount} containing the shard count for the index
+         * @throws IOException Thrown if the {@link IndexMetadata} object cannot be parsed correctly
+         */
+        public static IndexShardCount fromIndexMetaData(XContentParser parser) throws IOException {
+            return fromIndexMetaData(parser, false);
+        }
+
+        public static IndexShardCount fromIndexMetaData(XContentParser parser, boolean legacy) throws IOException {
+            if (parser.currentToken() == null) { // fresh parser? move to the first token
+                parser.nextToken();
+            }
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
+                parser.nextToken();
+            }
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+            String currentFieldName;
+            XContentParser.Token token = parser.nextToken();
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+
+            Builder indexShardCountBuilder = new Builder();
+            // Skip over everything except the settings object we care about, or any unexpected tokens
+            while ((currentFieldName = parser.nextFieldName()) != null) {
+                token = parser.nextToken();
+                if (token == XContentParser.Token.START_OBJECT) {
+                    if (currentFieldName.equals(KEY_SETTINGS)) {
+                        Settings settings = Settings.fromXContent(parser);
+                        if (legacy) {
+                            checkSettingIndexVersionCompatibility(settings);
+                        }
+                        indexShardCountBuilder.setCount(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1));
+                    } else {
+                        // Iterate through the object, but we don't care for it's contents
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        }
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    // Iterate through the array, but we don't care for it's contents
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    }
+                } else if (token.isValue() == false) {
+                    throw new IllegalArgumentException("Unexpected token " + token);
+                }
+            }
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+            return indexShardCountBuilder.build();
+        }
+
+        /**
+         * Parses legacy metadata from ES versions that are no longer index-compatible, returning information on best-effort basis.
+         * <p>
+         * Like {@link #fromIndexMetaData}, we are parsing an {@link IndexMetadata} object,
+         * reading only the shard count and skipping the rest.
+         * <p>
+         * Throws an exception if the metadata is index-compatible with the current version (in that case,
+         * {@link #fromXContent} should be used to load the content.
+         */
+        public static IndexShardCount fromLegacyIndexMetaData(XContentParser parser) throws IOException {
+            return fromIndexMetaData(parser, true);
         }
     }
 }

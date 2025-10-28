@@ -253,7 +253,6 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
                     startsWith(BlobStoreRepository.INDEX_FILE_PREFIX),
                     startsWith(BlobStoreRepository.METADATA_PREFIX),
                     startsWith(BlobStoreRepository.SNAPSHOT_PREFIX),
-                    startsWith(BlobStoreRepository.SHARD_COUNT_PREFIX),
                     equalTo(BlobStoreRepository.INDEX_LATEST_BLOB),
                     // verification
                     equalTo("master.dat"),

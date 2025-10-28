@@ -59,7 +59,7 @@ public record TargetProjects(
     }
 
     /**
-     * Stream containing all project IDs
+     * Stream containing all project infos, including origin and linked projects
      */
     public Stream<ProjectRoutingInfo> allProjects() {
         return Stream.concat(

@@ -23,8 +23,8 @@ public class PromqlAstBuilder extends PromqlLogicalPlanBuilder {
         this(null, null);
     }
 
-    public PromqlAstBuilder(Instant start, Instant stop) {
-        super(start, stop);
+    public PromqlAstBuilder(Instant start, Instant end) {
+        super(start, end);
     }
 
     public LogicalPlan plan(ParseTree ctx) {

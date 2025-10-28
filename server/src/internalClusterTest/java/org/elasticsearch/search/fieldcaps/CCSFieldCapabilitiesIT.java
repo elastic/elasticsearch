@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fieldcaps;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
@@ -403,5 +404,13 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         );
         assertEquals(1, remoteExpression.localExpressions().indices().size());
         assertEquals(remoteIndex, remoteResolvedExpressions.get(0).original());
+    }
+
+    public void testIncludesMinTransportVersion() {
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareCreate("index"));
+        }
+        var response = client().prepareFieldCaps("_all").setFields("*").get();
+        assertThat(response.minTransportVersion(), equalTo(TransportVersion.current()));
     }
 }

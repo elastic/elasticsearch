@@ -308,7 +308,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return this.runtimeFields;
     }
 
-    public Long nowInMillis() {
+    Long nowInMillis() {
         return nowInMillis;
     }
 

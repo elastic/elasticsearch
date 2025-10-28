@@ -17,13 +17,12 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -35,12 +34,14 @@ import java.util.stream.Collectors;
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
 public class FieldCapabilitiesResponse extends ActionResponse implements ChunkedToXContentObject {
+
+    private static final TransportVersion MIN_TRANSPORT_VERSION = TransportVersion.fromName("min_transport_version");
+    private static final TransportVersion RESOLVED_FIELDS_CAPS = TransportVersion.fromName("resolved_fields_caps");
+
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
-
-    private static final TransportVersion RESOLVED_FIELDS_CAPS = TransportVersion.fromName("resolved_fields_caps");
 
     private final String[] indices;
     private final ResolvedIndexExpressions resolvedLocally;
@@ -48,6 +49,19 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     private final Map<String, Map<String, FieldCapabilities>> fields;
     private final List<FieldCapabilitiesFailure> failures;
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
+    private final TransportVersion minTransportVersion;
+
+    public FieldCapabilitiesResponse(
+        String[] indices,
+        Map<String, Map<String, FieldCapabilities>> fields,
+        List<FieldCapabilitiesFailure> failures
+    ) {
+        this(indices, null, Collections.emptyMap(), fields, Collections.emptyList(), failures, null);
+    }
+
+    public FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> fields) {
+        this(indices, null, Collections.emptyMap(), fields, Collections.emptyList(), Collections.emptyList(), null);
+    }
 
     public static FieldCapabilitiesResponse empty() {
         return new FieldCapabilitiesResponse(
@@ -56,8 +70,13 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
             Collections.emptyMap(),
             Collections.emptyMap(),
             Collections.emptyList(),
-            Collections.emptyList()
+            Collections.emptyList(),
+            null
         );
+    }
+
+    public FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
+        this(Strings.EMPTY_ARRAY, null, Collections.emptyMap(), Collections.emptyMap(), indexResponses, failures, null);
     }
 
     public static FieldCapabilitiesResponse.Builder builder() {
@@ -70,7 +89,8 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         Map<String, ResolvedIndexExpressions> resolvedRemotely,
         Map<String, Map<String, FieldCapabilities>> fields,
         List<FieldCapabilitiesIndexResponse> indexResponses,
-        List<FieldCapabilitiesFailure> failures
+        List<FieldCapabilitiesFailure> failures,
+        TransportVersion minTransportVersion
     ) {
         this.fields = Objects.requireNonNull(fields);
         this.resolvedLocally = resolvedLocally;
@@ -78,6 +98,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.indices = indices;
         this.failures = failures;
+        this.minTransportVersion = minTransportVersion;
     }
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
@@ -85,6 +106,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         this.fields = in.readMap(FieldCapabilitiesResponse::readField);
         this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
         this.failures = in.readCollectionAsList(FieldCapabilitiesFailure::new);
+        this.minTransportVersion = in.getTransportVersion().supports(MIN_TRANSPORT_VERSION)
+            ? in.readOptional(TransportVersion::readVersion)
+            : null;
         if (in.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
             this.resolvedLocally = in.readOptionalWriteable(ResolvedIndexExpressions::new);
         } else {
@@ -150,11 +174,25 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     }
 
     /**
-     *
      * Get the field capabilities per type for the provided {@code field}.
      */
     public Map<String, FieldCapabilities> getField(String field) {
         return fields.get(field);
+    }
+
+    /**
+     * @return the minTransportVersion across all clusters involved in resolution
+     */
+    @Nullable
+    public TransportVersion minTransportVersion() {
+        return minTransportVersion;
+    }
+
+    /**
+     * Build a new response replacing the {@link #minTransportVersion()}.
+     */
+    public FieldCapabilitiesResponse withMinTransportVersion(TransportVersion newMin) {
+        return new FieldCapabilitiesResponse(indices, resolvedLocally, resolvedRemotely, fields, indexResponses, failures, newMin);
     }
 
     /**
@@ -178,6 +216,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         out.writeMap(fields, FieldCapabilitiesResponse::writeField);
         FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
         out.writeCollection(failures);
+        if (out.getTransportVersion().supports(MIN_TRANSPORT_VERSION)) {
+            out.writeOptional((Writer<TransportVersion>) (o, v) -> TransportVersion.writeVersion(v, o), minTransportVersion);
+        }
         if (out.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
             out.writeOptionalWriteable(resolvedLocally);
         }
@@ -223,22 +264,20 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
             && Objects.equals(resolvedRemotely, that.resolvedRemotely)
             && Objects.equals(fields, that.fields)
             && Objects.equals(indexResponses, that.indexResponses)
-            && Objects.equals(failures, that.failures);
+            && Objects.equals(failures, that.failures)
+            && Objects.equals(minTransportVersion, that.minTransportVersion);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(resolvedLocally, resolvedRemotely, fields, indexResponses, failures);
+        int result = Objects.hash(resolvedLocally, resolvedRemotely, fields, indexResponses, failures, minTransportVersion);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }
 
     @Override
     public String toString() {
-        if (indexResponses.size() > 0) {
-            return "FieldCapabilitiesResponse{unmerged}";
-        }
-        return Strings.toString(this);
+        return indexResponses.isEmpty() ? Strings.toString(this) : "FieldCapabilitiesResponse{unmerged}";
     }
 
     public static class Builder {
@@ -248,6 +287,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         private Map<String, Map<String, FieldCapabilities>> fields = Collections.emptyMap();
         private List<FieldCapabilitiesIndexResponse> indexResponses = Collections.emptyList();
         private List<FieldCapabilitiesFailure> failures = Collections.emptyList();
+        private TransportVersion minTransportVersion = null;
 
         private Builder() {}
 
@@ -279,8 +319,8 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
             return this;
         }
 
-        public Builder withIndexResponses(Collection<FieldCapabilitiesIndexResponse> indexResponses) {
-            this.indexResponses = new ArrayList<>(indexResponses);
+        public Builder withIndexResponses(List<FieldCapabilitiesIndexResponse> indexResponses) {
+            this.indexResponses = indexResponses;
             return this;
         }
 
@@ -289,9 +329,21 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
             return this;
         }
 
+        public Builder withMinTransportVersion(TransportVersion minTransportVersion) {
+            this.minTransportVersion = minTransportVersion;
+            return this;
+        }
+
         public FieldCapabilitiesResponse build() {
-            return new FieldCapabilitiesResponse(indices, resolvedLocally, resolvedRemotely, fields, indexResponses, failures);
+            return new FieldCapabilitiesResponse(
+                indices,
+                resolvedLocally,
+                resolvedRemotely,
+                fields,
+                indexResponses,
+                failures,
+                minTransportVersion
+            );
         }
     }
-
 }

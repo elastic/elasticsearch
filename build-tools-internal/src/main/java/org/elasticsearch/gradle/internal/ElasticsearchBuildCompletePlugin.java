@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
 
@@ -191,7 +192,6 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 try {
                     System.out.println("Uploading buildkite artifact: " + uploadFilePath + "...");
                     ProcessBuilder pb = new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath);
-                    pb.inheritIO();
                     // If we don't switch to the build directory first, the uploaded file will have a `build/` prefix
                     // Buildkite will flip the `/` to a `\` at upload time on Windows, which will make the search command below fail
                     // So, if you change this such that the artifact will have a slash/directory in it, you'll need to update the logic
@@ -200,7 +200,8 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                     try {
                         // we are very generious here, as the upload can take
                         // a long time depending on its size
-                        pb.start().waitFor(30, java.util.concurrent.TimeUnit.MINUTES);
+                        long timeoutSec = calculateUploadWaitTimeoutSeconds(uploadFile);
+                        pb.start().waitFor(timeoutSec, TimeUnit.SECONDS);
                     } catch (InterruptedException e) {
                         System.out.println("Failed to upload buildkite artifact " + e.getMessage());
                     }
@@ -304,6 +305,15 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 archivePath = archivePath.replace("\\", "/");
             }
             return archivePath;
+        }
+
+        private static long calculateUploadWaitTimeoutSeconds(File file) {
+            long fileSizeBytes = file.length();
+            long fileSizeMB = fileSizeBytes / (1024 * 1024);
+
+            // Allocate 4 seconds per MB (assumes ~250 KB/s upload speed)
+            // with min 10 seconds and max 30 minutes
+            return Math.max(10, Math.min(1800, fileSizeMB * 4));
         }
     }
 }

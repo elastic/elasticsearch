@@ -45,7 +45,7 @@ The command requires two parameters:
    * A single field name
    * A comma-separated list of field names {applies_to}`stack: ga 9.2`
    * An expression with one or more join conditions linked by `AND`. {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
-   * An expression that includes [Full Text Functions](/reference/query-languages/esql/functions-operators/search-functions.md) and other Lucene pushable functions applied to fields from the lookup index applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+   * An expression that includes [Full Text Functions](/reference/query-languages/esql/functions-operators/search-functions.md) and other Lucene pushable functions applied to fields from the lookup index {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 
 ```esql
 LOOKUP JOIN <lookup_index> ON <field_name>  # Join on a single field

@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServ
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -74,14 +75,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-<<<<<<< HEAD
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
-=======
-import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
-import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests.buildExpectationRerank;
->>>>>>> 34145ed1d1f ([ML] Perform query field validation for rerank task type (#137219))
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -893,7 +888,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_ReturnsValidationException_WhenSendingRerankRequest_WithoutQueryField() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
             var secret = "secret";
             var modelName = "model";
 
@@ -928,7 +923,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_SendsRerankRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
             String responseJson = """
                 {
                     "index": "d0760819-5a73-4d58-b163-3956d3648b62",

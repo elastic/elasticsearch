@@ -1797,18 +1797,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         /**
          * Build a new {@link TestCase} with the {@link #TEST_CONFIGURATION}.
+         * <p>
+         *     The source is also set to match the configuration
+         * </p>
          *
          * @deprecated Use a custom configuration instead, and test the results.
          */
         @Deprecated
         public TestCase withStaticConfiguration() {
-            return withConfiguration(TEST_CONFIGURATION);
+            return withConfiguration(TEST_SOURCE, TEST_CONFIGURATION);
         }
 
         /**
          * Build a new {@link TestCase} with new {@link #configuration}.
+         * <p>
+         *     As the configuration query should match the source, the source is also updated here.
+         * </p>
          */
-        public TestCase withConfiguration(Configuration configuration) {
+        public TestCase withConfiguration(Source source, Configuration configuration) {
             return new TestCase(
                 source,
                 configuration,

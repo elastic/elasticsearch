@@ -75,6 +75,10 @@ public class ChunkScorerConfig implements Writeable {
         return size;
     }
 
+    public int sizeOrDefault() {
+        return size != null ? size : DEFAULT_SIZE;
+    }
+
     public String inferenceText() {
         return inferenceText;
     }

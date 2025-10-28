@@ -198,7 +198,9 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             assert scoreDoc.score >= 0;
             if (minScore == null || scoreDoc.score >= minScore) {
                 if (explain) {
-                    filteredDocs.add(new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, inferenceId, field));
+                    filteredDocs.add(
+                        new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, inferenceId, field, chunkScorerConfig)
+                    );
                 } else {
                     filteredDocs.add(new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex));
                 }

@@ -1529,7 +1529,12 @@ public class EsqlCapabilities {
         /**
          * Fix double release in inline stats when LocalRelation is reused
          */
-        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled)
+        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled),
+
+        /**
+         * Support for string function ASCII
+         */
+        ASCII
 
         ;
 

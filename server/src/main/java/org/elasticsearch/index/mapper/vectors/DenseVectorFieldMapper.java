@@ -3211,5 +3211,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public SimilarityFunction similarityFunction() {
             return similarityFunction;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            VectorSimilarityFunctionConfig that = (VectorSimilarityFunctionConfig) o;
+            return Objects.equals(similarityFunction, that.similarityFunction)
+                && Objects.deepEquals(vector, that.vector)
+                && Objects.deepEquals(vectorAsBytes, that.vectorAsBytes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(similarityFunction, Arrays.hashCode(vector), Arrays.hashCode(vectorAsBytes));
+        }
     }
 }

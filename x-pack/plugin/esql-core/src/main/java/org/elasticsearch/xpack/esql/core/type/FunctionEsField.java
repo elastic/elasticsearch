@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * EsField that represents a function being applied to a field on extraction. It receives a
@@ -47,7 +51,25 @@ public class FunctionEsField extends EsField {
         this.functionConfig = functionConfig;
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("FunctionEsField is not serializable, should be created on data nodes");
+    }
+
     public MappedFieldType.BlockLoaderFunctionConfig functionConfig() {
         return functionConfig;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        FunctionEsField that = (FunctionEsField) o;
+        return Objects.equals(functionConfig, that.functionConfig);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), functionConfig);
     }
 }

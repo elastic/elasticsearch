@@ -506,6 +506,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
      * Is the type supported in indices?
      */
     private static boolean supportedInIndex(DataType t) {
+        if (DataType.UNDER_CONSTRUCTION.contains(t)) {
+            // These tests don't deal with types under construction
+            return false;
+        }
         return switch (t) {
             // These are supported but implied by the index process.
             // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.

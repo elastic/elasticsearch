@@ -1285,7 +1285,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SET command.
          */
-        SET_COMMAND(Build.current().isSnapshot()),
+        SET_COMMAND,
 
         /**
          * (Re)Added EXPLAIN command

@@ -66,6 +66,7 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends ESTestCase {
     }
 
     public void test() throws IOException {
+        List<MockWarnings.MockWarning> expectedWarnings = new ArrayList<>();
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int docCount = 10_000;
             int cardinality = lowCardinality ? between(1, LOW_CARDINALITY) : between(LOW_CARDINALITY + 1, LOW_CARDINALITY * 2);
@@ -74,6 +75,9 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends ESTestCase {
                 doc.add(field(i % cardinality));
                 if (multiValues && i % cardinality == 0) {
                     doc.add(field((i % cardinality) + 1));
+                    expectedWarnings.add(
+                        new MockWarnings.MockWarning(IllegalArgumentException.class, "single-value function encountered multi-value")
+                    );
                 }
                 iw.addDocument(doc);
             }
@@ -84,8 +88,9 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends ESTestCase {
             try (DirectoryReader dr = iw.getReader()) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
 
+                var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
-                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader("field");
+                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field");
 
                 var stringsReader = stringsLoader.reader(ctx);
                 var codePointsReader = codePointsLoader.reader(ctx);
@@ -97,6 +102,8 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends ESTestCase {
                 ) {
                     checkBlocks(strings, codePoints);
                 }
+                assertThat(warnings.warnings(), equalTo(expectedWarnings));
+                warnings.warnings().clear();
 
                 stringsReader = stringsLoader.reader(ctx);
                 codePointsReader = codePointsLoader.reader(ctx);
@@ -113,19 +120,8 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends ESTestCase {
                         checkBlocks(strings, codePoints);
                     }
                 }
+                assertThat(warnings.warnings(), equalTo(expectedWarnings));
             }
-        }
-    }
-
-    private void checkBlocks(TestBlock strings, TestBlock codePoints) {
-        for (int i = 0; i < strings.size(); i++) {
-            Object str = strings.get(i);
-            if (str instanceof List<?> || str == null) {
-                assertThat(codePoints.get(i), nullValue());
-                continue;
-            }
-            BytesRef bytes = (BytesRef) strings.get(i);
-            assertThat(codePoints.get(i), equalTo(bytes.length));
         }
     }
 
@@ -154,5 +150,17 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends ESTestCase {
             new BytesRef("a".repeat(codePointCount)),
             KeywordFieldMapper.Defaults.FIELD_TYPE
         );
+    }
+
+    private void checkBlocks(TestBlock strings, TestBlock codePoints) {
+        for (int i = 0; i < strings.size(); i++) {
+            Object str = strings.get(i);
+            if (str instanceof List<?> || str == null) {
+                assertThat(codePoints.get(i), nullValue());
+                continue;
+            }
+            BytesRef bytes = (BytesRef) strings.get(i);
+            assertThat(codePoints.get(i), equalTo(bytes.length));
+        }
     }
 }

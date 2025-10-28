@@ -20,6 +20,8 @@ import org.apache.lucene.util.UnicodeUtil;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.index.mapper.blockloader.docvalues.Warnings.registerSingleValueWarning;
+
 /**
  * A count of utf-8 code points for {@code keyword} style fields that are stored as a lookup table.
  */
@@ -30,10 +32,14 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
      * entries for a cache.
      */
     static final int LOW_CARDINALITY = 1024;
+
+    private final Warnings warnings;
+
     private final String fieldName;
 
-    public Utf8CodePointsFromOrdsBlockLoader(String fieldName) {
+    public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName) {
         this.fieldName = fieldName;
+        this.warnings = warnings;
     }
 
     @Override
@@ -46,18 +52,18 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
         if (docValues != null) {
             if (docValues.getValueCount() > LOW_CARDINALITY) {
-                return new ImmediateOrdinals(docValues);
+                return new ImmediateOrdinals(warnings, docValues);
             }
             SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
                 return new SingletonOrdinals(singleton);
             }
-            return new Ordinals(docValues);
+            return new Ordinals(warnings, docValues);
         }
         SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
         if (singleton != null) {
             if (singleton.getValueCount() > LOW_CARDINALITY) {
-                return new ImmediateOrdinals(DocValues.singleton(singleton));
+                return new ImmediateOrdinals(warnings, DocValues.singleton(singleton));
             }
             return new SingletonOrdinals(singleton);
         }
@@ -222,15 +228,17 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
      * See {@link SingletonOrdinals} for the process
      */
     private static class Ordinals extends BlockDocValuesReader {
+        private final Warnings warnings;
         private final SortedSetDocValues ordinals;
         private final int[] cache;
 
         private int cacheEntriesFilled;
 
-        Ordinals(SortedSetDocValues ordinals) {
+        Ordinals(Warnings warnings, SortedSetDocValues ordinals) {
+            this.warnings = warnings;
             this.ordinals = ordinals;
 
-            // TODO track this memory. we can't yet because this isn't Closeable
+            // TODO track this memory. we can't yet because this isn't Releasable
             this.cache = new int[Math.toIntExact(ordinals.getValueCount())];
             Arrays.fill(this.cache, -1);
         }
@@ -261,7 +269,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return;
             }
             if (ordinals.docValueCount() != 1) {
-                // TODO warning
+                registerSingleValueWarning(warnings);
                 builder.appendNull();
                 return;
             }
@@ -285,7 +293,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             if (ordinals.docValueCount() == 1) {
                 return factory.constantInt(codePointsAtOrd(Math.toIntExact(ordinals.nextOrd())), 1);
             }
-            // TODO warning!
+            registerSingleValueWarning(warnings);
             return factory.constantNulls(1);
         }
 
@@ -303,7 +311,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                         continue;
                     }
                     if (ordinals.docValueCount() != 1) {
-                        // TODO warning
+                        registerSingleValueWarning(warnings);
                         ords[i] = -1;
                         continue;
                     }
@@ -347,7 +355,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                         continue;
                     }
                     if (ordinals.docValueCount() != 1) {
-                        // TODO warning
+                        registerSingleValueWarning(warnings);
                         builder.appendNull();
                         continue;
                     }
@@ -374,10 +382,12 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
      * are many unique doc values and the cache hit rate is unlikely to be high.
      */
     private static class ImmediateOrdinals extends BlockDocValuesReader {
+        private final Warnings warnings;
         private final SortedSetDocValues ordinals;
 
-        ImmediateOrdinals(SortedSetDocValues ordinals) {
+        ImmediateOrdinals(Warnings warnings, SortedSetDocValues ordinals) {
             this.ordinals = ordinals;
+            this.warnings = warnings;
         }
 
         @Override
@@ -404,7 +414,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return;
             }
             if (ordinals.docValueCount() != 1) {
-                // TODO warning
+                registerSingleValueWarning(warnings);
                 builder.appendNull();
                 return;
             }
@@ -428,7 +438,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             if (ordinals.docValueCount() == 1) {
                 return factory.constantInt(codePointsAtOrd(ordinals.nextOrd()), 1);
             }
-            // TODO warning!
+            registerSingleValueWarning(warnings);
             return factory.constantNulls(1);
         }
 

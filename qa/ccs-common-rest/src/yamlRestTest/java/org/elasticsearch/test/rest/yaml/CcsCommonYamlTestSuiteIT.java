@@ -28,7 +28,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
-import org.elasticsearch.test.rest.ESRestTestFeatureService;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -317,7 +316,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
                 final TestFeatureService searchTestFeatureService = createTestFeatureService(
                     getClusterStateFeatures(adminSearchClient),
-                    ESRestTestFeatureService.fromSemanticVersions(searchNodeVersions)
+                    fromSemanticVersions(searchNodeVersions)
                 );
                 final TestFeatureService combinedTestFeatureService = (featureId, any) -> {
                     boolean adminFeature = testFeatureService.clusterHasFeature(featureId, any);

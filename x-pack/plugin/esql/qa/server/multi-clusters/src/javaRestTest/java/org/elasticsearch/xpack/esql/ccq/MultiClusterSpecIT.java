@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.ESRestTestFeatureService;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -180,7 +179,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             var remoteNodeVersions = readVersionsFromNodesInfo(remoteClusterClient());
             remoteFeaturesService = createTestFeatureService(
                 getClusterStateFeatures(remoteClusterClient()),
-                ESRestTestFeatureService.fromSemanticVersions(remoteNodeVersions)
+                fromSemanticVersions(remoteNodeVersions)
             );
         }
         return remoteFeaturesService;

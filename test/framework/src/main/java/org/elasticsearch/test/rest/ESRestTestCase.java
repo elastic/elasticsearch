@@ -176,6 +176,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
 
+    public interface VersionFeaturesPredicate {
+        boolean test(Version featureVersion, boolean canMatchAnyNode);
+    }
+
     private static final Logger SUITE_LOGGER = LogManager.getLogger(ESRestTestCase.class);
 
     private static final String EXPECTED_ROLLUP_WARNING_MESSAGE =
@@ -446,10 +450,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
             nodesVersions = Collections.unmodifiableSet(versions);
-            testFeatureService = createTestFeatureService(
-                getClusterStateFeatures(adminClient),
-                ESRestTestFeatureService.fromSemanticVersions(nodesVersions)
-            );
+            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), fromSemanticVersions(nodesVersions));
 
             configureProjects();
         }
@@ -464,7 +465,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
-        ESRestTestFeatureService.VersionFeaturesPredicate versionFeaturesPredicate
+        VersionFeaturesPredicate versionFeaturesPredicate
     ) {
         return new ESRestTestFeatureService(versionFeaturesPredicate, clusterStateFeatures.values());
     }
@@ -2579,6 +2580,27 @@ public abstract class ESRestTestCase extends ESTestCase {
             return Optional.of(Version.fromString(semanticVersionMatcher.group(1)));
         }
         return Optional.empty();
+    }
+
+    public static VersionFeaturesPredicate fromSemanticVersions(Set<String> nodesVersions) {
+        Set<Version> semanticNodeVersions = nodesVersions.stream()
+            .map(ESRestTestCase::parseLegacyVersion)
+            .flatMap(Optional::stream)
+            .collect(Collectors.toSet());
+        if (semanticNodeVersions.isEmpty()) {
+            // Nodes do not have a semantic version (e.g. serverless).
+            // We assume the cluster is on the "latest version", and all is supported.
+            return ((featureVersion, canMatchAnyNode) -> true);
+        }
+
+        return (featureVersion, canMatchAnyNode) -> {
+            if (canMatchAnyNode) {
+                return semanticNodeVersions.stream().anyMatch(nodeVersion -> nodeVersion.onOrAfter(featureVersion));
+            } else {
+                return semanticNodeVersions.isEmpty() == false
+                    && semanticNodeVersions.stream().allMatch(nodeVersion -> nodeVersion.onOrAfter(featureVersion));
+            }
+        };
     }
 
     /**

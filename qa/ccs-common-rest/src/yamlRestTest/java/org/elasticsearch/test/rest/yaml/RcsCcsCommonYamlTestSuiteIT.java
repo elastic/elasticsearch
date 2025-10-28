@@ -30,7 +30,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.test.rest.ESRestTestFeatureService;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.TestCandidateAwareClient;
@@ -299,7 +298,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
                 final TestFeatureService searchTestFeatureService = createTestFeatureService(
                     getClusterStateFeatures(adminSearchClient),
-                    ESRestTestFeatureService.fromSemanticVersions(searchNodeVersions)
+                    fromSemanticVersions(searchNodeVersions)
                 );
 
                 final TestFeatureService combinedTestFeatureService = (featureId, any) -> {

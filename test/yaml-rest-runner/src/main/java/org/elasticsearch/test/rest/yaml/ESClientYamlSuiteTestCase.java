@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.ESRestTestFeatureService;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -129,7 +128,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
             final TestFeatureService testFeatureService = createTestFeatureService(
                 getClusterStateFeatures(adminClient()),
-                ESRestTestFeatureService.fromSemanticVersions(nodesVersions)
+                fromSemanticVersions(nodesVersions)
             );
 
             logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);

@@ -26,17 +26,15 @@ import java.nio.file.Files;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 
-public class ESRestTestFeatureService implements TestFeatureService {
+class ESRestTestFeatureService implements TestFeatureService {
 
     /**
      * In order to migrate from version checks to cluster feature checks,
@@ -44,28 +42,10 @@ public class ESRestTestFeatureService implements TestFeatureService {
      */
     private static final Pattern VERSION_FEATURE_PATTERN = Pattern.compile("gte_v(\\d+\\.\\d+\\.\\d+)");
 
-    public interface VersionFeaturesPredicate {
-        boolean test(Version featureVersion, boolean any);
-    }
-
-    public static VersionFeaturesPredicate fromSemanticVersions(Set<String> nodesVersions) {
-        Set<Version> semanticNodeVersions = nodesVersions.stream()
-            .map(ESRestTestCase::parseLegacyVersion)
-            .flatMap(Optional::stream)
-            .collect(Collectors.toSet());
-        if (semanticNodeVersions.isEmpty()) {
-            // Nodes do not have a semantic version (e.g. serverless).
-            // We assume the cluster is on the "latest version", and all is supported.
-            return ((featureVersion, any) -> true);
-        }
-
-        return (featureVersion, any) -> checkCollection(semanticNodeVersions, nodeVersion -> nodeVersion.onOrAfter(featureVersion), any);
-    }
-
-    private final VersionFeaturesPredicate versionFeaturesPredicate;
+    private final ESRestTestCase.VersionFeaturesPredicate versionFeaturesPredicate;
     private final Collection<Set<String>> nodeFeatures;
 
-    ESRestTestFeatureService(VersionFeaturesPredicate versionFeaturesPredicate, Collection<Set<String>> nodeFeatures) {
+    ESRestTestFeatureService(ESRestTestCase.VersionFeaturesPredicate versionFeaturesPredicate, Collection<Set<String>> nodeFeatures) {
         this.versionFeaturesPredicate = versionFeaturesPredicate;
         this.nodeFeatures = nodeFeatures;
     }
@@ -75,8 +55,8 @@ public class ESRestTestFeatureService implements TestFeatureService {
     }
 
     @Override
-    public boolean clusterHasFeature(String featureId, boolean any) {
-        if (checkCollection(nodeFeatures, s -> s.contains(featureId), any)) {
+    public boolean clusterHasFeature(String featureId, boolean canMatchAnyNode) {
+        if (checkCollection(nodeFeatures, s -> s.contains(featureId), canMatchAnyNode)) {
             return true;
         }
         if (MetadataHolder.FEATURE_NAMES.contains(featureId)) {
@@ -108,7 +88,7 @@ public class ESRestTestFeatureService implements TestFeatureService {
                 );
             }
 
-            return versionFeaturesPredicate.test(extractedVersion, any);
+            return versionFeaturesPredicate.test(extractedVersion, canMatchAnyNode);
         }
 
         if (hasFeatureMetadata()) {

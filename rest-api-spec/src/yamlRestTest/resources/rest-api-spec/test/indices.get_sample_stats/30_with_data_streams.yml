@@ -433,3 +433,14 @@
   - match: { samples_rejected_for_size: 0 }
   - match: { samples_accepted: 0 }
   - match: { last_exception.type: "script_exception" }
+
+---
+teardown:
+
+  - do:
+      indices.delete_data_stream:
+        name: sample_test*
+
+  - do:
+      indices.get_all_sample_configuration: {}
+  - length: { $body: 0 }

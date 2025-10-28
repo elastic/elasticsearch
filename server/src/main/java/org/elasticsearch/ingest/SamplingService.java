@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -521,6 +522,22 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                     if (samplingConfiguration != null) {
                         logger.debug("Deleting sample configuration for {} because the index has been deleted", indexName);
                         deleteSampleConfiguration(projectId, indexName);
+                    }
+                }
+            }
+        }
+        if (currentProject.dataStreams() != previousProject.dataStreams()) {
+            for (DataStream dataStream : previousProject.dataStreams().values()) {
+                DataStream current = currentProject.dataStreams().get(dataStream.getName());
+                if (current == null) {
+                    String dataStreamName = dataStream.getName();
+                    SamplingConfiguration samplingConfiguration = getSamplingConfiguration(
+                        event.state().projectState(projectId).metadata(),
+                        dataStreamName
+                    );
+                    if (samplingConfiguration != null) {
+                        logger.debug("Deleting sample configuration for {} because the data stream has been deleted", dataStreamName);
+                        deleteSampleConfiguration(projectId, dataStreamName);
                     }
                 }
             }

@@ -273,3 +273,13 @@
         index: sample_test
       catch: missing
 
+---
+teardown:
+
+  - do:
+      indices.delete_data_stream:
+        name: sample_test*
+
+  - do:
+      indices.get_all_sample_configuration: {}
+  - length: { $body: 0 }

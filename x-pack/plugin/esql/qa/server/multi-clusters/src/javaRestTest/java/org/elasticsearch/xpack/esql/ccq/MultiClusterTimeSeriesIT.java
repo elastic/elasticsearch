@@ -47,6 +47,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterTimeSeriesIT extends ESRestTestCase {
+
+    static final List<String> REQUIRED_CAPABILITIES = List.of("ts_command_v0");
+
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
     static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
 
@@ -83,8 +86,6 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
 
     @Before
     public void setUpTimeSeriesIndices() throws Exception {
-        // generateData();
-
         localDocs = getRandomDocs("local");
         RestClient localClient = client();
         createTimeSeriesIndex(localClient, localIndex);
@@ -141,6 +142,8 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
     }
 
     public void testAvg() throws Exception {
+        assumeTrue("TS command not supported", capabilitiesSupportedNewAndOld(REQUIRED_CAPABILITIES));
+
         boolean includeCCSMetadata = includeCCSMetadata();
 
         Map<String, Object> multiClusterResult = run("""
@@ -158,6 +161,8 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
     }
 
     public void testRateAndTBucket() throws Exception {
+        assumeTrue("TS command not supported", capabilitiesSupportedNewAndOld(REQUIRED_CAPABILITIES));
+
         boolean includeCCSMetadata = includeCCSMetadata();
 
         Map<String, Object> multiClusterResult = run("""
@@ -176,6 +181,8 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
     }
 
     public void testAvgOverTime() throws Exception {
+        assumeTrue("TS command not supported", capabilitiesSupportedNewAndOld(REQUIRED_CAPABILITIES));
+
         boolean includeCCSMetadata = includeCCSMetadata();
 
         Map<String, Object> multiClusterResult = run("""
@@ -186,6 +193,24 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
         Map<String, Object> singleClusterResult = run("""
             TS all-data
             | STATS avg_cpu = SUM(AVG_OVER_TIME(cpu)), max_memory = SUM(MAX_OVER_TIME(memory)) BY tb = TBUCKET(10minutes)
+            | SORT tb""", includeCCSMetadata);
+
+        assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult, false);
+    }
+
+    public void testIRate() throws Exception {
+        assumeTrue("TS command not supported", capabilitiesSupportedNewAndOld(REQUIRED_CAPABILITIES));
+
+        boolean includeCCSMetadata = includeCCSMetadata();
+
+        Map<String, Object> multiClusterResult = run("""
+            TS hosts-local,*:hosts-remote
+            | STATS irate_req_count = AVG(IRATE(request_count)) BY tb = TBUCKET(1minute)
+            | SORT tb""", includeCCSMetadata);
+
+        Map<String, Object> singleClusterResult = run("""
+            TS all-data
+            | STATS irate_req_count = AVG(IRATE(request_count)) BY tb = TBUCKET(1minute)
             | SORT tb""", includeCCSMetadata);
 
         assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult, false);

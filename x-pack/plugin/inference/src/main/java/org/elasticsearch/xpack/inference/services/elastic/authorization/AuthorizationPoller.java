@@ -32,6 +32,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -56,6 +58,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
     private final Client client;
+    private final CountDownLatch receivedFirstAuthResponseLatch = new CountDownLatch(1);
 
     public record TaskFields(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {}
 
@@ -117,9 +120,23 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
     }
 
+    /**
+     * This should only be used for testing to wait for the first authorization response to be received.
+     */
+    public void waitForAuthorizationToComplete(TimeValue waitTime) {
+        try {
+            if (receivedFirstAuthResponseLatch.await(waitTime.getSeconds(), TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException("The wait time has expired for first authorization response to be received.");
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException("Waiting for first authorization response to complete was interrupted");
+        }
+    }
+
     @Override
     protected void onCancelled() {
         shutdown();
+        markAsCompleted();
     }
 
     // default for testing
@@ -182,6 +199,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             if (callback != null) {
                 callback.run();
             }
+            receivedFirstAuthResponseLatch.countDown();
         }).delegateResponse((delegate, e) -> {
             logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints");
             delegate.onResponse(null);

@@ -79,9 +79,49 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         }
     }
 
+    /**
+     * This method should only be used for testing purposes to simulate a task being recreated.
+     */
+    public void abortTask(TimeValue timeout, ActionListener<Void> listener) {
+        var task = currentTask.get();
+        if (task != null && task.isCancelled() == false) {
+            task.markAsLocallyAborted("testing task cancellation");
+            currentTask.set(null);
+            waitForNullTask(task, timeout, listener);
+        } else {
+            listener.onFailure(new IllegalStateException("Authorization poller task was not created yet, or was already aborted"));
+        }
+    }
+
+    private void waitForNullTask(AllocatedPersistentTask task, TimeValue timeout, ActionListener<Void> listener) {
+        task.waitForPersistentTask(
+            Objects::isNull,
+            timeout,
+            new PersistentTasksService.WaitForPersistentTaskListener<AuthorizationTaskParams>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<AuthorizationTaskParams> persistentTask) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+        );
+    }
+
+    /**
+     * This method should only be used for testing purposes to get the current running task.
+     */
+    public AuthorizationPoller getCurrentPollerTask() {
+        return currentTask.get();
+    }
+
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, AuthorizationTaskParams params, PersistentTaskState state) {
         var authPoller = (AuthorizationPoller) task;
+        currentTask.set(authPoller);
         authPoller.start();
     }
 

@@ -1607,6 +1607,13 @@ public class EsqlCapabilities {
         INLINE_STATS_WITH_NO_COLUMNS(INLINE_STATS.enabled),
 
         FIX_MV_CONSTANT_EQUALS_FIELD,
+
+        /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.
+         * https://github.com/elastic/elasticsearch/issues/137019.
+         */
+        FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

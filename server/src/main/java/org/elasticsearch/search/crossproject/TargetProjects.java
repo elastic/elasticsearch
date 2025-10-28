@@ -55,10 +55,7 @@ public record TargetProjects(
 
     public Set<String> allProjectAliases() {
         // TODO consider caching this
-        return Stream.concat(
-            originProject != null ? Stream.of(originProject) : Stream.empty(),
-            linkedProjects != null ? linkedProjects.stream() : Stream.empty()
-        ).map(ProjectRoutingInfo::projectAlias).collect(Collectors.toUnmodifiableSet());
+        return allProjects().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toUnmodifiableSet());
     }
 
     /**

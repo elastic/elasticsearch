@@ -168,6 +168,10 @@ public class IndexResolver {
      *                                       report that they support the type? This exists because some remotes <strong>do</strong>
      *                                       support {@code dense_vector} without reporting that they do. And, for a while, we used the
      *                                       query itself to opt into reading these fields.
+     * @param useDateRangeWhenNotSupported does the query itself force us to use {@code date_range} fields even if the remotes don't
+     *                                       report that they support the type? This exists because some remotes <strong>do</strong>
+     *                                       support {@code date_range} without reporting that they do. And, for a while, we used the
+     *                                       query itself to opt into reading these fields.
      */
     public record FieldsInfo(
         FieldCapabilitiesResponse caps,
@@ -343,6 +347,7 @@ public class IndexResolver {
             || switch (type) {
                 case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
                 case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;
+                case DATE_RANGE -> fieldsInfo.useDateRangeWhenNotSupported;
                 default -> false;
             };
         if (false == typeSupported) {

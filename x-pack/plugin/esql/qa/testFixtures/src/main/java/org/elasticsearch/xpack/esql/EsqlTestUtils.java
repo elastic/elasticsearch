@@ -44,6 +44,9 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -82,6 +85,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
@@ -90,6 +94,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -156,7 +161,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
+import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyList;
@@ -230,6 +237,27 @@ public final class EsqlTestUtils {
         return new GreaterThanOrEqual(EMPTY, left, right, ESTestCase.randomZone());
     }
 
+    public static FieldAttribute findFieldAttribute(LogicalPlan plan, String name) {
+        return findFieldAttribute(plan, name, (unused) -> true);
+    }
+
+    public static FieldAttribute findFieldAttribute(LogicalPlan plan, String name, Predicate<EsRelation> inThisRelation) {
+        Holder<FieldAttribute> result = new Holder<>();
+        plan.forEachDown(EsRelation.class, relation -> {
+            if (inThisRelation.test(relation) == false) {
+                return;
+            }
+            for (Attribute attr : relation.output()) {
+                if (attr.name().equals(name)) {
+                    assertNull("Multiple matching field attributes found", result.get());
+                    result.set((FieldAttribute) attr);
+                    return;
+                }
+            }
+        });
+        return result.get();
+    }
+
     public static FieldAttribute getFieldAttribute() {
         return getFieldAttribute("a");
     }
@@ -270,6 +298,14 @@ public final class EsqlTestUtils {
 
     public static ReferenceAttribute referenceAttribute(String name, DataType type) {
         return new ReferenceAttribute(EMPTY, name, type);
+    }
+
+    public static Alias alias(String name, Expression child) {
+        return new Alias(EMPTY, name, child);
+    }
+
+    public static Mul mul(Expression left, Expression right) {
+        return new Mul(EMPTY, left, right);
     }
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
@@ -992,10 +1028,34 @@ public final class EsqlTestUtils {
             }
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
+            case EXPONENTIAL_HISTOGRAM -> new WriteableExponentialHistogram(EsqlTestUtils.randomExponentialHistogram());
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
+    }
+
+    private static ExponentialHistogram randomExponentialHistogram() {
+        // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
+        // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
+        boolean hasNegativeValues = randomBoolean();
+        boolean hasPositiveValues = randomBoolean();
+        boolean hasZeroValues = randomBoolean();
+        double[] rawValues = IntStream.concat(
+            IntStream.concat(
+                hasNegativeValues ? IntStream.range(0, randomIntBetween(1, 1000)).map(i1 -> -1) : IntStream.empty(),
+                hasPositiveValues ? IntStream.range(0, randomIntBetween(1, 1000)).map(i1 -> 1) : IntStream.empty()
+            ),
+            hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
+        ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
+
+        int numBuckets = randomIntBetween(4, 300);
+        ReleasableExponentialHistogram histo = ExponentialHistogram.create(
+            numBuckets,
+            ExponentialHistogramCircuitBreaker.noop(),
+            rawValues
+        );
+        return histo;
     }
 
     static Version randomVersion() {

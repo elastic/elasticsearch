@@ -241,10 +241,7 @@ public class ParsingUtils {
      * position inside the full ES|QL query.
      */
     public static Location adjustLocation(Location location, int startLine, int startColumn) {
-        return new Location(
-            adjustLine(location.getLineNumber(), startLine),
-            adjustColumn(location.getColumnNumber(), startColumn)
-        );
+        return new Location(adjustLine(location.getLineNumber(), startLine), adjustColumn(location.getColumnNumber(), startColumn));
     }
 
     /**

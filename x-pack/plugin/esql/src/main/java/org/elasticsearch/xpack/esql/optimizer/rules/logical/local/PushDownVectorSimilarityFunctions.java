@@ -122,7 +122,7 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
             functionEsField,
             fieldAttr.nullable(),
             nameId,
-            fieldAttr.synthetic()
+            true
         );
         addedAttrs.add(functionAttr);
         return functionAttr;

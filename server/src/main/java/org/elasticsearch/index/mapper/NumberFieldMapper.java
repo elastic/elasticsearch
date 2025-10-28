@@ -47,6 +47,9 @@ import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFie
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -491,7 +494,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
+                return new DoublesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
             }
 
             @Override
@@ -685,7 +688,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
+                return new DoublesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
             }
 
             @Override
@@ -845,7 +848,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
+                return new DoublesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
             }
 
             @Override
@@ -973,7 +976,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.IntsBlockLoader(fieldName);
+                return new IntsBlockLoader(fieldName);
             }
 
             @Override
@@ -1101,7 +1104,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.IntsBlockLoader(fieldName);
+                return new IntsBlockLoader(fieldName);
             }
 
             @Override
@@ -1303,7 +1306,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.IntsBlockLoader(fieldName);
+                return new IntsBlockLoader(fieldName);
             }
 
             @Override
@@ -1465,7 +1468,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.LongsBlockLoader(fieldName);
+                return new LongsBlockLoader(fieldName);
             }
 
             @Override

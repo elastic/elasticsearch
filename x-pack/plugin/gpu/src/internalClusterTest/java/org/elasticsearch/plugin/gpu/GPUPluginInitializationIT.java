@@ -139,7 +139,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions)
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
         );
         assertNull(format);
     }
@@ -158,7 +158,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions)
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
         );
         assertNotNull(format);
     }
@@ -179,7 +179,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
             () -> vectorsFormatProvider.getKnnVectorsFormat(
                 settings,
                 indexOptions,
-                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions)
+                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
             )
         );
         assertThat(ex.getMessage(), startsWith("[index.vectors.indexing.use_gpu] doesn't support [index_options.type] of"));
@@ -201,7 +201,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
             () -> vectorsFormatProvider.getKnnVectorsFormat(
                 settings,
                 indexOptions,
-                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions)
+                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
             )
         );
         assertThat(
@@ -227,7 +227,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
             () -> vectorsFormatProvider.getKnnVectorsFormat(
                 settings,
                 indexOptions,
-                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions)
+                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
             )
         );
         assertThat(
@@ -250,7 +250,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions)
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
         );
         assertNotNull(format);
     }
@@ -269,7 +269,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions)
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
         );
         assertNull(format);
     }
@@ -288,7 +288,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions)
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
         );
         assertNull(format);
     }
@@ -307,7 +307,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions)
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
         );
         assertNull(format);
     }

@@ -239,6 +239,8 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         targetIndex.cause(cause);
         Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);
         settingsBuilder.put("index.number_of_shards", targetNumberOfShards);
+        // TODO: Maybe not this approach
+        settingsBuilder.put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), sourceMetadata.getCreationVersion().toString());
         targetIndex.settings(settingsBuilder);
 
         return new CreateIndexClusterStateUpdateRequest(cause, projectId, targetIndex.index(), targetIndexName)

@@ -35,9 +35,8 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 
 public class UriParts extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "UriParts", UriParts::new);
@@ -47,7 +46,7 @@ public class UriParts extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Parses a Uniform Resource Identifier (URI) string and extracts its components specified in the second argument.",
+        description = "Parses a Uniform Resource Identifier (URI) string and extracts its component specified in the second argument.",
         examples = { @Example(file = "uri_parts", tag = "uri_parts") }
     )
     public UriParts(
@@ -73,6 +72,11 @@ public class UriParts extends EsqlScalarFunction {
         source().writeTo(out);
         out.writeNamedWriteable(urlString);
         out.writeNamedWriteable(field);
+    }
+
+    @Override
+    public boolean foldable() {
+        return urlString.foldable() && field.foldable();
     }
 
     @Override
@@ -159,24 +163,13 @@ public class UriParts extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution;
-        if (urlString != null) {
-            resolution = isStringAndExact(urlString, sourceText(), FIRST);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
+        TypeResolution resolution = isStringAndExact(urlString, sourceText(), FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
         }
 
-        if (field != null) {
-            resolution = isString(field, sourceText(), SECOND);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
+        return isStringAndExact(field, sourceText(), SECOND);
     }
-
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {

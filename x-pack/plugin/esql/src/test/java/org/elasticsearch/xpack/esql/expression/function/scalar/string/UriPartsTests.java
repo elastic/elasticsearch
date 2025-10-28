@@ -22,8 +22,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class UriPartsTests extends AbstractScalarFunctionTestCase {
     public UriPartsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -32,57 +30,29 @@ public class UriPartsTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> cases = new ArrayList<>();
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        cases.add(
-            new TestCaseSupplier(
-                "Base Case",
-                List.of(DataType.KEYWORD, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("http://example.org/sub/path"), DataType.KEYWORD, "urlString"),
-                        new TestCaseSupplier.TypedData(new BytesRef("domain"), DataType.KEYWORD, "field")
-                    ),
-                    "UriPartsEvaluator[urlString=Attribute[channel=0], field=Attribute[channel=1]]",
-                    DataType.KEYWORD,
-                    equalTo("example.org")
-                )
-            )
-        );
+        for (DataType sType : DataType.stringTypes()) {
+            for (DataType dType : DataType.stringTypes()) {
+                suppliers.add(
+                    new TestCaseSupplier(
+                        "uri_parts test " + sType.toString() + " " + dType.toString(),
+                        List.of(sType, dType),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(new BytesRef("http://example.org/sub/path"), sType, "urlString"),
+                                new TestCaseSupplier.TypedData(new BytesRef("domain"), dType, "field")
+                            ),
+                            "UriPartsEvaluator[urlString=Attribute[channel=0], field=Attribute[channel=1]]",
+                            DataType.KEYWORD,
+                            equalTo(new BytesRef("example.org"))
+                        )
+                    )
+                );
+            }
+        }
 
-        cases.add(
-            new TestCaseSupplier(
-                "With Both Text",
-                List.of(DataType.TEXT, DataType.TEXT),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("http://example.org/sub/path"), DataType.TEXT, "urlString"),
-                        new TestCaseSupplier.TypedData(new BytesRef("domain"), DataType.TEXT, "field")
-                    ),
-                    "UriPartsEvaluator[urlString=Attribute[channel=0], field=Attribute[channel=1]]",
-                    DataType.KEYWORD,
-                    equalTo("example.org")
-                )
-            )
-        );
-
-        cases.add(
-            new TestCaseSupplier(
-                List.of(DataType.KEYWORD, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("http://example.org/sub/path"), DataType.KEYWORD, "urlString"),
-                        new TestCaseSupplier.TypedData(new BytesRef("doesnt exist"), DataType.KEYWORD, "field")
-                    ),
-                    "UriPartsEvaluator[urlString=Attribute[channel=0], field=Attribute[channel=1]]",
-                    DataType.KEYWORD,
-                    is(nullValue())
-                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("Line 1:1: java.lang.NullPointerException: " + "Cannot read field \"length\" because \"key\" is null")
-            )
-        );
-
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

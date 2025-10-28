@@ -13,16 +13,20 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
@@ -32,35 +36,45 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * the similarity function during value loading, when one side of the function is a literal.
  * It also adds the new field function attribute to the EsRelation output, and adds a projection after it to remove it from the output.
  */
-public class PushDownVectorSimilarityFunctions extends OptimizerRules.ParameterizedOptimizerRule<Eval, LocalLogicalOptimizerContext> {
+public class PushDownVectorSimilarityFunctions extends OptimizerRules.ParameterizedOptimizerRule<
+    LogicalPlan,
+    LocalLogicalOptimizerContext> {
 
     public PushDownVectorSimilarityFunctions() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
     @Override
-    protected LogicalPlan rule(Eval eval, LocalLogicalOptimizerContext context) {
-        // TODO Extend to WHERE if necessary
+    protected LogicalPlan rule(LogicalPlan plan, LocalLogicalOptimizerContext context) {
+        if (plan instanceof Eval || plan instanceof Filter || plan instanceof Aggregate) {
+            AttributeSet.Builder addedAttrs = AttributeSet.builder();
+            LogicalPlan transformedPlan = plan.transformExpressionsOnly(
+                VectorSimilarityFunction.class,
+                similarityFunction -> replaceFieldsForFieldTransformations(similarityFunction, addedAttrs, context)
+            );
 
-        AttributeSet.Builder addedAttrs = AttributeSet.builder();
-        Eval transformedEval = (Eval) eval.transformExpressionsDown(VectorSimilarityFunction.class, similarityFunction -> {
-            if (similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) {
-                return replaceFieldsForFieldTransformations(similarityFunction, addedAttrs, context);
+            if (addedAttrs.isEmpty()) {
+                return plan;
             }
-            return similarityFunction;
-        });
 
-        if (addedAttrs.isEmpty()) {
-            return eval;
+            List<Attribute> previousAttrs = transformedPlan.output();
+            // Transforms EsRelation to extract the new attribute
+            AttributeSet attrSet = addedAttrs.build();
+            transformedPlan = transformedPlan.transformDown(
+                EsRelation.class,
+                esRelation -> esRelation.withAttributes(attrSet.combine(esRelation.outputSet()).stream().toList())
+            );
+            // Transforms Projects so the new attribute is not discarded
+            transformedPlan = transformedPlan.transformDown(EsqlProject.class, esProject -> {
+                List<NamedExpression> projections = new ArrayList<>(esProject.projections());
+                projections.addAll(attrSet.stream().toList());
+                return esProject.withProjections(projections);
+            });
+
+            return new EsqlProject(Source.EMPTY, transformedPlan, previousAttrs);
         }
 
-        List<Attribute> previousAttrs = transformedEval.output();
-        transformedEval = (Eval) transformedEval.transformDown(
-            EsRelation.class,
-            esRelation -> esRelation.withAttributes(addedAttrs.build().combine(esRelation.outputSet()).stream().toList())
-        );
-
-        return new EsqlProject(Source.EMPTY, transformedEval, previousAttrs);
+        return plan;
     }
 
     private static Expression replaceFieldsForFieldTransformations(

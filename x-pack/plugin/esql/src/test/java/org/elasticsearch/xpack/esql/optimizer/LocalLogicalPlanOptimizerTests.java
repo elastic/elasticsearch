@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
@@ -1273,6 +1274,98 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
                 .stream()
                 .anyMatch(att -> (att instanceof FieldAttribute fieldAttr) && fieldAttr.field() instanceof FunctionEsField)
         );
+    }
+
+    public void testVectorFunctionsInWhere() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            from test_all
+            | where v_dot_product(dense_vector, [1.0, 2.0, 3.0]) > 0.5
+            | keep dense_vector
+            """;
+
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+
+        // EsqlProject[[dense_vector{f}#25]]
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), contains("dense_vector"));
+
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var greaterThan = as(filter.condition(), GreaterThan.class);
+
+        // Check left side is the replaced field attribute
+        var fieldAttr = as(greaterThan.left(), FieldAttribute.class);
+        assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        var field = as(fieldAttr.field(), FunctionEsField.class);
+        var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
+        assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+        assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+
+        // Check right side is 0.5
+        var literal = as(greaterThan.right(), Literal.class);
+        assertThat(literal.value(), equalTo(0.5));
+        assertThat(literal.dataType(), is(DataType.DOUBLE));
+
+        // EsRelation[test_all][$$dense_vector$DotProduct$26{f}#26, !alias_integer, ..]
+        var esRelation = as(filter.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), is("test_all"));
+        assertTrue(esRelation.output().contains(fieldAttr));
+    }
+
+    public void testVectorFunctionsInStats() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            from test_all
+            | stats count(*) where v_dot_product(dense_vector, [1.0, 2.0, 3.0]) > 0.5
+            """;
+
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+
+        // Limit[1000[INTEGER],false,false]
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
+
+        // Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count(*) where v_dot_product(dense_vector, [1.0, 2.0, 3.0]) > 0.5#3]]
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(0));
+        assertThat(aggregate.aggregates(), hasSize(1));
+
+        // Check the Count aggregate with filter
+        var countAlias = as(aggregate.aggregates().getFirst(), Alias.class);
+        var count = as(countAlias.child(), org.elasticsearch.xpack.esql.expression.function.aggregate.Count.class);
+
+        // Check the filter on the Count aggregate
+        var greaterThan = as(count.filter(), GreaterThan.class);
+
+        // Check left side is the replaced field attribute
+        var fieldAttr = as(greaterThan.left(), FieldAttribute.class);
+        assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        var field = as(fieldAttr.field(), FunctionEsField.class);
+        var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
+        assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+        assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+
+        // Check right side is 0.5
+        var literal = as(greaterThan.right(), Literal.class);
+        assertThat(literal.value(), equalTo(0.5));
+        assertThat(literal.dataType(), is(DataType.DOUBLE));
+
+        // Filter[$$dense_vector$DotProduct$26{f}#26 > 0.5[DOUBLE]]
+        var filter = as(aggregate.child(), Filter.class);
+        var filterCondition = as(filter.condition(), GreaterThan.class);
+
+        // Verify the filter condition matches the aggregate filter
+        var filterFieldAttr = as(filterCondition.left(), FieldAttribute.class);
+        assertThat(filterFieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(filterFieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+
+        // EsRelation[test_all][$$dense_vector$DotProduct$26{f}#26, !alias_integer, ..]
+        var esRelation = as(filter.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), is("test_all"));
+        assertTrue(esRelation.output().contains(filterFieldAttr));
     }
 
     private IsNotNull isNotNull(Expression field) {

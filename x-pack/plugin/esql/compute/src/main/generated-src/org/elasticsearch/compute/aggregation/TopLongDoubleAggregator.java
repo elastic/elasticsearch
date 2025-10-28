@@ -62,13 +62,7 @@ class TopLongDoubleAggregator {
         state.add(groupId, v, outputValue);
     }
 
-    public static void combineIntermediate(
-        GroupingState state,
-        int groupId,
-        LongBlock values,
-        DoubleBlock outputValues,
-        int valuesPosition
-    ) {
+    public static void combineIntermediate(GroupingState state, int groupId, LongBlock values, DoubleBlock outputValues, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {

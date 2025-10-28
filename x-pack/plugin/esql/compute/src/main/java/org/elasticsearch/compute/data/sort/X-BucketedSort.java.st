@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data.sort;
 
+// begin generated imports
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 $if(hasExtra && !(long && Extralong))$
@@ -24,6 +25,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Aggregates the top N {@code $type$} values per bucket.

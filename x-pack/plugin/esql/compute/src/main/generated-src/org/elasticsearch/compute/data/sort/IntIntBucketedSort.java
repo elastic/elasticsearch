@@ -7,8 +7,10 @@
 
 package org.elasticsearch.compute.data.sort;
 
+// begin generated imports
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
@@ -21,6 +23,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Aggregates the top N {@code int} values per bucket.

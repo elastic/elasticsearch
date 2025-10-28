@@ -885,7 +885,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 case VALUE_STRING -> {
                     String v = context.parser().text();
-                    if (isMaybeHexString(v) && v.length() % 2 == 0) {
+                    // Base64 is always divisible by 4, so if it's not, assume hex
+                    if (v.length() % 4 != 0 || isMaybeHexString(v)) {
                         try {
                             yield HexFormat.of().parseHex(v).length;
                         } catch (IllegalArgumentException e) {

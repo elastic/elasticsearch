@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -176,7 +177,7 @@ public final class Ascii extends UnaryScalarFunction {
             formatStr = "\\\\U%08x";
         }
 
-        resultStr = String.format(formatStr, code);
+        resultStr = Strings.format(formatStr, code);
 
         return Optional.of(new BytesRef(resultStr));
     }

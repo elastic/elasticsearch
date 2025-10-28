@@ -338,8 +338,11 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         );
 
         boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
-        if (inferenceIds.isEmpty() && ccsRequest == false) {
-            // Not querying a semantic text field locally and no remote indices are specified
+        Boolean ccsMinimizeRoundTrips = queryRewriteContext.isCcsMinimizeRoundTrips();
+        if (inferenceIds.isEmpty() && (ccsRequest == false || Boolean.TRUE.equals(ccsMinimizeRoundTrips))) {
+            // Not querying a semantic text field locally and either:
+            // - no remote indices are specified
+            // - ccs_minimize_roundtrips: true, so the query will be re-intercepted (if necessary) on the remote cluster
             return originalQuery;
         }
 

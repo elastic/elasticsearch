@@ -1146,8 +1146,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
         Source source = source(ctx);
         Map<String, Expression> params = new HashMap<>();
-        String TIME = "time", START = "start", STOP = "stop", STEP = "step";
-        Set<String> allowed = Set.of(TIME, START, STOP, STEP);
+        String TIME = "time", START = "start", END = "end", STEP = "step";
+        Set<String> allowed = Set.of(TIME, START, END, STEP);
 
         if (ctx.promqlParam().isEmpty()) {
             throw new ParsingException(source(ctx), "Parameter [{}] or [{}] is required", STEP, TIME);
@@ -1175,21 +1175,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Validation logic for time parameters
         Expression time = params.get(TIME);
         Expression start = params.get(START);
-        Expression stop = params.get(STOP);
+        Expression end = params.get(END);
         Expression step = params.get(STEP);
 
-        if (time != null && (start != null || stop != null || step != null)) {
+        if (time != null && (start != null || end != null || step != null)) {
             throw new ParsingException(
                 source,
                 "Specify either [{}] for instant query or [{}}], [{}] or [{}}] for a range query",
                 TIME,
                 STEP,
                 START,
-                STOP
+                END
             );
         }
-        if ((start != null || stop != null) && step == null) {
-            throw new ParsingException(source, "[{}}] is required alongside [{}}] or [{}}]", STEP, START, STOP);
+        if ((start != null || end != null) && step == null) {
+            throw new ParsingException(source, "[{}}] is required alongside [{}}] or [{}}]", STEP, START, END);
         }
 
         // TODO: Perform type and value validation
@@ -1220,7 +1220,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return plan -> time != null
             ? new PromqlCommand(source, plan, promqlPlan, time)
-            : new PromqlCommand(source, plan, promqlPlan, start, stop, step);
+            : new PromqlCommand(source, plan, promqlPlan, start, end, step);
     }
 
     private static ParsingException getParsingException(ParsingException pe, int promqlStartLine, int promqlStartColumn) {

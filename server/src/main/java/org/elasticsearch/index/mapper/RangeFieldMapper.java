@@ -358,7 +358,7 @@ public class RangeFieldMapper extends FieldMapper {
 
             @Override
             public Builder builder(BlockFactory factory, int expectedCount) {
-                return factory.longsFromDocValues(expectedCount);
+                return factory.dateRangeBuilder(expectedCount);
             }
 
             @Override

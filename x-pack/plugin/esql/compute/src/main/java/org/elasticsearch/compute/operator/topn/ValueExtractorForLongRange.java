@@ -14,7 +14,7 @@ public class ValueExtractorForLongRange implements ValueExtractor {
     private final LongRangeBlock block;
 
     ValueExtractorForLongRange(TopNEncoder encoder, LongRangeBlock block) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE;
+        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE: "Expected a DEFAULT_UNSORTABLE encoder but was [" + encoder + "]";
         this.block = block;
     }
 

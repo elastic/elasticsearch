@@ -17,7 +17,7 @@ import org.elasticsearch.index.codec.zstd.ZstdDecompressor;
 public enum BinaryDVCompressionMode {
 
     NO_COMPRESS((byte) 0, null, null),
-    COMPRESSED_WITH_ZSTD_1((byte) 1, new ZstdCompressor(1), new ZstdDecompressor());
+    COMPRESSED_WITH_ZSTD_LEVEL_1((byte) 1, new ZstdCompressor(1), new ZstdDecompressor());
 
     public final byte code;
     public final Compressor compressor;
@@ -32,7 +32,7 @@ public enum BinaryDVCompressionMode {
     public static BinaryDVCompressionMode fromMode(byte mode) {
         return switch (mode) {
             case 0 -> NO_COMPRESS;
-            case 1 -> COMPRESSED_WITH_ZSTD_1;
+            case 1 -> COMPRESSED_WITH_ZSTD_LEVEL_1;
             default -> throw new IllegalStateException("unknown compression mode [" + mode + "]");
         };
     }

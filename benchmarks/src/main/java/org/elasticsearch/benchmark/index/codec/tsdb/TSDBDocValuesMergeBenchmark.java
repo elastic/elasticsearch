@@ -262,7 +262,7 @@ public class TSDBDocValuesMergeBenchmark {
             4096,
             512,
             optimizedMergeEnabled,
-            BinaryDVCompressionMode.COMPRESSED_WITH_ZSTD_1
+            BinaryDVCompressionMode.COMPRESSED_WITH_ZSTD_LEVEL_1
         );
         config.setCodec(new Elasticsearch92Lucene103Codec() {
             @Override

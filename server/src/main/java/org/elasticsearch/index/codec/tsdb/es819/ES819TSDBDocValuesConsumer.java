@@ -576,27 +576,29 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         @Override
         public void flushData() throws IOException {
-            if (numDocsInCurrentBlock > 0) {
-                totalChunks++;
-                long thisBlockStartPointer = data.getFilePointer();
-
-                // write length of string data
-                data.writeInt(uncompressedBlockLength);
-
-                maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
-                maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocsInCurrentBlock);
-
-                compressOffsets(data, numDocsInCurrentBlock);
-                compress(block, uncompressedBlockLength, data);
-
-                blockDocRangeAcc.addDoc(numDocsInCurrentBlock);
-                numDocsInCurrentBlock = 0;
-
-                uncompressedBlockLength = 0;
-                maxPointer = data.getFilePointer();
-                long blockLenBytes = maxPointer - thisBlockStartPointer;
-                blockAddressAcc.addDoc(blockLenBytes);
+            if (numDocsInCurrentBlock == 0) {
+                return;
             }
+
+            totalChunks++;
+            long thisBlockStartPointer = data.getFilePointer();
+
+            // write length of string data
+            data.writeInt(uncompressedBlockLength);
+
+            maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
+            maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocsInCurrentBlock);
+
+            compressOffsets(data, numDocsInCurrentBlock);
+            compress(block, uncompressedBlockLength, data);
+
+            blockDocRangeAcc.addDoc(numDocsInCurrentBlock);
+            numDocsInCurrentBlock = 0;
+
+            uncompressedBlockLength = 0;
+            maxPointer = data.getFilePointer();
+            long blockLenBytes = maxPointer - thisBlockStartPointer;
+            blockAddressAcc.addDoc(blockLenBytes);
         }
 
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {

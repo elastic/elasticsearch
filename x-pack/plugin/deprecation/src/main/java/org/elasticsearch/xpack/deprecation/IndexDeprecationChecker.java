@@ -54,7 +54,8 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         this::checkIndexDataPath,
         this::storeTypeSettingCheck,
         this::deprecatedCamelCasePattern,
-        this::legacyRoutingSettingCheck
+        this::legacyRoutingSettingCheck,
+        this::percolatorIndicesCheck
     );
 
     public IndexDeprecationChecker(IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -315,6 +316,43 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             false,
             DeprecationIssue.createMetaMapForRemovableSettings(deprecatedSettings)
         );
+    }
+
+    private DeprecationIssue percolatorIndicesCheck(
+        IndexMetadata indexMetadata,
+        ClusterState clusterState,
+        Map<String, List<String>> ignored
+    ) {
+        if (DeprecatedIndexPredicate.reindexRequiredForTransportVersion(indexMetadata, false, false)) {
+            List<String> types = new ArrayList<>();
+            List<String> percolatorIncompatibleFieldMappings = new ArrayList<>();
+            fieldLevelMappingIssue(
+                indexMetadata,
+                (mappingMetadata, sourceAsMap) -> percolatorIncompatibleFieldMappings.addAll(
+                    findInPropertiesRecursively(
+                        mappingMetadata.type(),
+                        sourceAsMap,
+                        property -> "percolator".equals(property.get("type")),
+                        (type, entry) -> "Field [" + entry.getKey() + "] is of type [" + mappingMetadata.type() + "]",
+                        "",
+                        ""
+                    )
+                )
+            );
+
+            if (percolatorIncompatibleFieldMappings.isEmpty() == false) {
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "Field mappings with incompatible percolator type",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/percolator.html#_reindexing_your_percolator_queries",
+                    "The index was created before 8.19 and contains mappings that must be reindexed due to containing percolator fields. "
+                        + String.join(", ", percolatorIncompatibleFieldMappings),
+                    false,
+                    Map.of("reindex_required", true)
+                );
+            }
+        }
+        return null;
     }
 
     private void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {

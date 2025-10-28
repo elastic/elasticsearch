@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.deprecation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
@@ -15,6 +16,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
 import java.util.function.Predicate;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_TRANSPORT_VERSION_CREATED;
 
 public class DeprecatedIndexPredicate {
 
@@ -49,10 +52,27 @@ public class DeprecatedIndexPredicate {
      *                              if false, only those without a block are returned
      * @param includeSystem if true, all indices including system will be returned,
      *                              if false, only non-system indices are returned
-     * @return a predicate that returns true for indices that need to be reindexed
+     * @return returns true for indices that need to be reindexed
      */
     public static boolean reindexRequired(IndexMetadata indexMetadata, boolean filterToBlockedStatus, boolean includeSystem) {
         return creationVersionBeforeMinimumWritableVersion(indexMetadata)
+            && (includeSystem || isNotSystem(indexMetadata))
+            && isNotSearchableSnapshot(indexMetadata)
+            && matchBlockedStatus(indexMetadata, filterToBlockedStatus);
+    }
+
+    /**
+     * This method checks if this index is on the current transport version for the current major release version.
+     *
+     * @param indexMetadata the index metadata
+     * @param filterToBlockedStatus if true, only indices that are write blocked will be returned,
+     *                              if false, only those without a block are returned
+     * @param includeSystem if true, all indices including system will be returned,
+     *                              if false, only non-system indices are returned
+     * @return returns true for indices that need to be reindexed
+     */
+    public static boolean reindexRequiredForTransportVersion(IndexMetadata indexMetadata, boolean filterToBlockedStatus, boolean includeSystem) {
+        return transportVersionBeforeCurrentMajorRelease(indexMetadata)
             && (includeSystem || isNotSystem(indexMetadata))
             && isNotSearchableSnapshot(indexMetadata)
             && matchBlockedStatus(indexMetadata, filterToBlockedStatus);
@@ -72,5 +92,10 @@ public class DeprecatedIndexPredicate {
 
     private static boolean matchBlockedStatus(IndexMetadata indexMetadata, boolean filterToBlockedStatus) {
         return MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()) == filterToBlockedStatus;
+    }
+
+    private static final TransportVersion REINDEX_MINIMUM = TransportVersion.fromId(8841000);
+    private static boolean transportVersionBeforeCurrentMajorRelease(IndexMetadata indexMetadata) {
+        return IndexMetadata.SETTING_INDEX_TRANSPORT_VERSION_CREATED.get(indexMetadata.getSettings()).id() < REINDEX_MINIMUM.id();
     }
 }

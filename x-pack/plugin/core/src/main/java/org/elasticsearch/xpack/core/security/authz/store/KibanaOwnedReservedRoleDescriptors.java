@@ -315,7 +315,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name(),
                         TransportPutMappingAction.TYPE.name(),
                         RolloverAction.NAME,
-                        "indices:admin/data_stream/lifecycle/put"
+                        "indices:admin/data_stream/lifecycle/put",
+                        "indices:admin/forcemerge*"
                     )
                     .build(),
                 // Endpoint specific action responses. Kibana reads and writes (for third party

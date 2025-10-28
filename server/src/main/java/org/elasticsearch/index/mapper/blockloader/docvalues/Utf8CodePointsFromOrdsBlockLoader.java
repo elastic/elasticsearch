@@ -30,7 +30,6 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
      * entries for a cache.
      */
     static final int LOW_CARDINALITY = 1024;
-    
     private final String fieldName;
 
     public Utf8CodePointsFromOrdsBlockLoader(String fieldName) {
@@ -72,15 +71,27 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     /**
      * Loads low cardinality singleton ordinals in using a cache of code point counts.
+     * <p>
+     *     If we haven't cached the counts for all ordinals then the process looks like:
+     * </p>
      * <ol>
      *     <li>Build an int[] containing the ordinals</li>
-     *     <li>Sort a copy of the int[] and load the cache for each ordinal</li>
+     *     <li>
+     *         Sort a copy of the int[] and load the cache for each ordinal. The sorting
+     *         is important here because ordinals are faster to resolved in ascending order.
+     *     </li>
      *     <li>Walk the int[] in order, reading from the cache to build the page</li>
      * </ol>
+     * <p>
+     *     If we <strong>have</strong> cached the counts for all ordinals we load the
+     *     ordinals and look them up in the cache immediately.
+     * </p>
      */
     private static class SingletonOrdinals extends BlockDocValuesReader {
         private final SortedDocValues ordinals;
         private final int[] cache;
+
+        private int cacheEntriesFilled;
 
         SingletonOrdinals(SortedDocValues ordinals) {
             this.ordinals = ordinals;
@@ -96,7 +107,9 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return blockForSingleDoc(factory, docs.get(offset));
             }
 
-            // TODO if the cache is full we can skip this three step thing and load immediately from the cache.
+            if (cacheEntriesFilled == cache.length) {
+                return buildFromFilledCache(factory, docs, offset);
+            }
 
             int[] ords = readOrds(factory, docs, offset);
             try {
@@ -177,6 +190,21 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
         }
 
+        private Block buildFromFilledCache(BlockFactory factory, Docs docs, int offset) throws IOException {
+            int count = docs.count() - offset;
+            try (IntBuilder builder = factory.ints(count)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (ordinals.advanceExact(doc) == false) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.appendInt(cache[ordinals.ordValue()]);
+                }
+                return builder.build();
+            }
+        }
+
         private int codePointsAtOrd(int ord) throws IOException {
             if (cache[ord] >= 0) {
                 return cache[ord];
@@ -184,21 +212,20 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             BytesRef v = ordinals.lookupOrd(ord);
             int count = UnicodeUtil.codePointCount(v);
             cache[ord] = count;
+            cacheEntriesFilled++;
             return count;
         }
     }
 
     /**
      * Loads low cardinality non-singleton ordinals in using a cache of code point counts.
-     * <ol>
-     *     <li>Build an int[] containing the ordinals</li>
-     *     <li>Sort a copy of the int[] and load the cache for each ordinal</li>
-     *     <li>Walk the int[] in order, reading from the cache to build the page</li>
-     * </ol>
+     * See {@link SingletonOrdinals} for the process
      */
     private static class Ordinals extends BlockDocValuesReader {
         private final SortedSetDocValues ordinals;
         private final int[] cache;
+
+        private int cacheEntriesFilled;
 
         Ordinals(SortedSetDocValues ordinals) {
             this.ordinals = ordinals;
@@ -212,6 +239,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             if (docs.count() - offset == 1) {
                 return blockForSingleDoc(factory, docs.get(offset));
+            }
+
+            if (cacheEntriesFilled == cache.length) {
+                return buildFromFilledCache(factory, docs, offset);
             }
 
             int[] ords = readOrds(factory, docs, offset);
@@ -306,6 +337,26 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
         }
 
+        private Block buildFromFilledCache(BlockFactory factory, Docs docs, int offset) throws IOException {
+            int count = docs.count() - offset;
+            try (IntBuilder builder = factory.ints(count)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (ordinals.advanceExact(doc) == false) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    if (ordinals.docValueCount() != 1) {
+                        // TODO warning
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.appendInt(cache[Math.toIntExact(ordinals.nextOrd())]);
+                }
+                return builder.build();
+            }
+        }
+
         private int codePointsAtOrd(int ord) throws IOException {
             if (cache[ord] >= 0) {
                 return cache[ord];
@@ -313,6 +364,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             BytesRef v = ordinals.lookupOrd(ord);
             int count = UnicodeUtil.codePointCount(v);
             cache[ord] = count;
+            cacheEntriesFilled++;
             return count;
         }
     }

@@ -86,33 +86,56 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends ESTestCase {
 
                 var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
                 var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader("field");
+
+                var stringsReader = stringsLoader.reader(ctx);
                 var codePointsReader = codePointsLoader.reader(ctx);
                 assertThat(codePointsReader, readerMatcher());
-
+                BlockLoader.Docs docs = TestBlock.docs(ctx);
                 try (
-                    TestBlock strings = read(stringsLoader, stringsLoader.reader(ctx), ctx);
-                    TestBlock codePoints = read(codePointsLoader, codePointsReader, ctx);
+                    TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
+                    TestBlock codePoints = read(codePointsLoader, codePointsReader, ctx, docs);
                 ) {
-                    for (int i = 0; i < strings.size(); i++) {
-                        Object str = strings.get(i);
-                        if (str instanceof List<?> || str == null) {
-                            assertThat(codePoints.get(i), nullValue());
-                            continue;
-                        }
-                        BytesRef bytes = (BytesRef) strings.get(i);
-                        assertThat(codePoints.get(i), equalTo(bytes.length));
+                    checkBlocks(strings, codePoints);
+                }
+
+                stringsReader = stringsLoader.reader(ctx);
+                codePointsReader = codePointsLoader.reader(ctx);
+                for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                    int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                    for (int d = 0; d < docsArray.length; d++) {
+                        docsArray[d] = i + d;
+                    }
+                    docs = TestBlock.docs(docsArray);
+                    try (
+                        TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
+                        TestBlock codePoints = read(codePointsLoader, codePointsReader, ctx, docs);
+                    ) {
+                        checkBlocks(strings, codePoints);
                     }
                 }
             }
         }
     }
 
-    private TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, LeafReaderContext ctx) throws IOException {
+    private void checkBlocks(TestBlock strings, TestBlock codePoints) {
+        for (int i = 0; i < strings.size(); i++) {
+            Object str = strings.get(i);
+            if (str instanceof List<?> || str == null) {
+                assertThat(codePoints.get(i), nullValue());
+                continue;
+            }
+            BytesRef bytes = (BytesRef) strings.get(i);
+            assertThat(codePoints.get(i), equalTo(bytes.length));
+        }
+    }
+
+    private TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, LeafReaderContext ctx, BlockLoader.Docs docs)
+        throws IOException {
         BlockLoader.AllReader toUse = blockAtATime
             ? reader
-            : new ForceDocAtATime(() -> loader.builder(TestBlock.factory(), ctx.reader().numDocs()), reader);
+            : new ForceDocAtATime(() -> loader.builder(TestBlock.factory(), docs.count()), reader);
 
-        return (TestBlock) toUse.read(TestBlock.factory(), TestBlock.docs(ctx), 0, false);
+        return (TestBlock) toUse.read(TestBlock.factory(), docs, 0, false);
     }
 
     private Matcher<Object> readerMatcher() {

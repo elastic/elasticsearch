@@ -61,6 +61,16 @@ public record TargetProjects(
         ).map(ProjectRoutingInfo::projectAlias).collect(Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * Stream containing all project IDs
+     */
+    public Stream<ProjectRoutingInfo> allProjects() {
+        return Stream.concat(
+            originProject != null ? Stream.of(originProject) : Stream.empty(),
+            linkedProjects != null ? linkedProjects.stream() : Stream.empty()
+        );
+    }
+
     // TODO: Either change the definition or the method name since it allows targeting only the origin project without any remotes
     public boolean crossProject() {
         return originProject != null || (linkedProjects != null && linkedProjects.isEmpty() == false);

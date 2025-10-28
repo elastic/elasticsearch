@@ -118,23 +118,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(source(labelsCtx), "Vector selector must contain at least one non-empty matcher");
             }
         }
+        final LabelMatchers matchers = new LabelMatchers(labels);
+        UnresolvedAttribute timestamp = new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD);
+
         Evaluation evaluation = visitEvaluation(ctx.evaluation());
-        TimeValue range = visitDuration(ctx.duration());
-        // TODO: TimeValue might not be needed after all
-        Expression rangeEx = new Literal(source(ctx.duration()), Duration.ofSeconds(range.getSeconds()), DataType.TIME_DURATION);
         // fall back to default
         if (evaluation == null) {
             evaluation = new Evaluation(start);
         }
-
-        final LabelMatchers matchers = new LabelMatchers(labels);
         final Evaluation finalEvaluation = evaluation;
+        PromqlBaseParser.DurationContext duration = ctx.duration();
+        if (duration == null) {
+            return new InstantSelector(source, series, labelExpressions, matchers, finalEvaluation, timestamp);
+        }
+        TimeValue range = visitDuration(duration);
+        // TODO: TimeValue might not be needed after all
+        Expression rangeEx = new Literal(source(duration), Duration.ofSeconds(range.getSeconds()), DataType.TIME_DURATION);
 
-        UnresolvedAttribute timestamp = new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD);
-
-        return range == null
-            ? new InstantSelector(source, series, labelExpressions, matchers, finalEvaluation, timestamp)
-            : new RangeSelector(source, series, labelExpressions, matchers, rangeEx, finalEvaluation, timestamp);
+        return new RangeSelector(source, series, labelExpressions, matchers, rangeEx, finalEvaluation, timestamp);
     }
 
     @Override

@@ -23,16 +23,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-
-import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 import java.io.IOException;
 
 /**

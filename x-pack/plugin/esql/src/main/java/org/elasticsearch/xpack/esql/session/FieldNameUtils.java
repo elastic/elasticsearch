@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -173,12 +174,12 @@ public class FieldNameUtils {
                 referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    referencesBuilder.get().add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    referencesBuilder.get().add(UnresolvedTimestamp.withSource(ur.source()));
                 }
 
                 p.forEachExpression(UnresolvedFunction.class, uf -> {
                     if (FUNCTIONS_REQUIRING_TIMESTAMP.contains(uf.name().toLowerCase(Locale.ROOT))) {
-                        referencesBuilder.get().add(new UnresolvedAttribute(uf.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                        referencesBuilder.get().add(UnresolvedTimestamp.withSource(uf.source()));
                     }
                 });
 

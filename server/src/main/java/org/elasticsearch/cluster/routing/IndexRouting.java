@@ -73,6 +73,7 @@ public abstract class IndexRouting {
     private final int numberOfShards;
     private final int routingNumShards;
     private final int routingFactor;
+    protected final IndexVersion creationVersion;
     @Nullable
     private final IndexReshardingMetadata indexReshardingMetadata;
 
@@ -81,6 +82,7 @@ public abstract class IndexRouting {
         this.numberOfShards = metadata.getNumberOfShards();
         this.routingNumShards = metadata.getRoutingNumShards();
         this.routingFactor = metadata.getRoutingFactor();
+        this.creationVersion = metadata.getCreationVersion();
         this.indexReshardingMetadata = metadata.getReshardingMetadata();
     }
 
@@ -139,12 +141,20 @@ public abstract class IndexRouting {
      */
     public abstract void collectSearchShards(String routing, IntConsumer consumer);
 
+    private static boolean shouldUseShardCountModRouting(final IndexVersion creationVersion) {
+        return creationVersion.onOrAfter(IndexVersions.MOD_ROUTING_FUNCTION);
+    }
+
     /**
      * Convert a hash generated from an {@code (id, routing}) pair into a
      * shard id.
      */
     protected final int hashToShardId(int hash) {
-        return Math.floorMod(hash, numberOfShards);
+        if (shouldUseShardCountModRouting(creationVersion)) {
+            return Math.floorMod(hash, numberOfShards);
+        } else {
+            return hashToShardIdOld(hash);
+        }
     }
 
     /**
@@ -194,12 +204,10 @@ public abstract class IndexRouting {
 
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
-        private final IndexVersion creationVersion;
         private final IndexMode indexMode;
 
         IdAndRoutingOnly(IndexMetadata metadata) {
             super(metadata);
-            this.creationVersion = metadata.getCreationVersion();
             MappingMetadata mapping = metadata.mapping();
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
             this.indexMode = metadata.getIndexMode();

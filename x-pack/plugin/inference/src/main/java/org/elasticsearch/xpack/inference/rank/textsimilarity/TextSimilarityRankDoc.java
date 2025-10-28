@@ -134,7 +134,7 @@ public class TextSimilarityRankDoc extends RankDoc {
             + ", field="
             + field
             + ", chunkScorerConfig="
-            + chunkScorerConfig.toString()
+            + chunkScorerConfig
             + '}';
     }
 

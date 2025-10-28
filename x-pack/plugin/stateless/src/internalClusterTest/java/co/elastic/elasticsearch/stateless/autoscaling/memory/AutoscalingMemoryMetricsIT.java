@@ -541,7 +541,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             totalSegmentsNum += shardMetric.getNumSegments();
             totalPostingsInMemoryBytes += shardMetric.getPostingsInMemoryBytes();
         }
-        final long expectedReduction = totalPostingsInMemoryBytes + fixedShardMemoryOverhead.getBytes() * totalSegmentsNum
+        final long expectedReduction = totalPostingsInMemoryBytes + fixedShardMemoryOverhead.getBytes() * numberOfShards
             - (fixedHollowShardMemoryOverhead.getBytes() * numberOfShards + hollowShardSegmentMemoryOverhead.getBytes() * totalSegmentsNum);
 
         var plugin = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);

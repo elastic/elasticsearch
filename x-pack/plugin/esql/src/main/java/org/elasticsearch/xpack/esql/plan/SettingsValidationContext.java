@@ -13,6 +13,9 @@ import org.elasticsearch.transport.RemoteClusterService;
 public record SettingsValidationContext(boolean crossProjectEnabled, boolean isSnapshot) {
 
     public static SettingsValidationContext from(RemoteClusterService remoteClusterService) {
-        return new SettingsValidationContext(remoteClusterService.crossProjectEnabled(), Build.current().isSnapshot());
+        return new SettingsValidationContext(
+            remoteClusterService == null ? false : remoteClusterService.crossProjectEnabled(),
+            Build.current().isSnapshot()
+        );
     }
 }

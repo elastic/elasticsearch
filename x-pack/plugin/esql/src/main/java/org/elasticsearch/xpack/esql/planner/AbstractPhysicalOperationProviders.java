@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -276,14 +277,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         LocalExecutionPlannerContext context
     ) {
         IntermediateInputs intermediateInputs = mode.isInputPartial() ? new IntermediateInputs(aggregateExec) : null;
-        Set<Expression> seen = new HashSet<>();
+        Set<Tuple<Expression, String>> seen = new HashSet<>();
         // extract filtering channels - and wrap the aggregation with the new evaluator expression only during the init phase
         for (NamedExpression ne : aggregates) {
             // a filter can only appear on aggregate function, not on the grouping columns
             if (ne instanceof Alias alias) {
                 var child = alias.child();
                 if (child instanceof AggregateFunction aggregateFunction) {
-                    if (mode.isOutputPartial() && seen.add(aggregateFunction) == false) {
+                    if (seen.add(Tuple.tuple(aggregateFunction, aggregateFunction.toString())) == false && mode.isOutputPartial()) {
                         continue;
                     }
                     final List<Attribute> sourceAttr;

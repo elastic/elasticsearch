@@ -3442,3 +3442,32 @@ ROW x = 1
 a:long | b:long | c:integer
 2      | 1      | 1
 ;
+
+fixClassCastBug4
+required_capability: inline_stats
+required_capability: fix_stats_classcast_exception
+
+FROM sample_data, sample_data_str
+| EVAL one_ip = client_ip::ip
+| INLINE STATS count1=count(client_ip::ip), count2=count(one_ip)
+| KEEP count1, count2
+| LIMIT 3
+;
+
+count1:long    |count2:long
+14             |14 
+14             |14 
+14             |14
+;
+
+fixClassCastBug5
+required_capability: fix_stats_classcast_exception
+
+FROM sample_data_ts_long 
+| EVAL sym1 = 0, sym5 = 1
+| STATS sym2 = median(sym5) + 0, sym3 = median(sym5), sym4 = count_distinct(sym1)
+;
+
+sym2:double |sym3:double | sym4:long
+1.0         | 1.0        | 1
+;

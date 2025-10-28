@@ -295,7 +295,11 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
                     fieldVectors.put(asRankDoc.doc, new VectorData((byte[]) field.getValue()));
                 } else {
                     throw new ElasticsearchStatusException(
-                        String.format(Locale.ROOT, "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?", diversificationField),
+                        String.format(
+                            Locale.ROOT,
+                            "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?",
+                            diversificationField
+                        ),
                         RestStatus.BAD_REQUEST
                     );
                 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -103,9 +102,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware {
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
 
-        PromqlCommand other = (PromqlCommand) obj;
-        return Objects.equals(child(), other.child()) && Objects.equals(promqlPlan, other.promqlPlan);
-    }
+            PromqlCommand other = (PromqlCommand) obj;
+            return Objects.equals(child(), other.child()) && Objects.equals(promqlPlan, other.promqlPlan);
+        }
 
         return false;
     }

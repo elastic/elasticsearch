@@ -54,7 +54,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             var modelId = randomValueOtherThan(instance.modelId(), ElserModelsTests::randomElserModel);
             return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, instance.maxInputTokens());
         } else {
-            var maxInputTokens = randomValueOtherThan(instance.maxInputTokens(), () -> randomFrom(ESTestCase.randomNonNegativeInt(), null));
+            var maxInputTokens = randomValueOtherThan(instance.maxInputTokens(), ESTestCase::randomNonNegativeIntOrNull);
             return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(instance.modelId(), maxInputTokens);
         }
     }

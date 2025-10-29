@@ -38,7 +38,7 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
     public static CohereRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
         return new CohereRerankServiceSettings(
             randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
-            randomFrom(new String[] { null, randomAlphaOfLength(10) }),
+            randomAlphaOfLengthOrNull(10),
             rateLimitSettings,
             CohereServiceSettings.CohereApiVersion.V2
         );
@@ -84,8 +84,8 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
         var rateLimitSettings = instance.rateLimitSettings();
         var apiVersion = instance.apiVersion();
         switch (randomInt(3)) {
-            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomFrom(randomAlphaOfLength(8), null));
-            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomFrom(randomAlphaOfLength(10), null));
+            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomAlphaOfLengthOrNull(8));
+            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(10));
             case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomFrom(CohereServiceSettings.CohereApiVersion.values()));
             default -> throw new AssertionError("Illegal randomisation branch");

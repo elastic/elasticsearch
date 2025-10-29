@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -37,10 +38,10 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
         var projectId = randomAlphaOfLength(8);
         var model = randomAlphaOfLength(8);
         var dimensionsSetByUser = randomBoolean();
-        var maxInputTokens = randomIntegerOrNull();
+        var maxInputTokens = randomNonNegativeIntOrNull();
         var similarityMeasure = randomFrom(new SimilarityMeasure[] { null, randomFrom(SimilarityMeasure.values()) });
         var similarityMeasureString = similarityMeasure == null ? null : similarityMeasure.toString();
-        var dims = randomIntegerOrNull();
+        var dims = randomNonNegativeIntOrNull();
         var configurationParseContext = ConfigurationParseContext.PERSISTENT;
 
         var serviceSettings = GoogleVertexAiEmbeddingsServiceSettings.fromMap(new HashMap<>() {
@@ -161,11 +162,8 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
             case 1 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(10));
             case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
             case 3 -> dimensionsSetByUser = dimensionsSetByUser == false;
-            case 4 -> maxInputTokens = randomValueOtherThan(
-                maxInputTokens,
-                GoogleVertexAiEmbeddingsServiceSettingsTests::randomIntegerOrNull
-            );
-            case 5 -> dimensions = randomValueOtherThan(dimensions, GoogleVertexAiEmbeddingsServiceSettingsTests::randomIntegerOrNull);
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, ESTestCase::randomNonNegativeIntOrNull);
+            case 5 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 6 -> similarity = randomValueOtherThan(similarity, Utils::randomSimilarityMeasure);
             case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -197,14 +195,11 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomBoolean(),
-            randomIntegerOrNull(),
-            randomIntegerOrNull(),
+            randomNonNegativeIntOrNull(),
+            randomNonNegativeIntOrNull(),
             randomFrom(new SimilarityMeasure[] { null, randomSimilarityMeasure() }),
             randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() })
         );
     }
 
-    private static Integer randomIntegerOrNull() {
-        return randomFrom(new Integer[] { null, randomNonNegativeInt() });
-    }
 }

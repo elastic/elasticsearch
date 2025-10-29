@@ -32,7 +32,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     public static VoyageAIEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomWithIngestAndSearch() : null;
-        var truncation = randomBoolean();
+        var truncation = randomOptionalBoolean();
 
         return new VoyageAIEmbeddingsTaskSettings(inputType, truncation);
     }
@@ -187,7 +187,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
             var inputType = randomValueOtherThan(instance.getInputType(), () -> randomFrom(randomWithIngestAndSearch(), null));
             return new VoyageAIEmbeddingsTaskSettings(inputType, instance.getTruncation());
         } else {
-            var truncation = randomValueOtherThan(instance.getTruncation(), () -> randomFrom(randomBoolean(), null));
+            var truncation = instance.getTruncation() == null ? randomBoolean() : instance.getTruncation() == false;
             return new VoyageAIEmbeddingsTaskSettings(instance.getInputType(), truncation);
         }
     }

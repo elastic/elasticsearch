@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -257,8 +258,8 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
                 adaptiveAllocationsSettings,
                 () -> randomFrom(AdaptiveAllocationSettingsTests.testInstance(), null)
             );
-            case 4 -> deploymentId = randomValueOtherThan(deploymentId, () -> randomFrom(randomAlphaOfLength(8), null));
-            case 5 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomInt(), null));
+            case 4 -> deploymentId = randomValueOtherThan(deploymentId, () -> randomAlphaOfLengthOrNull(8));
+            case 5 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 6 -> similarity = randomValueOtherThan(similarity, Utils::randomSimilarityMeasure);
             case 7 -> elementType = randomValueOtherThan(elementType, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()));
             default -> throw new AssertionError("Illegal randomisation branch");

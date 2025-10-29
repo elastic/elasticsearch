@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -32,8 +33,8 @@ public class GoogleAiStudioEmbeddingsServiceSettingsTests extends AbstractWireSe
     private static GoogleAiStudioEmbeddingsServiceSettings createRandom() {
         return new GoogleAiStudioEmbeddingsServiceSettings(
             randomAlphaOfLength(8),
-            randomFrom(randomNonNegativeInt(), null),
-            randomFrom(randomNonNegativeInt(), null),
+            randomNonNegativeIntOrNull(),
+            randomNonNegativeIntOrNull(),
             randomFrom(randomSimilarityMeasure(), null),
             randomFrom(RateLimitSettingsTests.createRandom(), null)
         );
@@ -102,8 +103,8 @@ public class GoogleAiStudioEmbeddingsServiceSettingsTests extends AbstractWireSe
         var rateLimitSettings = instance.rateLimitSettings();
         switch (randomInt(4)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
-            case 1 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomNonNegativeInt(), null));
-            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomNonNegativeInt(), null));
+            case 1 -> maxInputTokens = randomValueOtherThan(maxInputTokens, ESTestCase::randomNonNegativeIntOrNull);
+            case 2 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(Utils.randomSimilarityMeasure(), null));
             case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");

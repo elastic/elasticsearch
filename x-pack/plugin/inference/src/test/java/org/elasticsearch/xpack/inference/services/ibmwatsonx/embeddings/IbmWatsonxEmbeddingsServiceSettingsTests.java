@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -42,8 +43,8 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
             randomAlphaOfLength(8),
             uri,
             randomAlphaOfLength(8),
-            randomFrom(randomNonNegativeInt(), null),
-            randomFrom(randomNonNegativeInt(), null),
+            randomNonNegativeIntOrNull(),
+            randomNonNegativeIntOrNull(),
             randomFrom(randomSimilarityMeasure(), null),
             randomFrom(RateLimitSettingsTests.createRandom(), null)
         );
@@ -149,8 +150,8 @@ public class IbmWatsonxEmbeddingsServiceSettingsTests extends AbstractWireSerial
             case 1 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(8));
             case 2 -> url = randomValueOtherThan(url, () -> createUri(randomAlphaOfLength(8)));
             case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
-            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomNonNegativeInt(), null));
-            case 5 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomNonNegativeInt(), null));
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, ESTestCase::randomNonNegativeIntOrNull);
+            case 5 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 6 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
             case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");

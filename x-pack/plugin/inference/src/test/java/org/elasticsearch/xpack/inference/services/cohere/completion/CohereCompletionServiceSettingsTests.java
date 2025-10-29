@@ -118,8 +118,8 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
         var rateLimitSettings = instance.rateLimitSettings();
         var apiVersion = instance.apiVersion();
         switch (randomInt(3)) {
-            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomFrom(randomAlphaOfLength(8), null));
-            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomFrom(randomAlphaOfLength(8), null));
+            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomAlphaOfLengthOrNull(8));
+            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(8));
             case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomFrom(CohereServiceSettings.CohereApiVersion.values()));
             default -> throw new AssertionError("Illegal randomisation branch");

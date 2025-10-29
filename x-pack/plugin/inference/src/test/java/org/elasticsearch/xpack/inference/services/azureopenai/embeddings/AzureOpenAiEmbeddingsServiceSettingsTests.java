@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -39,7 +40,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         var resourceName = randomAlphaOfLength(8);
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);
-        Integer dims = randomBoolean() ? 1536 : null;
+        Integer dims = randomNonNegativeIntOrNull();
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         return new AzureOpenAiEmbeddingsServiceSettings(
             resourceName,
@@ -522,7 +523,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             case 0 -> resourceName = randomValueOtherThan(resourceName, () -> randomAlphaOfLength(8));
             case 1 -> deploymentId = randomValueOtherThan(deploymentId, () -> randomAlphaOfLength(8));
             case 2 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
-            case 3 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomInt(), null));
+            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 4 -> dimensionsSetByUser = dimensionsSetByUser == false;
             case 5 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
             case 6 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));

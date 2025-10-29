@@ -30,7 +30,7 @@ public class GoogleVertexAiRerankServiceSettingsTests extends AbstractBWCWireSer
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
         var projectId = randomAlphaOfLength(10);
-        var modelId = randomFrom(new String[] { null, randomAlphaOfLength(10) });
+        var modelId = randomAlphaOfLengthOrNull(10);
 
         var serviceSettings = GoogleVertexAiRerankServiceSettings.fromMap(new HashMap<>() {
             {
@@ -113,7 +113,7 @@ public class GoogleVertexAiRerankServiceSettingsTests extends AbstractBWCWireSer
         var rateLimitSettings = instance.rateLimitSettings();
         switch (randomInt(2)) {
             case 0 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(10));
-            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomFrom(randomAlphaOfLength(10), null));
+            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(10));
             case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -132,7 +132,7 @@ public class GoogleVertexAiRerankServiceSettingsTests extends AbstractBWCWireSer
     private static GoogleVertexAiRerankServiceSettings createRandom() {
         return new GoogleVertexAiRerankServiceSettings(
             randomAlphaOfLength(10),
-            randomFrom(new String[] { null, randomAlphaOfLength(10) }),
+            randomAlphaOfLengthOrNull(10),
             randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() })
         );
     }

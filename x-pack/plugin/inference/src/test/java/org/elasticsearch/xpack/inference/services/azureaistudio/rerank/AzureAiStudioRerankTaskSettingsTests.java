@@ -197,13 +197,10 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
     @Override
     protected AzureAiStudioRerankTaskSettings mutateInstance(AzureAiStudioRerankTaskSettings instance) throws IOException {
         if (randomBoolean()) {
-            Boolean returnDocuments = randomValueOtherThan(
-                instance.returnDocuments(),
-                AzureAiStudioRerankTaskSettingsTests::randomBooleanOrNull
-            );
-            return new AzureAiStudioRerankTaskSettings(returnDocuments, instance.topN());
+            Boolean newReturnDocuments = instance.returnDocuments() == null ? randomBoolean() : instance.returnDocuments() == false;
+            return new AzureAiStudioRerankTaskSettings(newReturnDocuments, instance.topN());
         } else {
-            Integer topN = randomValueOtherThan(instance.topN(), AzureAiStudioRerankTaskSettingsTests::randomIntegerOrNull);
+            Integer topN = randomValueOtherThan(instance.topN(), ESTestCase::randomNonNegativeIntOrNull);
             return new AzureAiStudioRerankTaskSettings(instance.returnDocuments(), topN);
         }
     }
@@ -214,22 +211,7 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
     }
 
     private static AzureAiStudioRerankTaskSettings createRandom() {
-        return new AzureAiStudioRerankTaskSettings(randomBooleanOrNull(), randomIntegerOrNull());
-    }
-
-    private static AzureAiStudioRerankTaskSettings createRandom(AzureAiStudioRerankTaskSettings settings) {
-        return new AzureAiStudioRerankTaskSettings(
-            randomValueOtherThan(settings.returnDocuments(), AzureAiStudioRerankTaskSettingsTests::randomBooleanOrNull),
-            randomValueOtherThan(settings.topN(), AzureAiStudioRerankTaskSettingsTests::randomIntegerOrNull)
-        );
-    }
-
-    private static Boolean randomBooleanOrNull() {
-        return randomFrom(new Boolean[] { null, randomBoolean() });
-    }
-
-    private static Integer randomIntegerOrNull() {
-        return randomFrom(new Integer[] { null, randomNonNegativeInt() });
+        return new AzureAiStudioRerankTaskSettings(randomOptionalBoolean(), randomNonNegativeIntOrNull());
     }
 
     private void assertThrowsValidationExceptionIfStringValueProvidedFor(String field) {

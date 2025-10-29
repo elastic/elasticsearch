@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -45,8 +46,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
      * The created settings can have a url set to null.
      */
     public static CohereServiceSettings createRandom() {
-        var url = randomBoolean() ? randomAlphaOfLength(15) : null;
-        return createRandom(url);
+        return createRandom(randomAlphaOfLengthOrNull(15));
     }
 
     private static CohereServiceSettings createRandom(String url) {
@@ -58,7 +58,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
             dims = 1536;
         }
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
-        var model = randomBoolean() ? randomAlphaOfLength(15) : null;
+        var model = randomAlphaOfLengthOrNull(15);
 
         return new CohereServiceSettings(
             ServiceUtils.createOptionalUri(url),
@@ -357,11 +357,11 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
         var rateLimitSettings = instance.rateLimitSettings();
         var apiVersion = instance.apiVersion();
         switch (randomInt(6)) {
-            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomFrom(randomAlphaOfLength(15), null));
+            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomAlphaOfLengthOrNull(15));
             case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
-            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomInt(), null));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
-            case 4 -> modelId = randomValueOtherThan(modelId, () -> randomFrom(randomAlphaOfLength(15), null));
+            case 4 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(15));
             case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             case 6 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomFrom(CohereServiceSettings.CohereApiVersion.values()));
             default -> throw new AssertionError("Illegal randomisation branch");

@@ -14,6 +14,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -227,10 +228,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
     @Override
     protected GoogleVertexAiEmbeddingsTaskSettings mutateInstance(GoogleVertexAiEmbeddingsTaskSettings instance) throws IOException {
         if (randomBoolean()) {
-            var autoTruncate = randomValueOtherThan(
-                instance.autoTruncate(),
-                GoogleVertexAiEmbeddingsTaskSettingsTests::randomBooleanOrNull
-            );
+            var autoTruncate = randomValueOtherThan(instance.autoTruncate(), ESTestCase::randomOptionalBoolean);
             return new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, instance.getInputType());
         } else {
             var inputType = randomValueOtherThan(instance.getInputType(), () -> randomFrom(randomWithoutUnspecified(), null));
@@ -252,12 +250,8 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
 
     private static GoogleVertexAiEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomWithoutUnspecified() : null;
-        var autoTruncate = randomBooleanOrNull();
+        var autoTruncate = randomOptionalBoolean();
         return new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, inputType);
-    }
-
-    private static Boolean randomBooleanOrNull() {
-        return randomFrom(new Boolean[] { null, randomBoolean() });
     }
 
     private static <E extends Enum<E>> String getValidValuesSortedAndCombined(EnumSet<E> validValues) {

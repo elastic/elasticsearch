@@ -400,12 +400,9 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             case 0 -> region = randomValueOtherThan(region, () -> randomAlphaOfLength(10));
             case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
             case 2 -> provider = randomValueOtherThan(provider, () -> randomFrom(AmazonBedrockProvider.values()));
-            case 3 -> dimensions = randomValueOtherThan(dimensions, AmazonBedrockEmbeddingsServiceSettingsTests::randomIntegerOrNull);
+            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 4 -> dimensionsSetByUser = randomValueOtherThan(dimensionsSetByUser, ESTestCase::randomBoolean);
-            case 5 -> maxInputTokens = randomValueOtherThan(
-                maxInputTokens,
-                AmazonBedrockEmbeddingsServiceSettingsTests::randomIntegerOrNull
-            );
+            case 5 -> maxInputTokens = randomValueOtherThan(maxInputTokens, ESTestCase::randomNonNegativeIntOrNull);
             case 6 -> similarity = randomValueOtherThan(similarity, AmazonBedrockEmbeddingsServiceSettingsTests::randomSimilarityOrNull);
             case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -427,16 +424,12 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomFrom(AmazonBedrockProvider.values()),
-            randomIntegerOrNull(),
+            randomNonNegativeIntOrNull(),
             randomBoolean(),
-            randomIntegerOrNull(),
+            randomNonNegativeIntOrNull(),
             randomSimilarityOrNull(),
             RateLimitSettingsTests.createRandom()
         );
-    }
-
-    private static Integer randomIntegerOrNull() {
-        return randomFrom(new Integer[] { null, randomNonNegativeInt() });
     }
 
     private static SimilarityMeasure randomSimilarityOrNull() {

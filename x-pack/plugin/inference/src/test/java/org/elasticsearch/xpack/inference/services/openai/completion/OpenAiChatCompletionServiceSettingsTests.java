@@ -240,7 +240,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
         switch (randomInt(4)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
-            case 2 -> organizationId = randomValueOtherThan(organizationId, () -> randomFrom(randomAlphaOfLength(15), null));
+            case 2 -> organizationId = randomValueOtherThan(organizationId, () -> randomAlphaOfLengthOrNull(15));
             case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 4096), null));
             case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");

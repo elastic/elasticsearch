@@ -1015,8 +1015,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
     private static CustomServiceSettings.TextEmbeddingSettings randomTextEmbeddingSettings() {
         return new CustomServiceSettings.TextEmbeddingSettings(
             randomBoolean() ? null : randomSimilarityMeasure(),
-            randomBoolean() ? null : randomInt(),
-            randomBoolean() ? null : randomInt()
+            randomIntOrNull(),
+            randomIntOrNull()
         );
     }
 

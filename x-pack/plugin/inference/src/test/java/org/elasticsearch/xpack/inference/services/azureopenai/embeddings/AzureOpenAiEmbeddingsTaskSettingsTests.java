@@ -37,8 +37,7 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
      * The created settings can have the user set to null.
      */
     public static AzureOpenAiEmbeddingsTaskSettings createRandom() {
-        var user = randomBoolean() ? randomAlphaOfLength(15) : null;
-        return new AzureOpenAiEmbeddingsTaskSettings(user);
+        return new AzureOpenAiEmbeddingsTaskSettings(randomAlphaOfLengthOrNull(15));
     }
 
     public void testUpdatedTaskSettings() {
@@ -110,7 +109,7 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
 
     @Override
     protected AzureOpenAiEmbeddingsTaskSettings mutateInstance(AzureOpenAiEmbeddingsTaskSettings instance) throws IOException {
-        String user = randomValueOtherThan(instance.user(), () -> randomFrom(randomAlphaOfLength(15), null));
+        String user = randomValueOtherThan(instance.user(), () -> randomAlphaOfLengthOrNull(15));
         return new AzureOpenAiEmbeddingsTaskSettings(user);
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCase<JinaAIRerankTaskSettings> {
 
     public static JinaAIRerankTaskSettings createRandom() {
-        var returnDocuments = randomBoolean() ? randomBoolean() : null;
+        var returnDocuments = randomOptionalBoolean();
         var topNDocsOnly = randomBoolean() ? randomIntBetween(1, 10) : null;
 
         return new JinaAIRerankTaskSettings(topNDocsOnly, returnDocuments);
@@ -113,7 +114,7 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
             var topNDocumentsOnly = randomValueOtherThan(instance.getTopNDocumentsOnly(), () -> randomFrom(randomIntBetween(1, 10), null));
             return new JinaAIRerankTaskSettings(topNDocumentsOnly, instance.getReturnDocuments());
         } else {
-            var returnDocuments = randomValueOtherThan(instance.getReturnDocuments(), () -> randomFrom(randomBoolean(), null));
+            var returnDocuments = randomValueOtherThan(instance.getReturnDocuments(), ESTestCase::randomOptionalBoolean);
             return new JinaAIRerankTaskSettings(instance.getTopNDocumentsOnly(), returnDocuments);
         }
     }

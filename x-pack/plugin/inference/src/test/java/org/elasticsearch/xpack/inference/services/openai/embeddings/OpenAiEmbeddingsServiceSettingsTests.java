@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -42,13 +43,12 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
      * The created settings can have a url set to null.
      */
     public static OpenAiEmbeddingsServiceSettings createRandom() {
-        var url = randomBoolean() ? randomAlphaOfLength(15) : null;
-        return createRandom(url);
+        return createRandom(randomAlphaOfLengthOrNull(15));
     }
 
     private static OpenAiEmbeddingsServiceSettings createRandom(String url) {
         var modelId = randomAlphaOfLength(8);
-        var organizationId = randomBoolean() ? randomAlphaOfLength(15) : null;
+        var organizationId = randomAlphaOfLengthOrNull(15);
         SimilarityMeasure similarityMeasure = null;
         Integer dims = null;
         var isTextEmbeddingModel = randomBoolean();
@@ -541,9 +541,9 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         switch (randomInt(7)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> uri = randomValueOtherThan(uri, () -> randomFrom(createUri(randomAlphaOfLength(15)), null));
-            case 2 -> organizationId = randomValueOtherThan(organizationId, () -> randomFrom(randomAlphaOfLength(15), null));
+            case 2 -> organizationId = randomValueOtherThan(organizationId, () -> randomAlphaOfLengthOrNull(15));
             case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure()));
-            case 4 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomInt(), null));
+            case 4 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 5 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
             case 6 -> dimensionsSetByUser = dimensionsSetByUser == false;
             case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);

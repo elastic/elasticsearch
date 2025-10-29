@@ -237,7 +237,7 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
         var uri = instance.uri();
         var rateLimitSettings = instance.rateLimitSettings();
         switch (randomInt(2)) {
-            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomFrom(randomAlphaOfLength(8), null));
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(8));
             case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
             case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");

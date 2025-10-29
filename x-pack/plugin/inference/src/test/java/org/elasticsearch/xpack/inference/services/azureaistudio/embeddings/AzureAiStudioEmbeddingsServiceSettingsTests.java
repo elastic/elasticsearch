@@ -453,15 +453,12 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             case 0 -> target = randomValueOtherThan(target, () -> randomAlphaOfLength(10));
             case 1 -> provider = randomValueOtherThan(provider, () -> randomFrom(AzureAiStudioProvider.values()));
             case 2 -> endpointType = randomValueOtherThan(endpointType, () -> randomFrom(AzureAiStudioEndpointType.values()));
-            case 3 -> dimensions = randomValueOtherThan(dimensions, AzureAiStudioEmbeddingsServiceSettingsTests::randomIntegerOrNull);
+            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 4 -> dimensionsSetByUser = randomValueOtherThan(dimensionsSetByUser, ESTestCase::randomBoolean);
-            case 5 -> maxInputTokens = randomValueOtherThan(
-                maxInputTokens,
-                AzureAiStudioEmbeddingsServiceSettingsTests::randomIntegerOrNull
-            );
+            case 5 -> maxInputTokens = randomValueOtherThan(maxInputTokens, ESTestCase::randomNonNegativeIntOrNull);
             case 6 -> similarity = randomValueOtherThan(
                 similarity,
-                () -> randomFrom(new SimilarityMeasure[] { null, randomSimilarityMeasure() })
+                AzureAiStudioEmbeddingsServiceSettingsTests::randomSimilarityMeasureOrNull
             );
             case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -492,15 +489,15 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             randomAlphaOfLength(10),
             randomFrom(AzureAiStudioProvider.values()),
             randomFrom(AzureAiStudioEndpointType.values()),
-            randomIntegerOrNull(),
+            randomNonNegativeIntOrNull(),
             randomBoolean(),
-            randomIntegerOrNull(),
-            randomFrom(new SimilarityMeasure[] { null, randomSimilarityMeasure() }),
+            randomNonNegativeIntOrNull(),
+            randomSimilarityMeasureOrNull(),
             RateLimitSettingsTests.createRandom()
         );
     }
 
-    private static Integer randomIntegerOrNull() {
-        return randomFrom(new Integer[] { null, randomNonNegativeInt() });
+    private static SimilarityMeasure randomSimilarityMeasureOrNull() {
+        return randomFrom(new SimilarityMeasure[] { null, randomSimilarityMeasure() });
     }
 }

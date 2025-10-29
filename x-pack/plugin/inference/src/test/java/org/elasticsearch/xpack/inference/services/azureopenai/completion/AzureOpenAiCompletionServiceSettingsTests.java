@@ -30,7 +30,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);
 
-        return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null);
+        return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, RateLimitSettingsTests.createRandom());
     }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {

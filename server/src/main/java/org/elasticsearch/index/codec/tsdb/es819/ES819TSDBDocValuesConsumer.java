@@ -517,8 +517,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         final Compressor compressor;
 
         final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-        final long[] docOffsetsCompressBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-        int[] docOffsets = new int[START_BLOCK_DOCS];
+        final long[] docRangesBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+        int[] docRanges = new int[START_BLOCK_DOCS];
 
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
@@ -533,7 +533,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         final DelayedOffsetAccumulator blockDocRangeAcc;
 
         CompressedBinaryBlockWriter(BinaryDVCompressionMode compressionMode) throws IOException {
-            this.compressor = compressionMode.compressionMode.newCompressor();
+            this.compressor = compressionMode.compressionMode().newCompressor();
             long blockAddressesStart = data.getFilePointer();
             blockAddressAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block-addresses", blockAddressesStart);
 
@@ -552,10 +552,11 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             uncompressedBlockLength += v.length;
 
             numDocsInCurrentBlock++;
-            docOffsets = ArrayUtil.grow(docOffsets, numDocsInCurrentBlock + 1); // need one extra since writing start for next block
-            docOffsets[numDocsInCurrentBlock] = uncompressedBlockLength;
+            docRanges = ArrayUtil.grow(docRanges, numDocsInCurrentBlock + 1); // need one extra since writing start for next block
+            docRanges[numDocsInCurrentBlock] = uncompressedBlockLength;
 
-            if (uncompressedBlockLength > MIN_BLOCK_BYTES) {
+            int totalUncompressedLength = uncompressedBlockLength + numDocsInCurrentBlock * Integer.BYTES;
+            if (totalUncompressedLength > MIN_BLOCK_BYTES) {
                 flushData();
             }
         }
@@ -593,12 +594,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             while (batchStart < numOffsets) {
                 int batchLength = Math.min(numOffsets - batchStart, NUMERIC_BLOCK_SIZE);
                 for (int i = 0; i < batchLength; i++) {
-                    docOffsetsCompressBuffer[i] = docOffsets[batchStart + i];
+                    docRangesBuffer[i] = docRanges[batchStart + i];
                 }
-                if (batchLength < docOffsetsCompressBuffer.length) {
-                    Arrays.fill(docOffsetsCompressBuffer, batchLength, docOffsetsCompressBuffer.length, 0);
+                if (batchLength < docRangesBuffer.length) {
+                    Arrays.fill(docRangesBuffer, batchLength, docRangesBuffer.length, 0);
                 }
-                encoder.encode(docOffsetsCompressBuffer, output);
+                encoder.encode(docRangesBuffer, output);
                 batchStart += batchLength;
             }
         }

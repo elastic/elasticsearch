@@ -287,7 +287,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             final DirectMonotonicReader docRanges = DirectMonotonicReader.getInstance(entry.docRangeMeta, docRangeData);
             return new DenseBinaryDocValues(maxDoc) {
                 final BinaryDecoder decoder = new BinaryDecoder(
-                    entry.compression.compressionMode.newDecompressor(),
+                    entry.compression.compressionMode().newDecompressor(),
                     addresses,
                     docRanges,
                     data.clone(),
@@ -317,7 +317,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             final DirectMonotonicReader docRanges = DirectMonotonicReader.getInstance(entry.docRangeMeta, docRangeData);
             return new SparseBinaryDocValues(disi) {
                 final BinaryDecoder decoder = new BinaryDecoder(
-                    entry.compression.compressionMode.newDecompressor(),
+                    entry.compression.compressionMode().newDecompressor(),
                     addresses,
                     docRanges,
                     data.clone(),
@@ -343,7 +343,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private final IndexInput compressedData;
         // Cache of last uncompressed block
         private long lastBlockId = -1;
-        private final long[] docOffsetDecompBuffer = new long[NUMERIC_BLOCK_SIZE];
+        private final long[] docRangesDecompBuffer = new long[NUMERIC_BLOCK_SIZE];
         private final int[] uncompressedDocStarts;
         private final byte[] uncompressedBlock;
         private final BytesRef uncompressedBytesRef;
@@ -380,7 +380,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 return;
             }
 
-            decompressDocOffsets(numDocsInBlock, compressedData);
+            decompressDocRanges(numDocsInBlock, compressedData);
 
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;
@@ -388,21 +388,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             decompressor.decompress(compressedData, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
         }
 
-        void decompressDocOffsets(int numDocsInBlock, DataInput input) throws IOException {
+        void decompressDocRanges(int numDocsInBlock, DataInput input) throws IOException {
             int batchStart = 0;
             int numOffsets = numDocsInBlock + 1;
             while (batchStart < numOffsets) {
-                decoder.decode(input, docOffsetDecompBuffer);
+                decoder.decode(input, docRangesDecompBuffer);
                 int lenToCopy = Math.min(numOffsets - batchStart, NUMERIC_BLOCK_SIZE);
                 for (int i = 0; i < lenToCopy; i++) {
-                    uncompressedDocStarts[batchStart + i] = (int) docOffsetDecompBuffer[i];
+                    uncompressedDocStarts[batchStart + i] = (int) docRangesDecompBuffer[i];
                 }
                 batchStart += NUMERIC_BLOCK_SIZE;
             }
         }
 
-        long findAndUpdateBlock(DirectMonotonicReader docOffsets, long lastBlockId, int docNumber, int numBlocks) {
-            long index = docOffsets.binarySearch(lastBlockId + 1, numBlocks, docNumber);
+        long findAndUpdateBlock(DirectMonotonicReader docRanges, long lastBlockId, int docNumber, int numBlocks) {
+            long index = docRanges.binarySearch(lastBlockId + 1, numBlocks, docNumber);
             // If index is found, index is inclusive lower bound of docNum range, so docNum is in blockId == index
             if (index < 0) {
                 // If index was not found, insertion point (-index - 1) will be upper bound of docNum range.
@@ -411,8 +411,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
             assert index < numBlocks : "invalid range " + index + " for doc " + docNumber + " in numBlocks " + numBlocks;
 
-            startDocNumForBlock = docOffsets.get(index);
-            limitDocNumForBlock = docOffsets.get(index + 1);
+            startDocNumForBlock = docRanges.get(index);
+            limitDocNumForBlock = docRanges.get(index + 1);
             return index;
         }
 

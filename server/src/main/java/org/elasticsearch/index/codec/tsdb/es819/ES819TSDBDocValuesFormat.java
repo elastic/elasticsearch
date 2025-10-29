@@ -28,6 +28,10 @@ import java.io.IOException;
  *     view of all values. If index sorting is active merging a doc value field requires a merge sort which can be very cpu intensive.
  *     The previous format always has to merge sort a doc values field multiple times, so doing the merge sort just once saves on
  *     cpu resources.</li>
+ *     <li>Version 1 adds block-wise compression to binary doc values. Each block contains a variable number of values so that each
+ *     block is approximately the same size. To map a given value's index to the block containing the value, there are two parallel
+ *     arrays. These contain the starting address for each block, and the starting value index for each block. Additional compression
+ *     types may be added by creating a new mode in {@link org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode}.</li>
  * </ul>
  */
 public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {

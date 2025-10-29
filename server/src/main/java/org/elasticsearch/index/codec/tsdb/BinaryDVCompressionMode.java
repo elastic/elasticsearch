@@ -18,7 +18,7 @@ public enum BinaryDVCompressionMode {
     COMPRESSED_ZSTD_LEVEL_1((byte) 1, new ZstdCompressionMode(1));
 
     public final byte code;
-    public final CompressionMode compressionMode;
+    private final CompressionMode compressionMode;
 
     private static final BinaryDVCompressionMode[] values = new BinaryDVCompressionMode[values().length];
     static {
@@ -37,5 +37,12 @@ public enum BinaryDVCompressionMode {
             throw new IllegalStateException("unknown compression mode [" + code + "]");
         }
         return values[code];
+    }
+
+    public CompressionMode compressionMode() {
+        if (compressionMode == null) {
+            throw new UnsupportedOperationException("BinaryDVCompressionMode [" + code + "] does not support compression");
+        }
+        return compressionMode;
     }
 }

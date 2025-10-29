@@ -13,8 +13,10 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
@@ -32,6 +34,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -57,6 +60,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -69,6 +73,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -129,37 +134,74 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
-        executeRequest(task, request, listener);
+        executeRequest(task, request, new LinkedRequestExecutor<FieldCapabilitiesResponse>() {
+            @Override
+            public void executeRemoteRequest(
+                TransportService transportService,
+                Transport.Connection conn,
+                FieldCapabilitiesRequest remoteRequest,
+                ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
+            ) {
+                transportService.sendRequest(conn, REMOTE_TYPE.name(), remoteRequest, TransportRequestOptions.EMPTY, responseHandler);
+            }
+
+            @Override
+            public FieldCapabilitiesResponse read(StreamInput in) throws IOException {
+                return new FieldCapabilitiesResponse(in);
+            }
+
+            @Override
+            public FieldCapabilitiesResponse wrapPrimary(FieldCapabilitiesResponse primary) {
+                return primary;
+            }
+
+            @Override
+            public FieldCapabilitiesResponse unwrapPrimary(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+                return fieldCapabilitiesResponse;
+            }
+        }, listener);
     }
 
-    public void executeRequest(Task task, FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
+    public <R extends ActionResponse> void executeRequest(
+        Task task,
+        FieldCapabilitiesRequest request,
+        LinkedRequestExecutor<R> linkedRequestExecutor,
+        ActionListener<R> listener
+    ) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, linkedRequestExecutor, l)));
     }
 
-    private void doExecuteForked(Task task, FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
+    private <R extends ActionResponse> void doExecuteForked(
+        Task task,
+        FieldCapabilitiesRequest request,
+        LinkedRequestExecutor<R> linkedRequestExecutor,
+        ActionListener<R> listener
+    ) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
-        final Executor singleThreadedExecutor = buildSingleThreadedExecutor(searchCoordinationExecutor, LOGGER);
+        final Executor singleThreadedExecutor = buildSingleThreadedExecutor();
         assert task instanceof CancellableTask;
         final CancellableTask fieldCapTask = (CancellableTask) task;
-        // retrieve the initial timestamp in case the action is a cross cluster search
+        // retrieve the initial timestamp in case the action is a cross-cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
+        final var minTransportVersion = new AtomicReference<>(clusterService.state().getMinTransportVersion());
         final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
             .groupIndices(request.indicesOptions(), request.indices(), request.returnLocalAll());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices;
-        if (localIndices == null) {
-            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
-            concreteIndices = Strings.EMPTY_ARRAY;
-        } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
-        }
+        // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
+        final String[] concreteIndices = localIndices != null
+            ? indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices)
+            : Strings.EMPTY_ARRAY;
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
-            listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
+            listener.onResponse(
+                linkedRequestExecutor.wrapPrimary(
+                    FieldCapabilitiesResponse.builder().withMinTransportVersion(minTransportVersion.get()).build()
+                )
+            );
             return;
         }
 
@@ -235,7 +277,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (fieldCapTask.notifyIfCancelled(listener)) {
                 releaseResourcesOnCancel.run();
             } else {
-                mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, listener);
+                mergeIndexResponses(
+                    request,
+                    fieldCapTask,
+                    indexResponses,
+                    indexFailures,
+                    minTransportVersion,
+                    listener.map(linkedRequestExecutor::wrapPrimary)
+                );
             }
         })) {
             // local cluster
@@ -281,6 +330,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                         }
                     }
+                    minTransportVersion.accumulateAndGet(response.minTransportVersion(), (lhs, rhs) -> {
+                        if (lhs == null || rhs == null) {
+                            return null;
+                        }
+                        return TransportVersion.min(lhs, rhs);
+                    });
                 }, ex -> {
                     for (String index : originalIndices.indices()) {
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
@@ -301,12 +356,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         true,
                         ActionListener.releaseAfter(remoteListener, refs.acquire())
                     ).delegateFailure(
-                        (responseListener, conn) -> transportService.sendRequest(
+                        (responseListener, conn) -> linkedRequestExecutor.executeRemoteRequest(
+                            transportService,
                             conn,
-                            REMOTE_TYPE.name(),
                             remoteRequest,
-                            TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(responseListener, FieldCapabilitiesResponse::new, singleThreadedExecutor)
+                            new ActionListenerResponseHandler<>(
+                                responseListener,
+                                in -> linkedRequestExecutor.unwrapPrimary(linkedRequestExecutor.read(in)),
+                                singleThreadedExecutor
+                            )
                         )
                     )
                 );
@@ -319,7 +377,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    public static Executor buildSingleThreadedExecutor(Executor searchCoordinationExecutor, Logger logger) {
+    private Executor buildSingleThreadedExecutor() {
         final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("field_caps", 1, searchCoordinationExecutor);
         return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
             @Override
@@ -342,7 +400,22 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         });
     }
 
-    public static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {
+    public interface LinkedRequestExecutor<R extends ActionResponse> {
+        void executeRemoteRequest(
+            TransportService transportService,
+            Transport.Connection conn,
+            FieldCapabilitiesRequest remoteRequest,
+            ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
+        );
+
+        R read(StreamInput in) throws IOException;
+
+        R wrapPrimary(FieldCapabilitiesResponse primary);
+
+        FieldCapabilitiesResponse unwrapPrimary(R r);
+    }
+
+    private static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {
         var blocks = projectState.blocks();
         var projectId = projectState.projectId();
         if (blocks.global(projectId).isEmpty() && blocks.indices(projectId).isEmpty()) {
@@ -360,39 +433,45 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,
         FailureCollector indexFailures,
+        AtomicReference<TransportVersion> minTransportVersion,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.size() > 0) {
+        if (indexResponses.isEmpty() == false) {
             if (request.isMergeResults()) {
-                ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures));
+                ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures, minTransportVersion));
             } else {
-                listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
+                listener.onResponse(
+                    FieldCapabilitiesResponse.builder()
+                        .withIndexResponses(new ArrayList<>(indexResponses.values()))
+                        .withFailures(failures)
+                        .withMinTransportVersion(minTransportVersion.get())
+                        .build()
+                );
+            }
+        } else if (indexFailures.isEmpty() == false) {
+            /*
+             * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
+             * Instead, they should always be passed through the response object, as part of "failures".
+             */
+            if (failures.stream()
+                .anyMatch(
+                    failure -> failure.getException() instanceof IllegalStateException ise
+                        && ise.getCause() instanceof ElasticsearchTimeoutException
+                )) {
+                listener.onResponse(
+                    FieldCapabilitiesResponse.builder().withFailures(failures).withMinTransportVersion(minTransportVersion.get()).build()
+                );
+            } else {
+                // throw back the first exception
+                listener.onFailure(failures.get(0).getException());
             }
         } else {
-            // we have no responses at all, maybe because of errors
-            if (indexFailures.isEmpty() == false) {
-                /*
-                 * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
-                 * Instead, they should always be passed through the response object, as part of "failures".
-                 */
-                if (failures.stream()
-                    .anyMatch(
-                        failure -> failure.getException() instanceof IllegalStateException ise
-                            && ise.getCause() instanceof ElasticsearchTimeoutException
-                    )) {
-                    listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
-                } else {
-                    // throw back the first exception
-                    listener.onFailure(failures.get(0).getException());
-                }
-            } else {
-                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
-            }
+            listener.onResponse(FieldCapabilitiesResponse.builder().withMinTransportVersion(minTransportVersion.get()).build());
         }
     }
 
-    public static FieldCapabilitiesRequest prepareRemoteRequest(
+    private static FieldCapabilitiesRequest prepareRemoteRequest(
         String clusterAlias,
         FieldCapabilitiesRequest request,
         OriginalIndices originalIndices,
@@ -423,7 +502,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
         CancellableTask task,
         FieldCapabilitiesRequest request,
-        List<FieldCapabilitiesFailure> failures
+        List<FieldCapabilitiesFailure> failures,
+        AtomicReference<TransportVersion> minTransportVersion
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         task.ensureNotCancelled();
@@ -440,7 +520,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
                 }
-                innerMerge(subIndices, fieldsBuilder, indexResponses[lastPendingIndex]);
+                innerMerge(subIndices, fieldsBuilder, request, indexResponses[lastPendingIndex]);
                 lastPendingIndex = i;
             }
         }
@@ -464,7 +544,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 );
             }
         }
-        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(fields), failures);
+        return FieldCapabilitiesResponse.builder()
+            .withIndices(indices)
+            .withFields(Collections.unmodifiableMap(fields))
+            .withFailures(failures)
+            .withMinTransportVersion(minTransportVersion.get())
+            .build();
     }
 
     private static boolean shouldLogException(Exception e) {
@@ -560,9 +645,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private static void innerMerge(
         String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
+        FieldCapabilitiesRequest request,
         FieldCapabilitiesIndexResponse response
     ) {
-        Map<String, IndexFieldCapabilities> fields = response.get();
+        Map<String, IndexFieldCapabilities> fields = ResponseRewriter.rewriteOldResponses(
+            response.getOriginVersion(),
+            response.get(),
+            request.filters(),
+            request.types()
+        );
         for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {
             final String field = entry.getKey();
             final IndexFieldCapabilities fieldCap = entry.getValue();
@@ -586,10 +677,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
      * This collector can contain a failure for an index even if one of its shards was successful. When building the final
      * list, these failures will be skipped because they have no affect on the final response.
      */
-    public static final class FailureCollector {
+    private static final class FailureCollector {
         private final Map<String, Exception> failuresByIndex = new HashMap<>();
 
-        public List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
+        List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
             Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = new HashMap<>();
             for (Map.Entry<String, Exception> failure : failuresByIndex.entrySet()) {
                 String index = failure.getKey();
@@ -618,15 +709,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             return new ArrayList<>(indexFailures.values());
         }
 
-        public void collect(String index, Exception e) {
+        void collect(String index, Exception e) {
             failuresByIndex.putIfAbsent(index, e);
         }
 
-        public void clear() {
+        void clear() {
             failuresByIndex.clear();
         }
 
-        public boolean isEmpty() {
+        boolean isEmpty() {
             return failuresByIndex.isEmpty();
         }
     }
@@ -689,8 +780,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    public static class ForkingOnFailureActionListener<Response> extends AbstractThreadedActionListener<Response> {
-        public ForkingOnFailureActionListener(Executor executor, boolean forceExecution, ActionListener<Response> delegate) {
+    private static class ForkingOnFailureActionListener<Response> extends AbstractThreadedActionListener<Response> {
+        ForkingOnFailureActionListener(Executor executor, boolean forceExecution, ActionListener<Response> delegate) {
             super(executor, forceExecution, delegate);
         }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,7 +40,9 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
         HttpPost httpPost = new HttpPost(uri);
 
         ToXContentObject requestEntity;
-        requestEntity = createRequestEntity();
+        requestEntity = model.getServiceSettings()
+            .provider()
+            .createRequestEntity(unifiedChatInput, extractModelId(), model.getTaskSettings());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(requestEntity).getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -52,18 +53,13 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
-    private ToXContentObject createRequestEntity() {
-        switch (model.getServiceSettings().provider()) {
-            case ANTHROPIC -> {
-                return new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings());
-            }
-            case GOOGLE -> {
-                return new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings().thinkingConfig());
-            }
-            case null, default -> throw new ElasticsearchException(
-                "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
-            );
-        }
+    /**
+     * Extracts the model ID to be used for the request. If the request contains a model ID, it is preferred.
+     * Otherwise, the model ID from the configuration is used.
+     * @return the model ID to be used for the request
+     */
+    private String extractModelId() {
+        return unifiedChatInput.getRequest().model() != null ? unifiedChatInput.getRequest().model() : model.getServiceSettings().modelId();
     }
 
     public void decorateWithAuth(HttpPost httpPost) {

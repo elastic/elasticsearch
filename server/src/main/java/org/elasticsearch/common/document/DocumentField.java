@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.document;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -46,7 +47,11 @@ public class DocumentField implements Writeable, Iterable<Object> {
         name = in.readString();
         values = in.readCollectionAsList(StreamInput::readGenericValue);
         ignoredValues = in.readCollectionAsList(StreamInput::readGenericValue);
-        lookupFields = in.readCollectionAsList(LookupField::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            lookupFields = in.readCollectionAsList(LookupField::new);
+        } else {
+            lookupFields = List.of();
+        }
     }
 
     public DocumentField(String name, List<Object> values) {
@@ -117,7 +122,14 @@ public class DocumentField implements Writeable, Iterable<Object> {
         out.writeString(name);
         out.writeCollection(values, StreamOutput::writeGenericValue);
         out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
-        out.writeCollection(lookupFields);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            out.writeCollection(lookupFields);
+        } else {
+            if (lookupFields.isEmpty() == false) {
+                assert false : "Lookup fields require all nodes be on 8.2 or later";
+                throw new IllegalStateException("Lookup fields require all nodes be on 8.2 or later");
+            }
+        }
     }
 
     public List<LookupField> getLookupFields() {

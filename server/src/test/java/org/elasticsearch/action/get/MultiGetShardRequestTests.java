@@ -9,6 +9,9 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -95,6 +98,14 @@ public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<M
             }
             default -> throw new IllegalStateException("Unexpected mutation branch value: " + mutationBranch);
         }
+    }
+
+    public void testForceSyntheticUnsupported() {
+        MultiGetShardRequest request = createTestInstance(true);
+        StreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersions.V_8_3_0);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
+        assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }
 
     static MultiGetShardRequest createTestInstance(boolean forceSyntheticSource) {

@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -46,6 +47,9 @@ import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFie
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -457,7 +461,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     HalfFloatDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -490,7 +494,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
+                return new DoublesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
             }
 
             @Override
@@ -651,7 +655,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     FloatDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -684,7 +688,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
+                return new DoublesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
             }
 
             @Override
@@ -811,7 +815,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     DoubleDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -844,7 +848,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
+                return new DoublesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
             }
 
             @Override
@@ -945,7 +949,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     ByteDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -972,7 +976,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.IntsBlockLoader(fieldName);
+                return new IntsBlockLoader(fieldName);
             }
 
             @Override
@@ -1073,7 +1077,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     ShortDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -1100,7 +1104,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.IntsBlockLoader(fieldName);
+                return new IntsBlockLoader(fieldName);
             }
 
             @Override
@@ -1275,7 +1279,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     IntegerDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -1302,7 +1306,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.IntsBlockLoader(fieldName);
+                return new IntsBlockLoader(fieldName);
             }
 
             @Override
@@ -1437,7 +1441,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     LongDocValuesField::new,
-                    ft.indexType.hasPoints()
+                    ft.indexType
                 );
             }
 
@@ -1464,7 +1468,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.LongsBlockLoader(fieldName);
+                return new LongsBlockLoader(fieldName);
             }
 
             @Override
@@ -2055,7 +2059,7 @@ public class NumberFieldMapper extends FieldMapper {
                 // We only write the field names field if there aren't doc values or norms
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings()), lookup);
         }
 
         @Override
@@ -2077,7 +2081,12 @@ public class NumberFieldMapper extends FieldMapper {
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-                return type.getValueFetcherFieldDataBuilder(name(), valuesSourceType, searchLookup, sourceValueFetcher(sourcePaths));
+                return type.getValueFetcherFieldDataBuilder(
+                    name(),
+                    valuesSourceType,
+                    searchLookup,
+                    sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings())
+                );
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
@@ -2099,11 +2108,14 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.getIndexSettings()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

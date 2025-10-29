@@ -20,6 +20,7 @@ For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`
   }
 }
 ```
+% NOTCONSOLE
 
 ::::{tip}
 Using the KV Processor can result in field names that you cannot control. Consider using the [Flattened](/reference/elasticsearch/mapping-reference/flattened.md) data type instead, which maps an entire object as a single field and allows for simple searches over its contents.

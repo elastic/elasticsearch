@@ -55,7 +55,7 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
             StEnvelopeTests::valueOfCartesian,
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 
     private static BytesRef valueOfGeo(BytesRef wkb) {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -55,6 +53,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -138,7 +137,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
             // simulate a valid field_caps response so we can parse and correctly analyze de query
-            listener.onResponse(new EsqlResolveFieldsResponse(fieldCapabilitiesResponse, TransportVersion.current()));
+            listener.onResponse(new EsqlResolveFieldsResponse(fieldCapabilitiesResponse));
             return null;
         }).when(qlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
@@ -148,12 +147,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
             // simulate a valid field_caps response so we can parse and correctly analyze de query
-            listener.onResponse(
-                new EsqlResolveFieldsResponse(
-                    new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of()),
-                    TransportVersion.current()
-                )
-            );
+            listener.onResponse(new EsqlResolveFieldsResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of())));
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
@@ -163,7 +157,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         var request = new EsqlQueryRequest();
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
-        EsqlSession.PlanRunner runPhase = (p, r) -> fail("this shouldn't happen");
+        request.allowPartialResults(false);
+        EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, r) -> fail("this shouldn't happen");
         IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
             "",
             new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
@@ -172,8 +167,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         planExecutor.esql(
             request,
             randomAlphaOfLength(10),
-            EsqlTestUtils.TEST_CFG,
-            FoldContext.small(),
+            queryClusterSettings(),
             enrichResolver,
             new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
@@ -199,12 +193,11 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
         // fix the failing query: foo field does exist
         request.query("from test | stats m = max(foo)");
-        runPhase = (p, r) -> r.onResponse(null);
+        runPhase = (p, configuration, foldContext, r) -> r.onResponse(null);
         planExecutor.esql(
             request,
             randomAlphaOfLength(10),
-            EsqlTestUtils.TEST_CFG,
-            FoldContext.small(),
+            queryClusterSettings(),
             enrichResolver,
             new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,

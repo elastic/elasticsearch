@@ -65,7 +65,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return new StoredFieldsSpec(false, false, Set.of(), new IgnoredFieldsSpec(Set.of(fieldName), ignoredSourceFormat));
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, Set.of(fieldName));
     }
 
     @Override

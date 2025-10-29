@@ -116,6 +116,7 @@ public final class Authentication implements ToXContentObject {
     private static final TransportVersion VERSION_AUTHENTICATION_TYPE = TransportVersion.fromId(6_07_00_99);
 
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersions.V_7_9_0;
+    public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersions.V_8_2_0;
     public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersions.V_8_8_0;
 
     private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
@@ -292,13 +293,28 @@ public final class Authentication implements ToXContentObject {
             // authentication metadata, but the realm does not expose this difference between authenticatingUser and
             // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
             newAuthentication = new Authentication(
-                new Subject(effectiveSubject.getUser(), effectiveSubject.getRealm(), olderVersion, effectiveSubject.getMetadata()),
-                new Subject(authenticatingSubject.getUser(), authenticatingSubject.getRealm(), olderVersion, newMetadata),
+                new Subject(
+                    effectiveSubject.getUser(),
+                    maybeRewriteRealmRef(olderVersion, effectiveSubject.getRealm()),
+                    olderVersion,
+                    effectiveSubject.getMetadata()
+                ),
+                new Subject(
+                    authenticatingSubject.getUser(),
+                    maybeRewriteRealmRef(olderVersion, authenticatingSubject.getRealm()),
+                    olderVersion,
+                    newMetadata
+                ),
                 type
             );
         } else {
             newAuthentication = new Authentication(
-                new Subject(authenticatingSubject.getUser(), authenticatingSubject.getRealm(), olderVersion, newMetadata),
+                new Subject(
+                    authenticatingSubject.getUser(),
+                    maybeRewriteRealmRef(olderVersion, authenticatingSubject.getRealm()),
+                    olderVersion,
+                    newMetadata
+                ),
                 type
             );
 
@@ -1139,7 +1155,11 @@ public final class Authentication implements ToXContentObject {
             this.nodeName = in.readString();
             this.name = in.readString();
             this.type = in.readString();
-            this.domain = in.readOptionalWriteable(RealmDomain::readFrom);
+            if (in.getTransportVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
+                this.domain = in.readOptionalWriteable(RealmDomain::readFrom);
+            } else {
+                this.domain = null;
+            }
         }
 
         @Override
@@ -1147,7 +1167,9 @@ public final class Authentication implements ToXContentObject {
             out.writeString(nodeName);
             out.writeString(name);
             out.writeString(type);
-            out.writeOptionalWriteable(domain);
+            if (out.getTransportVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
+                out.writeOptionalWriteable(domain);
+            }
         }
 
         @Override
@@ -1444,6 +1466,16 @@ public final class Authentication implements ToXContentObject {
             ),
             getAuthenticationType()
         );
+    }
+
+    // pkg-private for testing
+    static RealmRef maybeRewriteRealmRef(TransportVersion streamVersion, RealmRef realmRef) {
+        if (realmRef != null && realmRef.getDomain() != null && streamVersion.before(VERSION_REALM_DOMAINS)) {
+            logger.info("Rewriting realm [" + realmRef + "] without domain");
+            // security domain erasure
+            return new RealmRef(realmRef.getName(), realmRef.getType(), realmRef.getNodeName(), null);
+        }
+        return realmRef;
     }
 
     @SuppressWarnings("unchecked")

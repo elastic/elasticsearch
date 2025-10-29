@@ -343,3 +343,17 @@ ROW a="keyword", b=5, c=null
 a:integer
 5
 ;
+
+circularRename
+required_capability: attribute_equals_respects_name_id
+
+FROM employees
+| EVAL y = emp_no - 10000
+| RENAME y as z, z as y
+| WHERE y*y == 1
+| KEEP emp_no, y
+;
+
+emp_no:integer | y:integer
+10001          | 1
+;

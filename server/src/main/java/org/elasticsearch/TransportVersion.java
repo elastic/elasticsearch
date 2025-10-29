@@ -257,7 +257,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 message.append(names);
                 message.append("?");
             }
-            message.append(" If this is a new transport version, run './gradle generateTransportVersion'.");
+            message.append(" If this is a new transport version, run './gradlew generateTransportVersion'.");
             throw new IllegalStateException(message.toString());
         }
         return known;

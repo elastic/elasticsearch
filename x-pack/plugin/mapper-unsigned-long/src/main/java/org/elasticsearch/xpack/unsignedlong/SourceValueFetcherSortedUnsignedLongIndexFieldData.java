@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.unsignedlong;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherIndexFieldData;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -33,16 +34,16 @@ import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
  * emulate unsigned long values pulled directly from a doc values data structure through a
  * {@link SortedNumericDocValues}.
  */
-public class SourceValueFetcherSortedUnsignedLongIndexFieldData extends SourceValueFetcherIndexFieldData<SortedNumericDocValues> {
+public class SourceValueFetcherSortedUnsignedLongIndexFieldData extends SourceValueFetcherIndexFieldData<SortedNumericLongValues> {
 
-    public static class Builder extends SourceValueFetcherIndexFieldData.Builder<SortedNumericDocValues> {
+    public static class Builder extends SourceValueFetcherIndexFieldData.Builder<SortedNumericLongValues> {
 
         public Builder(
             String fieldName,
             ValuesSourceType valuesSourceType,
             ValueFetcher valueFetcher,
             SourceProvider sourceProvider,
-            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory
         ) {
             super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
         }
@@ -64,20 +65,21 @@ public class SourceValueFetcherSortedUnsignedLongIndexFieldData extends SourceVa
         ValuesSourceType valuesSourceType,
         ValueFetcher valueFetcher,
         SourceProvider sourceProvider,
-        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory
     ) {
         super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
     }
 
     @Override
-    public SourceValueFetcherLeafFieldData<SortedNumericDocValues> loadDirect(LeafReaderContext context) {
+    public SourceValueFetcherLeafFieldData<SortedNumericLongValues> loadDirect(LeafReaderContext context) {
         return new SourceValueFetcherSortedUnsignedLongLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
-    private static class SourceValueFetcherSortedUnsignedLongLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericDocValues> {
+    private static class SourceValueFetcherSortedUnsignedLongLeafFieldData extends SourceValueFetcherLeafFieldData<
+        SortedNumericLongValues> {
 
         private SourceValueFetcherSortedUnsignedLongLeafFieldData(
-            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceProvider sourceProvider
@@ -94,7 +96,7 @@ public class SourceValueFetcherSortedUnsignedLongIndexFieldData extends SourceVa
         }
     }
 
-    private static class SourceValueFetcherSortedUnsignedLongDocValues extends SortedNumericDocValues implements ValueFetcherDocValues {
+    private static class SourceValueFetcherSortedUnsignedLongDocValues extends SortedNumericLongValues implements ValueFetcherDocValues {
 
         private final LeafReaderContext leafReaderContext;
 
@@ -140,26 +142,6 @@ public class SourceValueFetcherSortedUnsignedLongIndexFieldData extends SourceVa
         public long nextValue() throws IOException {
             assert iterator.hasNext();
             return iterator.next();
-        }
-
-        @Override
-        public int docID() {
-            throw new UnsupportedOperationException("not supported for source fallback");
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            throw new UnsupportedOperationException("not supported for source fallback");
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            throw new UnsupportedOperationException("not supported for source fallback");
-        }
-
-        @Override
-        public long cost() {
-            throw new UnsupportedOperationException("not supported for source fallback");
         }
     }
 }

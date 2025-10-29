@@ -45,7 +45,9 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -79,6 +81,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -119,6 +122,7 @@ import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -2274,7 +2278,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
         var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");
         String query = """
-            from test*
+            from index*
             | where date_and_date_nanos < "2025-01-01" and date_and_date_nanos_and_long::date_nanos >= "2024-01-01\"""";
         var plan = plannerOptimizerDateDateNanosUnionTypes.plan(query, stats);
 
@@ -2448,6 +2452,32 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLocalPhysicalPlanOptimizer.localOptimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
+    }
+
+    public void testTranslateMetricsGroupedByTwoDimension() {
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster, pod";
+        var plan = plannerOptimizerTimeSeries.plan(query);
+        var project = as(plan, ProjectExec.class);
+        var unpack = as(project.child(), EvalExec.class);
+        var limit = as(unpack.child(), LimitExec.class);
+        var secondAgg = as(limit.child(), AggregateExec.class);
+        var pack = as(secondAgg.child(), EvalExec.class);
+        var finalAgg = as(pack.child(), TimeSeriesAggregateExec.class);
+        var sink = as(finalAgg.child(), ExchangeExec.class);
+        ProjectExec projectExec = as(sink.child(), ProjectExec.class);
+        EvalExec evalExec = as(projectExec.child(), EvalExec.class);
+        FieldExtractExec readDimensions = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(readDimensions.attributesToExtract()), containsInAnyOrder("cluster", "pod"));
+        TimeSeriesAggregateExec partialAgg = as(readDimensions.child(), TimeSeriesAggregateExec.class);
+        assertThat(partialAgg.aggregates(), hasSize(2));
+        assertThat(Alias.unwrap(partialAgg.aggregates().get(0)), instanceOf(Rate.class));
+        assertThat(Alias.unwrap(partialAgg.aggregates().get(1)), instanceOf(FirstDocId.class));
+        FieldExtractExec readMetrics = as(partialAgg.child(), FieldExtractExec.class);
+        assertThat(
+            Expressions.names(readMetrics.attributesToExtract()),
+            containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in")
+        );
+        as(readMetrics.child(), EsQueryExec.class);
     }
 
     private boolean isMultiTypeEsField(Expression e) {

@@ -98,12 +98,7 @@ public class CrossProjectIndexResolutionValidator {
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
             ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
             if (isQualifiedExpression) {
-                ElasticsearchException e = checkResolutionFailure(
-                    localExpressions.expressions(),
-                    result,
-                    originalExpression,
-                    indicesOptions
-                );
+                ElasticsearchException e = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
                 if (e != null) {
                     return e;
                 }
@@ -123,7 +118,7 @@ public class CrossProjectIndexResolutionValidator {
                 }
             } else {
                 ElasticsearchException localException = checkResolutionFailure(
-                    localExpressions.expressions(),
+                    localExpressions,
                     result,
                     originalExpression,
                     indicesOptions
@@ -157,7 +152,7 @@ public class CrossProjectIndexResolutionValidator {
                     continue;
                 }
                 if (isUnauthorized) {
-                    return securityException(originalExpression);
+                    return localException;
                 }
                 return new IndexNotFoundException(originalExpression);
             }
@@ -167,10 +162,10 @@ public class CrossProjectIndexResolutionValidator {
     }
 
     public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {
-        // TODO set resolveCrossProject=false here once we have an IndicesOptions flag for that
         return IndicesOptions.builder(indicesOptions)
             .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
             .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
+            .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
             .build();
     }
 
@@ -196,7 +191,7 @@ public class CrossProjectIndexResolutionValidator {
         }
 
         return checkResolutionFailure(
-            matchingExpression.expressions(),
+            matchingExpression,
             matchingExpression.localIndexResolutionResult(),
             remoteExpression,
             indicesOptions
@@ -228,7 +223,7 @@ public class CrossProjectIndexResolutionValidator {
     }
 
     private static ElasticsearchException checkResolutionFailure(
-        Set<String> localExpressions,
+        ResolvedIndexExpression.LocalExpressions localExpressions,
         ResolvedIndexExpression.LocalIndexResolutionResult result,
         String expression,
         IndicesOptions indicesOptions
@@ -240,11 +235,14 @@ public class CrossProjectIndexResolutionValidator {
             if (result == CONCRETE_RESOURCE_NOT_VISIBLE) {
                 return new IndexNotFoundException(expression);
             } else if (result == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                return securityException(expression);
+                assert localExpressions.exception() != null
+                    : "ResolvedIndexExpression should have exception set when concrete index is unauthorized";
+
+                return localExpressions.exception();
             }
         }
 
-        if (indicesOptions.allowNoIndices() == false && result == SUCCESS && localExpressions.isEmpty()) {
+        if (indicesOptions.allowNoIndices() == false && result == SUCCESS && localExpressions.indices().isEmpty()) {
             return new IndexNotFoundException(expression);
         }
 

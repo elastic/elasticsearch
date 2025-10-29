@@ -45,6 +45,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     public static final long NOT_UNDESIRED_TIMESTAMP = Long.MAX_VALUE;
     private static final TransportVersion EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = TransportVersions.V_8_5_0;
     private static final TransportVersion RELOCATION_FAILURE_INFO_VERSION = TransportVersions.V_8_6_0;
+    private static final TransportVersion BECAME_UNDESIRED_TIME_VERSION = TransportVersion.fromName(
+        "shard_routing_includes_became_undesired"
+    );
 
     private final ShardId shardId;
     private final String currentNodeId;
@@ -368,7 +371,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             role = Role.DEFAULT;
         }
         targetRelocatingShard = initializeTargetRelocatingShard();
-        becameUndesiredTime = NOT_UNDESIRED_TIMESTAMP;  // TODO: serialize
+        if (in.getTransportVersion().supports(BECAME_UNDESIRED_TIME_VERSION)) {
+            becameUndesiredTime = in.readLong();
+        } else {
+            becameUndesiredTime = NOT_UNDESIRED_TIMESTAMP;
+        }
     }
 
     public ShardRouting(StreamInput in) throws IOException {
@@ -406,6 +413,10 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             throw new IllegalStateException(
                 Strings.format("cannot send role [%s] to node with version [%s]", role, out.getTransportVersion().toReleaseVersion())
             );
+        }
+
+        if (out.getTransportVersion().supports(BECAME_UNDESIRED_TIME_VERSION)) {
+            out.writeLong(becameUndesiredTime);
         }
     }
 
@@ -944,6 +955,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         sb.append(", ").append(relocationFailureInfo);
         if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             sb.append(", expected_shard_size[").append(expectedShardSize).append("]");
+        }
+        if (becameUndesiredTime != NOT_UNDESIRED_TIMESTAMP) {
+            sb.append(", became_undesired_time[").append(becameUndesiredTime).append("]");
         }
         return sb.toString();
     }

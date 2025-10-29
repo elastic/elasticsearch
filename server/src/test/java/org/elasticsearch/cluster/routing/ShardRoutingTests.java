@@ -376,7 +376,10 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                         otherRouting.currentNodeId(),
                         otherRouting.primary() == false,
                         otherRouting.state()
-                    ).withRelocatingNodeId(otherRouting.relocatingNodeId()).withUnassignedInfo(otherRouting.unassignedInfo()).build();
+                    ).withRelocatingNodeId(otherRouting.relocatingNodeId())
+                        .withUnassignedInfo(otherRouting.unassignedInfo())
+                        .withBecameUndesired(otherRouting.becameUndesiredTime())
+                        .build();
                     break;
                 case 6:
                     // change state
@@ -396,6 +399,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                                 )
                                 : null
                         )
+                        .withBecameUndesired(otherRouting.becameUndesiredTime())
                         .build();
                     break;
             }
@@ -414,6 +418,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
                             : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, otherRouting.unassignedInfo().message() + "_1")
                     )
+                    .withBecameUndesired(otherRouting.becameUndesiredTime())
                     .build();
             }
 

@@ -397,6 +397,33 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         Exception ex = failure.getException();
                         for (String index : failure.getIndices()) {
                             handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
+                            if (request.includeResolvedTo()) {
+                                ResolvedIndexExpression err = new ResolvedIndexExpression(
+                                    index,
+                                    new ResolvedIndexExpression.LocalExpressions(
+                                        Set.of(),
+                                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                                        null
+                                    ),
+                                    Set.of()
+                                );
+                                resolvedRemotely.computeIfPresent(clusterAlias, (k, v) -> {
+                                    v.addExpression(err);
+                                    return v;
+                                });
+                            }
+                        }
+                    }
+                    minTransportVersion.accumulateAndGet(response.minTransportVersion(), (lhs, rhs) -> {
+                        if (lhs == null || rhs == null) {
+                            return null;
+                        }
+                        return TransportVersion.min(lhs, rhs);
+                    });
+                }, ex -> {
+                    for (String index : originalIndices.indices()) {
+                        handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
+                        if (request.includeResolvedTo()) {
                             ResolvedIndexExpression err = new ResolvedIndexExpression(
                                 index,
                                 new ResolvedIndexExpression.LocalExpressions(
@@ -411,29 +438,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 return v;
                             });
                         }
-                    }
-                    minTransportVersion.accumulateAndGet(response.minTransportVersion(), (lhs, rhs) -> {
-                        if (lhs == null || rhs == null) {
-                            return null;
-                        }
-                        return TransportVersion.min(lhs, rhs);
-                    });
-                }, ex -> {
-                    for (String index : originalIndices.indices()) {
-                        handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
-                        ResolvedIndexExpression err = new ResolvedIndexExpression(
-                            index,
-                            new ResolvedIndexExpression.LocalExpressions(
-                                Set.of(),
-                                ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                                null
-                            ),
-                            Set.of()
-                        );
-                        resolvedRemotely.computeIfPresent(clusterAlias, (k, v) -> {
-                            v.addExpression(err);
-                            return v;
-                        });
                     }
                 });
 

@@ -84,7 +84,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -105,7 +106,9 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -159,6 +162,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
 import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
@@ -234,6 +238,27 @@ public final class EsqlTestUtils {
         return new GreaterThanOrEqual(EMPTY, left, right, ESTestCase.randomZone());
     }
 
+    public static FieldAttribute findFieldAttribute(LogicalPlan plan, String name) {
+        return findFieldAttribute(plan, name, (unused) -> true);
+    }
+
+    public static FieldAttribute findFieldAttribute(LogicalPlan plan, String name, Predicate<EsRelation> inThisRelation) {
+        Holder<FieldAttribute> result = new Holder<>();
+        plan.forEachDown(EsRelation.class, relation -> {
+            if (inThisRelation.test(relation) == false) {
+                return;
+            }
+            for (Attribute attr : relation.output()) {
+                if (attr.name().equals(name)) {
+                    assertNull("Multiple matching field attributes found", result.get());
+                    result.set((FieldAttribute) attr);
+                    return;
+                }
+            }
+        });
+        return result.get();
+    }
+
     public static FieldAttribute getFieldAttribute() {
         return getFieldAttribute("a");
     }
@@ -274,6 +299,14 @@ public final class EsqlTestUtils {
 
     public static ReferenceAttribute referenceAttribute(String name, DataType type) {
         return new ReferenceAttribute(EMPTY, name, type);
+    }
+
+    public static Alias alias(String name, Expression child) {
+        return new Alias(EMPTY, name, child);
+    }
+
+    public static Mul mul(Expression left, Expression right) {
+        return new Mul(EMPTY, left, right);
     }
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
@@ -531,9 +564,9 @@ public final class EsqlTestUtils {
 
     private EsqlTestUtils() {}
 
-    public static Configuration configuration(QueryPragmas pragmas, String query) {
+    public static Configuration configuration(QueryPragmas pragmas, String query, EsqlStatement statement) {
         return new Configuration(
-            DateUtils.UTC,
+            statement.setting(QuerySettings.TIME_ZONE),
             Locale.US,
             null,
             null,
@@ -550,12 +583,16 @@ public final class EsqlTestUtils {
         );
     }
 
+    public static Configuration configuration(QueryPragmas pragmas, String query) {
+        return configuration(pragmas, query, new EsqlStatement(null, List.of()));
+    }
+
     public static Configuration configuration(QueryPragmas pragmas) {
         return configuration(pragmas, StringUtils.EMPTY);
     }
 
     public static Configuration configuration(String query) {
-        return configuration(new QueryPragmas(Settings.EMPTY), query);
+        return configuration(QueryPragmas.EMPTY, query);
     }
 
     public static AnalyzerSettings queryClusterSettings() {

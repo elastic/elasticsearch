@@ -84,7 +84,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -107,7 +106,9 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -563,9 +564,9 @@ public final class EsqlTestUtils {
 
     private EsqlTestUtils() {}
 
-    public static Configuration configuration(QueryPragmas pragmas, String query) {
+    public static Configuration configuration(QueryPragmas pragmas, String query, EsqlStatement statement) {
         return new Configuration(
-            DateUtils.UTC,
+            statement.setting(QuerySettings.TIME_ZONE),
             Locale.US,
             null,
             null,
@@ -582,12 +583,16 @@ public final class EsqlTestUtils {
         );
     }
 
+    public static Configuration configuration(QueryPragmas pragmas, String query) {
+        return configuration(pragmas, query, new EsqlStatement(null, List.of()));
+    }
+
     public static Configuration configuration(QueryPragmas pragmas) {
         return configuration(pragmas, StringUtils.EMPTY);
     }
 
     public static Configuration configuration(String query) {
-        return configuration(new QueryPragmas(Settings.EMPTY), query);
+        return configuration(QueryPragmas.EMPTY, query);
     }
 
     public static AnalyzerSettings queryClusterSettings() {

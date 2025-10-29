@@ -11,25 +11,14 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.index.mapper.MapperFeatures;
+public class WildcardRollingUpgradeIT extends AbstractStringTypeRollingUpgradeIT {
 
-public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeRollingUpgradeIT {
-
-    public MatchOnlyTextRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+    public WildcardRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
     @Override
     public String stringType() {
-        return "match_only_text";
-    }
-
-    @Override
-    public void testIndexing() throws Exception {
-        assumeTrue(
-            "Match only text block loader fix is not present in this cluster",
-            oldClusterHasFeature(MapperFeatures.MATCH_ONLY_TEXT_BLOCK_LOADER_FIX)
-        );
-        super.testIndexing();
+        return "wildcard";
     }
 }

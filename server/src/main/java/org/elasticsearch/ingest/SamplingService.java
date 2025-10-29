@@ -200,8 +200,10 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
      * @param indexRequest The raw request to potentially sample
      * @param ingestDocument The IngestDocument used for evaluating any conditionals that are part of the sample configuration
      */
-    public void maybeSample(ProjectMetadata projectMetadata, String indexName, IndexRequest indexRequest, IngestDocument ingestDocument) {
-        maybeSample(projectMetadata, indexName, indexRequest, () -> ingestDocument);
+    public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) {
+        for (String index : ingestDocument.getIndexHistory()) {
+            maybeSample(projectMetadata, index, indexRequest, () -> ingestDocument);
+        }
     }
 
     private void maybeSample(

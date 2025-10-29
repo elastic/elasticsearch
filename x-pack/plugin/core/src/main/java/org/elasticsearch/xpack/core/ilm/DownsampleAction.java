@@ -50,7 +50,7 @@ public class DownsampleAction implements LifecycleAction {
 
     private static final Logger logger = LogManager.getLogger(DownsampleAction.class);
     public static final TransportVersion ILM_FORCE_MERGE_IN_DOWNSAMPLING = TransportVersion.fromName("ilm_downsample_force_merge");
-    public static final TransportVersion ADD_LAST_VALUE_DOWNSAMPLE_ILM = TransportVersion.fromName("add_last_value_downsample_ilm");
+    public static final TransportVersion ADD_SAMPLE_METHOD_DOWNSAMPLE_ILM = TransportVersion.fromName("add_sample_method_downsample_ilm");
 
     public static final String NAME = "downsample";
     public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
@@ -106,8 +106,8 @@ public class DownsampleAction implements LifecycleAction {
     public DownsampleAction(
         final DateHistogramInterval fixedInterval,
         final TimeValue waitTimeout,
-        Boolean forceMergeIndex,
-        DownsampleConfig.SamplingMethod samplingMethod
+        final Boolean forceMergeIndex,
+        final DownsampleConfig.SamplingMethod samplingMethod
     ) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL_FIELD.getPreferredName() + "] is required.");

@@ -507,6 +507,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.plan.physical.ShowExecSerializationTests
   method: testConcurrentSerialization
   issue: https://github.com/elastic/elasticsearch/issues/137338
+- class: org.elasticsearch.readiness.ReadinessClusterIT
+  method: testReadinessDuringRestartsNormalOrder
+  issue: https://github.com/elastic/elasticsearch/issues/136955
 
 # Examples:
 #

@@ -139,11 +139,12 @@ public enum IndexMode {
                 throw new IllegalArgumentException(error(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING));
             }
 
-            var settingsWithIndexMode = Settings.builder().put(IndexSettings.MODE.getKey(), getName()).build();
+            Settings settingsWithIndexMode;
             if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
                 settingsWithIndexMode = Settings.builder()
                     .put(IndexSettings.MODE.getKey(), getName())
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), "true")
+                    // Default values of some index sort settings depend of the feature flag and USE_SYNTHETIC_ID setting
+                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), (Boolean) settings.get(IndexSettings.USE_SYNTHETIC_ID))
                     .build();
             } else {
                 settingsWithIndexMode = Settings.builder().put(IndexSettings.MODE.getKey(), getName()).build();

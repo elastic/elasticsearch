@@ -1,5 +1,5 @@
 pr: 134708
-summary: `semantic_text` fields now default to using [ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis#elser-on-eis) when available
+summary: Default [semantic_text](/elasticsearch/mapping-reference/semantic-text.md) fields to [ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis#elser-on-eis) when available
 area: Mapping
 type: enhancement
 issues: []

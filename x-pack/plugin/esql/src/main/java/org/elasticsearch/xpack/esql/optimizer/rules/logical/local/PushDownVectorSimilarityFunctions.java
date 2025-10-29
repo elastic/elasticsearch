@@ -63,13 +63,10 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
             // Transforms EsRelation to extract the new attribute
 
             List<Attribute> addedAttrsList = addedAttrs.values().stream().toList();
-            transformedPlan = transformedPlan.transformDown(
-                EsRelation.class,
-                esRelation -> {
-                    AttributeSet updatedOutput = esRelation.outputSet().combine(AttributeSet.of(addedAttrsList));
-                    return esRelation.withAttributes(updatedOutput.stream().toList());
-                }
-            );
+            transformedPlan = transformedPlan.transformDown(EsRelation.class, esRelation -> {
+                AttributeSet updatedOutput = esRelation.outputSet().combine(AttributeSet.of(addedAttrsList));
+                return esRelation.withAttributes(updatedOutput.stream().toList());
+            });
             // Transforms Projects so the new attribute is not discarded
             transformedPlan = transformedPlan.transformDown(EsqlProject.class, esProject -> {
                 List<NamedExpression> projections = new ArrayList<>(esProject.projections());
@@ -133,7 +130,8 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
             true
         );
         Attribute.IdIgnoringWrapper key = newFunctionAttr.ignoreId();
-        if (addedAttrs.containsKey(key)) {;
+        if (addedAttrs.containsKey(key)) {
+            ;
             return addedAttrs.get(key);
         }
 

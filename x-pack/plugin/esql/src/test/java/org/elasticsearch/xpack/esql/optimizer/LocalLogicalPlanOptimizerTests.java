@@ -1355,7 +1355,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
         assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
 
-
         // Verify the filter condition matches the aggregate filter
         var filterFieldAttr = as(filterCondition.left(), FieldAttribute.class);
         assertThat(filterFieldAttr, is(fieldAttr));
@@ -1409,9 +1408,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(
             innerProject.projections()
                 .stream()
-                .anyMatch(
-                    p -> (p instanceof FieldAttribute fa) && fa.name().startsWith("$$dense_vector$CosineSimilarity")
-                )
+                .anyMatch(p -> (p instanceof FieldAttribute fa) && fa.name().startsWith("$$dense_vector$CosineSimilarity"))
         );
 
         // EsRelation[test_all][$$dense_vector$CosineSimilarity$33{f}#33, !alias_in..]

@@ -51,10 +51,9 @@ public class FunctionEsFieldTests extends AbstractEsFieldTypeTests<FunctionEsFie
             CosineSimilarity.SIMILARITY_FUNCTION,
             L1Norm.SIMILARITY_FUNCTION,
             L2Norm.SIMILARITY_FUNCTION,
-            Hamming.SIMILARITY_FUNCTION);
-        return new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(
-            similarityFunction, randomVector()
-            );
+            Hamming.SIMILARITY_FUNCTION
+        );
+        return new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(similarityFunction, randomVector());
     }
 
     private static float[] randomVector() {

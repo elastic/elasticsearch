@@ -61,9 +61,9 @@ class TopIntAggregator {
         state.add(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, IntBlock values, int valuesPosition) {
-        int start = values.getFirstValueIndex(valuesPosition);
-        int end = start + values.getValueCount(valuesPosition);
+    public static void combineIntermediate(GroupingState state, int groupId, IntBlock values, int position) {
+        int start = values.getFirstValueIndex(position);
+        int end = start + values.getValueCount(position);
         for (int i = start; i < end; i++) {
             combine(state, groupId, values.getInt(i));
         }

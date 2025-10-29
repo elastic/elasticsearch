@@ -440,7 +440,7 @@ If you want to avoid unnecessary inference and keep existing embeddings:
  * Use **partial updates through the Bulk API**.
  * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
 
-## Updates to `semantic_text` fields [update-script]
+### Scripted updates
 
 For indices containing `semantic_text` fields, updates that use scripts have the
 following behavior:

@@ -89,6 +89,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
+    public static final String EXCLUSION = "-";
     public static final String NAME = "indices:data/read/field_caps";
     public static final ActionType<FieldCapabilitiesResponse> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<FieldCapabilitiesResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
@@ -230,7 +231,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     } else if (false == IndexNameExpressionResolver.isNoneExpression(localIndexNames)) {
                         // if it's neither match all nor match none, but we want to include resolutions we loop for all the indicesNames
                         for (String localIndexName : localIndexNames) {
-                            if (false == localIndexName.startsWith("-")) {
+                            if (false == localIndexName.startsWith(EXCLUSION)) {
                                 // we populate resolvedLocally iff is not an exclusion
                                 String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(
                                     projectMetadata,

@@ -60,21 +60,71 @@ Combining `query` and `retrievers` is not supported.
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
-Each entry in the `retrievers` array can be specified in two ways:
+Each entry in the `retrievers` array can be specified using the direct format or the wrapped format. {applies_to}`stack: ga 9.2`
 
-**Without custom weight** (uses default weight of `1.0`):
+**Direct format** (default weight of `1.0`):
 ```json
-{ "standard": { "query": {...} } }
+{
+  "rrf": {
+    "retrievers": [
+      {
+        "standard": {
+          "query": {
+            "multi_match": {
+              "query": "search text",
+              "fields": ["field1", "field2"]
+            }
+          }
+        }
+      },
+      {
+        "knn": {
+          "field": "vector",
+          "query_vector": [1, 2, 3],
+          "k": 10,
+          "num_candidates": 50
+        }
+      }
+    ]
+  }
+}
 ```
 
-**With custom weight** {applies_to}`stack: ga 9.2`:
+**Wrapped format with custom weights** {applies_to}`stack: ga 9.2`:
 ```json
-{ "retriever": { "standard": { "query": {...} } }, "weight": 2.0 }
+{
+  "rrf": {
+    "retrievers": [
+      {
+        "retriever": {
+          "standard": {
+            "query": {
+              "multi_match": {
+                "query": "search text",
+                "fields": ["field1", "field2"]
+              }
+            }
+          }
+        },
+        "weight": 2.0
+      },
+      {
+        "retriever": {
+          "knn": {
+            "field": "vector",
+            "query_vector": [1, 2, 3],
+            "k": 10,
+            "num_candidates": 50
+          }
+        },
+        "weight": 1.0
+      }
+    ]
+  }
+}
 ```
 
-When you need to specify a custom weight, wrap your retriever in an object with `retriever` and `weight` fields. {applies_to}`stack: ga 9.2`
-
-The wrapped form supports these parameters:
+In the wrapped format:
 
 `retriever`
 :   (Required, a retriever object)

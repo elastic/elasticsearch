@@ -1005,7 +1005,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
 
-        // Same as we do in stateful right now.
+        /*
+         * We don't show any metadata in the response if there are no linked projects to search.
+         * In that case, it's alright to return `Clusters.EMPTY` and is in fact what we do in
+         * stateful, i.e. outside CPS.
+         */
         if (linkedProjectsWithResponses.isEmpty()) {
             return SearchResponse.Clusters.EMPTY;
         }

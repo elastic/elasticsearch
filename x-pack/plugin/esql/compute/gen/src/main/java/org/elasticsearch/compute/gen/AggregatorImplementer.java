@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -764,74 +763,6 @@ public class AggregatorImplementer {
                 name += "Array";
             }
             return name + "State";
-        }
-    }
-
-    public record AggregationParameter(String name, TypeName type, boolean isArray) {
-        public String blockName() {
-            return name + "Block";
-        }
-
-        public String vectorName() {
-            return name + "Vector";
-        }
-
-        public String scratchName() {
-            if (isBytesRef() == false) {
-                throw new IllegalStateException("can't build scratch for non-BytesRef");
-            }
-            return name + "Scratch";
-        }
-
-        public String valueName() {
-            return name + "Value";
-        }
-
-        public String startName() {
-            return name + "Start";
-        }
-
-        public String endName() {
-            return name + "End";
-        }
-
-        public String offsetName() {
-            return name + "Offset";
-        }
-
-        public String arrayType() {
-            return type.toString().replace("[]", "");
-        }
-
-        public String readMethod() {
-            String type = this.type.toString();
-            int lastDot = type.lastIndexOf('.');
-            return "get" + capitalize(lastDot >= 0 ? type.substring(lastDot + 1) : type);
-        }
-
-        public void read(MethodSpec.Builder builder, boolean vector) {
-            StringBuilder pattern = new StringBuilder("$T $L = $L.$L(");
-            List<Object> params = new ArrayList<>();
-            params.add(type);
-            params.add(valueName());
-            params.add(vector ? vectorName() : blockName());
-            params.add(readMethod());
-            if (vector) {
-                pattern.append("valuesPosition");
-            } else {
-                pattern.append("$L");
-                params.add(offsetName());
-            }
-            if (isBytesRef()) {
-                pattern.append(", $L");
-                params.add(scratchName());
-            }
-            pattern.append(")");
-            builder.addStatement(pattern.toString(), params.toArray());
-        }
-
-        public boolean isBytesRef() {
-            return Objects.equals(type, BYTES_REF);
         }
     }
 

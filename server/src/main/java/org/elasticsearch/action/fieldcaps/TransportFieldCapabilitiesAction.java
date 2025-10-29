@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
@@ -197,55 +198,66 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             .groupIndices(request.indicesOptions(), request.indices(), request.returnLocalAll());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
+        final String[] concreteLocalIndices;
         final List<ResolvedIndexExpression> resolvedLocallyList;
         if (request.getResolvedIndexExpressions() != null) {
             // in CPS the Security Action Filter would populate resolvedExpressions for the local project
-            // TODO MP Might need to expand local indices?
+            // thus we can get the concreteLocalIndices based on the resolvedLocallyList
             resolvedLocallyList = request.getResolvedIndexExpressions().expressions();
+            concreteLocalIndices = resolvedLocallyList.stream()
+                .map(r -> r.localExpressions().indices())
+                .flatMap(Set::stream)
+                .distinct()
+                .toArray(String[]::new);
         } else {
+            // In CCS/Local only search we have to populate resolvedLocallyList one by one for each localIndices.indices()
+            // only if the request is includeResolvedTo()
             resolvedLocallyList = new ArrayList<>();
-        }
-        // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
-        if (localIndices != null && resolvedLocallyList.isEmpty()) {
-            ProjectMetadata projectMetadata = projectState.metadata();
-            IndicesOptions indicesOptions = localIndices.indicesOptions();
-            String[] localIndexNames = localIndices.indices();
-            if (localIndexNames.length == 0) {
-                String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(projectMetadata, indicesOptions);
-                resolvedLocallyList.add(createResolvedIndexExpression(Metadata.ALL, concreteIndexNames));
-            } else if (false == IndexNameExpressionResolver.isNoneExpression(localIndexNames)) {
-                for (String localIndexName : localIndexNames) {
-                    String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(
-                        projectMetadata,
-                        indicesOptions,
-                        localIndices.includeDataStreams(),
-                        localIndexName
-                    );
-                    resolvedLocallyList.add(createResolvedIndexExpression(localIndexName, concreteIndexNames));
+            if (localIndices == null) {
+                // in the case we have one or more remote indices but no local we don't expand to all local indices
+                // in this case resolvedLocallyList will remain empty
+                concreteLocalIndices = Strings.EMPTY_ARRAY;
+            } else {
+                concreteLocalIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
+                if (request.includeResolvedTo()) {
+                    ProjectMetadata projectMetadata = projectState.metadata();
+                    IndicesOptions indicesOptions = localIndices.indicesOptions();
+                    String[] localIndexNames = localIndices.indices();
+                    if (localIndexNames.length == 0) {
+                        // Empty indices array means match all
+                        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(projectMetadata, indicesOptions);
+                        resolvedLocallyList.add(createResolvedIndexExpression(Metadata.ALL, concreteIndexNames));
+                    } else if (false == IndexNameExpressionResolver.isNoneExpression(localIndexNames)) {
+                        // if it's neither match all nor match none, but we want to include resolutions we loop for all the indicesNames
+                        for (String localIndexName : localIndexNames) {
+                            if (false == localIndexName.startsWith("-")) {
+                                // we populate resolvedLocally iff is not an exclusion
+                                String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(
+                                    projectMetadata,
+                                    indicesOptions,
+                                    localIndices.includeDataStreams(),
+                                    localIndexName
+                                );
+                                resolvedLocallyList.add(createResolvedIndexExpression(localIndexName, concreteIndexNames));
+                            }
+                        }
+                    }
                 }
+
             }
         }
-        String[] concreteIndices = resolvedLocallyList.stream()
-            .map(r -> r.localExpressions().indices())
-            .flatMap(Set::stream)
-            .distinct()
-            .toArray(String[]::new);
 
-        if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
+        if (concreteLocalIndices.length == 0 && remoteClusterIndices.isEmpty()) {
             FieldCapabilitiesResponse.Builder responseBuilder = FieldCapabilitiesResponse.builder();
             responseBuilder.withMinTransportVersion(minTransportVersion.get());
-            if (request.includeResolvedTo()) { // TODO MP is this ok for CCS/CPS or should we also add remote resolution?
+            if (request.includeResolvedTo()) {
                 responseBuilder.withResolvedLocally(new ResolvedIndexExpressions(resolvedLocallyList));
             }
             listener.onResponse(linkedRequestExecutor.wrapPrimary(responseBuilder.build()));
             return;
         }
 
-        if (false == request.includeResolvedTo()) {
-            resolvedLocallyList.clear();
-        }
-
-        checkIndexBlocks(projectState, concreteIndices);
+        checkIndexBlocks(projectState, concreteLocalIndices);
         final FailureCollector indexFailures = new FailureCollector();
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = new HashMap<>();
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
@@ -343,7 +355,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 request,
                 localIndices,
                 nowInMillis,
-                concreteIndices,
+                concreteLocalIndices,
                 singleThreadedExecutor,
                 handleIndexResponse,
                 handleIndexFailure,
@@ -661,7 +673,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 );
             }
             return expression;
-        }).collect(Collectors.toList());
+        }).toList();
         // The merge method is only called on the primary coordinator for cross-cluster field caps, so we
         // log relevant "5xx" errors that occurred in this 2xx response to ensure they are only logged once.
         // These failures have already been deduplicated, before this method was called.

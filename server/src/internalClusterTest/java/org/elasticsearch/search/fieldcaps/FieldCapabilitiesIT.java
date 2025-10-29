@@ -1053,6 +1053,33 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertThat(response.getIndices().length, is(0));
     }
 
+    public void testExclusion() {
+        assertAcked(prepareCreate("index-2024"), prepareCreate("index-2025"));
+
+        prepareIndex("index-2024").setSource("timestamp", "2024", "f1", "1").get();
+        prepareIndex("index-2025").setSource("timestamp", "2025", "f2", "2").get();
+
+        var response = client().prepareFieldCaps("index-*", "-*2025").setFields("*").get();
+        assertIndices(response, "index-2024");
+    }
+
+    public void testExclusionWithResolvedTo() {
+        assertAcked(prepareCreate("index-2024"), prepareCreate("index-2025"));
+
+        prepareIndex("index-2024").setSource("timestamp", "2024", "f1", "1").get();
+        prepareIndex("index-2025").setSource("timestamp", "2025", "f2", "2").get();
+
+        var response = client().prepareFieldCaps("index-*", "-*2025").setFields("*").setIncludeResolvedTo(true).get();
+        assertIndices(response, "index-2024");
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("index-*", expression.original());
+        assertThat(expression.localExpressions().indices(), containsInAnyOrder("index-2024", "index-2025"));
+    }
+
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {
         assertNotNull(response.getIndices());
         Arrays.sort(indices);

@@ -161,7 +161,7 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
             includeCCSMetadata
         );
 
-        assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult, false);
+        assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult);
     }
 
     public void testRateAndTBucket() throws Exception {
@@ -181,7 +181,7 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
             | STATS max_rate = MAX(RATE(request_count)) BY tb = TBUCKET(5minute)
             | SORT tb""", includeCCSMetadata);
 
-        assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult, false);
+        assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult);
     }
 
     public void testAvgOverTime() throws Exception {
@@ -199,7 +199,7 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
             | STATS avg_cpu = SUM(AVG_OVER_TIME(cpu)), max_memory = SUM(MAX_OVER_TIME(memory)) BY tb = TBUCKET(10minutes)
             | SORT tb""", includeCCSMetadata);
 
-        assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult, false);
+        assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult);
     }
 
     public void testIRate() throws Exception {
@@ -217,7 +217,7 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
             | STATS irate_req_count = AVG(IRATE(request_count)) BY tb = TBUCKET(1minute)
             | SORT tb""", includeCCSMetadata);
 
-        assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult, false);
+        assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult);
     }
 
     private void createTimeSeriesIndex(RestClient client, String indexName) throws IOException {
@@ -287,7 +287,7 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
     }
 
     protected boolean supportsAsync() {
-        return false;
+        return randomBoolean();
     }
 
     private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
@@ -318,12 +318,7 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
         return isSupported;
     }
 
-    private void assertResultMap(
-        boolean includeCCSMetadata,
-        Map<String, Object> result,
-        Map<String, Object> expectedResult,
-        boolean remoteOnly
-    ) {
+    private void assertResultMap(boolean includeCCSMetadata, Map<String, Object> result, Map<String, Object> expectedResult) {
         MapMatcher mapMatcher = getResultMatcher(result.containsKey("is_partial"), result.containsKey("documents_found")).extraOk();
         if (includeCCSMetadata) {
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
@@ -335,7 +330,7 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
         );
 
         if (includeCCSMetadata) {
-            assertClusterDetailsMap(result, remoteOnly);
+            assertClusterDetailsMap(result);
         }
     }
 
@@ -347,22 +342,14 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
      * with a given error.
      */
     private static Matcher<?> matcherFor(Object value) {
-        if (value == null) {
-            return nullValue();
-        }
-        if (value instanceof List) {
-            return matchesList((List<?>) value);
-        }
-        if (value instanceof Map) {
-            return matchesMap((Map<?, ?>) value);
-        }
-        if (value instanceof Matcher) {
-            return (Matcher<?>) value;
-        }
-        if (value instanceof Double dvalue) {
-            return Matchers.closeTo(dvalue, 0.0000001);
-        }
-        return equalTo(value);
+        return switch (value) {
+            case null -> nullValue();
+            case List<?> list -> matchesList(list);
+            case Map<?, ?> map -> matchesMap(map);
+            case Matcher<?> matcher -> matcher;
+            case Double doubleValue -> Matchers.closeTo(doubleValue, 0.0000001);
+            default -> equalTo(value);
+        };
     }
 
     public static ListMatcher matchesList(List<?> list) {
@@ -373,13 +360,13 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
         return matcher;
     }
 
-    private void assertClusterDetailsMap(Map<String, Object> result, boolean remoteOnly) {
+    private void assertClusterDetailsMap(Map<String, Object> result) {
         @SuppressWarnings("unchecked")
         Map<String, Object> clusters = (Map<String, Object>) result.get("_clusters");
         assertThat(clusters.size(), equalTo(7));
         assertThat(clusters.keySet(), equalTo(Set.of("total", "successful", "running", "skipped", "partial", "failed", "details")));
-        int expectedNumClusters = remoteOnly ? 1 : 2;
-        Set<String> expectedClusterAliases = remoteOnly ? Set.of("remote_cluster") : Set.of("remote_cluster", "(local)");
+        int expectedNumClusters = 2;
+        Set<String> expectedClusterAliases = Set.of("remote_cluster", "(local)");
 
         assertThat(clusters.get("total"), equalTo(expectedNumClusters));
         assertThat(clusters.get("successful"), equalTo(expectedNumClusters));
@@ -414,7 +401,7 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
                 equalTo(remoteClusterShards.get("total"))
             );
         }
-        if (remoteOnly == false) {
+        if (false == false) {
             @SuppressWarnings("unchecked")
             Map<String, Object> localCluster = (Map<String, Object>) details.get("(local)");
             assertThat(localCluster.keySet(), equalTo(Set.of("status", "indices", "took", "_shards")));

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -52,15 +53,25 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
             + "[`TS`](/reference/query-languages/esql/commands/ts.md) source command, to be properly applied per time series.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
-        examples = { @Example(file = "k8s-timeseries", tag = "rate") }
+        examples = { @Example(file = "k8s-timeseries", tag = "rate"), @Example(file = "k8s-timeseries-rate", tag = "rate_with_window") }
     )
 
     public Rate(
         Source source,
-        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
+        @Param(
+            name = "field",
+            type = { "counter_long", "counter_integer", "counter_double" },
+            description = "the counter field whose per-second average rate of increase is computed"
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which the rate is computed",
+            optional = true
+        ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
     public Rate(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
@@ -45,7 +46,9 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Optional
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
-        examples = { @Example(file = "k8s-timeseries", tag = "avg_over_time") }
+        examples = {
+            @Example(file = "k8s-timeseries", tag = "avg_over_time"),
+            @Example(file = "k8s-timeseries-avg-over-time", tag = "avg_over_time_with_window") }
     )
     public AvgOverTime(
         Source source,
@@ -53,9 +56,15 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Optional
             name = "number",
             type = { "aggregate_metric_double", "double", "integer", "long" },
             description = "Expression that outputs values to average."
-        ) Expression field
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the average",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
     public AvgOverTime(Source source, Expression field, Expression filter, Expression window) {

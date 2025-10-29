@@ -1619,7 +1619,6 @@ public class EsqlCapabilities {
          */
         FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
 
-
         /**
          * Chunk function.
          */

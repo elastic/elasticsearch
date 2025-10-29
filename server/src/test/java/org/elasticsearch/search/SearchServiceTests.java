@@ -66,6 +66,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -124,7 +125,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         SearchService.CanMatchContext canMatchContext = doTestCanMatch(searchRequest, null, false, null, false);
         LocalDateTime localDateTime = LocalDateTime.of(2025, 12, 15, 0, 0);
         assertEquals(
-            localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            localDateTime.atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
             canMatchContext.getTimeRangeFilterFromMillis().longValue()
         );
     }

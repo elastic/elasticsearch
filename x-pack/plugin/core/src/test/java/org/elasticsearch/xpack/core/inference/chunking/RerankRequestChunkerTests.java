@@ -274,6 +274,52 @@ public class RerankRequestChunkerTests extends ESTestCase {
         listener.onResponse(new RankedDocsResults(generateRankedDocs(relevanceScores, chunkedInputs)));
     }
 
+    public void testParseChunkedRerankResultsListener_TopNSetToNull() {
+        var inputs = List.of(generateTestText(10), generateTestText(100));
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
+        var returnDocuments = randomBoolean();
+        var relevanceScores = generateRelevanceScores(4);
+        var listener = chunker.parseChunkedRerankResultsListener(ActionListener.wrap(results -> {
+            assertThat(results, instanceOf(RankedDocsResults.class));
+            var rankedDocResults = (RankedDocsResults) results;
+            var expectedRankedDocs = new ArrayList<RankedDocsResults.RankedDoc>();
+            expectedRankedDocs.add(new RankedDocsResults.RankedDoc(0, relevanceScores.get(0), returnDocuments ? inputs.get(0) : null));
+            expectedRankedDocs.add(
+                new RankedDocsResults.RankedDoc(1, Collections.max(relevanceScores.subList(1, 4)), returnDocuments ? inputs.get(1) : null)
+            );
+            expectedRankedDocs.sort((r1, r2) -> Float.compare(r2.relevanceScore(), r1.relevanceScore()));
+            assertEquals(expectedRankedDocs, rankedDocResults.getRankedDocs());
+        }, e -> fail("Expected successful parsing but got failure: " + e)), returnDocuments, null);
+
+        var chunkedInputs = chunker.getChunkedInputs();
+        assertEquals(4, chunkedInputs.size());
+        listener.onResponse(new RankedDocsResults(generateRankedDocs(relevanceScores, chunkedInputs)));
+    }
+
+    public void testParseChunkedRerankResultsListener_TopNProvided() {
+        var inputs = List.of(generateTestText(10), generateTestText(100));
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
+        var returnDocuments = randomBoolean();
+        var relevanceScores = generateRelevanceScores(4);
+        var topN = 1;
+        var listener = chunker.parseChunkedRerankResultsListener(ActionListener.wrap(results -> {
+            assertThat(results, instanceOf(RankedDocsResults.class));
+            var rankedDocResults = (RankedDocsResults) results;
+            assertEquals(topN, rankedDocResults.getRankedDocs().size());
+            var expectedRankedDocs = new ArrayList<RankedDocsResults.RankedDoc>();
+            expectedRankedDocs.add(new RankedDocsResults.RankedDoc(0, relevanceScores.get(0), returnDocuments ? inputs.get(0) : null));
+            expectedRankedDocs.add(
+                new RankedDocsResults.RankedDoc(1, Collections.max(relevanceScores.subList(1, 4)), returnDocuments ? inputs.get(1) : null)
+            );
+            expectedRankedDocs.sort((r1, r2) -> Float.compare(r2.relevanceScore(), r1.relevanceScore()));
+            assertEquals(expectedRankedDocs.subList(0, topN), rankedDocResults.getRankedDocs());
+        }, e -> fail("Expected successful parsing but got failure: " + e)), returnDocuments, topN);
+
+        var chunkedInputs = chunker.getChunkedInputs();
+        assertEquals(4, chunkedInputs.size());
+        listener.onResponse(new RankedDocsResults(generateRankedDocs(relevanceScores, chunkedInputs)));
+    }
+
     private String generateTestText(int numSentences) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < numSentences; i++) {

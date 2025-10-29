@@ -19,14 +19,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RerankServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class JinaAIRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
+public class JinaAIRerankServiceSettings extends RerankServiceSettings implements ServiceSettings, JinaAIRateLimitServiceSettings {
     public static final String NAME = "jinaai_rerank_service_settings";
 
     private static final Logger logger = LogManager.getLogger(JinaAIRerankServiceSettings.class);
@@ -38,18 +38,26 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
             throw validationException;
         }
 
+        var rerankServiceSettings = RerankServiceSettings.fromMap(map);
         var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
 
-        return new JinaAIRerankServiceSettings(commonServiceSettings);
+        return new JinaAIRerankServiceSettings(rerankServiceSettings, commonServiceSettings);
     }
 
     private final JinaAIServiceSettings commonSettings;
 
+    public JinaAIRerankServiceSettings(RerankServiceSettings rerankSettings, JinaAIServiceSettings commonSettings) {
+        super(rerankSettings);
+        this.commonSettings = commonSettings;
+    }
+
     public JinaAIRerankServiceSettings(JinaAIServiceSettings commonSettings) {
+        super(null, null);
         this.commonSettings = commonSettings;
     }
 
     public JinaAIRerankServiceSettings(StreamInput in) throws IOException {
+        super(in);
         this.commonSettings = new JinaAIServiceSettings(in);
     }
 
@@ -76,6 +84,7 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
+        builder = super.toXContentFragmentOfExposedFields(builder, params);
         builder = commonSettings.toXContentFragment(builder, params);
 
         builder.endObject();
@@ -83,7 +92,8 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
     }
 
     @Override
-    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+        super.toXContentFragmentOfExposedFields(builder, params);
         commonSettings.toXContentFragmentOfExposedFields(builder, params);
         return builder;
     }
@@ -95,6 +105,7 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         commonSettings.writeTo(out);
     }
 
@@ -103,11 +114,12 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JinaAIRerankServiceSettings that = (JinaAIRerankServiceSettings) o;
-        return Objects.equals(commonSettings, that.commonSettings);
+        return super.equals(o) && Objects.equals(commonSettings, that.commonSettings);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(commonSettings);
+        // TODO: include super.hashcode?
     }
 }

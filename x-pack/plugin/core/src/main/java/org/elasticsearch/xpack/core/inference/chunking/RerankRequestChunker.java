@@ -28,6 +28,11 @@ public class RerankRequestChunker {
         this.rerankChunks = chunk(inputs, buildChunkingSettingsForElasticRerank(query), maxChunksPerDoc);
     }
 
+    public RerankRequestChunker(String query, List<String> inputs, int rerankerWindowSize, Integer maxChunksPerDoc) {
+        this.inputs = inputs;
+        this.rerankChunks = chunk(inputs, buildChunkingSettingsForRerank(rerankerWindowSize, query), maxChunksPerDoc);
+    }
+
     private List<RerankChunks> chunk(List<String> inputs, ChunkingSettings chunkingSettings, Integer maxChunksPerDoc) {
         var chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
         var chunks = new ArrayList<RerankChunks>();
@@ -51,6 +56,25 @@ public class RerankRequestChunker {
         }
 
         return chunkedInputs;
+    }
+
+    public ActionListener<InferenceServiceResults> parseChunkedRerankResultsListener(
+        ActionListener<InferenceServiceResults> listener,
+        boolean returnDocuments,
+        Integer topN
+    ) {
+        listener = parseChunkedRerankResultsListener(listener, returnDocuments);
+        if (topN != null) {
+            return listener.delegateFailureAndWrap((l, results) -> {
+                if (results instanceof RankedDocsResults rankedDocsResults) {
+                    l.onResponse(new RankedDocsResults(rankedDocsResults.getRankedDocs().subList(0, topN)));
+                } else {
+                    l.onFailure(new IllegalArgumentException("Expected RankedDocsResults but got: " + results.getClass().getName()));
+                }
+            });
+        } else {
+            return listener;
+        }
     }
 
     public ActionListener<InferenceServiceResults> parseChunkedRerankResultsListener(
@@ -100,5 +124,12 @@ public class RerankRequestChunker {
         wordIterator.setText(query);
         var queryWordCount = ChunkerUtils.countWords(0, query.length(), wordIterator);
         return ChunkingSettingsBuilder.buildChunkingSettingsForElasticRerank(queryWordCount);
+    }
+
+    private ChunkingSettings buildChunkingSettingsForRerank(int rerankerWindowSize, String query) {
+        var wordIterator = BreakIterator.getWordInstance();
+        wordIterator.setText(query);
+        var queryWordCount = ChunkerUtils.countWords(0, query.length(), wordIterator);
+        return ChunkingSettingsBuilder.buildChunkingSettingsForRerank(rerankerWindowSize, queryWordCount);
     }
 }

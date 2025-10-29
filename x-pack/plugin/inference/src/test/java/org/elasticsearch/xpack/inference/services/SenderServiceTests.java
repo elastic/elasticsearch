@@ -24,6 +24,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -189,6 +190,83 @@ public class SenderServiceTests extends ESTestCase {
         }
     }
 
+    public void testDoInfer_NonRerankTaskType_ExecutesAction() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var mockExecutableAction = mock(ExecutableAction.class);
+        var testService = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            protected ExecutableAction createAction(Model model, Map<String, Object> taskSettings) {
+                return mockExecutableAction;
+            }
+        };
+
+        try (testService) {
+            var model = mock(Model.class);
+            when(model.getTaskType()).thenReturn(randomValueOtherThan(TaskType.RERANK, () -> randomFrom(TaskType.values())));
+            var mockInferenceInputs = mock(InferenceInputs.class);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            testService.doInfer(model, mockInferenceInputs, Map.of(), TIMEOUT, listener);
+            verify(mockExecutableAction).execute(mockInferenceInputs, TIMEOUT, listener);
+        }
+
+        verify(sender, times(1)).close();
+        verify(factory).createSender();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+        verifyNoMoreInteractions(mockExecutableAction);
+    }
+
+    public void testDoInfer_RerankTaskType_ExecutesRerankProcessor() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var mockExecutableAction = mock(ExecutableAction.class);
+        var testService = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            protected ExecutableAction createAction(Model model, Map<String, Object> taskSettings) {
+                return mockExecutableAction;
+            }
+        };
+
+        try (testService) {
+            var model = mock(Model.class);
+            when(model.getTaskType()).thenReturn(TaskType.RERANK);
+            var mockInferenceInputs = mock(InferenceInputs.class);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> testService.doInfer(model, mockInferenceInputs, Map.of(), TIMEOUT, listener)
+            );
+            assertEquals("RerankInferenceProcessor can only process models with RerankServiceSettings", exception.getMessage());
+        }
+
+        verify(sender, times(1)).close();
+        verify(factory).createSender();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+        verifyNoMoreInteractions(mockExecutableAction);
+    }
+
+    public void testCreateAction_ReturnsNull() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var action = service.createAction(mock(Model.class), Map.of());
+            assertNull(action);
+        }
+
+        verify(sender, times(1)).close();
+        verify(factory, times(1)).createSender();
+    }
+
     public static Sender createMockSender() {
         var sender = mock(Sender.class);
         doAnswer(invocationOnMock -> {
@@ -203,17 +281,6 @@ public class SenderServiceTests extends ESTestCase {
     private static class TestSenderService extends SenderService {
         TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
             super(factory, serviceComponents, clusterService);
-        }
-
-        @Override
-        protected void doInfer(
-            Model model,
-            InferenceInputs inputs,
-            Map<String, Object> taskSettings,
-            TimeValue timeout,
-            ActionListener<InferenceServiceResults> listener
-        ) {
-
         }
 
         @Override

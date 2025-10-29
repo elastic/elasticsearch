@@ -1603,6 +1603,89 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    // TODO: Do we still need the infer tests above? They should be covered by SenderService tests
+    public void testCreateAction_WithNonJinaAIModel_ThrowsElasticsearchStatusException() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var mockModel = getInvalidModel("model_id", "service_name");
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> service.createAction(mockModel, null));
+
+            MatcherAssert.assertThat(
+                thrownException.getMessage(),
+                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+            );
+        }
+    }
+
+    public void testCreateAction_CreatesActionForEmbeddingsModelWithNullOverrideTaskSettings() throws IOException {
+        var model = JinaAIEmbeddingsModelTests.createModel(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomAlphaOfLength(10),
+            null,
+            JinaAIEmbeddingType.FLOAT
+        );
+
+        testCreateAction(model, null);
+    }
+
+    public void testCreateAction_CreatesActionForEmbeddingsModelWithNonNullOverrideTaskSettings() throws IOException {
+        var model = JinaAIEmbeddingsModelTests.createModel(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomAlphaOfLength(10),
+            null,
+            JinaAIEmbeddingType.FLOAT
+        );
+        Map<String, Object> overrideTaskSettings = new HashMap<>();
+        overrideTaskSettings.put("input_type", InputType.INGEST.toString());
+
+        testCreateAction(model, overrideTaskSettings);
+    }
+
+    public void testCreateAction_CreatesActionForRerankModelWithNullOverrideTaskSettings() throws IOException {
+        var model = JinaAIRerankModelTests.createModel(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            null,
+            false
+        );
+
+        testCreateAction(model, null);
+    }
+
+    public void testCreateAction_CreatesActionForRerankModelWithNonNullOverrideTaskSettings() throws IOException {
+        var model = JinaAIRerankModelTests.createModel(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            null,
+            false
+        );
+        Map<String, Object> overrideTaskSettings = new HashMap<>();
+        overrideTaskSettings.put("top_n", randomIntBetween(1, 10));
+
+        testCreateAction(model, overrideTaskSettings);
+    }
+
+    private void testCreateAction(JinaAIModel model, Map<String, Object> taskSettings) throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var action = service.createAction(model, taskSettings);
+            assertNotNull(action);
+        }
+    }
+
     public void test_Embedding_ChunkedInfer_BatchesCallsChunkingSettingsSet() throws IOException {
         var model = JinaAIEmbeddingsModelTests.createModel(
             getUrl(webServer),

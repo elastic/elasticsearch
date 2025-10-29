@@ -25,6 +25,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -150,13 +151,25 @@ public abstract class SenderService implements InferenceService {
         }).addListener(listener);
     }
 
-    protected abstract void doInfer(
+    protected void doInfer(
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
-    );
+    ) {
+        var action = createAction(model, taskSettings);
+
+        if (Objects.requireNonNull(model.getTaskType()) == TaskType.RERANK) {
+            RerankInferenceProcessor.doInfer(this, model, action, inputs, timeout, listener);
+        } else {
+            action.execute(inputs, timeout, listener);
+        }
+    }
+
+    protected ExecutableAction createAction(Model model, Map<String, Object> taskSettings) {
+        return null;
+    }
 
     protected abstract void validateInputType(InputType inputType, Model model, ValidationException validationException);
 

@@ -77,6 +77,31 @@ public class ChunkingSettingsBuilderTests extends ESTestCase {
         assertEquals(1, sentenceBoundaryChunkingSettings.sentenceOverlap());
     }
 
+    public void testBuildChunkingSettingsForRerank_QueryWordCountLessThanHalfOfRerankerWindowSize() {
+        int rerankerWindowSize = randomIntBetween(20, 6000);
+        int queryWordCount = randomIntBetween(1, rerankerWindowSize / 2 - 1);
+        ChunkingSettings actualChunkingSettings = ChunkingSettingsBuilder.buildChunkingSettingsForRerank(
+            rerankerWindowSize,
+            queryWordCount
+        );
+        SentenceBoundaryChunkingSettings expectedChunkingSettings = new SentenceBoundaryChunkingSettings(
+            rerankerWindowSize - queryWordCount,
+            1
+        );
+        assertEquals(expectedChunkingSettings, actualChunkingSettings);
+    }
+
+    public void testBuildChunkingSettingsForRerank_QueryWordCountMoreThanHalfOfRerankerWindowSize() {
+        int rerankerWindowSize = randomIntBetween(20, 6000);
+        int queryWordCount = randomIntBetween(rerankerWindowSize / 2, Integer.MAX_VALUE);
+        ChunkingSettings actualChunkingSettings = ChunkingSettingsBuilder.buildChunkingSettingsForRerank(
+            rerankerWindowSize,
+            queryWordCount
+        );
+        SentenceBoundaryChunkingSettings expectedChunkingSettings = new SentenceBoundaryChunkingSettings(rerankerWindowSize / 2, 1);
+        assertEquals(expectedChunkingSettings, actualChunkingSettings);
+    }
+
     private Map<Map<String, Object>, ChunkingSettings> chunkingSettingsMapToChunkingSettings() {
         var maxChunkSizeWordBoundaryChunkingSettings = randomIntBetween(10, 300);
         var overlap = randomIntBetween(1, maxChunkSizeWordBoundaryChunkingSettings / 2);

@@ -67,4 +67,9 @@ public class ChunkingSettingsBuilder {
         var maxChunkSizeWordCount = (int) (maxChunkSizeTokenCount * WORDS_PER_TOKEN);
         return new SentenceBoundaryChunkingSettings(maxChunkSizeWordCount, 1);
     }
+
+    public static ChunkingSettings buildChunkingSettingsForRerank(int rerankerWindowSize, int queryWordCount) {
+        var chunkSizeWordCountWithFullQuery = rerankerWindowSize - queryWordCount;
+        return new SentenceBoundaryChunkingSettings(Math.max(chunkSizeWordCountWithFullQuery, rerankerWindowSize / 2), 1);
+    }
 }

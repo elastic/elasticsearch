@@ -32,9 +32,9 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -235,23 +235,14 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
     }
 
     @Override
-    public void doInfer(
-        Model model,
-        InferenceInputs inputs,
-        Map<String, Object> taskSettings,
-        TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
-    ) {
-        if (model instanceof JinaAIModel == false) {
-            listener.onFailure(createInvalidModelException(model));
-            return;
-        }
-
-        JinaAIModel jinaaiModel = (JinaAIModel) model;
+    protected ExecutableAction createAction(Model model, Map<String, Object> taskSettings) {
         var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
 
-        var action = jinaaiModel.accept(actionCreator, taskSettings);
-        action.execute(inputs, timeout, listener);
+        if (model instanceof JinaAIModel jinaaiModel) {
+            return jinaaiModel.accept(actionCreator, taskSettings);
+        } else {
+            throw createInvalidModelException(model);
+        }
     }
 
     @Override

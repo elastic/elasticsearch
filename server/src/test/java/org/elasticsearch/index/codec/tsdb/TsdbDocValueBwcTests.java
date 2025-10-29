@@ -59,7 +59,8 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
         var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        var compressionMode = ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode();
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
         testMixedIndex(oldCodec, newCodec);
     }
 
@@ -74,8 +75,9 @@ public class TsdbDocValueBwcTests extends ESTestCase {
             }
         };
         var newCodec = new Elasticsearch92Lucene103Codec() {
-
-            final DocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
+            final DocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+                ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode()
+            );
 
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {

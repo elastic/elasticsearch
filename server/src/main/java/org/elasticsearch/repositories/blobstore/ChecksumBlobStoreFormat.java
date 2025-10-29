@@ -208,7 +208,13 @@ public final class ChecksumBlobStoreFormat<T> {
             } else {
                 try (
                     XContentParser parser = XContentType.SMILE.xContent()
-                        .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)
+                        .createParser(
+                            xContentParserConfiguration == null
+                                ? XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
+                                    .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+                                : xContentParserConfiguration,
+                            wrappedStream
+                        )
                 ) {
                     result = reader.apply(projectRepo, parser);
                     XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);

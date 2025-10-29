@@ -4,7 +4,6 @@
       capabilities:
         - method: GET
           path: /_cat/circuit_breaker
-          capabilities: [ cat_circuit_breaker ]
       test_runner_features: capabilities
       reason: Capability required to run test
   - do:
@@ -29,7 +28,6 @@
       capabilities:
         - method: GET
           path: /_cat/circuit_breaker
-          capabilities: [ cat_circuit_breaker ]
       test_runner_features: capabilities
       reason: Capability required to run test
   - do:

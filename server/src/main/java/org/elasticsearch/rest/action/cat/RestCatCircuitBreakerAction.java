@@ -59,11 +59,6 @@ public class RestCatCircuitBreakerAction extends AbstractCatAction {
     }
 
     @Override
-    public Set<String> supportedCapabilities() {
-        return Sets.union(Set.of("cat_circuit_breaker"), super.supportedCapabilities());
-    }
-
-    @Override
     protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(); // Empty nodes array sends request to all nodes.
         nodesStatsRequest.clear().addMetric(NodesStatsRequestParameters.Metric.BREAKER);

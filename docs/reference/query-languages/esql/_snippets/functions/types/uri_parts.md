@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| urlString | field | result |
+| string | component | result |
 | --- | --- | --- |
 | keyword | keyword | keyword |
 | keyword | text | keyword |

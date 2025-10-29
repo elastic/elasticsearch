@@ -4,7 +4,7 @@
 
 ```esql
 ROW my_url = "http://myusername:mypassword@example.org:80/foo.gif?key1=val1&key2=val2#fragment"
-| EVAL my_url_domain = uri_parts(my_url, "domain")
+| EVAL my_url_domain = URI_PARTS(my_url, "domain")
 ```
 
 | my_url:keyword | my_url_domain:keyword |

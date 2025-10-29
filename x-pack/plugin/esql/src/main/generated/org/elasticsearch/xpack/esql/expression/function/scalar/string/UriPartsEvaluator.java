@@ -29,35 +29,35 @@ public final class UriPartsEvaluator implements EvalOperator.ExpressionEvaluator
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator urlString;
+  private final EvalOperator.ExpressionEvaluator string;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final EvalOperator.ExpressionEvaluator component;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public UriPartsEvaluator(Source source, EvalOperator.ExpressionEvaluator urlString,
-      EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+  public UriPartsEvaluator(Source source, EvalOperator.ExpressionEvaluator string,
+      EvalOperator.ExpressionEvaluator component, DriverContext driverContext) {
     this.source = source;
-    this.urlString = urlString;
-    this.field = field;
+    this.string = string;
+    this.component = component;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock urlStringBlock = (BytesRefBlock) urlString.eval(page)) {
-      try (BytesRefBlock fieldBlock = (BytesRefBlock) field.eval(page)) {
-        BytesRefVector urlStringVector = urlStringBlock.asVector();
-        if (urlStringVector == null) {
-          return eval(page.getPositionCount(), urlStringBlock, fieldBlock);
+    try (BytesRefBlock stringBlock = (BytesRefBlock) string.eval(page)) {
+      try (BytesRefBlock componentBlock = (BytesRefBlock) component.eval(page)) {
+        BytesRefVector stringVector = stringBlock.asVector();
+        if (stringVector == null) {
+          return eval(page.getPositionCount(), stringBlock, componentBlock);
         }
-        BytesRefVector fieldVector = fieldBlock.asVector();
-        if (fieldVector == null) {
-          return eval(page.getPositionCount(), urlStringBlock, fieldBlock);
+        BytesRefVector componentVector = componentBlock.asVector();
+        if (componentVector == null) {
+          return eval(page.getPositionCount(), stringBlock, componentBlock);
         }
-        return eval(page.getPositionCount(), urlStringVector, fieldVector);
+        return eval(page.getPositionCount(), stringVector, componentVector);
       }
     }
   }
@@ -65,18 +65,18 @@ public final class UriPartsEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += urlString.baseRamBytesUsed();
-    baseRamBytesUsed += field.baseRamBytesUsed();
+    baseRamBytesUsed += string.baseRamBytesUsed();
+    baseRamBytesUsed += component.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock urlStringBlock,
-      BytesRefBlock fieldBlock) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock stringBlock,
+      BytesRefBlock componentBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef urlStringScratch = new BytesRef();
-      BytesRef fieldScratch = new BytesRef();
+      BytesRef stringScratch = new BytesRef();
+      BytesRef componentScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        switch (urlStringBlock.getValueCount(p)) {
+        switch (stringBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -87,7 +87,7 @@ public final class UriPartsEvaluator implements EvalOperator.ExpressionEvaluator
               result.appendNull();
               continue position;
         }
-        switch (fieldBlock.getValueCount(p)) {
+        switch (componentBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -98,10 +98,10 @@ public final class UriPartsEvaluator implements EvalOperator.ExpressionEvaluator
               result.appendNull();
               continue position;
         }
-        BytesRef urlString = urlStringBlock.getBytesRef(urlStringBlock.getFirstValueIndex(p), urlStringScratch);
-        BytesRef field = fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch);
+        BytesRef string = stringBlock.getBytesRef(stringBlock.getFirstValueIndex(p), stringScratch);
+        BytesRef component = componentBlock.getBytesRef(componentBlock.getFirstValueIndex(p), componentScratch);
         try {
-          result.appendBytesRef(UriParts.process(urlString, field));
+          result.appendBytesRef(UriParts.process(string, component));
         } catch (NullPointerException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -111,16 +111,16 @@ public final class UriPartsEvaluator implements EvalOperator.ExpressionEvaluator
     }
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefVector urlStringVector,
-      BytesRefVector fieldVector) {
+  public BytesRefBlock eval(int positionCount, BytesRefVector stringVector,
+      BytesRefVector componentVector) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef urlStringScratch = new BytesRef();
-      BytesRef fieldScratch = new BytesRef();
+      BytesRef stringScratch = new BytesRef();
+      BytesRef componentScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        BytesRef urlString = urlStringVector.getBytesRef(p, urlStringScratch);
-        BytesRef field = fieldVector.getBytesRef(p, fieldScratch);
+        BytesRef string = stringVector.getBytesRef(p, stringScratch);
+        BytesRef component = componentVector.getBytesRef(p, componentScratch);
         try {
-          result.appendBytesRef(UriParts.process(urlString, field));
+          result.appendBytesRef(UriParts.process(string, component));
         } catch (NullPointerException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -132,12 +132,12 @@ public final class UriPartsEvaluator implements EvalOperator.ExpressionEvaluator
 
   @Override
   public String toString() {
-    return "UriPartsEvaluator[" + "urlString=" + urlString + ", field=" + field + "]";
+    return "UriPartsEvaluator[" + "string=" + string + ", component=" + component + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(urlString, field);
+    Releasables.closeExpectNoException(string, component);
   }
 
   private Warnings warnings() {
@@ -155,25 +155,25 @@ public final class UriPartsEvaluator implements EvalOperator.ExpressionEvaluator
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory urlString;
+    private final EvalOperator.ExpressionEvaluator.Factory string;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory component;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory urlString,
-        EvalOperator.ExpressionEvaluator.Factory field) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory string,
+        EvalOperator.ExpressionEvaluator.Factory component) {
       this.source = source;
-      this.urlString = urlString;
-      this.field = field;
+      this.string = string;
+      this.component = component;
     }
 
     @Override
     public UriPartsEvaluator get(DriverContext context) {
-      return new UriPartsEvaluator(source, urlString.get(context), field.get(context), context);
+      return new UriPartsEvaluator(source, string.get(context), component.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "UriPartsEvaluator[" + "urlString=" + urlString + ", field=" + field + "]";
+      return "UriPartsEvaluator[" + "string=" + string + ", component=" + component + "]";
     }
   }
 }

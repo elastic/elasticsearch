@@ -2,9 +2,9 @@
 
 **Parameters**
 
-`urlString`
+`string`
 :   A Uniform Resource Identifier (URI) string.
 
-`field`
+`component`
 :   Component to extract.
 

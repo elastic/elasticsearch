@@ -2,5 +2,5 @@
 
 **Description**
 
-Parses a Uniform Resource Identifier (URI) string and extracts its component specified in the second argument.
+Returns a component of a Uniform Resource Identifier (URI) string.
 

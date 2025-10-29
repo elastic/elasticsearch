@@ -40,10 +40,10 @@ public class UriPartsTests extends AbstractScalarFunctionTestCase {
                         List.of(sType, dType),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
-                                new TestCaseSupplier.TypedData(new BytesRef("http://example.org/sub/path"), sType, "urlString"),
-                                new TestCaseSupplier.TypedData(new BytesRef("domain"), dType, "field")
+                                new TestCaseSupplier.TypedData(new BytesRef("http://example.org/sub/path"), sType, "string"),
+                                new TestCaseSupplier.TypedData(new BytesRef("domain"), dType, "component")
                             ),
-                            "UriPartsEvaluator[urlString=Attribute[channel=0], field=Attribute[channel=1]]",
+                            "UriPartsEvaluator[string=Attribute[channel=0], component=Attribute[channel=1]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef("example.org"))
                         )

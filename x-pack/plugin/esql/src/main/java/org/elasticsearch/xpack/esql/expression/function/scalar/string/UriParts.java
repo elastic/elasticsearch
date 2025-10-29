@@ -42,26 +42,26 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 public class UriParts extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "UriParts", UriParts::new);
 
-    private final Expression urlString;
-    private final Expression field;
+    private final Expression string;
+    private final Expression component;
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Parses a Uniform Resource Identifier (URI) string and extracts its component specified in the second argument.",
+        description = "Returns a component of a Uniform Resource Identifier (URI) string.",
         examples = { @Example(file = "uri_parts", tag = "uri_parts") }
     )
     public UriParts(
         Source source,
         @Param(
-            name = "urlString",
+            name = "string",
             type = { "keyword", "text" },
             description = "A Uniform Resource Identifier (URI) string."
-        ) Expression urlString,
-        @Param(name = "field", type = { "keyword", "text" }, description = "Component to extract.") Expression field
+        ) Expression string,
+        @Param(name = "component", type = { "keyword", "text" }, description = "Component to extract.") Expression component
     ) {
-        super(source, List.of(urlString, field));
-        this.urlString = urlString;
-        this.field = field;
+        super(source, List.of(string, component));
+        this.string = string;
+        this.component = component;
     }
 
     private UriParts(StreamInput in) throws IOException {
@@ -71,13 +71,13 @@ public class UriParts extends EsqlScalarFunction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(urlString);
-        out.writeNamedWriteable(field);
+        out.writeNamedWriteable(string);
+        out.writeNamedWriteable(component);
     }
 
     @Override
     public boolean foldable() {
-        return urlString.foldable() && field.foldable();
+        return string.foldable() && component.foldable();
     }
 
     @Override
@@ -135,7 +135,7 @@ public class UriParts extends EsqlScalarFunction {
                 var lastSegment = path.substring(lastSegmentIndex);
                 int periodIndex = lastSegment.lastIndexOf('.');
                 if (periodIndex >= 0) {
-                    // Don't include the dot in the extension field.
+                    // Don't include the dot in the extension component.
                     uriParts.put("extension", lastSegment.substring(periodIndex + 1));
                 }
             }
@@ -165,35 +165,35 @@ public class UriParts extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(urlString, sourceText(), FIRST);
+        TypeResolution resolution = isStringAndExact(string, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return isStringAndExact(field, sourceText(), SECOND);
+        return isStringAndExact(component, sourceText(), SECOND);
     }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new UriPartsEvaluator.Factory(source(), toEvaluator.apply(urlString), toEvaluator.apply(field));
+        return new UriPartsEvaluator.Factory(source(), toEvaluator.apply(string), toEvaluator.apply(component));
     }
 
     @Evaluator(warnExceptions = { NullPointerException.class })
-    static BytesRef process(BytesRef urlString, BytesRef field) {
+    static BytesRef process(BytesRef string, BytesRef component) {
         URI uri = null;
         URL url = null;
 
         try {
-            uri = new URI(urlString.utf8ToString());
+            uri = new URI(string.utf8ToString());
         } catch (URISyntaxException e) {
             try {
-                url = new URL(urlString.utf8ToString());
+                url = new URL(string.utf8ToString());
             } catch (MalformedURLException e2) {
-                throw new IllegalArgumentException("unable to parse URI [" + urlString.utf8ToString() + "]");
+                throw new IllegalArgumentException("unable to parse URI [" + string.utf8ToString() + "]");
             }
         }
 
-        return BytesRefs.toBytesRef(getUriParts(uri, url).get(field.utf8ToString()));
+        return BytesRefs.toBytesRef(getUriParts(uri, url).get(component.utf8ToString()));
     }
 
     @Override
@@ -203,6 +203,6 @@ public class UriParts extends EsqlScalarFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, UriParts::new, urlString, field);
+        return NodeInfo.create(this, UriParts::new, string, component);
     }
 }

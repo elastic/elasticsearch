@@ -335,10 +335,19 @@ class IndicesAndAliasesResolver {
             String allIndicesPatternSelector = null;
             if (indicesRequest.indices() != null && indicesRequest.indices().length > 0) {
                 // Always parse selectors, but do so lazily so that we don't spend a lot of time splitting strings each resolution
-                isAllIndices = IndexNameExpressionResolver.isAllIndices(
-                    indicesList(indicesRequest.indices()),
-                    (expr) -> IndexNameExpressionResolver.splitSelectorExpression(expr).v1()
-                );
+                isAllIndices = crossProjectModeDecider.resolvesCrossProject(replaceable)
+                    ? IndexNameExpressionResolver.isAllIndices(
+                        indicesList(indicesRequest.indices()),
+                        (expr) -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                            expr,
+                            authorizedProjects.originProjectAlias(),
+                            authorizedProjects.allProjectAliases()
+                        ).localExpression()
+                    )
+                    : IndexNameExpressionResolver.isAllIndices(
+                        indicesList(indicesRequest.indices()),
+                        (expr) -> IndexNameExpressionResolver.splitSelectorExpression(expr).v1()
+                    );
                 if (isAllIndices) {
                     // This parses the single all-indices expression for a second time in this conditional branch, but this is better than
                     // parsing a potentially big list of indices on every request.

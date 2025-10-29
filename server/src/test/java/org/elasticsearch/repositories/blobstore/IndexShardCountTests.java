@@ -101,21 +101,19 @@ public class IndexShardCountTests extends ESTestCase {
         assertEquals(-1, count.count());
     }
 
-    public void testFromLegacyIndexMetaDataWithNewCompatibleVersionThrowsException() throws IOException {
-        int numberOfShards = randomFrom(1, 2, 4, 8, 16);
-        XContentBuilder indexMetadataBuilder = buildLegacyIndexMetadata(numberOfShards, IndexVersion.current());
-        XContentParser parser = createParser(indexMetadataBuilder);
-        assertThrows(IllegalStateException.class, () -> IndexShardCount.fromLegacyIndexMetaData(parser));
-    }
+    /*
+        IndexMetadata specifies two parsing methods legacyFromXContent and fromXContent to be used depending
+        on the IndexVersion. Since we are only reading the shard count, we should succeed in either case
+     */
 
-    public void testFromLegacyIndexMetaDataWithOldIncompatibleVersionSucceeds() throws IOException {
+    public void testFromIndexMetaDataWithOldVersionSucceeds() throws IOException {
         int numberOfShards = randomFrom(1, 2, 4, 8, 16);
         XContentBuilder indexMetadataBuilder = buildLegacyIndexMetadata(
             numberOfShards,
             IndexVersion.getMinimumCompatibleIndexVersion(1_000_000)
         );
         XContentParser parser = createParser(indexMetadataBuilder);
-        IndexShardCount count = IndexShardCount.fromLegacyIndexMetaData(parser);
+        IndexShardCount count = IndexShardCount.fromIndexMetaData(parser);
         assertEquals(numberOfShards, count.count());
     }
 

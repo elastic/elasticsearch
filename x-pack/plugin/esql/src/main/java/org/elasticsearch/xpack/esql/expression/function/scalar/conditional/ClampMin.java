@@ -93,7 +93,7 @@ public class ClampMin extends EsqlScalarFunction {
 
         var field = children().get(0);
         var min = children().get(1);
-        var fieldDataType = field.dataType();
+        var fieldDataType = field.dataType().noText();
         TypeResolution resolution = TypeResolutions.isType(
             field,
             t -> t.isNumeric() || t == DataType.BOOLEAN || t.isDate() || DataType.isString(t) || t == DataType.IP || t == DataType.VERSION,

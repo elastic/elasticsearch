@@ -178,7 +178,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         String testQuery = """
             TS k8s
             | promql time now (
-                max by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m])))
+                max by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))
+              )
             """;
 
         var plan = planPromql(testQuery);

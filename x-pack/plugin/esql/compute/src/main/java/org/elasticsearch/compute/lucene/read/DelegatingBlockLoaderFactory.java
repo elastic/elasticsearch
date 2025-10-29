@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -25,6 +26,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
 
     protected DelegatingBlockLoaderFactory(BlockFactory factory) {
         this.factory = factory;
+    }
+
+    @Override
+    public void adjustBreaker(long delta) throws CircuitBreakingException {
+        factory.adjustBreaker(delta);
     }
 
     @Override
@@ -66,6 +72,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
                 Releasables.closeExpectNoException(dict, ordinals);
             }
         }
+    }
+
+    @Override
+    public BlockLoader.Block constantInt(int value, int count) {
+        return factory.newConstantIntVector(value, count).asBlock();
     }
 
     @Override

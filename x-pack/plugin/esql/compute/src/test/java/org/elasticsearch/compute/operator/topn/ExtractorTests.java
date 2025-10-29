@@ -41,11 +41,14 @@ public class ExtractorTests extends ESTestCase {
         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         List<Object[]> cases = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
+            boolean supportsNull = true;
             switch (e) {
                 case UNKNOWN -> {
+                    supportsNull = false;
                 }
-                case COMPOSITE -> {
+                case COMPOSITE, EXPONENTIAL_HISTOGRAM -> {
                     // TODO: add later
+                    supportsNull = false;
                 }
                 case AGGREGATE_METRIC_DOUBLE -> {
                     cases.add(
@@ -70,6 +73,7 @@ public class ExtractorTests extends ESTestCase {
                     cases.add(valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> randomDateRange(false)));
                 }
                 case FLOAT -> {
+                    supportsNull = false;
                 }
                 case BYTES_REF -> {
                     cases.add(valueTestCase("single alpha", e, TopNEncoder.UTF8, () -> randomAlphaOfLength(5)));
@@ -113,22 +117,25 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                 }
-                case DOC -> cases.add(
-                    new Object[] {
-                        new TestCase(
-                            "doc",
-                            e,
-                            new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE),
-                            () -> new DocVector(
-                                AlwaysReferencedIndexedByShardId.INSTANCE,
-                                // Shard ID should be small and non-negative.
-                                blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
-                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
-                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
-                                randomBoolean() ? null : randomBoolean()
-                            ).asBlock()
-                        ) }
-                );
+                case DOC -> {
+                    supportsNull = false;
+                    cases.add(
+                        new Object[] {
+                            new TestCase(
+                                "doc",
+                                e,
+                                new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE),
+                                () -> new DocVector(
+                                    AlwaysReferencedIndexedByShardId.INSTANCE,
+                                    // Shard ID should be small and non-negative.
+                                    blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
+                                    blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                    blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                    randomBoolean() ? null : randomBoolean()
+                                ).asBlock()
+                            ) }
+                    );
+                }
                 case NULL -> {
                 }
                 default -> {
@@ -143,7 +150,7 @@ public class ExtractorTests extends ESTestCase {
                     );
                 }
             }
-            if (e != ElementType.UNKNOWN && e != ElementType.COMPOSITE && e != ElementType.FLOAT && e != ElementType.DOC) {
+            if (supportsNull) {
                 cases.add(valueTestCase("null " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> null));
             }
         }

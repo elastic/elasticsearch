@@ -19,6 +19,9 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockAccessor;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -27,6 +30,9 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -34,6 +40,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -79,6 +86,7 @@ public class BlockTestUtils {
                 randomInt(),
                 between(0, Integer.MAX_VALUE)
             );
+            case EXPONENTIAL_HISTOGRAM -> randomExponentialHistogram();
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
@@ -231,6 +239,10 @@ public class BlockTestUtils {
             b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
             return;
         }
+        if (builder instanceof ExponentialHistogramBlockBuilder b && value instanceof ExponentialHistogram histogram) {
+            b.append(histogram);
+            return;
+        }
         if (value instanceof List<?> l && l.isEmpty()) {
             builder.appendNull();
             return;
@@ -322,6 +334,7 @@ public class BlockTestUtils {
                         i++;
                         yield lit;
                     }
+                    case EXPONENTIAL_HISTOGRAM -> new ExponentialHistogramBlockAccessor((ExponentialHistogramBlock) block).get(i);
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }
@@ -380,6 +393,29 @@ public class BlockTestUtils {
         } finally {
             Releasables.close(blocks);
         }
+    }
+
+    public static ExponentialHistogram randomExponentialHistogram() {
+        // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
+        // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
+        boolean hasNegativeValues = randomBoolean();
+        boolean hasPositiveValues = randomBoolean();
+        boolean hasZeroValues = randomBoolean();
+        double[] rawValues = IntStream.concat(
+            IntStream.concat(
+                hasNegativeValues ? IntStream.range(0, randomIntBetween(1, 1000)).map(i1 -> -1) : IntStream.empty(),
+                hasPositiveValues ? IntStream.range(0, randomIntBetween(1, 1000)).map(i1 -> 1) : IntStream.empty()
+            ),
+            hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
+        ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
+
+        int numBuckets = randomIntBetween(4, 300);
+        ReleasableExponentialHistogram histo = ExponentialHistogram.create(
+            numBuckets,
+            ExponentialHistogramCircuitBreaker.noop(),
+            rawValues
+        );
+        return histo;
     }
 
     private static int dedupe(Map<BytesRef, Integer> dedupe, BytesRefVector.Builder bytes, BytesRef v) {

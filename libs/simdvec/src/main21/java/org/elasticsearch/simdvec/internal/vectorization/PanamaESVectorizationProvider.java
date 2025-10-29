@@ -46,14 +46,14 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
+    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int bulkSize, int dimension) throws IOException {
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS && input instanceof MemorySegmentAccessInput msai) {
             MemorySegment ms = msai.segmentSliceOrNull(0, input.length());
             if (ms != null) {
-                return new MemorySegmentES91OSQVectorsScorer(input, dimension, ms);
+                return new MemorySegmentES91OSQVectorsScorer(input, bulkSize, dimension, ms);
             }
         }
-        return new OnHeapES91OSQVectorsScorer(input, dimension);
+        return new OnHeapES91OSQVectorsScorer(input, bulkSize, dimension);
     }
 
     @Override

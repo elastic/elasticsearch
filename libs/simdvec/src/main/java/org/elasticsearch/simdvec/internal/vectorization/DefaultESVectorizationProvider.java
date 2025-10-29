@@ -30,8 +30,8 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension) {
-        return new ES91OSQVectorsScorer(input, dimension);
+    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int bulkSize, int dimension) {
+        return new ES91OSQVectorsScorer(input, bulkSize, dimension);
     }
 
     @Override

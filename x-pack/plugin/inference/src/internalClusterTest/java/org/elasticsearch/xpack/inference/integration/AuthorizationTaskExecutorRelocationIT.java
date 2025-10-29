@@ -81,8 +81,7 @@ public class AuthorizationTaskExecutorRelocationIT extends ESIntegTestCase {
 
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(3, 10)).build();
+        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(3, 10)).build();
     }
 
     public void testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown() throws Exception {
@@ -97,8 +96,7 @@ public class AuthorizationTaskExecutorRelocationIT extends ESIntegTestCase {
 
         var pollerTask = waitForTask(internalCluster().getNodeNames(), AUTH_TASK_ACTION);
 
-        var getAllEndpointsRequest = new GetInferenceModelAction.Request("*", TaskType.ANY, true);
-        var endpoints = client().execute(GetInferenceModelAction.INSTANCE, getAllEndpointsRequest).actionGet();
+        var endpoints = getAllEndpoints();
         assertTrue(
             "expected no authorized EIS endpoints",
             endpoints.getEndpoints().stream().noneMatch(endpoint -> endpoint.getService().equals(ElasticInferenceService.NAME))
@@ -116,7 +114,8 @@ public class AuthorizationTaskExecutorRelocationIT extends ESIntegTestCase {
         });
 
         assertBusy(() -> {
-            var allEndpoints = client().execute(GetInferenceModelAction.INSTANCE, getAllEndpointsRequest).actionGet();
+            var allEndpoints = getAllEndpoints();
+
             var eisEndpoints = allEndpoints.getEndpoints()
                 .stream()
                 .filter(endpoint -> endpoint.getService().equals(ElasticInferenceService.NAME))
@@ -131,6 +130,7 @@ public class AuthorizationTaskExecutorRelocationIT extends ESIntegTestCase {
             );
             assertThat(rainbowSprinklesEndpoint.getTaskType(), is(TaskType.CHAT_COMPLETION));
         });
+
     }
 
     private TaskInfo waitForTask(String[] nodes, String taskAction) throws Exception {
@@ -171,4 +171,22 @@ public class AuthorizationTaskExecutorRelocationIT extends ESIntegTestCase {
         return new NodeNameMapping(nodeNamesMap);
     }
 
+    private GetInferenceModelAction.Response getAllEndpoints() throws Exception {
+        var getAllEndpointsRequest = new GetInferenceModelAction.Request("*", TaskType.ANY, true);
+
+        var allEndpointsRef = new AtomicReference<GetInferenceModelAction.Response>();
+        assertBusy(() -> {
+            try {
+                allEndpointsRef.set(
+                    internalCluster().masterClient().execute(GetInferenceModelAction.INSTANCE, getAllEndpointsRequest).actionGet()
+                );
+            } catch (Exception e) {
+                // We probably got a shards failed exception because the indices aren't ready yet, we'll just try again
+                logger.warn("Failed to retrieve endpoints", e);
+                fail("Failed to retrieve endpoints");
+            }
+        });
+
+        return allEndpointsRef.get();
+    }
 }

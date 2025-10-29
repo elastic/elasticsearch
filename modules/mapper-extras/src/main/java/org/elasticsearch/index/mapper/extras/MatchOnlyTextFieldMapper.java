@@ -100,7 +100,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceContext {
+    public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -112,10 +112,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             IndexVersion indexCreatedVersion,
             IndexAnalyzers indexAnalyzers,
             boolean storedFieldInBinaryFormat,
-            boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
+            super(name, indexCreatedVersion, isWithinMultiField);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
@@ -169,7 +168,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             n,
             c.indexVersionCreated(),
             c.getIndexAnalyzers(),
-            isSyntheticSourceStoredFieldInBinaryFormat(c.indexVersionCreated()),
             SourceFieldMapper.isSynthetic(c.getIndexSettings()),
             c.isWithinMultiField()
         )
@@ -677,14 +675,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexAnalyzers,
-            storedFieldInBinaryFormat,
-            fieldType().isSyntheticSourceEnabled(),
-            fieldType().isWithinMultiField()
-        ).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, storedFieldInBinaryFormat, fieldType().isWithinMultiField())
+            .init(this);
     }
 
     @Override

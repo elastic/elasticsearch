@@ -4607,7 +4607,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(1, groupings.size());
         a = as(groupings.get(0), Alias.class); // reference in groupings is resolved
         TBucket tbucket = as(a.child(), TBucket.class);
-        fa = as(tbucket.field(), FieldAttribute.class);
+        fa = as(tbucket.timestamp(), FieldAttribute.class);
         assertEquals("@timestamp", fa.name());
         Literal literal = as(tbucket.buckets(), Literal.class);
         Literal oneWeek = new Literal(EMPTY, Period.ofWeeks(1), DATE_PERIOD);

@@ -69,8 +69,8 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
 
         // Test with control characters
         cases.add(new TestCaseSupplier("control characters", List.of(DataType.KEYWORD), () -> {
-            String input = "hello\nworld\r\ttab";
-            String expected = "hello\\\\nworld\\\\r\\\\ttab";
+            String input = "hello\nworld\r\ttab\\";
+            String expected = "hello\\\\nworld\\\\r\\\\ttab\\\\\\";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
                 "AsciiEvaluator[val=Attribute[channel=0]]",

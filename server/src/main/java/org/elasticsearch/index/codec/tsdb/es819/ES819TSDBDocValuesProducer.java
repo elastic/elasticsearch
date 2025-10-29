@@ -198,7 +198,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         return switch (entry.compression) {
             case NO_COMPRESS -> getUncompressedBinary(entry);
-            case COMPRESSED_WITH_ZSTD_LEVEL_1 -> getCompressedBinary(entry);
+            default -> getCompressedBinary(entry);
         };
     }
 

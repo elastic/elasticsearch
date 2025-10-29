@@ -1176,7 +1176,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
                 ESTestCase.randomIntBetween(2, 4096),
                 1, // always enable range-encode
-                random().nextBoolean()
+                random().nextBoolean(),
+                randomBinaryCompressionMode()
             );
 
             @Override

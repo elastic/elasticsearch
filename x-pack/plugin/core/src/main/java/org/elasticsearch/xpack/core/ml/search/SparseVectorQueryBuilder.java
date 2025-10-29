@@ -271,7 +271,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             throw new IllegalArgumentException("inference_id required to perform vector search on query string");
         }
 
-        // TODO(server): once search-time inference APIs exist in the server module, switch this to InferenceAction.Request
+        // Move this class to `server` and update to use InferenceAction.Request
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             inferenceId,
             List.of(query),

@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  */
 public class ClampMin extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMin", ClampMin::new);
+    private DataType resolvedType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
@@ -78,7 +79,10 @@ public class ClampMin extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return children().getFirst().dataType();
+        if (resolvedType == null && resolveType().resolved() == false) {
+            throw new EsqlIllegalArgumentException("Unable to resolve data type for clamp_min");
+        }
+        return resolvedType;
     }
 
     @Override
@@ -89,7 +93,7 @@ public class ClampMin extends EsqlScalarFunction {
 
         var field = children().get(0);
         var min = children().get(1);
-        var fieldDataType = field.dataType();
+        var fieldDataType = field.dataType().noText();
         TypeResolution resolution = TypeResolutions.isType(
             field,
             t -> t.isNumeric() || t == DataType.BOOLEAN || t.isDate() || DataType.isString(t) || t == DataType.IP || t == DataType.VERSION,
@@ -113,6 +117,15 @@ public class ClampMin extends EsqlScalarFunction {
         if (resolution.unresolved()) {
             return resolution;
         }
+        if (fieldDataType.isNumeric() == false) {
+            resolvedType = fieldDataType;
+        } else if (fieldDataType.estimatedSize() == min.dataType().estimatedSize()) {
+            // When the types are equally wide, prefer rational numbers
+            resolvedType = fieldDataType.isRationalNumber() ? fieldDataType : min.dataType();
+        } else {
+            // Otherwise, prefer the wider type
+            resolvedType = fieldDataType.estimatedSize() > min.dataType().estimatedSize() ? fieldDataType : min.dataType();
+        }
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -133,20 +146,22 @@ public class ClampMin extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var outputType = dataType();
+        var outputType = PlannerUtils.toElementType(dataType());
 
-        var min = children().get(1);
-        var minF = PlannerUtils.toElementType(outputType) != PlannerUtils.toElementType(min.dataType())
-            ? Cast.cast(source(), min.dataType(), outputType, toEvaluator.apply(min))
-            : toEvaluator.apply(min);
+        var fieldEval = PlannerUtils.toElementType(children().getFirst().dataType()) != outputType
+            ? Cast.cast(source(), children().getFirst().dataType(), dataType(), toEvaluator.apply(children().get(0)))
+            : toEvaluator.apply(children().getFirst());
+        var minEval = PlannerUtils.toElementType(children().get(1).dataType()) != outputType
+            ? Cast.cast(source(), children().get(1).dataType(), dataType(), toEvaluator.apply(children().get(1)))
+            : toEvaluator.apply(children().get(1));
 
-        return switch (PlannerUtils.toElementType(outputType)) {
-            case BOOLEAN -> new ClampMinBooleanEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
-            case DOUBLE -> new ClampMinDoubleEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
-            case INT -> new ClampMinIntegerEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
-            case LONG -> new ClampMinLongEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
-            case BYTES_REF -> new ClampMinBytesRefEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
-            default -> throw EsqlIllegalArgumentException.illegalDataType(outputType);
+        return switch (outputType) {
+            case BOOLEAN -> new ClampMinBooleanEvaluator.Factory(source(), fieldEval, minEval);
+            case DOUBLE -> new ClampMinDoubleEvaluator.Factory(source(), fieldEval, minEval);
+            case INT -> new ClampMinIntegerEvaluator.Factory(source(), fieldEval, minEval);
+            case LONG -> new ClampMinLongEvaluator.Factory(source(), fieldEval, minEval);
+            case BYTES_REF -> new ClampMinBytesRefEvaluator.Factory(source(), fieldEval, minEval);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
     }
 

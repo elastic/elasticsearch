@@ -404,6 +404,15 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         };
     }
 
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        // check plan again after predicates are pushed down into subqueries
+        return (plan, failures) -> {
+            super.postOptimizationPlanVerification().accept(plan, failures);
+            fieldVerifier(plan, this, field, failures);
+        };
+    }
+
     public Object queryAsObject() {
         Object queryAsObject = Foldables.queryAsObject(query(), sourceText());
 

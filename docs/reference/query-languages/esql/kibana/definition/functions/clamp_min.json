@@ -62,6 +62,78 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "field to clamp."
@@ -75,6 +147,42 @@
       ],
       "variadic" : false,
       "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
     },
     {
       "params" : [
@@ -117,6 +225,114 @@
         {
           "name" : "field",
           "type" : "long",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "field to clamp."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
           "optional" : false,
           "description" : "field to clamp."
         },

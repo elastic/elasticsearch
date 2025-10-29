@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -22,10 +23,13 @@ import org.hamcrest.Matchers;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -39,85 +43,99 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        long ts = toMillis("2023-02-17T10:25:33.38Z");
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.addAll(ofDatePeriod(Period.ofDays(1), ts, "2023-02-17T00:00:00.00Z"));
-        suppliers.addAll(ofDatePeriod(Period.ofMonths(1), ts, "2023-02-01T00:00:00.00Z"));
-        suppliers.addAll(ofDatePeriod(Period.ofYears(1), ts, "2023-01-01T00:00:00.00Z"));
-        suppliers.addAll(ofDatePeriod(Period.ofDays(10), ts, "2023-02-12T00:00:00.00Z"));
+
+        ///
+        /// UTC checks
+        ///
+        String ts = "2023-02-17T10:25:33.38Z";
+        suppliers.addAll(ofDatePeriod(Period.ofDays(1), ts, "UTC", "2023-02-17T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofMonths(1), ts, "UTC", "2023-02-01T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofYears(1), ts, "UTC", "2023-01-01T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofDays(10), ts, "UTC", "2023-02-12T00:00:00.00Z"));
         // 7 days period should return weekly rounding
-        suppliers.addAll(ofDatePeriod(Period.ofDays(7), ts, "2023-02-13T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofDays(7), ts, "UTC", "2023-02-13T00:00:00.00Z"));
         // 3 months period should return quarterly
-        suppliers.addAll(ofDatePeriod(Period.ofMonths(3), ts, "2023-01-01T00:00:00.00Z"));
-        suppliers.addAll(ofDuration(Duration.ofHours(1), ts, "2023-02-17T10:00:00.00Z"));
-        suppliers.addAll(ofDuration(Duration.ofMinutes(1), ts, "2023-02-17T10:25:00.00Z"));
-        suppliers.addAll(ofDuration(Duration.ofSeconds(1), ts, "2023-02-17T10:25:33.00Z"));
-        suppliers.addAll(ofDuration(Duration.ofHours(3), ts, "2023-02-17T09:00:00.00Z"));
-        suppliers.addAll(ofDuration(Duration.ofMinutes(15), ts, "2023-02-17T10:15:00.00Z"));
-        suppliers.addAll(ofDuration(Duration.ofSeconds(30), ts, "2023-02-17T10:25:30.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofMonths(3), ts, "UTC", "2023-01-01T00:00:00.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofHours(1), ts, "UTC", "2023-02-17T10:00:00.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofMinutes(1), ts, "UTC", "2023-02-17T10:25:00.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofSeconds(1), ts, "UTC", "2023-02-17T10:25:33.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofHours(3), ts, "UTC", "2023-02-17T09:00:00.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofMinutes(15), ts, "UTC", "2023-02-17T10:15:00.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofSeconds(30), ts, "UTC", "2023-02-17T10:25:30.00Z"));
         suppliers.add(randomSecond());
 
         // arbitrary period of months and years
-        suppliers.addAll(ofDatePeriod(Period.ofMonths(7), ts, "2022-11-01T00:00:00.00Z"));
-        suppliers.addAll(ofDatePeriod(Period.ofYears(5), ts, "2021-01-01T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofMonths(7), ts, "UTC", "2022-11-01T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofYears(5), ts, "UTC", "2021-01-01T00:00:00.00Z"));
+
+        ///
+        /// Timezones
+        ///
+        // TODO: Add tests for every case. Order them correctly
+        suppliers.addAll(ofDatePeriod(Period.ofMonths(3), "2023-01-01T00:00:00.00Z", "-01:00", "2022-10-01T01:00:00.00Z"));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static List<TestCaseSupplier> ofDatePeriod(Period period, long value, String expectedDate) {
+    private static List<TestCaseSupplier> ofDatePeriod(Period period, String inputDate, String zoneId, String expectedDate) {
         return List.of(
             new TestCaseSupplier(
+                "period, millis; " + zoneId,
                 List.of(DataType.DATE_PERIOD, DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval").forceLiteral(),
-                        new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
+                        new TestCaseSupplier.TypedData(toMillis(inputDate), DataType.DATETIME, "date")
                     ),
                     Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATETIME,
                     equalTo(toMillis(expectedDate))
-                ).withStaticConfiguration()
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
             ),
             new TestCaseSupplier(
+                "period, nanos; " + zoneId,
                 List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval").forceLiteral(),
-                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(value), DataType.DATE_NANOS, "date")
+                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(toMillis(inputDate)), DataType.DATE_NANOS, "date")
                     ),
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATE_NANOS,
                     equalTo(toNanos(expectedDate))
-                ).withStaticConfiguration()
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
             )
         );
     }
 
-    private static List<TestCaseSupplier> ofDuration(Duration duration, long value, String expectedDate) {
+    private static List<TestCaseSupplier> ofDuration(Duration duration, String inputDate, String zoneId, String expectedDate) {
         return List.of(
             new TestCaseSupplier(
+                "period, millis; " + zoneId,
                 List.of(DataType.TIME_DURATION, DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval").forceLiteral(),
-                        new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
+                        new TestCaseSupplier.TypedData(toMillis(inputDate), DataType.DATETIME, "date")
                     ),
                     Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATETIME,
                     equalTo(toMillis(expectedDate))
-                ).withStaticConfiguration()
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
             ),
             new TestCaseSupplier(
+                "period, nanos; " + zoneId,
                 List.of(DataType.TIME_DURATION, DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval").forceLiteral(),
-                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(value), DataType.DATE_NANOS, "date")
+                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(toMillis(inputDate)), DataType.DATE_NANOS, "date")
                     ),
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATE_NANOS,
                     equalTo(toNanos(expectedDate))
-                ).withStaticConfiguration()
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
             )
         );
     }
@@ -162,5 +180,9 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         return new DateTrunc(source, args.get(0), args.get(1), configuration);
+    }
+
+    private static Configuration configurationForTimezone(String zoneId) {
+        return new ConfigurationBuilder(randomConfiguration()).query(TEST_SOURCE.text()).zoneId(ZoneId.of(zoneId)).build();
     }
 }

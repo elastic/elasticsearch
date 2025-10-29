@@ -40,6 +40,7 @@ import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLength;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.tables;
 import static org.elasticsearch.xpack.esql.session.Configuration.QUERY_COMPRESS_THRESHOLD_CHARS;
 
 /**

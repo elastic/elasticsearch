@@ -286,16 +286,8 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
         return resp;
     }
 
-    protected boolean supportsAsync() {
-        return randomBoolean();
-    }
-
     private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
-        if (supportsAsync()) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
-        } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
-        }
+        return RestEsqlTestCase.runEsqlSync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
     }
 
     private boolean checkShardCounts() {

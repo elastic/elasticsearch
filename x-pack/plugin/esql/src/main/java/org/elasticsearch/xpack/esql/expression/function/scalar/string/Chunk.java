@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -219,17 +220,19 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
 
-        MapExpression optionsMap = options() != null ? (MapExpression) options() : null;
+        Map<String, Object> optionsMap = new HashMap<>();
+        if (options() != null) {
+            Options.populateMap(((MapExpression) options), optionsMap, source(), SECOND, ALLOWED_OPTIONS);
+        }
+
+        int numChunks = (Integer) optionsMap.getOrDefault(NUM_CHUNKS, DEFAULT_NUM_CHUNKS);
+        int chunkSize = (Integer) optionsMap.getOrDefault(CHUNK_SIZE, DEFAULT_CHUNK_SIZE);
 
         return new ChunkBytesRefEvaluator.Factory(
             source(),
             toEvaluator.apply(field),
-            optionsMap != null && optionsMap.containsKey(NUM_CHUNKS)
-                ? toEvaluator.apply(optionsMap.get(NUM_CHUNKS))
-                : toEvaluator.apply(new Literal(source(), DEFAULT_NUM_CHUNKS, DataType.INTEGER)),
-            optionsMap != null && optionsMap.containsKey(CHUNK_SIZE)
-                ? toEvaluator.apply(optionsMap.get(CHUNK_SIZE))
-                : toEvaluator.apply(new Literal(source(), DEFAULT_CHUNK_SIZE, DataType.INTEGER))
+            toEvaluator.apply(new Literal(source(), numChunks, DataType.INTEGER)),
+            toEvaluator.apply(new Literal(source(), chunkSize, DataType.INTEGER))
         );
     }
 }

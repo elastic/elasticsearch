@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -62,7 +63,8 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     implements
         PostOptimizationVerificationAware,
-        TwoOptionalArguments {
+        TwoOptionalArguments,
+        ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
@@ -88,12 +90,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         Rounding.builder(TimeValue.timeValueMillis(10)),
         Rounding.builder(TimeValue.timeValueMillis(1)), };
 
-    /*
-     * As Bucket already extends GroupingFunction, it can't extend EsqlConfigurationFunction, so we had to replicate here:
-     * - The Configuration field
-     * - HashCode
-     * - Equals
-     */
     private final Configuration configuration;
     private final Expression field;
     private final Expression buckets;

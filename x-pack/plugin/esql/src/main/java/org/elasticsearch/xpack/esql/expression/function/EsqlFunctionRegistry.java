@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
@@ -773,7 +772,7 @@ public class EsqlFunctionRegistry {
         if (TimestampAware.class.isAssignableFrom(def.clazz())) {
             countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
         }
-        if (EsqlConfigurationFunction.class.isAssignableFrom(def.clazz())) {
+        if (ConfigurationFunction.class.isAssignableFrom(def.clazz())) {
             // this isn't enforced by the contract, but the convention is: func(..., Expression timestamp, Configuration config)
             assert Configuration.class.isAssignableFrom(params[params.length - 1].getType())
                 : "The configuration parameter must be the last argument of an EsqlConfigurationFunction definition";

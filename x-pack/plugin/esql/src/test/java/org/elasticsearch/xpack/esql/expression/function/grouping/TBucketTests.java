@@ -95,7 +95,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                 "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
                 DataType.DATETIME,
                 resultsMatcher(args)
-            );
+            ).withStaticConfiguration();
         }));
     }
 
@@ -115,7 +115,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                 Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATE_NANOS,
                 resultsMatcher(args)
-            );
+            ).withStaticConfiguration();
         }));
     }
 

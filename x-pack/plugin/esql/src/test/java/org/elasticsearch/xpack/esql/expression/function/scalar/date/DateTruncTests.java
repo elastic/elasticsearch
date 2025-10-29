@@ -76,7 +76,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATETIME,
                     equalTo(toMillis(expectedDate))
-                )
+                ).withStaticConfiguration()
             ),
             new TestCaseSupplier(
                 List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
@@ -88,7 +88,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATE_NANOS,
                     equalTo(toNanos(expectedDate))
-                )
+                ).withStaticConfiguration()
             )
         );
     }
@@ -105,7 +105,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATETIME,
                     equalTo(toMillis(expectedDate))
-                )
+                ).withStaticConfiguration()
             ),
             new TestCaseSupplier(
                 List.of(DataType.TIME_DURATION, DataType.DATE_NANOS),
@@ -117,7 +117,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATE_NANOS,
                     equalTo(toNanos(expectedDate))
-                )
+                ).withStaticConfiguration()
             )
         );
     }

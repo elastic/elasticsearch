@@ -114,7 +114,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATETIME,
                         resultsMatcher(args)
-                    );
+                    ).withStaticConfiguration();
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
@@ -128,7 +128,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    );
+                    ).withStaticConfiguration();
                 }));
             }
         }
@@ -161,7 +161,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
                 DataType.DATETIME,
                 resultsMatcher(args)
-            );
+            ).withStaticConfiguration();
         }));
     }
 
@@ -182,7 +182,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATE_NANOS,
                 resultsMatcher(args)
-            );
+            ).withStaticConfiguration();
         }));
     }
 
@@ -201,7 +201,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                         DataType.DATE_NANOS,
                         resultsMatcher(args)
-                    );
+                    ).withStaticConfiguration();
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
@@ -215,7 +215,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                         DataType.DATE_NANOS,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    );
+                    ).withStaticConfiguration();
                 }));
             }
         }

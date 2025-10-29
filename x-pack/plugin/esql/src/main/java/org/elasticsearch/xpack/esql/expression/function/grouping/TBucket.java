@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -32,15 +33,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * Splits dates into a given number of buckets. The span is derived from a time range provided.
  */
-public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implements SurrogateExpression, TimestampAware {
+public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
+    implements
+        SurrogateExpression,
+        TimestampAware,
+        ConfigurationFunction {
     public static final String NAME = "TBucket";
 
-    /*
-     * As Bucket already extends GroupingFunction, it can't extend EsqlConfigurationFunction, so we had to replicate here:
-     * - The Configuration field
-     * - HashCode
-     * - Equals
-     */
     private final Configuration configuration;
     private final Expression buckets;
     private final Expression timestamp;

@@ -14,24 +14,19 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 
@@ -208,71 +203,6 @@ public class TimeSeriesAggregate extends Aggregate {
                         this.sourceText()
                     )
                 );
-            }
-        });
-        // check grouping window
-        Holder<Duration> bucketDuration = new Holder<>();
-        for (Expression grouping : groupings) {
-            for (Expression child : grouping.children()) {
-                if ((child instanceof Bucket bucket
-                    && bucket.field() instanceof FieldAttribute f
-                    && f.name().equals(MetadataAttribute.TIMESTAMP_FIELD))) {
-                    Expression buckets = bucket.buckets();
-                    if (buckets.dataType() == DataType.TIME_DURATION && buckets.foldable()) {
-                        if (buckets.fold(FoldContext.small()) instanceof Duration d && d.isPositive()) {
-                            bucketDuration.set(d);
-                        }
-                    }
-                } else if (child instanceof TBucket bucket) {
-                    Expression buckets = bucket.buckets();
-                    if (buckets.dataType() == DataType.TIME_DURATION && buckets.foldable()) {
-                        if (buckets.fold(FoldContext.small()) instanceof Duration d && d.isPositive()) {
-                            bucketDuration.set(d);
-                        }
-                    }
-                }
-            }
-        }
-        forEachExpression(AggregateFunction.class, af -> {
-            if (af.hasWindow()) {
-                Expression window = af.window();
-                if (window.dataType() != DataType.TIME_DURATION || window.foldable() == false) {
-                    failures.add(fail(af, "window of aggregate function [{}] must be a constant time duration", af.sourceText()));
-                } else if (window.fold(FoldContext.small()) instanceof Duration windowDuration) {
-                    if (windowDuration.isPositive() == false) {
-                        failures.add(
-                            fail(
-                                af,
-                                "window [{}] of aggregate function [{}] must be a positive time duration",
-                                windowDuration,
-                                af.sourceText()
-                            )
-                        );
-                    } else if (bucketDuration.get() == null) {
-                        failures.add(
-                            fail(
-                                af,
-                                "window of aggregation function [{}] requires a time bucket in the grouping of the STATS [{}]",
-                                af.sourceText(),
-                                this.sourceText()
-                            )
-                        );
-                    } else {
-                        long windowMillis = windowDuration.toMillis();
-                        long bucketMillis = bucketDuration.get().toMillis();
-                        if (windowMillis < bucketMillis || windowMillis % bucketMillis != 0) {
-                            failures.add(
-                                fail(
-                                    af,
-                                    "window [{}] of aggregate function [{}] must be a multiple of the time bucket [{}]",
-                                    windowDuration,
-                                    af.sourceText(),
-                                    bucketDuration.get()
-                                )
-                            );
-                        }
-                    }
-                }
             }
         });
     }

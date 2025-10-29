@@ -10,6 +10,7 @@ import java.lang.String;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -32,6 +33,8 @@ public final class AsciiEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final BreakingBytesRefBuilder scratch;
 
+  private final UnicodeUtil.UTF8CodePoint codePoint;
+
   private final EvalOperator.ExpressionEvaluator val;
 
   private final DriverContext driverContext;
@@ -39,9 +42,11 @@ public final class AsciiEvaluator implements EvalOperator.ExpressionEvaluator {
   private Warnings warnings;
 
   public AsciiEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator val, DriverContext driverContext) {
+      UnicodeUtil.UTF8CodePoint codePoint, EvalOperator.ExpressionEvaluator val,
+      DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
+    this.codePoint = codePoint;
     this.val = val;
     this.driverContext = driverContext;
   }
@@ -80,7 +85,7 @@ public final class AsciiEvaluator implements EvalOperator.ExpressionEvaluator {
               continue position;
         }
         BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
-        result.appendBytesRef(Ascii.process(this.scratch, val));
+        result.appendBytesRef(Ascii.process(this.scratch, this.codePoint, val));
       }
       return result.build();
     }
@@ -91,7 +96,7 @@ public final class AsciiEvaluator implements EvalOperator.ExpressionEvaluator {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef val = valVector.getBytesRef(p, valScratch);
-        result.appendBytesRef(Ascii.process(this.scratch, val));
+        result.appendBytesRef(Ascii.process(this.scratch, this.codePoint, val));
       }
       return result.build();
     }
@@ -124,18 +129,22 @@ public final class AsciiEvaluator implements EvalOperator.ExpressionEvaluator {
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
+    private final Function<DriverContext, UnicodeUtil.UTF8CodePoint> codePoint;
+
     private final EvalOperator.ExpressionEvaluator.Factory val;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
+        Function<DriverContext, UnicodeUtil.UTF8CodePoint> codePoint,
         EvalOperator.ExpressionEvaluator.Factory val) {
       this.source = source;
       this.scratch = scratch;
+      this.codePoint = codePoint;
       this.val = val;
     }
 
     @Override
     public AsciiEvaluator get(DriverContext context) {
-      return new AsciiEvaluator(source, scratch.apply(context), val.get(context), context);
+      return new AsciiEvaluator(source, scratch.apply(context), codePoint.apply(context), val.get(context), context);
     }
 
     @Override

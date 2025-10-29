@@ -83,7 +83,12 @@ public final class Ascii extends UnaryScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var field = toEvaluator.apply(field());
-        return new AsciiEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "ascii"), field);
+        return new AsciiEvaluator.Factory(
+            source(),
+            context -> new BreakingBytesRefBuilder(context.breaker(), "ascii"),
+            context -> new UnicodeUtil.UTF8CodePoint(),
+            field
+        );
     }
 
     @Override
@@ -97,9 +102,11 @@ public final class Ascii extends UnaryScalarFunction {
     }
 
     @Evaluator
-    static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef val) {
-        UnicodeUtil.UTF8CodePoint codePoint = new UnicodeUtil.UTF8CodePoint();
-
+    static BytesRef process(
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) UnicodeUtil.UTF8CodePoint codePoint,
+        BytesRef val
+    ) {
         // Pre-reserve at least as much as the input.
         scratch.grow(val.length);
         scratch.clear();

@@ -1,4 +1,4 @@
-id,color:text,hex_code:keyword,rgb_vector:dense_vector,rgb_byte_vector:dense_vector,primary:boolean
+id:integer,color:text,hex_code:keyword,rgb_vector:dense_vector,rgb_byte_vector:dense_vector,primary:boolean
 0,maroon, #800000, [128,0,0], [0, -128, -128], false
 1,brown, #A52A2A, [165,42,42], [37, -86, -86], false
 2,firebrick, #B22222, [178,34,34], [50, -94, -94], false

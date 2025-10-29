@@ -1,4 +1,4 @@
-id,color_name,cmyk_vector
+id:integer,color_name:text,cmyk_vector:dense_vector
 0,maroon, [0, 100, 100, 50]
 1,brown, [0, 75, 75, 35]
 2,firebrick, [0, 81, 81, 30]

@@ -501,63 +501,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
-            if (plan instanceof Aggregate aggregate) {
-                return resolveAggregate(aggregate, childrenOutput);
-            }
-
-            if (plan instanceof Completion c) {
-                return resolveCompletion(c, childrenOutput);
-            }
-
-            if (plan instanceof Drop d) {
-                return resolveDrop(d, childrenOutput);
-            }
-
-            if (plan instanceof Rename r) {
-                return resolveRename(r, childrenOutput);
-            }
-
-            if (plan instanceof Keep p) {
-                return resolveKeep(p, childrenOutput);
-            }
-
-            if (plan instanceof Fork f) {
-                return resolveFork(f, context);
-            }
-
-            if (plan instanceof Eval p) {
-                return resolveEval(p, childrenOutput);
-            }
-
-            if (plan instanceof Enrich p) {
-                return resolveEnrich(p, childrenOutput);
-            }
-
-            if (plan instanceof MvExpand p) {
-                return resolveMvExpand(p, childrenOutput);
-            }
-
-            if (plan instanceof Lookup l) {
-                return resolveLookup(l, childrenOutput);
-            }
-
-            if (plan instanceof LookupJoin j) {
-                return resolveLookupJoin(j, context);
-            }
-
-            if (plan instanceof Insist i) {
-                return resolveInsist(i, childrenOutput, context);
-            }
-
-            if (plan instanceof Fuse fuse) {
-                return resolveFuse(fuse, childrenOutput);
-            }
-
-            if (plan instanceof Rerank r) {
-                return resolveRerank(r, childrenOutput);
-            }
-
-            return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            return switch (plan) {
+                case Aggregate a -> resolveAggregate(a, childrenOutput);
+                case Completion c -> resolveCompletion(c, childrenOutput);
+                case Drop d -> resolveDrop(d, childrenOutput);
+                case Rename r -> resolveRename(r, childrenOutput);
+                case Keep p -> resolveKeep(p, childrenOutput);
+                case Fork f -> resolveFork(f, context);
+                case Eval p -> resolveEval(p, childrenOutput);
+                case Enrich p -> resolveEnrich(p, childrenOutput);
+                case MvExpand p -> resolveMvExpand(p, childrenOutput);
+                case Lookup l -> resolveLookup(l, childrenOutput);
+                case LookupJoin j -> resolveLookupJoin(j, context);
+                case Insist i -> resolveInsist(i, childrenOutput, context);
+                case Fuse fuse -> resolveFuse(fuse, childrenOutput);
+                case Rerank r -> resolveRerank(r, childrenOutput);
+                default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            };
         }
 
         private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -715,8 +675,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                         + joinedAttribute.dataType().typeName()
                                         + "] and original column was ["
                                         + attr.dataType().typeName()
-                                        + "]",
-                                    null
+                                        + "]"
                                 );
                             }
                         }
@@ -1431,7 +1390,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
         var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
-        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
+        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, ua::defaultUnresolvedMessage);
     }
 
     private static List<Attribute> potentialCandidatesIfNoMatchesFound(
@@ -1703,7 +1662,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         if (arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
                             if (i < targetDataTypes.size()) {
                                 targetDataType = targetDataTypes.get(i);
-                            }
+                            } // else the last type applies to all elements in a possible list (variadic)
                             if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
                                 Expression e = castStringLiteral(arg, targetDataType);
                                 if (e != arg) {

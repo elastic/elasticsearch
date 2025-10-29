@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -353,7 +353,7 @@ public class IndexResolver {
             };
         if (type == DATE_RANGE && fieldsInfo.useDateRangeWhenNotSupported() == false) {
             // For now, in case that we use a DATE_RANGE field for enrichment, we still want to get it
-            // as unsupported, so that enrichment will still work for all possible mixed-cluster cases.
+            // as unsupported, so that enrichment will work for all possible mixed-cluster cases.
             typeSupported = false;
         }
         if (false == typeSupported) {

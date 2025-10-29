@@ -499,8 +499,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo(List.of(0.5, 10.0, 5.9999995));
             }
             case DATE_RANGE -> {
-                // Currently, we cannot tell if all nodes support it or not so we treat it as unsupported.
-                // TODO: Fix this once we know the node versions.
+                // DATE_RANGE is unreleased
                 yield nullValue();
             }
             default -> throw new AssertionError("unsupported field type [" + type + "]");

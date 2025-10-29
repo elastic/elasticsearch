@@ -12,7 +12,6 @@ setup:
           mappings:
             properties:
               aggregate_metric_double:
-
                 type: aggregate_metric_double
                 metrics: [ min, max, sum, value_count ]
                 default_metric: max

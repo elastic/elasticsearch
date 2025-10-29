@@ -373,8 +373,7 @@ public class RangeFieldMapper extends FieldMapper {
             if (rangeType != RangeType.DATE) {
                 throw new UnsupportedOperationException("loading blocks is only supported for date fields");
             }
-            // TODO: do we need this additional check?
-            if (/* blContext.fieldExtractPreference() == DOC_VALUES && */ hasDocValues()) {
+            if (hasDocValues()) {
                 return new DateRangeDocValuesLoader(name());
             }
             throw new IllegalStateException("Cannot load blocks without doc values");

@@ -324,7 +324,6 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         Map<String, List<String>> ignored
     ) {
         if (DeprecatedIndexPredicate.reindexRequiredForTransportVersion(indexMetadata, false, false)) {
-            List<String> types = new ArrayList<>();
             List<String> percolatorIncompatibleFieldMappings = new ArrayList<>();
             fieldLevelMappingIssue(
                 indexMetadata,
@@ -348,7 +347,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     "The index was created before 8.19 and contains mappings that must be reindexed due to containing percolator fields. "
                         + String.join(", ", percolatorIncompatibleFieldMappings),
                     false,
-                    Map.of("reindex_required", true)
+                    Map.of("reindex_required", true, "excludedActions", List.of("readOnly"))
                 );
             }
         }

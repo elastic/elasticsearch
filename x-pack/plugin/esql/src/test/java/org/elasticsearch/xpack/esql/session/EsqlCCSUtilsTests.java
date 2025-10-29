@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import org.hamcrest.Matcher;
 
@@ -42,7 +43,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -663,6 +663,59 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     }
 
     public void testInitCrossClusterState() {
+        // local only
+        {
+            var local = new EsqlExecutionInfo(true);
+
+            EsqlCCSUtils.initCrossClusterInfo(
+                new TestIndicesExpressionGrouper(),
+                createLicenseState(null),
+                new IndexPattern(null, "index-1,index-2,index-*"),
+                local
+            );
+
+            assertThat(local.isCrossClusterSearch(), equalTo(false));
+            assertThat(local.getCluster(LOCAL_CLUSTER_ALIAS).getIndexExpression(), equalTo("index-1,index-2,index-*"));
+        }
+
+        // remote only
+        {
+            var remote = new EsqlExecutionInfo(true);
+
+            EsqlCCSUtils.initCrossClusterInfo(
+                new TestIndicesExpressionGrouper(),
+                createLicenseState(null),
+                new IndexPattern(null, "r1:index-1,r2:index-2,r3:index-*"),
+                remote
+            );
+
+            assertThat(remote.isCrossClusterSearch(), equalTo(true));
+            assertThat(remote.clusterAliases(), containsInAnyOrder("r1", "r2", "r3"));
+            assertThat(remote.getCluster("r1").getIndexExpression(), equalTo("index-1"));
+            assertThat(remote.getCluster("r2").getIndexExpression(), equalTo("index-2"));
+            assertThat(remote.getCluster("r3").getIndexExpression(), equalTo("index-*"));
+        }
+
+        // local and remote
+        {
+            var remoteAndLocal = new EsqlExecutionInfo(true);
+
+            EsqlCCSUtils.initCrossClusterInfo(
+                new TestIndicesExpressionGrouper(),
+                createLicenseState(null),
+                new IndexPattern(null, "r1:index-1,r2:index-2,index-*"),
+                remoteAndLocal
+            );
+
+            assertThat(remoteAndLocal.isCrossClusterSearch(), equalTo(true));
+            assertThat(remoteAndLocal.clusterAliases(), containsInAnyOrder(LOCAL_CLUSTER_ALIAS, "r1", "r2"));
+            assertThat(remoteAndLocal.getCluster(LOCAL_CLUSTER_ALIAS).getIndexExpression(), equalTo("index-*"));
+            assertThat(remoteAndLocal.getCluster("r1").getIndexExpression(), equalTo("index-1"));
+            assertThat(remoteAndLocal.getCluster("r2").getIndexExpression(), equalTo("index-2"));
+        }
+    }
+
+    public void testCheckLicense() {
         // local only search works with any license state
         {
             var localOnly = new EsqlExecutionInfo(true);
@@ -737,32 +790,34 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         @Override
         public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions, boolean returnLocalAll) {
             final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-            final String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-
             for (String expr : indexExpressions) {
                 assertFalse(Strings.isNullOrBlank(expr));
                 String[] split = expr.split(":", 2);
                 assertTrue("Bad index expression: " + expr, split.length < 3);
                 String clusterAlias;
-                String indexExpr;
+                String indexExpression;
                 if (split.length == 1) {
-                    clusterAlias = localKey;
-                    indexExpr = expr;
+                    clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+                    indexExpression = expr;
                 } else {
                     clusterAlias = split[0];
-                    indexExpr = split[1];
-
+                    indexExpression = split[1];
                 }
-                OriginalIndices currIndices = originalIndicesMap.get(clusterAlias);
-                if (currIndices == null) {
-                    originalIndicesMap.put(clusterAlias, new OriginalIndices(new String[] { indexExpr }, indicesOptions));
-                } else {
-                    List<String> indicesList = Arrays.stream(currIndices.indices()).collect(Collectors.toList());
-                    indicesList.add(indexExpr);
-                    originalIndicesMap.put(clusterAlias, new OriginalIndices(indicesList.toArray(new String[0]), indicesOptions));
-                }
+                assertFalse("* remote cluster resolution is not supported in test: " + expr, clusterAlias.contains("*"));
+                originalIndicesMap.compute(
+                    clusterAlias,
+                    (key, indices) -> indices == null
+                        ? new OriginalIndices(new String[] { indexExpression }, indicesOptions)
+                        : new OriginalIndices(append(indices.indices(), indexExpression), indicesOptions)
+                );
             }
             return originalIndicesMap;
+        }
+
+        private static String[] append(String[] original, String additional) {
+            var copy = Arrays.copyOf(original, original.length + 1);
+            copy[copy.length - 1] = additional;
+            return copy;
         }
     }
 }

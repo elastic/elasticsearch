@@ -616,3 +616,32 @@ setup:
       esql.query:
         body:
           query: 'FROM test | EVAL tag = name::text | KEEP name'
+---
+"like with overly complex pattern":
+  - requires:
+        capabilities:
+          - method: POST
+            path: /_query
+            parameters: [ method, path, parameters, capabilities ]
+            capabilities: [ handle_determinization_complexity ]
+        reason: "determinization errors not yet rethrown"
+  - do:
+      catch: /Pattern was too complex to determinize/
+      esql.query:
+        body:
+          query: 'FROM test | WHERE job LIKE "*a?????????????"'
+
+---
+"rlike with overly complex pattern":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ handle_determinization_complexity ]
+      reason: "determinization errors not yet rethrown"
+  - do:
+      catch: /Pattern was too complex to determinize/
+      esql.query:
+        body:
+          query: 'FROM test | WHERE job RLIKE "(a|b)*a(a|b){13}"'

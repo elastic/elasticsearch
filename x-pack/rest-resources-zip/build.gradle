@@ -27,6 +27,7 @@ dependencies {
   compatApis project(path: ':x-pack:plugin', configuration: 'restCompatSpecs')
   freeCompatTests project(path: ':rest-api-spec', configuration: 'restCompatTests')
   platinumTests project(path: ':x-pack:plugin', configuration: 'restXpackTests')
+  platinumTests project(path: ':x-pack:plugin:downsample:qa:rest', configuration: 'restXpackTests')
   platinumTests project(path: ':x-pack:plugin:eql:qa:rest', configuration: 'restXpackTests')
   platinumTests project(path: ':x-pack:plugin:ent-search', configuration: 'restXpackTests')
   platinumTests project(path: ':x-pack:plugin:inference', configuration: 'restXpackTests')

@@ -125,12 +125,12 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         for (SingleParameterCase testCase : testCases) {
             suppliers.add(
                 new TestCaseSupplier(
-                    List.of(testCase.timestampDataType, testCase.argumentDataType),
+                    List.of(testCase.argumentDataType, testCase.timestampDataType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(testCase.timestampValue, testCase.timestampDataType, "@timestamp"),
                             new TestCaseSupplier.TypedData(testCase.argumentValue, testCase.argumentDataType, "start_time_or_interval")
-                                .forceLiteral()
+                                .forceLiteral(),
+                            new TestCaseSupplier.TypedData(testCase.timestampValue, testCase.timestampDataType, "@timestamp")
                         ),
                         Matchers.equalTo(
                             "BooleanLogicExpressionEvaluator[bl=source, "
@@ -210,14 +210,14 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         for (TwoParameterCase testCase : testCases) {
             suppliers.add(
                 new TestCaseSupplier(
-                    List.of(testCase.timestampDataType, testCase.argument1DataType, testCase.argument2DataType),
+                    List.of(testCase.argument1DataType, testCase.argument2DataType, testCase.timestampDataType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(testCase.timestampValue, testCase.timestampDataType, "@timestamp"),
                             new TestCaseSupplier.TypedData(testCase.argument1Value, testCase.argument1DataType, "start_time_or_interval")
                                 .forceLiteral(),
                             new TestCaseSupplier.TypedData(testCase.argument2Value, testCase.argument2DataType, "start_time_or_interval")
-                                .forceLiteral()
+                                .forceLiteral(),
+                            new TestCaseSupplier.TypedData(testCase.timestampValue, testCase.timestampDataType, "@timestamp")
                         ),
                         Matchers.equalTo(
                             "BooleanLogicExpressionEvaluator[bl=source, "
@@ -280,7 +280,7 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         Mockito.doReturn(fixedNow).when(spyConfig).now();
 
         if (args.size() == 2) {
-            return new TRange(source, args.get(0), args.get(1), null, spyConfig);
+            return new TRange(source, args.get(0), null, args.get(1), spyConfig);
         } else if (args.size() == 3) {
             return new TRange(source, args.get(0), args.get(1), args.get(2), spyConfig);
         } else {
@@ -289,14 +289,14 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
+        assertThat(params.getLast().dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+
         if (params.size() == 2) {
-            assertThat(params.get(0).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
-            return List.of(params.get(1));
+            return List.of(params.get(0));
         }
 
         assertThat(params, hasSize(3));
-        assertThat(params.get(0).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
-        return List.of(params.get(1), params.get(2));
+        return List.of(params.get(0), params.get(1));
     }
 
     @Override

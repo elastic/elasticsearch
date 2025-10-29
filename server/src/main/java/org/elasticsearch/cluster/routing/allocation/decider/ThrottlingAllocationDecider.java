@@ -118,10 +118,14 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary() && shardRouting.unassigned()) {
+            // Primary is unassigned, means we are going to do recovery from store, snapshot or local shards
             assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() != RecoverySource.Type.PEER;
-            // primary is unassigned, means we are going to do recovery from store, snapshot or local shards
-            // count *just the primaries* currently doing recovery on the node and check against primariesInitialRecoveries
 
+            if (allocation.isSimulating()) {
+                return allocation.decision(Decision.YES, NAME, "primary allocation is not throttled when simulating");
+            }
+
+            // Count the primaries currently doing recovery on the node, to ensure the primariesInitialRecoveries setting is obeyed.
             int primariesInRecovery = 0;
             for (ShardRouting shard : node.initializing()) {
                 // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
@@ -130,10 +134,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     primariesInRecovery++;
                 }
             }
-            if (allocation.isSimulating()) {
-                return allocation.decision(Decision.YES, NAME, "primary allocation is not throttled when simulating");
-            } else if (primariesInRecovery >= primariesInitialRecoveries) {
-                // TODO: Should index creation not be throttled for primary shards?
+            if (primariesInRecovery >= primariesInitialRecoveries) {
                 return allocation.decision(
                     THROTTLE,
                     NAME,
@@ -142,9 +143,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
                     primariesInitialRecoveries
                 );
-            } else {
-                return allocation.decision(YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
             }
+            return allocation.decision(YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
         } else {
             // Peer recovery
             assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER;

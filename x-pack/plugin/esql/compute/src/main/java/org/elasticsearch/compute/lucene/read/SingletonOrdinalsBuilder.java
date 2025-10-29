@@ -68,6 +68,15 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     @Override
+    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int ord, int length) {
+        Arrays.fill(ords, count, count + length, ord);
+        this.minOrd = Math.min(this.minOrd, ord);
+        this.maxOrd = Math.max(this.maxOrd, ord);
+        this.count += length;
+        return this;
+    }
+
+    @Override
     public SingletonOrdinalsBuilder beginPositionEntry() {
         throw new UnsupportedOperationException("should only have one value per doc");
     }
@@ -248,6 +257,10 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
 
     @Override
     public BytesRefBlock build() {
+        if (count != ords.length) {
+            assert false : "expected " + ords.length + " values but got " + count;
+            throw new IllegalStateException("expected " + ords.length + " values but got " + count);
+        }
         var constantBlock = tryBuildConstantBlock();
         if (constantBlock != null) {
             return constantBlock;

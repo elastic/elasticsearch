@@ -69,6 +69,9 @@ public class TransportDeleteSampleConfigurationActionTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ActionFilters actionFilters = mock(ActionFilters.class);
         projectResolver = mock(ProjectResolver.class);
+        when(projectResolver.getProjectMetadata((ClusterState) any())).thenReturn(
+            ClusterState.EMPTY_STATE.projectState(ProjectId.DEFAULT).metadata()
+        );
         indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         samplingService = mock(SamplingService.class);
 

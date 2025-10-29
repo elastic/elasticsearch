@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Aggregate metric"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/aggregate-metric-double.html

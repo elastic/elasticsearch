@@ -32,8 +32,6 @@ import java.util.Objects;
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final boolean customMessage;
     protected final String unresolvedMsg;
-    // TODO: unused and always null, remove this.
-    protected final Object resolutionMetadata;
 
     // TODO: Check usage of constructors without qualifiers, that's likely where qualifiers need to be plugged into resolution logic.
     public UnresolvedAttribute(Source source, String name) {
@@ -45,17 +43,11 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     public UnresolvedAttribute(Source source, @Nullable String qualifier, String name, @Nullable String unresolvedMessage) {
-        this(source, qualifier, name, null, unresolvedMessage, null);
+        this(source, qualifier, name, null, unresolvedMessage);
     }
 
-    public UnresolvedAttribute(
-        Source source,
-        String name,
-        @Nullable NameId id,
-        @Nullable String unresolvedMessage,
-        Object resolutionMetadata
-    ) {
-        this(source, null, name, id, unresolvedMessage, resolutionMetadata);
+    public UnresolvedAttribute(Source source, String name, @Nullable NameId id, @Nullable String unresolvedMessage) {
+        this(source, null, name, id, unresolvedMessage);
     }
 
     @SuppressWarnings("this-escape")
@@ -64,15 +56,11 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         @Nullable String qualifier,
         String name,
         @Nullable NameId id,
-        @Nullable String unresolvedMessage,
-        Object resolutionMetadata
+        @Nullable String unresolvedMessage
     ) {
         super(source, qualifier, name, id);
         this.customMessage = unresolvedMessage != null;
-        this.unresolvedMsg = unresolvedMessage == null
-            ? errorMessage(qualifier() != null ? qualifiedName() : name(), null)
-            : unresolvedMessage;
-        this.resolutionMetadata = resolutionMetadata;
+        this.unresolvedMsg = unresolvedMessage != null ? unresolvedMessage : defaultUnresolvedMessage(null);
     }
 
     @Override
@@ -87,11 +75,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<? extends UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, qualifier(), name(), id(), unresolvedMsg, resolutionMetadata);
-    }
-
-    public Object resolutionMetadata() {
-        return resolutionMetadata;
+        return NodeInfo.create(this, UnresolvedAttribute::new, qualifier(), name(), id(), unresolvedMsg);
     }
 
     public boolean customMessage() {
@@ -120,11 +104,11 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     // Cannot just use the super method because that requires a data type.
     @Override
     public UnresolvedAttribute withId(NameId id) {
-        return new UnresolvedAttribute(source(), qualifier(), name(), id, unresolvedMessage(), resolutionMetadata());
+        return new UnresolvedAttribute(source(), qualifier(), name(), id, unresolvedMessage());
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage, resolutionMetadata());
+        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage);
     }
 
     @Override
@@ -169,6 +153,10 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         return unresolvedMsg;
     }
 
+    public String defaultUnresolvedMessage(@Nullable List<String> potentialMatches) {
+        return errorMessage(qualifier() != null ? qualifiedName() : name(), potentialMatches);
+    }
+
     public static String errorMessage(String name, List<String> potentialMatches) {
         String msg = "Unknown column [" + name + "]";
         if (CollectionUtils.isEmpty(potentialMatches) == false) {
@@ -181,14 +169,12 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected int innerHashCode(boolean ignoreIds) {
-        return Objects.hash(super.innerHashCode(ignoreIds), resolutionMetadata, unresolvedMsg);
+        return Objects.hash(super.innerHashCode(ignoreIds), unresolvedMsg);
     }
 
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnresolvedAttribute) o;
-        return super.innerEquals(o, ignoreIds)
-            && Objects.equals(resolutionMetadata, other.resolutionMetadata)
-            && Objects.equals(unresolvedMsg, other.unresolvedMsg);
+        return super.innerEquals(o, ignoreIds) && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 }

@@ -1,0 +1,5 @@
+pr: 136988
+summary: Enable score function in release builds
+area: ES|QL
+type: feature
+issues: []

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Search-as-you-type"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-as-you-type.html

@@ -96,6 +96,11 @@ public abstract class SenderService implements InferenceService {
             case RERANK -> {
                 ValidationException validationException = new ValidationException();
                 service.validateRerankParameters(returnDocuments, topN, validationException);
+
+                if (query == null) {
+                    validationException.addValidationError("Rerank task type requires a non-null query field");
+                }
+
                 if (validationException.validationErrors().isEmpty() == false) {
                     throw validationException;
                 }

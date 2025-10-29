@@ -26,6 +26,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -63,6 +64,7 @@ import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ServiceSettings;
@@ -84,6 +86,7 @@ import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -111,7 +114,9 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_EIS_ELSER_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.UNSUPPORTED_INDEX_MESSAGE;
@@ -124,6 +129,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -139,7 +145,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     ModelRegistry globalModelRegistry;
 
     @Before
-    private void startThreadPool() {
+    private void initializeTestEnvironment() {
         threadPool = createThreadPool();
         var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         var modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool));
@@ -150,6 +156,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 return false;
             }
         });
+        registerDefaultEisEndpoint();
     }
 
     @After
@@ -170,6 +177,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 return () -> globalModelRegistry;
             }
         }, new XPackClientPlugin());
+    }
+
+    private void registerDefaultEisEndpoint() {
+        globalModelRegistry.putDefaultIdIfAbsent(
+            new InferenceService.DefaultConfigId(
+                DEFAULT_EIS_ELSER_INFERENCE_ID,
+                MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                mock(InferenceService.class)
+            )
+        );
     }
 
     private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat) throws IOException {
@@ -226,7 +243,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void metaMapping(XContentBuilder b) throws IOException {
         super.metaMapping(b);
-        b.field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID);
+        b.field(INFERENCE_ID_FIELD, DEFAULT_EIS_ELSER_INFERENCE_ID);
     }
 
     @Override
@@ -293,13 +310,37 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = mapperService.documentMapper();
         assertEquals(Strings.toString(expectedMapping), mapper.mappingSource().toString());
         assertSemanticTextField(mapperService, fieldName, false, null, null);
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID);
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
 
         // No indexable fields
         assertTrue(fields.isEmpty());
+    }
+
+    public void testDefaultInferenceIdUsesEisWhenAvailable() throws Exception {
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+
+        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID);
+    }
+
+    public void testDefaultInferenceIdFallsBackWhenEisUnavailable() throws Exception {
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+
+        removeDefaultEisEndpoint();
+
+        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
+    }
+
+    private void removeDefaultEisEndpoint() {
+        PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
+        globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_ELSER_INFERENCE_ID), removalFuture);
+        assertTrue("Failed to remove default EIS endpoint", removalFuture.actionGet(TEST_REQUEST_TIMEOUT));
     }
 
     @Override
@@ -332,12 +373,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
             final XContentBuilder expectedMapping = fieldMapping(
                 b -> b.field("type", "semantic_text")
-                    .field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID)
+                    .field(INFERENCE_ID_FIELD, DEFAULT_EIS_ELSER_INFERENCE_ID)
                     .field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
             );
             final MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
             assertSemanticTextField(mapperService, fieldName, false, null, null);
-            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, searchInferenceId);
+            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, searchInferenceId);
             assertSerialization.accept(expectedMapping, mapperService);
         }
         {

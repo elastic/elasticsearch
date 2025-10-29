@@ -1060,6 +1060,13 @@ public final class EsqlTestUtils {
             ExponentialHistogramCircuitBreaker.noop(),
             rawValues
         );
+        /*
+         * hashcode mutates the histogram by doing some lazy work.
+         * That can change the value of the hashCode if you call it concurrently....
+         * This works around that by running it once up front. Jonas will have a
+         * look at this one soon.
+         */
+        histo.hashCode();
         return histo;
     }
 

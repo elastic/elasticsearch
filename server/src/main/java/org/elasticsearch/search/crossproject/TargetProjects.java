@@ -55,10 +55,17 @@ public record TargetProjects(
 
     public Set<String> allProjectAliases() {
         // TODO consider caching this
+        return allProjects().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * Stream containing all project infos, including origin and linked projects
+     */
+    public Stream<ProjectRoutingInfo> allProjects() {
         return Stream.concat(
             originProject != null ? Stream.of(originProject) : Stream.empty(),
             linkedProjects != null ? linkedProjects.stream() : Stream.empty()
-        ).map(ProjectRoutingInfo::projectAlias).collect(Collectors.toUnmodifiableSet());
+        );
     }
 
     // TODO: Either change the definition or the method name since it allows targeting only the origin project without any remotes

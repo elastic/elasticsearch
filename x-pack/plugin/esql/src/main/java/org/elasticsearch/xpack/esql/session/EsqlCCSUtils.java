@@ -367,6 +367,56 @@ public class EsqlCCSUtils {
     }
 
     /**
+     * This inits the cross cluster state in executionInfo using `indicesGrouper`
+     * when original to resolved index mapping is not available in field caps response
+     */
+    public static void initCrossClusterInfo(
+        IndicesExpressionGrouper indicesGrouper,
+        XPackLicenseState licenseState,
+        IndexPattern indexPattern,
+        EsqlExecutionInfo executionInfo
+    ) {
+        try {
+            var groupedIndices = indicesGrouper.groupIndices(
+                IndicesOptions.DEFAULT,
+                Strings.splitStringByCommaToArray(indexPattern.indexPattern()),
+                false
+            );
+
+            executionInfo.clusterInfoInitializing(true);
+            // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
+            // so that the CCS telemetry handler can recognize that this error is CCS-related
+            try {
+                groupedIndices.forEach((clusterAlias, indexGroup) -> {
+                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                        var thisPattern = Strings.arrayToCommaDelimitedString(indexGroup.indices());
+                        var clusterPattern = v == null ? thisPattern : v.getIndexExpression() + "," + thisPattern;
+                        return new EsqlExecutionInfo.Cluster(clusterAlias, clusterPattern, executionInfo.shouldSkipOnFailure(clusterAlias));
+                    });
+                });
+            } finally {
+                executionInfo.clusterInfoInitializing(false);
+            }
+        } catch (NoSuchRemoteClusterException e) {
+            if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
+                throw e;
+            } else {
+                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
+            }
+        }
+    }
+
+    /**
+     * Ensures that the caller has a valid Enterprise (or Trial) license to perform CCS search
+     * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
+     */
+    public static void checkLicense(EsqlExecutionInfo executionInfo, XPackLicenseState licenseState) {
+        if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+            throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
+        }
+    }
+
+    /**
      * Mark cluster with a final status (success or failure).
      * Most metrics are set to 0 if not set yet, except for "took" which is set to the total time taken so far.
      * The status must be the final status of the cluster, not RUNNING.

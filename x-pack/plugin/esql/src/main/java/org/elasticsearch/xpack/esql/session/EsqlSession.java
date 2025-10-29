@@ -544,19 +544,10 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        EsqlCCSUtils.initCrossClusterState(
-            indicesExpressionGrouper,
-            verifier.licenseState(),
-            preAnalysis.indexes().keySet(),
-            executionInfo
-        );
-
         SubscribableListener.<PreAnalysisResult>newForked(
-            // The main index pattern dictates on which nodes the query can be executed, so we use the minimum transport version from this
-            // field
-            // caps request.
             l -> preAnalyzeMainIndices(preAnalysis.indexes().entrySet().iterator(), preAnalysis, executionInfo, result, requestFilter, l)
         ).andThenApply(r -> {
+            EsqlCCSUtils.checkLicense(executionInfo, verifier.licenseState());
             if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
                 && executionInfo.isCrossClusterSearch()
                 && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
@@ -844,38 +835,36 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        // TODO: This is not yet index specific, but that will not matter as soon as #136804 is dealt with
-        if (executionInfo.clusterAliases().isEmpty()) {
-            // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
-            listener.onResponse(
-                result.withIndices(indexPattern, IndexResolution.valid(new EsIndex(indexPattern.indexPattern(), Map.of(), Map.of())))
-            );
-        } else {
-            indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(
-                indexPattern.indexPattern(),
-                result.fieldNames,
-                // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                switch (indexMode) {
-                    case IndexMode.TIME_SERIES -> {
-                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                        yield requestFilter != null
-                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
-                            : indexModeFilter;
-                    }
-                    default -> requestFilter;
-                },
-                indexMode == IndexMode.TIME_SERIES,
-                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
-                preAnalysis.useDenseVectorWhenNotSupported(),
-                listener.delegateFailureAndWrap((l, indexResolution) -> {
-                    EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                    l.onResponse(
-                        result.withIndices(indexPattern, indexResolution.inner())
-                            .withMinimumTransportVersion(indexResolution.minimumVersion())
-                    );
-                })
-            );
-        }
+        indexResolver.resolve(
+            indexPattern.indexPattern(),
+            result.fieldNames,
+            // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+            switch (indexMode) {
+                case IndexMode.TIME_SERIES -> {
+                    var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                    yield requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
+                }
+                default -> requestFilter;
+            },
+            indexMode == IndexMode.TIME_SERIES,
+            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+            preAnalysis.useDenseVectorWhenNotSupported(),
+            listener.delegateFailureAndWrap((l, indexResolution) -> {
+                EsqlCCSUtils.initCrossClusterInfo(indicesExpressionGrouper, verifier.licenseState(), indexPattern, executionInfo);
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+
+                // today empty index resolution is not allowed unless it is caused by selecting from empty sets of remotes
+                if (executionInfo.clusterAliases().isEmpty() && indexResolution.inner().isValid() == false) {
+                    indexResolution = new Versioned<>(IndexResolution.empty(indexPattern.indexPattern()), indexResolution.minimumVersion());
+                }
+
+                // The main index pattern dictates on which nodes the query can be executed,
+                // so we use the minimum transport version from this field caps request.
+                l.onResponse(
+                    result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
+                );
+            })
+        );
     }
 
     private void analyzeWithRetry(

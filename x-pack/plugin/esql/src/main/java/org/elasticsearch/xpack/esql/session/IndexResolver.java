@@ -99,7 +99,7 @@ public class IndexResolver {
             (l, versionedResolution) -> l.onResponse(versionedResolution.inner())
         );
 
-        resolveAsMergedMappingAndRetrieveMinimumVersion(
+        resolve(
             indexWildcard,
             fieldNames,
             requestFilter,
@@ -114,7 +114,7 @@ public class IndexResolver {
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping. Also retrieves the minimum transport
      * version available in the cluster (and remotes).
      */
-    public void resolveAsMergedMappingAndRetrieveMinimumVersion(
+    public void resolve(
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,

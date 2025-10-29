@@ -64,11 +64,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     }
 
-    @After
-    public void clearOutTransforms() throws Exception {
-        adminClient().performRequest(new Request("POST", "/_features/_reset"));
-    }
-
     @SuppressWarnings("unchecked")
     public void testGetAndGetStats() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);

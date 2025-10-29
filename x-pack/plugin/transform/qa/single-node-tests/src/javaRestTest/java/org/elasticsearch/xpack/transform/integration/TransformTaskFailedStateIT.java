@@ -52,11 +52,6 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         client().performRequest(addFailureRetrySetting);
     }
 
-    @After
-    public void cleanUpPotentiallyFailedTransform() throws Exception {
-        adminClient().performRequest(new Request("POST", "/_features/_reset"));
-    }
-
     public void testForceStopFailedTransform() throws Exception {
         String transformId = "test-force-stop-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10, 27, "date", false, -1, null);

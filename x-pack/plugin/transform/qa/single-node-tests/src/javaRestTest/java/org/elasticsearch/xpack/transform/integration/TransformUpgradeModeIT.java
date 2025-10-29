@@ -51,11 +51,6 @@ public class TransformUpgradeModeIT extends TransformRestTestCase {
         indicesCreated = true;
     }
 
-    @After
-    public void clearOutTransforms() throws Exception {
-        adminClient().performRequest(new Request("POST", "/_features/_reset"));
-    }
-
     public void testUpgradeMode() throws Exception {
         var transformId = startTransform();
 

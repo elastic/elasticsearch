@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -25,6 +24,9 @@ public class AuthorizationTaskParams implements PersistentTaskParams {
     public static final AuthorizationTaskParams INSTANCE = new AuthorizationTaskParams();
 
     private static final ObjectParser<AuthorizationTaskParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, () -> INSTANCE);
+    private static final TransportVersion INFERENCE_API_EIS_AUTHORIZATION_PERSISTENT_TASK = TransportVersion.fromName(
+        "inference_api_eis_authorization_persistent_task"
+    );
 
     AuthorizationTaskParams() {}
 
@@ -44,7 +46,7 @@ public class AuthorizationTaskParams implements PersistentTaskParams {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_5_0;
+        return INFERENCE_API_EIS_AUTHORIZATION_PERSISTENT_TASK;
     }
 
     @Override

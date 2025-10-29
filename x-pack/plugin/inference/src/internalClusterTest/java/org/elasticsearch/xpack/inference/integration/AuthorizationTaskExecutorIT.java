@@ -17,7 +17,6 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -35,21 +34,20 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
-    private static final String EMPTY_AUTH_RESPONSE = """
+    public static final String EMPTY_AUTH_RESPONSE = """
         {
             "models": [
             ]
         }
         """;
 
-    private static final String AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE = """
+    public static final String AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE = """
         {
             "models": [
                 {
@@ -64,7 +62,6 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     private static String gatewayUrl;
 
     private ModelRegistry modelRegistry;
-    private ThreadPool threadPool;
     private AuthorizationTaskExecutor authorizationTaskExecutor;
 
     @BeforeClass
@@ -76,7 +73,6 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
     @Before
     public void createComponents() {
-        threadPool = createThreadPool(inferenceUtilityExecutors());
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
         authorizationTaskExecutor = node().injector().getInstance(AuthorizationTaskExecutor.class);
     }
@@ -87,8 +83,6 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         var listener = new PlainActionFuture<Boolean>();
         modelRegistry.deleteModels(InternalPreconfiguredEndpoints.EIS_PRECONFIGURED_ENDPOINT_IDS, listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);
-
-        terminate(threadPool);
     }
 
     @AfterClass

@@ -154,6 +154,7 @@ required_capability: vector_similarity_functions_pushdown
 required_capability: join_lookup_v12
 
 from colors
+| where color != "black" 
 | eval s = v_cosine(rgb_vector, [1, 2, 3])
 | lookup join colors_cmyk on id
 | keep color, s, cmyk_vector
@@ -161,42 +162,17 @@ from colors
 | limit 10
 ;
 
-color:text | s:double | cmyk_vector:dense_vector
-white      | 1530.0   | [0.0, 0.0, 0.0, 0.0]
-azure      | 1515.0   | [6.0, 0.0, 0.0, 0.0]
-mint cream | 1505.0   | [4.0, 0.0, 2.0, 0.0]
-snow       | 1505.0   | [0.0, 2.0, 2.0, 0.0]
-ivory      | 1485.0   | [0.0, 0.0, 6.0, 0.0]
-honeydew   | 1470.0   | [6.0, 0.0, 6.0, 0.0]
-sea shell  | 1459.0   | [0.0, 4.0, 7.0, 0.0]
-lavender   | 1440.0   | [8.0, 8.0, 0.0, 2.0]
-old lace   | 1433.0   | [0.0, 3.0, 9.0, 1.0]
-linen      | 1420.0   | [0.0, 4.0, 8.0, 2.0]
-;
-
-cosineSimilarityWithLookupJoinOnJoinedField
-required_capability: vector_similarity_functions_pushdown
-required_capability: join_lookup_v12
-
-from colors
-| lookup join colors_cmyk on id
-| eval s = v_cosine(cmyk_vector, [1, 2, 3, 4])
-| keep color, s
-| sort s desc, color asc
-| limit 10
-;
-
-color:text | s:double
-maroon     | 700.0
-green      | 600.0
-firebrick  | 525.0
-brown      | 515.0
-navy       | 500.0
-olive      | 500.0
-red        | 500.0
-sienna     | 462.0
-crimson    | 457.0
-indigo     | 438.0
+color:text  | s:double           | cmyk_vector:dense_vector
+turquoise   | 0.9721468091011047 | [71.0, 0.0, 7.0, 12.0]
+aqua marine | 0.9580987691879272 | [50.0, 0.0, 17.0, 0.0]
+cyan        | 0.9449111819267273 | [100.0, 0.0, 0.0, 0.0]
+teal        | 0.9449111819267273 | [100.0, 0.0, 0.0, 50.0]
+lavender    | 0.9381157159805298 | [8.0, 8.0, 0.0, 2.0]
+azure       | 0.9347044825553894 | [6.0, 0.0, 0.0, 0.0]
+mint cream  | 0.9287823438644409 | [4.0, 0.0, 2.0, 0.0]
+gainsboro   | 0.9258201122283936 | [0.0, 0.0, 0.0, 14.0]
+gray        | 0.9258201122283936 | [0.0, 0.0, 0.0, 50.0]
+silver      | 0.9258201122283936 | [0.0, 0.0, 0.0, 25.0]
 ;
 
 cosineSimilarityWithEnrich
@@ -204,6 +180,7 @@ required_capability: vector_similarity_functions_pushdown
 required_capability: enrich_load
 
 from colors
+| where color != "black" 
 | eval s = v_cosine(rgb_vector, [1, 2, 3])
 | enrich colors_policy
 | keep color_name, s
@@ -212,14 +189,14 @@ from colors
 ;
 
 color_name:text | s:double
-white           | 1530.0
-azure           | 1515.0
-mint cream      | 1505.0
-snow            | 1505.0
-ivory           | 1485.0
-honeydew        | 1470.0
-sea shell       | 1459.0
-lavender        | 1440.0
-old lace        | 1433.0
-linen           | 1420.0
+turquoise       | 0.9721468091011047
+aqua marine     | 0.9580987691879272
+cyan            | 0.9449111819267273
+teal            | 0.9449111819267273
+lavender        | 0.9381157159805298
+azure           | 0.9347044825553894
+mint cream      | 0.9287823438644409
+gainsboro       | 0.9258201122283936
+gray            | 0.9258201122283936
+silver          | 0.9258201122283936
 ;

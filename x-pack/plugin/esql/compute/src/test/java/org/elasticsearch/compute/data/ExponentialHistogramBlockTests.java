@@ -7,20 +7,65 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExponentialHistogramBlockEqualityTests extends ComputeTestCase {
+public class ExponentialHistogramBlockTests extends ComputeTestCase {
 
-    public void testEmptyBlock() {
+    public void testPopulatedBlockSerialization() throws IOException {
+        int elementCount = randomIntBetween(1, 100);
+        ExponentialHistogramBlockBuilder builder = blockFactory().newExponentialHistogramBlockBuilder(elementCount);
+        for (int i = 0; i < elementCount; i++) {
+            if (randomBoolean()) {
+                builder.appendNull();
+            } else {
+                builder.append(BlockTestUtils.randomExponentialHistogram());
+            }
+        }
+        ExponentialHistogramBlock block = builder.build();
+        Block deserializedBlock = serializationRoundTrip(block);
+        assertThat(deserializedBlock, equalTo(block));
+        Releasables.close(block, deserializedBlock);
+    }
+
+    public void testNullSerialization() throws IOException {
+        // sub-blocks can be constant null, those should serialize correctly too
+        int elementCount = randomIntBetween(1, 100);
+
+        Block block = new ExponentialHistogramArrayBlock(
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
+            (LongBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
+            (BytesRefBlock) blockFactory().newConstantNullBlock(elementCount)
+        );
+
+        Block deserializedBlock = serializationRoundTrip(block);
+        assertThat(deserializedBlock, equalTo(block));
+        Releasables.close(block, deserializedBlock);
+    }
+
+    private Block serializationRoundTrip(Block block) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        Block.writeTypedBlock(block, out);
+        try (BlockStreamInput input = new BlockStreamInput(out.bytes().streamInput(), blockFactory())) {
+            return Block.readTypedBlock(input);
+        }
+    }
+
+    public void testEmptyBlockEquality() {
         List<Block> blocks = List.of(
             blockFactory().newConstantNullBlock(0),
             blockFactory().newExponentialHistogramBlockBuilder(0).build(),

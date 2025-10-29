@@ -437,8 +437,8 @@ When updating documents that contain `semantic_text` fields, it’s important to
 
 If you want to avoid unnecessary inference and keep existing embeddings:
 
-    * Use **partial updates through the Bulk API**.
-    * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
+ * Use **partial updates through the Bulk API**.
+ * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
 
 ## Updates to `semantic_text` fields [update-script]
 

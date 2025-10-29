@@ -1,0 +1,122 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.analysis.promql;
+
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
+import org.junit.Ignore;
+
+import java.util.List;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
+import static org.hamcrest.Matchers.equalTo;
+
+public class PromqlVerifierTests extends ESTestCase {
+
+    private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
+
+    public void testPromqlMissingAcrossSeriesAggregation() {
+        assertThat(
+            error("""
+                TS test | PROMQL step 5m (
+                  rate(network.bytes_in[5m])
+                )""", tsdb),
+            equalTo(
+                "2:3: within time series aggregate function [rate(network.bytes_in[5m])] can only be used "
+                    + "inside an across time series aggregate function at this time"
+            )
+        );
+    }
+
+    public void testPromqlIllegalNameLabelMatcher() {
+        assertThat(
+            error("TS test | PROMQL step 5m ({__name__=~\"*.foo.*\"})", tsdb),
+            equalTo("1:27: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
+        );
+    }
+
+    @Ignore
+    public void testPromqlSubquery() {
+        // TODO doesn't parse
+        // line 1:36: Invalid query 'network.bytes_in'[ValueExpressionContext] given; expected Expression but found
+        // InstantSelector
+        assertThat(error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m:])))", tsdb), equalTo(""));
+        assertThat(error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m:1m])))", tsdb), equalTo(""));
+    }
+
+    @Ignore
+    public void testPromqlArithmetricOperators() {
+        // TODO doesn't parse
+        // line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; expected LogicalPlan but found VectorBinaryArithmetic
+        assertThat(
+            error("TS test | PROMQL step 5m (1+1)", tsdb),
+            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
+        );
+        assertThat(
+            error("TS test | PROMQL step 5m (foo+1)", tsdb),
+            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
+        );
+        assertThat(
+            error("TS test | PROMQL step 5m (1+foo)", tsdb),
+            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
+        );
+        assertThat(
+            error("TS test | PROMQL step 5m (foo+bar)", tsdb),
+            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
+        );
+    }
+
+    @Ignore
+    public void testPromqlVectorMatching() {
+        // TODO doesn't parse
+        // line 1:27: Invalid query 'method_code_http_errors_rate5m{code="500"}'[ValueExpressionContext] given; expected Expression but
+        // found InstantSelector
+        assertThat(
+            error(
+                "TS test | PROMQL step 5m (method_code_http_errors_rate5m{code=\"500\"} / ignoring(code) method_http_requests_rate5m)",
+                tsdb
+            ),
+            equalTo("")
+        );
+        assertThat(
+            error(
+                "TS test | PROMQL step 5m (method_code_http_errors_rate5m / ignoring(code) group_left method_http_requests_rate5m)",
+                tsdb
+            ),
+            equalTo("")
+        );
+    }
+
+    public void testPromqlModifier() {
+        assertThat(
+            error("TS test | PROMQL step 5m (foo offset 5m)", tsdb),
+            equalTo("1:27: offset modifiers are not supported at this time [foo offset 5m]")
+        );
+        /* TODO
+        assertThat(
+            error("TS test | PROMQL step 5m (foo @ start())", tsdb),
+            equalTo("1:27: @ modifiers are not supported at this time [foo @ start()]")
+        );*/
+    }
+
+    @Ignore
+    public void testLogicalSetBinaryOperators() {
+        // TODO doesn't parse
+        // line 1:27: Invalid query 'foo'[ValueExpressionContext] given; expected Expression but found InstantSelector
+        assertThat(error("TS test | PROMQL step 5m (foo and bar)", tsdb), equalTo(""));
+        assertThat(error("TS test | PROMQL step 5m (foo or bar)", tsdb), equalTo(""));
+        assertThat(error("TS test | PROMQL step 5m (foo unless bar)", tsdb), equalTo(""));
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
+    }
+}

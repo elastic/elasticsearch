@@ -50,6 +50,8 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -350,6 +352,11 @@ public class IndexResolver {
                 case DATE_RANGE -> fieldsInfo.useDateRangeWhenNotSupported;
                 default -> false;
             };
+        if (type == DATE_RANGE && fieldsInfo.useDateRangeWhenNotSupported() == false) {
+            // For now, in case that we use a DATE_RANGE field for enrichment, we still want to get it
+            // as unsupported, so that enrichment will still work for all possible mixed-cluster cases.
+            typeSupported = false;
+        }
         if (false == typeSupported) {
             type = UNSUPPORTED;
         }

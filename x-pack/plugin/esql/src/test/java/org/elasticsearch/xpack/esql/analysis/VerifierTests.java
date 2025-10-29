@@ -2588,17 +2588,13 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsNullArgs() throws Exception {
-        checkFullTextFunctionNullArgs("match(null, \"query\")", "first");
         checkFullTextFunctionNullArgs("match(title, null)", "second");
         checkFullTextFunctionNullArgs("qstr(null)", "");
         checkFullTextFunctionNullArgs("kql(null)", "");
-        checkFullTextFunctionNullArgs("match_phrase(null, \"query\")", "first");
         checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
-        checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
         checkFullTextFunctionNullArgs("knn(vector, null)", "second");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
-            checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");

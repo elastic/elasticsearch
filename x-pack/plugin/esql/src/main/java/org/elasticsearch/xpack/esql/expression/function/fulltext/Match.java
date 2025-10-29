@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -306,14 +308,12 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     private TypeResolution resolveField() {
-        return isNotNull(field, sourceText(), FIRST).and(
-            isType(
-                field,
-                FIELD_DATA_TYPES::contains,
-                sourceText(),
-                FIRST,
-                "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-            )
+        return isType(
+            field,
+            FIELD_DATA_TYPES::contains,
+            sourceText(),
+            FIRST,
+            "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
         );
     }
 
@@ -436,6 +436,17 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         }
 
         return queryAsObject;
+    }
+
+    @Override
+    public boolean foldable() {
+        return Literal.NULL.equals(field());
+    }
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        // We only fold when the field is null (it's not present in the mapping), so we return null
+        return null;
     }
 
     @Override

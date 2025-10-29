@@ -193,7 +193,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     }
 
     private TypeResolution resolveField() {
-        return isNotNull(field, sourceText(), FIRST).and(isType(field, FIELD_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text"));
+        return isType(field, FIELD_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text");
     }
 
     private TypeResolution resolveQuery() {

@@ -213,11 +213,11 @@ public class Knn extends FullTextFunction
     }
 
     private TypeResolution resolveField() {
-        return isNotNull(field(), sourceText(), FIRST).and(
-            // It really should be semantic_text instead of text, but field_caps retrieves semantic_text fields as text
-            isType(field(), dt -> dt == TEXT, sourceText(), FIRST, ACCEPTED_FIELD_TYPES).or(
-                isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, ACCEPTED_FIELD_TYPES)
-            )
+        return
+        // It really should be semantic_text instead of text, but field_caps retrieves semantic_text fields as text
+        isType(field(), dt -> dt == TEXT, sourceText(), FIRST, ACCEPTED_FIELD_TYPES).or(
+            isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, ACCEPTED_FIELD_TYPES)
+
         );
     }
 

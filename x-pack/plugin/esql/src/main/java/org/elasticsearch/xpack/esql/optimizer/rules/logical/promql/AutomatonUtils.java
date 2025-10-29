@@ -133,10 +133,12 @@ public final class AutomatonUtils {
      */
     public static class PatternFragment {
         public enum Type {
-            EXACT,      // Exact literal match
-            PREFIX,     // Starts with literal
-            SUFFIX,     // Ends with literal
-            REGEX       // Complex regex pattern
+            EXACT,         // Exact literal match
+            PREFIX,        // Starts with literal
+            PROPER_PREFIX, // Starts with literal but not the literal itself
+            SUFFIX,        // Ends with literal
+            PROPER_SUFFIX, // Ends with literal but not the literal itself
+            REGEX          // Complex regex pattern
         }
 
         private final Type type;
@@ -183,7 +185,10 @@ public final class AutomatonUtils {
             // Suffix pattern: .*suffix
             String suffix = trimmed.substring(2);
             if (isLiteral(suffix)) {
-                return new PatternFragment(PatternFragment.Type.SUFFIX, suffix);
+                return new PatternFragment(
+                    trimmed.startsWith(".*") ? PatternFragment.Type.SUFFIX : PatternFragment.Type.PROPER_SUFFIX,
+                    suffix
+                );
             }
             // Complex suffix pattern - fallback to REGEX
             return new PatternFragment(PatternFragment.Type.REGEX, part.trim());
@@ -193,7 +198,10 @@ public final class AutomatonUtils {
             // Prefix pattern: prefix.*
             String prefix = trimmed.substring(0, trimmed.length() - 2);
             if (isLiteral(prefix)) {
-                return new PatternFragment(PatternFragment.Type.PREFIX, prefix);
+                return new PatternFragment(
+                    trimmed.endsWith(".*") ? PatternFragment.Type.PREFIX : PatternFragment.Type.PROPER_PREFIX,
+                    prefix
+                );
             }
             // Complex prefix pattern - fallback to REGEX
             return new PatternFragment(PatternFragment.Type.REGEX, part.trim());

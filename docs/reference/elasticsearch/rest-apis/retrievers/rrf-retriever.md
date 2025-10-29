@@ -33,7 +33,13 @@ Combining `query` and `retrievers` is not supported.
 
     A list of child retrievers to specify which sets of returned top documents will have the RRF formula applied to them.
     Two or more child retrievers are required.
-    Each retriever can optionally include a weight to adjust its influence on the final ranking.
+    Each retriever can optionally include a weight to adjust its influence on the final ranking. {applies_to}`stack: ga 9.2`
+    
+    When weights are specified, the final RRF score is calculated as:
+    ```
+    rrf_score = weight_1 × rrf_score_1 + weight_2 × rrf_score_2 + ... + weight_n × rrf_score_n
+    ```
+    where `rrf_score_i` is the RRF score for document from retriever `i`, and `weight_i` is the weight for that retriever.
 
 `rank_constant`
 :   (Optional, integer)
@@ -71,16 +77,14 @@ When you need to specify a custom weight, wrap your retriever in an object with 
 The wrapped form supports these parameters:
 
 `retriever`
-:   (Optional, a retriever object)
+:   (Required, a retriever object)
 
     Specifies a child retriever. Any valid retriever type can be used (e.g., `standard`, `knn`, `text_similarity_reranker`, etc.).
 
 `weight` {applies_to}`stack: ga 9.2`
 :   (Optional, float)
 
-    The weight that each score of this retriever's top docs will be multiplied in the RRF formula. Higher values increase this retriever's influence on the final ranking. Must be non-negative.
-    
-    When weight is not specified, all retrievers are equally weighted against each other (each with a weight of 1.0).
+    The weight that each score of this retriever's top docs will be multiplied in the RRF formula. Higher values increase this retriever's influence on the final ranking. Must be non-negative. Defaults to `1.0`.
 
 ## Example: Hybrid search [rrf-retriever-example-hybrid]
 

@@ -124,32 +124,26 @@ GET /retrievers_example/_search
         "rrf": {
             "retrievers": [
                 {
-                    "retriever": {
-                        "standard": {
-                            "query": {
-                                "query_string": {
-                                    "query": "(information retrieval) OR (artificial intelligence)",
-                                    "default_field": "text"
-                                }
+                    "standard": {
+                        "query": {
+                            "query_string": {
+                                "query": "(information retrieval) OR (artificial intelligence)",
+                                "default_field": "text"
                             }
                         }
-                    },
-                    "weight": 2.0
+                    }
                 },
                 {
-                    "retriever": {
-                        "knn": {
-                            "field": "vector",
-                            "query_vector": [
-                                0.23,
-                                0.67,
-                                0.89
-                            ],
-                            "k": 3,
-                            "num_candidates": 5
-                        }
-                    },
-                    "weight": 1.0
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [
+                            0.23,
+                            0.67,
+                            0.89
+                        ],
+                        "k": 3,
+                        "num_candidates": 5
+                    }
                 }
             ],
             "rank_window_size": 10,
@@ -202,6 +196,54 @@ This returns the following response based on the final rrf score for each result
 
 ::::
 
+
+### Using the expanded format with weights {applies_to}`stack: ga 9.2`
+
+The same query can be written using the expanded format, which allows you to specify custom weights to adjust the influence of each retriever on the final ranking.
+In this example, we're giving the `standard` retriever twice the influence of the `knn` retriever:
+
+```console
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "retriever": {
+                        "standard": {
+                            "query": {
+                                "query_string": {
+                                    "query": "(information retrieval) OR (artificial intelligence)",
+                                    "default_field": "text"
+                                }
+                            }
+                        }
+                    },
+                    "weight": 2.0
+                },
+                {
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "weight": 1.0
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": false
+}
+```
 
 
 ## Example: Hybrid search with linear retriever [retrievers-examples-linear-retriever]

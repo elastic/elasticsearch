@@ -2956,7 +2956,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("Selectors are not currently supported but was found in the expression [_all::data]"));
     }
 
-    public void testResolveAllWithRemotePrefix() {
+    public void testResolveAllWithWildcardRemotePrefix() {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
 
         var request = new SearchRequest().indices("*:_all");
@@ -2982,6 +2982,36 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(
             resolved.expressions(),
             contains(resolvedIndexExpression("*:_all", Set.of(expectedIndices), SUCCESS, Set.of("P1:_all", "P2:_all", "P3:_all")))
+        );
+    }
+
+    public void testResolveAllWithRemotePrefix() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+
+        var expression = randomBoolean() ? "local:_all" : "_origin:_all";
+        var request = new SearchRequest().indices(expression);
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("local"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"), createRandomProjectWithAlias("P3"))
+            )
+        );
+
+        var expectedIndices = new String[] { "bar", "foobarfoo", "bar-closed", "foofoobar", "foofoo-closed", "foofoo" };
+
+        assertThat(resolvedIndices.getLocal(), contains(expectedIndices));
+        assertThat(resolvedIndices.getRemote(), is(empty()));
+
+        final var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, is(notNullValue()));
+        assertThat(
+            resolved.expressions(),
+            contains(resolvedIndexExpression(expression, Set.of(expectedIndices), SUCCESS, Set.of()))
         );
     }
 

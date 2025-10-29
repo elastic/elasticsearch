@@ -435,9 +435,9 @@ Partial updates using the Bulk API
 Partial updates using the Update API
 :   Partial updates submitted through the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) re-run inference on all `semantic_text` fields, even when you omit them from the `doc` object. Embeddings are re-generated regardless of whether field values changed.
 
-If you want to avoid unnecessary inference and keep existing embeddings:
+To preserve existing embeddings and avoid unnecessary inference costs:
 
- * Use **partial updates through the Bulk API**.
+ * Use partial updates with the Bulk API.
  * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
 
 ### Scripted updates

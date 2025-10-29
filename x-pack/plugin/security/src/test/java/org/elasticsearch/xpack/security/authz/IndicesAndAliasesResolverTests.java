@@ -3009,10 +3009,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         final var resolved = request.getResolvedIndexExpressions();
         assertThat(resolved, is(notNullValue()));
-        assertThat(
-            resolved.expressions(),
-            contains(resolvedIndexExpression(expression, Set.of(expectedIndices), SUCCESS, Set.of()))
-        );
+        assertThat(resolved.expressions(), contains(resolvedIndexExpression(expression, Set.of(expectedIndices), SUCCESS, Set.of())));
     }
 
     public void testResolveIndexWithRemotePrefix() {

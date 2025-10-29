@@ -120,7 +120,6 @@ class AmazonBedrockUnifiedStreamingChatProcessor
 
     @SuppressWarnings("checkstyle:DescendantToken")
     private void handleMessageStart(MessageStartEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
-        runOnUtilityThreadPool(() -> {
             try {
                 var messageStart = handleMessageStart(event);
                 messageStart.forEach(chunks::offer);
@@ -130,7 +129,6 @@ class AmazonBedrockUnifiedStreamingChatProcessor
             if (!chunks.isEmpty() && downstream != null) {
                 downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
             }
-        });
     }
 
     @SuppressWarnings("checkstyle:DescendantToken")
@@ -172,7 +170,6 @@ class AmazonBedrockUnifiedStreamingChatProcessor
         ContentBlockStopEvent event,
         ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks
     ) {
-        runOnUtilityThreadPool(() -> {
             try {
                 var messageDelta = handleContentBlockStop(event);
                 messageDelta.forEach(chunks::offer);
@@ -182,12 +179,10 @@ class AmazonBedrockUnifiedStreamingChatProcessor
             if (upstream != null) {
                 upstream.request(1);
             }
-        });
     }
 
     @SuppressWarnings("checkstyle:DescendantToken")
     private void handleMessageStop(MessageStopEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
-        runOnUtilityThreadPool(() -> {
             try {
                 var messageStop = handleMessageStop(event);
                 messageStop.forEach(chunks::offer);
@@ -209,7 +204,6 @@ class AmazonBedrockUnifiedStreamingChatProcessor
             } else {
                 isDone.set(true);
             }
-        });
     }
 
     @SuppressWarnings("checkstyle:DescendantToken")
@@ -217,7 +211,9 @@ class AmazonBedrockUnifiedStreamingChatProcessor
         ConverseStreamMetadataEvent event,
         ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks
     ) {
-        runOnUtilityThreadPool(() -> {
+            if (isDone.get()) {
+                 return;
+            }
             try {
                 var messageDelta = handleMetadata(event);
                 messageDelta.forEach(chunks::offer);
@@ -235,7 +231,6 @@ class AmazonBedrockUnifiedStreamingChatProcessor
             if (!chunks.isEmpty() && downstream != null) {
                 downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
             }
-
             if (downstream != null && onCompleteCalled.compareAndSet(false, true)) {
                 downstream.onComplete();
             }
@@ -243,7 +238,6 @@ class AmazonBedrockUnifiedStreamingChatProcessor
                 upstream.cancel();
             }
             isDone.set(true);
-        });
     }
 
     @Override

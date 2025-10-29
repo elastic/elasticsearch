@@ -930,6 +930,11 @@ public class RestControllerTests extends ESTestCase {
             public Exception getInboundException() {
                 return null;
             }
+
+            @Override
+            public String getSpanId() {
+                return "123";
+            }
         }, null);
 
         final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.METHOD_NOT_ALLOWED);

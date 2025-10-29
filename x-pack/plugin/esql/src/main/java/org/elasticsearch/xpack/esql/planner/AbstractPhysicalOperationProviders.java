@@ -68,7 +68,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         var aggregates = aggregateExec.aggregates();
 
         var sourceLayout = source.layout;
-
         if (aggregateExec.groupings().isEmpty()) {
             // not grouping
             List<Aggregator.Factory> aggregatorFactories = new ArrayList<>();

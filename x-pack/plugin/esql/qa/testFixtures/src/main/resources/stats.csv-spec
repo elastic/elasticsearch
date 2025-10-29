@@ -3525,3 +3525,15 @@ FROM sample_data_ts_long
 sym2:double |sym3:double | sym4:long
 1.0         | 1.0        | 1
 ;
+
+fixClassCastBug6
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x, 10), d = count_distinct(x, 10 + 1 - 1)
+;
+
+a:long | b:long | c:long | d:long
+891    | 1782   | 8      | 8
+;

@@ -124,7 +124,7 @@ public class ILMDownsampleIT extends DownsamplingIntegTestCase {
                         DateHistogramInterval.HOUR,
                         null,
                         randomBoolean(),
-                        randomBoolean() ? null : randomFrom(DownsampleConfig.SamplingMethod.values())
+                        randomSamplingMethod()
                     )
                 )
             )

@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.DownsampleActionTests.randomSamplingMethod;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
@@ -77,11 +78,11 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = MigrateAction.DISABLED;
     public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
-    private static final DownsampleAction TEST_DOWNSAMPLE_ACTION = new DownsampleAction(
+    private final DownsampleAction TEST_DOWNSAMPLE_ACTION = new DownsampleAction(
         DateHistogramInterval.DAY,
         TIMEOUT,
         true,
-        DownsampleConfig.SamplingMethod.LAST_VALUE
+        randomSamplingMethod()
     );
 
     public void testValidatePhases() {
@@ -362,7 +363,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testValidateDownsamplingAction() {
         {
-            var samplingMethod = DownsampleActionTests.randomSamplingMethod();
+            var samplingMethod = randomSamplingMethod();
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION));
             Phase warmPhase = new Phase(
                 "warm",
@@ -392,7 +393,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            var samplingMethod = DownsampleActionTests.randomSamplingMethod();
+            var samplingMethod = randomSamplingMethod();
             Phase warmPhase = new Phase(
                 "warm",
                 TimeValue.ZERO,
@@ -421,7 +422,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            var samplingMethod = DownsampleActionTests.randomSamplingMethod();
+            var samplingMethod = randomSamplingMethod();
             Phase warmPhase = new Phase(
                 "warm",
                 TimeValue.ZERO,
@@ -488,7 +489,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            var samplingMethod = DownsampleActionTests.randomSamplingMethod();
+            var samplingMethod = randomSamplingMethod();
             Phase hotPhase = new Phase(
                 "hot",
                 TimeValue.ZERO,

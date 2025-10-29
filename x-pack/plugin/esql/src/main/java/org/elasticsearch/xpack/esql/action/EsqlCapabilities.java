@@ -1064,7 +1064,17 @@ public class EsqlCapabilities {
          * e.g. STATS SUM(1) WHERE x==3 is replaced by
          *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
          */
-        STATS_WITH_FILTERED_SURROGATE_FIXED;
+        STATS_WITH_FILTERED_SURROGATE_FIXED,
+
+        /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.
+         * https://github.com/elastic/elasticsearch/issues/137019.
+         */
+        FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
+
+        // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
+        // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
+        ;
 
         private final boolean enabled;
 

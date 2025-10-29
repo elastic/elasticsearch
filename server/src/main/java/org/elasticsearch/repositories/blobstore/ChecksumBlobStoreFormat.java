@@ -114,16 +114,33 @@ public final class ChecksumBlobStoreFormat<T> {
 
     /**
      * Reads and parses the blob with given name, applying name translation using the {link #blobName} method
-     *
-     * @param blobContainer blob container
-     * @param name          name to be translated into
-     * @return parsed blob object
+     * @param projectRepo the project repository context, used for deserialization
+     * @param blobContainer the {@link BlobContainer} from which to read the blob
+     * @param name the logical name of the blob to read (will be formatted to the actual blob name)
+     * @param namedXContentRegistry the {@link NamedXContentRegistry} to use for parser construction
+     * @return the deserialized object of type {@code T} read from the blob
+     * @throws IOException if an I/O error occurs while reading or parsing the blob
      */
     public T read(ProjectRepo projectRepo, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
         throws IOException {
+        return read(projectRepo, blobContainer, name, namedXContentRegistry, null);
+    }
+
+    /**
+     * Reads and parses the blob with given name, applying name translation using the {link #blobName} method
+     * @param projectRepo the project repository context, used for deserialization
+     * @param blobContainer the {@link BlobContainer} from which to read the blob
+     * @param name the logical name of the blob to read (will be formatted to the actual blob name)
+     * @param namedXContentRegistry the {@link NamedXContentRegistry} to use for parser construction
+     * @param xContentParserConfiguration An optional {@link XContentParserConfiguration} to use when deserializing the blob
+     * @return the deserialized object of type {@code T} read from the blob
+     * @throws IOException if an I/O error occurs while reading or parsing the blob
+     */
+    public T read(ProjectRepo projectRepo, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry, XContentParserConfiguration xContentParserConfiguration)
+        throws IOException {
         String blobName = blobName(name);
         try (InputStream in = blobContainer.readBlob(OperationPurpose.SNAPSHOT_METADATA, blobName)) {
-            return deserialize(projectRepo, namedXContentRegistry, in);
+            return deserialize(projectRepo, namedXContentRegistry, in, xContentParserConfiguration);
         }
     }
 
@@ -132,6 +149,10 @@ public final class ChecksumBlobStoreFormat<T> {
     }
 
     public T deserialize(ProjectRepo projectRepo, NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
+        return deserialize(projectRepo, namedXContentRegistry, input, null);
+    }
+
+    public T deserialize(ProjectRepo projectRepo, NamedXContentRegistry namedXContentRegistry, InputStream input, XContentParserConfiguration xContentParserConfiguration) throws IOException {
         final DeserializeMetaBlobInputStream deserializeMetaBlobInputStream = new DeserializeMetaBlobInputStream(input);
         try {
             CodecUtil.checkHeader(new InputStreamDataInput(deserializeMetaBlobInputStream), codec, VERSION, VERSION);
@@ -149,8 +170,10 @@ public final class ChecksumBlobStoreFormat<T> {
                 deserializeMetaBlobInputStream.verifyFooter();
                 try (
                     XContentParser parser = XContentHelper.createParserNotCompressed(
-                        XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
-                            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                        xContentParserConfiguration == null
+                            ? XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
+                                .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+                            : xContentParserConfiguration,
                         bytesReference,
                         XContentType.SMILE
                     )
@@ -160,8 +183,10 @@ public final class ChecksumBlobStoreFormat<T> {
                 } catch (Exception e) {
                     try (
                         XContentParser parser = XContentHelper.createParserNotCompressed(
-                            XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
-                                .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                            xContentParserConfiguration == null
+                                ? XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
+                                .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+                                : xContentParserConfiguration,
                             bytesReference,
                             XContentType.SMILE
                         )
@@ -392,10 +417,10 @@ public final class ChecksumBlobStoreFormat<T> {
                     // in order to write the footer we need to prevent closing the actual index input.
                 }
             };
-                XContentBuilder builder = XContentFactory.contentBuilder(
-                    XContentType.SMILE,
-                    compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream) : indexOutputOutputStream
-                )
+                 XContentBuilder builder = XContentFactory.contentBuilder(
+                     XContentType.SMILE,
+                     compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream) : indexOutputOutputStream
+                 )
             ) {
                 ToXContent.Params params = extraParams.isEmpty()
                     ? SNAPSHOT_ONLY_FORMAT_PARAMS

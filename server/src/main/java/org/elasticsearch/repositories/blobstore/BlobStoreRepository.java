@@ -144,6 +144,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedInputStream;
@@ -1326,8 +1327,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             private void getOneShardCount(String indexMetaGeneration) {
                 try {
+                    // As per ES-12539, there is no need to load the entire IndexMetadata object just to read the shard count
+                    // Instead, we read the minimum fields necessary, including the setting index.number_of_shards
+                    XContentParserConfiguration xContentParserConfiguration = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+                        .withFiltering(Set.of("*.settings", "*.mapping_version", "*.settings_version", "*.aliases_version"), null, false);
                     updateShardCount(
-                        INDEX_METADATA_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry)
+                        INDEX_METADATA_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry, xContentParserConfiguration)
                             .getNumberOfShards()
                     );
                 } catch (Exception ex) {

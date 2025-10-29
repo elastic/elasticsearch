@@ -11,6 +11,7 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+
 public class WildcardRollingUpgradeIT extends AbstractStringTypeRollingUpgradeIT {
 
     public WildcardRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {

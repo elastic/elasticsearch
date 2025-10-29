@@ -18,7 +18,6 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -39,10 +38,8 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -249,7 +246,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     private static class IntermediateInputs {
         private final List<Attribute> inputAttributes;
         private int nextOffset;
-        private final Map<AggregateFunction, Integer> offsets = new HashMap<>();
 
         IntermediateInputs(AggregateExec aggregateExec) {
             inputAttributes = aggregateExec.child().output();
@@ -258,12 +254,10 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
         List<Attribute> nextInputAttributes(AggregateFunction af, boolean grouping) {
             int intermediateStateSize = AggregateMapper.intermediateStateDesc(af, grouping).size();
-            int offset = offsets.computeIfAbsent(af, unused -> {
-                int v = nextOffset;
-                nextOffset += intermediateStateSize;
-                return v;
-            });
-            return inputAttributes.subList(offset, offset + intermediateStateSize);
+            int endOffset = nextOffset + intermediateStateSize;
+            List<Attribute> attributes = inputAttributes.subList(nextOffset, endOffset);
+            nextOffset = endOffset;
+            return attributes;
         }
     }
 
@@ -277,16 +271,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         LocalExecutionPlannerContext context
     ) {
         IntermediateInputs intermediateInputs = mode.isInputPartial() ? new IntermediateInputs(aggregateExec) : null;
-        Set<Tuple<Expression, String>> seen = new HashSet<>();
         // extract filtering channels - and wrap the aggregation with the new evaluator expression only during the init phase
         for (NamedExpression ne : aggregates) {
             // a filter can only appear on aggregate function, not on the grouping columns
             if (ne instanceof Alias alias) {
                 var child = alias.child();
                 if (child instanceof AggregateFunction aggregateFunction) {
-                    if (seen.add(Tuple.tuple(aggregateFunction, aggregateFunction.toString())) == false && mode.isOutputPartial()) {
-                        continue;
-                    }
                     final List<Attribute> sourceAttr;
                     if (mode.isInputPartial()) {
                         sourceAttr = intermediateInputs.nextInputAttributes(aggregateFunction, grouping);

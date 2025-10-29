@@ -310,63 +310,6 @@ public class EsqlCCSUtils {
     }
 
     /**
-     * Checks the index expression for the presence of remote clusters.
-     * If found, it will ensure that the caller has a valid Enterprise (or Trial) license on the querying cluster
-     * as well as initialize the corresponding cluster state in execution info.
-     * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
-     */
-    public static void initCrossClusterState(
-        IndicesExpressionGrouper indicesGrouper,
-        XPackLicenseState licenseState,
-        Set<IndexPattern> indexPatterns,
-        EsqlExecutionInfo executionInfo
-    ) throws ElasticsearchStatusException {
-        if (indexPatterns.isEmpty()) {
-            return;
-        }
-        try {
-            // TODO it is not safe to concat multiple index patterns in case any of them contains exclusion.
-            // This is going to be resolved in #136804
-            String[] indexExpressions = indexPatterns.stream()
-                .map(indexPattern -> Strings.splitStringByCommaToArray(indexPattern.indexPattern()))
-                .reduce((a, b) -> {
-                    String[] combined = new String[a.length + b.length];
-                    System.arraycopy(a, 0, combined, 0, a.length);
-                    System.arraycopy(b, 0, combined, a.length, b.length);
-                    return combined;
-                })
-                .get();
-            var groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, indexExpressions, false);
-
-            executionInfo.clusterInfoInitializing(true);
-            // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
-            // so that the CCS telemetry handler can recognize that this error is CCS-related
-            try {
-                for (var entry : groupedIndices.entrySet()) {
-                    final String clusterAlias = entry.getKey();
-                    final String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                        assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
-                    });
-                }
-            } finally {
-                executionInfo.clusterInfoInitializing(false);
-            }
-
-            if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
-                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
-            }
-        } catch (NoSuchRemoteClusterException e) {
-            if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
-                throw e;
-            } else {
-                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
-            }
-        }
-    }
-
-    /**
      * This inits the cross cluster state in executionInfo using `indicesGrouper`
      * when original to resolved index mapping is not available in field caps response
      */

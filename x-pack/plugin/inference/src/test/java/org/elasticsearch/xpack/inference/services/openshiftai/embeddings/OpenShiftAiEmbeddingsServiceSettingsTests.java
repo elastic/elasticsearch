@@ -16,16 +16,19 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -592,7 +595,33 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
     @Override
     protected OpenShiftAiEmbeddingsServiceSettings mutateInstance(OpenShiftAiEmbeddingsServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, OpenShiftAiEmbeddingsServiceSettingsTests::createRandom);
+        String modelId = instance.modelId();
+        URI uri = instance.uri();
+        Integer dimensions = instance.dimensions();
+        SimilarityMeasure similarity = instance.similarity();
+        Integer maxInputTokens = instance.maxInputTokens();
+        RateLimitSettings rateLimitSettings = instance.rateLimitSettings();
+        Boolean dimensionsSetByUser = instance.dimensionsSetByUser();
+
+        switch (between(0, 6)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(8));
+            case 1 -> uri = randomValueOtherThan(uri, () -> ServiceUtils.createUri(randomAlphaOfLength(15)));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomIntBetween(32, 256));
+            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomIntBetween(128, 256));
+            case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 6 -> dimensionsSetByUser = randomValueOtherThan(dimensionsSetByUser, ESTestCase::randomBoolean);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new OpenShiftAiEmbeddingsServiceSettings(
+            modelId,
+            uri,
+            dimensions,
+            similarity,
+            maxInputTokens,
+            rateLimitSettings,
+            dimensionsSetByUser
+        );
     }
 
     private static OpenShiftAiEmbeddingsServiceSettings createRandom() {

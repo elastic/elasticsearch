@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -168,7 +169,17 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
     @Override
     protected OpenShiftAiChatCompletionServiceSettings mutateInstance(OpenShiftAiChatCompletionServiceSettings instance)
         throws IOException {
-        return randomValueOtherThan(instance, OpenShiftAiChatCompletionServiceSettingsTests::createRandom);
+        String modelId = instance.modelId();
+        URI uri = instance.uri();
+        RateLimitSettings rateLimitSettings = instance.rateLimitSettings();
+
+        switch (between(0, 2)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(8));
+            case 1 -> uri = randomValueOtherThan(uri, () -> ServiceUtils.createUri(randomAlphaOfLength(15)));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new OpenShiftAiChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
     }
 
     @Override

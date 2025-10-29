@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.openshiftai.rerank;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -108,7 +109,14 @@ public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     @Override
     protected OpenShiftAiRerankTaskSettings mutateInstance(OpenShiftAiRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, OpenShiftAiRerankTaskSettingsTests::createRandom);
+        Integer topN = instance.getTopN();
+        Boolean returnDocuments = instance.getReturnDocuments();
+        switch (between(0, 1)) {
+            case 0 -> topN = randomValueOtherThan(topN, () -> randomBoolean() ? randomIntBetween(1, 10) : null);
+            case 1 -> returnDocuments = randomValueOtherThan(returnDocuments, ESTestCase::randomOptionalBoolean);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new OpenShiftAiRerankTaskSettings(topN, returnDocuments);
     }
 
     @Override

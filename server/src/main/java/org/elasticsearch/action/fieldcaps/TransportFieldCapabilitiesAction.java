@@ -371,14 +371,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(clusterAlias, request, originalIndices, nowInMillis);
                 ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
 
-                    if (request.includeResolvedTo()) {
+                    if (request.includeResolvedTo() && response.getResolvedLocally() != null) {
                         ResolvedIndexExpressions resolvedOnRemoteProject = response.getResolvedLocally();
-                        for (ResolvedIndexExpression remoteResolvedExpression : resolvedOnRemoteProject.expressions()) {
-                            resolvedRemotely.computeIfPresent(clusterAlias, (k, v) -> {
-                                v.addExpression(remoteResolvedExpression);
-                                return v;
-                            });
+                        // for bwc we need to check that resolvedOnRemoteProject Exists in the response
+                        if (resolvedOnRemoteProject != null) {
+                            for (ResolvedIndexExpression remoteResolvedExpression : resolvedOnRemoteProject.expressions()) {
+                                resolvedRemotely.computeIfPresent(clusterAlias, (k, v) -> {
+                                    v.addExpression(remoteResolvedExpression);
+                                    return v;
+                                });
+                            }
                         }
+
                     }
 
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {

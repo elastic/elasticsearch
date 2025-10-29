@@ -688,8 +688,8 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 10087          | Junior Developer      | fork2
 ;
 
-// INLINE STATS is under development, we enable this once it will be available
 forkBeforeInlineStats-Ignore
+// temporarily forbid LIMIT before INLINE STATS
 required_capability: fork_v9
 required_capability: inline_stats
 
@@ -703,11 +703,13 @@ FROM employees
 ;
 
 emp_no:integer | languages:integer | _fork:keyword | max_lang:integer | gender:keyword
-1 | 2 | 3 | 4 | 5
+10048          |3                  |fork1          |3                 |M              
+10081          |2                  |fork1          |3                 |M              
+10081          |2                  |fork2          |3                 |M              
+10087          |5                  |fork2          |5                 |F
 ;
 
-// INLINE STATS is under development, we enable this once it will be available
-forkBranchWithInlineStats-Ignore
+forkBranchWithInlineStats
 required_capability: fork_v9
 required_capability: inline_stats
 
@@ -729,8 +731,7 @@ emp_no:integer | languages:integer | x:integer | gender:keyword | _fork:keyword
 10087          | 5                 | 2         | F              | fork2
 ;
 
-// INLINE STATS is under development, we enable this once it will be available
-forkAfterInlineStats-Ignore
+forkAfterInlineStats
 required_capability: fork_v9
 required_capability: inline_stats
 

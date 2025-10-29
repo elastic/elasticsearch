@@ -1,6 +1,0 @@
-pr: 134134
-summary: Prevent field caps from failing due to can match failure
-area: Search
-type: bug
-issues:
- - 116106

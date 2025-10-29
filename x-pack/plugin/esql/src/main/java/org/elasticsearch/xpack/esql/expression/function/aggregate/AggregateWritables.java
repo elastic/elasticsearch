@@ -27,10 +27,13 @@ public class AggregateWritables {
             Rate.ENTRY,
             Irate.ENTRY,
             Idelta.ENTRY,
+            Increase.ENTRY,
+            Delta.ENTRY,
             Sample.ENTRY,
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
             StdDev.ENTRY,
+            Variance.ENTRY,
             Sum.ENTRY,
             Top.ENTRY,
             Values.ENTRY,
@@ -47,7 +50,8 @@ public class AggregateWritables {
             Present.ENTRY,
             PresentOverTime.ENTRY,
             Absent.ENTRY,
-            AbsentOverTime.ENTRY
+            AbsentOverTime.ENTRY,
+            DimensionValues.ENTRY
         );
     }
 }

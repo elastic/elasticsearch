@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 
@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -64,7 +63,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     }
 
     public TextEmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.modelId = in.readOptionalString();
         } else {
             this.modelId = in.readString();
@@ -84,7 +83,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalString(modelId);
         } else {
             out.writeString(modelId);
@@ -127,14 +126,14 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
                 return;
             }
 
-            if (response.getInferenceResults().get(0) instanceof MlTextEmbeddingResults textEmbeddingResults) {
+            if (response.getInferenceResults().get(0) instanceof MlDenseEmbeddingResults textEmbeddingResults) {
                 listener.onResponse(textEmbeddingResults.getInferenceAsFloat());
             } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                 listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "expected a result of type ["
-                        + MlTextEmbeddingResults.NAME
+                        + MlDenseEmbeddingResults.NAME
                         + "] received ["
                         + response.getInferenceResults().get(0).getWriteableName()
                         + "]. Is ["

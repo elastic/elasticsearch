@@ -137,7 +137,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
     ) {
 
         return List.of(
-            new RestEqlSearchAction(),
+            new RestEqlSearchAction(settings),
             new RestEqlStatsAction(),
             new RestEqlGetAsyncResultAction(),
             new RestEqlGetAsyncStatusAction(),

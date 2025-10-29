@@ -16,7 +16,6 @@ import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -36,7 +36,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
 
     private final Expression timestamp;
@@ -44,14 +44,16 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The rate of a counter field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        description = "Calculates the per-second average rate of increase of a"
+            + " [counter](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). "
+            + "Rate calculations account for breaks in monotonicity, such as counter resets when a service restarts, and extrapolate "
+            + "values within each bucketed time interval. Rate is the most appropriate aggregate function for counters. It is only allowed "
+            + "in a [STATS](/reference/query-languages/esql/commands/stats-by.md) command under a "
+            + "[`TS`](/reference/query-languages/esql/commands/ts.md) source command, to be properly applied per time series.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
-    public Rate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
-        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
-    }
 
     public Rate(
         Source source,
@@ -118,9 +120,9 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier();
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier();
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier();
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(true);
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(true);
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -135,7 +137,8 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         return "rate(" + field() + ")";
     }
 
-    Expression timestamp() {
+    @Override
+    public Expression timestamp() {
         return timestamp;
     }
 

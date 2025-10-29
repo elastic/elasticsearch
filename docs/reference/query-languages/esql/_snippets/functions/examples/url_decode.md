@@ -3,11 +3,12 @@
 **Example**
 
 ```esql
-ROW u = "https%3A%2F%2Fwww.example.com%2Fpapers%3Fq%3Dinformation%2Bretrieval%26year%3D2024%26citations%3Dhigh" | EVAL u = URL_DECODE(u)
+ROW u = "https%3A%2F%2Fexample.com%2F%3Fx%3Dfoo%20bar%26y%3Dbaz"
+| EVAL u = URL_DECODE(u)
 ```
 
 | u:keyword |
 | --- |
-| https://www.example.com/papers?q=information+retrieval&year=2024&citations=high |
+| https://example.com/?x=foo bar&y=baz |
 
 

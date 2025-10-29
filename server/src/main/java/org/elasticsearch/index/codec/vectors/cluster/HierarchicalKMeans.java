@@ -24,6 +24,7 @@ public class HierarchicalKMeans {
     public static final int MAX_ITERATIONS_DEFAULT = 6;
     public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
+    public static final int NO_SOAR_ASSIGNMENT = -1;
 
     final int dimension;
     final int maxIterations;

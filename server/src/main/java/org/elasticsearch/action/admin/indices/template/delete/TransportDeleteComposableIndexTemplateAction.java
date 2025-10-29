@@ -99,7 +99,7 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
             ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
             reservedStateHandlerName().get(),
             modifiedKeys(request),
-            request.toString()
+            request::toString
         );
     }
 

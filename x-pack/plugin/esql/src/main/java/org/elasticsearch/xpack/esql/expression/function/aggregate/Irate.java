@@ -16,7 +16,6 @@ import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -36,7 +36,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Irate", Irate::new);
 
     private final Expression timestamp;
@@ -44,17 +44,13 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The irate of a counter field. irate is the per-second rate of increase between the last two data points ("
+        description = "Calculates the irate of a counter field. irate is the per-second rate of increase between the last two data points ("
             + "it ignores all but the last two data points in each time period). "
             + "This function is very similar to rate, but is more responsive to recent changes in the rate of increase.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
-        examples = { @Example(file = "k8s-timeseries", tag = "irate") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
+        examples = { @Example(file = "k8s-timeseries-irate", tag = "irate") }
     )
-    public Irate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
-        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
-    }
-
     public Irate(
         Source source,
         @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
@@ -135,5 +131,10 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     @Override
     public String toString() {
         return "irate(" + field() + ")";
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
     }
 }

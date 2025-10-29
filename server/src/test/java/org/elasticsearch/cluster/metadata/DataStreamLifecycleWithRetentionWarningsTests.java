@@ -141,7 +141,8 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention))
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention)),
+            IndexSettingProviders.EMPTY
         );
 
         ProjectMetadata after = metadataDataStreamsService.updateDataLifecycle(
@@ -169,7 +170,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         HeaderWarning.setThreadContext(threadContext);
         TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
         MetadataIndexTemplateService.validateLifecycle(
-            ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
+            Map.of(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
                 .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DATA_DEFAULT))
@@ -195,7 +196,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         HeaderWarning.setThreadContext(threadContext);
         TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
         MetadataIndexTemplateService.validateLifecycle(
-            ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
+            Map.of(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
                 .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DATA_DEFAULT))
@@ -216,20 +217,16 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         HeaderWarning.setThreadContext(threadContext);
         TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
         MetadataIndexTemplateService.validateLifecycle(
-            ProjectMetadata.builder(randomProjectIdOrDefault())
-                .componentTemplates(
-                    Map.of(
-                        "component-template",
-                        new ComponentTemplate(
-                            Template.builder()
-                                .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)))
-                                .build(),
-                            null,
-                            null
-                        )
-                    )
+            Map.of(
+                "component-template",
+                new ComponentTemplate(
+                    Template.builder()
+                        .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)))
+                        .build(),
+                    null,
+                    null
                 )
-                .build(),
+            ),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
                 .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DATA_DEFAULT))

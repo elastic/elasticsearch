@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,13 +36,15 @@ public class SumTests extends AbstractAggregationTestCase {
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
-        Stream.of(MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true)
-        // Longs currently throw on overflow.
-        // Restore after https://github.com/elastic/elasticsearch/issues/110437
-        // MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
-        // Doubles currently return +/-Infinity on overflow.
-        // Restore after https://github.com/elastic/elasticsearch/issues/111026
-        // MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
+        Stream.of(
+            MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE)
+            // Longs currently throw on overflow.
+            // Restore after https://github.com/elastic/elasticsearch/issues/110437
+            // MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+            // Doubles currently return +/-Infinity on overflow.
+            // Restore after https://github.com/elastic/elasticsearch/issues/111026
+            // MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).map(SumTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.addAll(
@@ -73,11 +76,26 @@ public class SumTests extends AbstractAggregationTestCase {
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
-                )
+                ),
+                new TestCaseSupplier(List.of(DataType.AGGREGATE_METRIC_DOUBLE), () -> {
+                    var value = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                        randomDouble(),
+                        randomDouble(),
+                        randomDouble(),
+                        randomNonNegativeInt()
+                    );
+                    return new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.AGGREGATE_METRIC_DOUBLE, "field")),
+                        standardAggregatorName("Sum", DataType.AGGREGATE_METRIC_DOUBLE),
+                        DataType.DOUBLE,
+                        equalTo(value.sum())
+                    );
+
+                })
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override

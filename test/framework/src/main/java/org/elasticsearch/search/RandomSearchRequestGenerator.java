@@ -53,7 +53,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.mockScript;
@@ -267,9 +266,7 @@ public class RandomSearchRequestGenerator {
                 }
                 int k = randomIntBetween(1, 100);
                 int numCands = randomIntBetween(k, 1000);
-                Float visitPercentage = IVF_FORMAT.isEnabled() == false ? null
-                    : randomBoolean() ? null
-                    : randomFloatBetween(0.0f, 100.0f, true);
+                Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
                 RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
                     ? null
                     : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));

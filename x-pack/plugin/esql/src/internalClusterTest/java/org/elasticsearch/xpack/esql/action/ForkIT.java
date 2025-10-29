@@ -32,7 +32,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         createAndPopulateIndices();
     }
 
@@ -1006,8 +1005,14 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | FORK
                ( WHERE content:"fox" )
             """;
-        var e = expectThrows(ParsingException.class, () -> run(query));
-        assertTrue(e.getMessage().contains("Fork requires at least 2 branches"));
+        try (var resp = run(query)) {
+            assertColumnTypes(resp.columns(), List.of("text", "integer", "keyword"));
+            assertColumnNames(resp.columns(), List.of("content", "id", "_fork"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { "The quick brown fox jumps over the lazy dog", 6, "fork1" }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
+        }
     }
 
     public void testForkWithinFork() {

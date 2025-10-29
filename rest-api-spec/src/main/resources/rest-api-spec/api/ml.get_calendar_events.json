@@ -42,10 +42,12 @@
       },
       "from": {
         "type": "int",
+        "default": 0,
         "description": "Skips a number of events"
       },
       "size": {
         "type": "int",
+        "default": 100,
         "description": "Specifies a max number of events to get"
       }
     }

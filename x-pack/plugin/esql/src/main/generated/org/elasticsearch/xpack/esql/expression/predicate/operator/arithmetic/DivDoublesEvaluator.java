@@ -72,30 +72,32 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (lhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (lhsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (lhsBlock.getValueCount(p) != 1) {
-          if (lhsBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (rhsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (rhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (rhsBlock.getValueCount(p) != 1) {
-          if (rhsBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
+        double rhs = rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Div.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+          result.appendDouble(Div.processDoubles(lhs, rhs));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -108,8 +110,10 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleBlock eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double lhs = lhsVector.getDouble(p);
+        double rhs = rhsVector.getDouble(p);
         try {
-          result.appendDouble(Div.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+          result.appendDouble(Div.processDoubles(lhs, rhs));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

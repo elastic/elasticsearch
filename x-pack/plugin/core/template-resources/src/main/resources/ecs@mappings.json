@@ -126,6 +126,7 @@
               "*.name",
               "*.working_directory",
               "*.full_name",
+              "*.display_name",
               "*file.path",
               "*file.target_path",
               "*os.full",

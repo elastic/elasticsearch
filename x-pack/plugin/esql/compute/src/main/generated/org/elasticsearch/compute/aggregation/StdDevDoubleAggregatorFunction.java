@@ -31,20 +31,23 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
 
   private final DriverContext driverContext;
 
-  private final StdDevStates.SingleState state;
+  private final VarianceStates.SingleState state;
 
   private final List<Integer> channels;
 
+  private final boolean stdDev;
+
   public StdDevDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StdDevStates.SingleState state) {
+      VarianceStates.SingleState state, boolean stdDev) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
+    this.stdDev = stdDev;
   }
 
   public static StdDevDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new StdDevDoubleAggregatorFunction(driverContext, channels, StdDevDoubleAggregator.initSingle());
+      List<Integer> channels, boolean stdDev) {
+    return new StdDevDoubleAggregatorFunction(driverContext, channels, StdDevDoubleAggregator.initSingle(stdDev), stdDev);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -106,11 +109,12 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
 
   private void addRawBlock(DoubleBlock valueBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         double valueValue = valueBlock.getDouble(valueOffset);
         StdDevDoubleAggregator.combine(state, valueValue);
@@ -123,11 +127,12 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         double valueValue = valueBlock.getDouble(valueOffset);
         StdDevDoubleAggregator.combine(state, valueValue);

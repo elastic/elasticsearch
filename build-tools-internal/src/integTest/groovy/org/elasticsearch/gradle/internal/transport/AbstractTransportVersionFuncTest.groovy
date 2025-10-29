@@ -125,6 +125,9 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
             tasks.named('generateTransportVersion') {
                 currentUpperBoundName = '9.2'
             }
+            tasks.named('validateTransportVersionResources') {
+                currentUpperBoundName = '9.2'
+            }
         """
         referableAndReferencedTransportVersion("existing_91", "8012000")
         referableAndReferencedTransportVersion("older_92", "8122000")

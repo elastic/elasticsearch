@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -48,14 +48,18 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObj
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  */
-public class ClusterInfo implements ChunkedToXContent, Writeable {
+public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardSizeEstimator.ShardSizeProvider {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
+    private static final TransportVersion HEAP_USAGE_IN_CLUSTER_INFO = TransportVersion.fromName("heap_usage_in_cluster_info");
     private static final TransportVersion NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO = TransportVersion.fromName(
         "node_usage_stats_for_thread_pools_in_cluster_info"
     );
     private static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = TransportVersion.fromName("shard_write_load_in_cluster_info");
+    private static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = TransportVersion.fromName(
+        "max_heap_size_per_node_in_cluster_info"
+    );
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -100,6 +104,34 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         Map<ShardId, Double> shardWriteLoads,
         Map<String, ByteSizeValue> maxHeapSizePerNode
     ) {
+        this(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            estimatedHeapUsages,
+            nodeUsageStatsForThreadPools,
+            shardWriteLoads,
+            maxHeapSizePerNode,
+            computeShardToNodeIds(dataPath)
+        );
+    }
+
+    private ClusterInfo(
+        Map<String, DiskUsage> leastAvailableSpaceUsage,
+        Map<String, DiskUsage> mostAvailableSpaceUsage,
+        Map<String, Long> shardSizes,
+        Map<ShardId, Long> shardDataSetSizes,
+        Map<NodeAndShard, String> dataPath,
+        Map<NodeAndPath, ReservedSpace> reservedSpace,
+        Map<String, EstimatedHeapUsage> estimatedHeapUsages,
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
+        Map<ShardId, Double> shardWriteLoads,
+        Map<String, ByteSizeValue> maxHeapSizePerNode,
+        Map<ShardId, Set<String>> shardToNodeIds
+    ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.shardSizes = Map.copyOf(shardSizes);
@@ -110,7 +142,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.nodeUsageStatsForThreadPools = Map.copyOf(nodeUsageStatsForThreadPools);
         this.shardWriteLoads = Map.copyOf(shardWriteLoads);
         this.maxHeapSizePerNode = Map.copyOf(maxHeapSizePerNode);
-        this.shardToNodeIds = computeShardToNodeIds(dataPath);
+        this.shardToNodeIds = shardToNodeIds;
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -120,7 +152,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.shardDataSetSizes = in.readImmutableMap(ShardId::new, StreamInput::readLong);
         this.dataPath = in.readImmutableMap(NodeAndShard::new, StreamInput::readString);
         this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
+        if (in.getTransportVersion().supports(HEAP_USAGE_IN_CLUSTER_INFO)) {
             this.estimatedHeapUsages = in.readImmutableMap(EstimatedHeapUsage::new);
         } else {
             this.estimatedHeapUsages = Map.of();
@@ -135,12 +167,35 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         } else {
             this.shardWriteLoads = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO)) {
+        if (in.getTransportVersion().supports(MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO)) {
             this.maxHeapSizePerNode = in.readImmutableMap(ByteSizeValue::readFrom);
         } else {
             this.maxHeapSizePerNode = Map.of();
         }
         this.shardToNodeIds = computeShardToNodeIds(dataPath);
+    }
+
+    ClusterInfo updateWith(
+        Map<String, DiskUsage> leastAvailableSpaceUsage,
+        Map<String, DiskUsage> mostAvailableSpaceUsage,
+        Map<String, Long> shardSizes,
+        Map<NodeAndPath, ReservedSpace> reservedSpace,
+        Map<String, EstimatedHeapUsage> estimatedHeapUsages,
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools
+    ) {
+        return new ClusterInfo(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            estimatedHeapUsages,
+            nodeUsageStatsForThreadPools,
+            shardWriteLoads,
+            maxHeapSizePerNode,
+            shardToNodeIds
+        );
     }
 
     private static Map<ShardId, Set<String>> computeShardToNodeIds(Map<NodeAndShard, String> dataPath) {
@@ -151,11 +206,11 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         for (NodeAndShard nodeAndShard : dataPath.keySet()) {
             shardToNodeIds.computeIfAbsent(nodeAndShard.shardId, ignore -> new HashSet<>()).add(nodeAndShard.nodeId);
         }
-        Maps.transformValues(shardToNodeIds, nodeIds -> Collections.unmodifiableSet(nodeIds));
-        return shardToNodeIds;
+        return Collections.unmodifiableMap(Maps.transformValues(shardToNodeIds, Collections::unmodifiableSet));
     }
 
     public Set<String> getNodeIdsForShard(ShardId shardId) {
+        assert shardToNodeIds != null : "shardToNodeIds not computed for simulations, make sure this ClusterInfo is from polling";
         return shardToNodeIds.getOrDefault(shardId, Set.of());
     }
 
@@ -167,7 +222,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         out.writeMap(this.shardDataSetSizes, StreamOutput::writeWriteable, StreamOutput::writeLong);
         out.writeMap(this.dataPath, StreamOutput::writeWriteable, StreamOutput::writeString);
         out.writeMap(this.reservedSpace);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
+        if (out.getTransportVersion().supports(HEAP_USAGE_IN_CLUSTER_INFO)) {
             out.writeMap(this.estimatedHeapUsages, StreamOutput::writeWriteable);
         }
         if (out.getTransportVersion().supports(NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
@@ -176,7 +231,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         if (out.getTransportVersion().supports(SHARD_WRITE_LOAD_IN_CLUSTER_INFO)) {
             out.writeMap(this.shardWriteLoads, StreamOutput::writeWriteable, StreamOutput::writeDouble);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO)) {
+        if (out.getTransportVersion().supports(MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO)) {
             out.writeMap(this.maxHeapSizePerNode, StreamOutput::writeWriteable);
         }
     }
@@ -311,31 +366,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     /**
      * Returns the shard size for the given shardId or <code>null</code> if that metric is not available.
      */
+    @Override
     public Long getShardSize(ShardId shardId, boolean primary) {
         return shardSizes.get(shardIdentifierFromRouting(shardId, primary));
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>null</code> if that metric is not available.
-     */
-    public Long getShardSize(ShardRouting shardRouting) {
-        return getShardSize(shardRouting.shardId(), shardRouting.primary());
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
-     */
-    public long getShardSize(ShardRouting shardRouting, long defaultValue) {
-        Long shardSize = getShardSize(shardRouting);
-        return shardSize == null ? defaultValue : shardSize;
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
-     */
-    public long getShardSize(ShardId shardId, boolean primary, long defaultValue) {
-        Long shardSize = getShardSize(shardId, primary);
-        return shardSize == null ? defaultValue : shardSize;
     }
 
     /**

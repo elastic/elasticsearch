@@ -30,11 +30,9 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
     private static final ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
-        // Note we need to use OLD_CLUSTER_VERSION directly here, as it may contain special values (e.g. 0.0.0) the ElasticsearchCluster
-        // builder uses to lookup a particular distribution
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(OLD_CLUSTER_VERSION)
+            .version(getOldClusterVersion(), isOldClusterDetachedVersion())
             .nodes(NODE_NUM)
             .setting("path.repo", new Supplier<>() {
                 @Override

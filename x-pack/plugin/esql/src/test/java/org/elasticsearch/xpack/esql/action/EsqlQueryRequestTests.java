@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -69,6 +70,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testParseFields() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -79,14 +81,16 @@ public class EsqlQueryRequestTests extends ESTestCase {
             {
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
+        assertEquals(timeZone, request.timeZone());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -99,6 +103,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testNamedParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -137,14 +142,16 @@ public class EsqlQueryRequestTests extends ESTestCase {
             {
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
+        assertEquals(timeZone, request.timeZone());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -158,6 +165,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testNamedMultivaluedParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -178,14 +186,16 @@ public class EsqlQueryRequestTests extends ESTestCase {
             {
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
+        assertEquals(timeZone, request.timeZone());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -199,6 +209,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testNamedParamsForIdentifiersPatterns() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -224,14 +235,16 @@ public class EsqlQueryRequestTests extends ESTestCase {
             {
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
+        assertEquals(timeZone, request.timeZone());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -245,6 +258,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testInvalidParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -256,9 +270,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 %s
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-            }""", paramsString1, query, columnar, locale.toLanguageTag(), filter);
+            }""", paramsString1, query, columnar, timeZone.getId(), locale.toLanguageTag(), filter);
 
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
         assertThat(
@@ -311,6 +326,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testInvalidMultivaluedNamedParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -326,9 +342,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 %s,
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-            }""", paramsString, query, columnar, locale.toLanguageTag(), filter);
+            }""", paramsString, query, columnar, timeZone.getId(), locale.toLanguageTag(), filter);
 
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
         assertThat(
@@ -370,6 +387,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testInvalidMultivaluedUnnamedParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -383,9 +401,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 %s,
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-            }""", paramsString, query, columnar, locale.toLanguageTag(), filter);
+            }""", paramsString, query, columnar, timeZone.getId(), locale.toLanguageTag(), filter);
 
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
         assertThat(
@@ -408,9 +427,30 @@ public class EsqlQueryRequestTests extends ESTestCase {
         );
     }
 
+    public void testInvalidParamsString() {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String json1 = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "params": {*}
+            }""", query);
+        Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        String message1 = e1.getCause().getMessage();
+        assertThat("Unexpected failure when parsing " + json1 + ". " + message1, containsString("Unexpected token [START_OBJECT]"));
+        String json2 = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "params": "foo"
+            }""", query);
+        Exception e2 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json2));
+        String message2 = e2.getCause().getMessage();
+        assertThat("Unexpected failure when parsing " + json2 + ". " + message2, containsString("Unexpected token [VALUE_STRING]"));
+    }
+
     public void testInvalidParamsForIdentifiersPatterns() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -427,9 +467,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 %s
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-            }""", paramsString1, query, columnar, locale.toLanguageTag(), filter);
+            }""", paramsString1, query, columnar, timeZone.getId(), locale.toLanguageTag(), filter);
 
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
         String message = e1.getCause().getMessage();
@@ -535,6 +576,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testParseFieldsForAsync() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -550,6 +592,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 {
                     "query": "%s",
                     "columnar": %s,
+                    "time_zone": "%s",
                     "locale": "%s",
                     "filter": %s,
                     "keep_on_completion": %s,
@@ -558,6 +601,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     %s""",
             query,
             columnar,
+            timeZone.getId(),
             locale.toLanguageTag(),
             filter,
             keepOnCompletion,
@@ -570,6 +614,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
+        assertEquals(timeZone, request.timeZone());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());

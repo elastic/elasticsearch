@@ -19,7 +19,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -65,13 +64,20 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         Settings.Builder builder = Settings.builder();
-        provider.provideAdditionalMetadata(indexName, dataStreamName, null, null, null, settings, List.of(), builder, (k, v) -> {});
+        provider.provideAdditionalSettings(
+            indexName,
+            dataStreamName,
+            null,
+            null,
+            null,
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            builder
+        );
         var result = builder.build();
-        var expectedBuilder = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED");
-        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
-            expectedBuilder.put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true);
-        }
-        assertEquals(expectedBuilder.build(), result);
+        var expected = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED").build();
+        assertEquals(expected, result);
     }
 
     public void testGetAdditionalIndexSettingsApm() throws IOException {
@@ -79,32 +85,46 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         String dataStreamName = "metrics-apm.app.test";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         Settings.Builder builder = Settings.builder();
-        provider.provideAdditionalMetadata(indexName, dataStreamName, null, null, null, settings, List.of(), builder, (k, v) -> {});
+        provider.provideAdditionalSettings(
+            indexName,
+            dataStreamName,
+            null,
+            null,
+            null,
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            builder
+        );
         var result = builder.build();
-        Settings expectedAdditionalSettings = PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()
-            ? Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build()
-            : Settings.EMPTY;
-        assertEquals(expectedAdditionalSettings, result);
+        assertEquals(Settings.EMPTY, result);
     }
 
     public void testGetAdditionalIndexSettingsProfiling() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
-        Settings expectedAdditionalSettings = PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()
-            ? Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build()
-            : Settings.EMPTY;
         for (String dataStreamName : new String[] { "profiling-metrics", "profiling-events" }) {
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
             Settings.Builder builder = Settings.builder();
-            provider.provideAdditionalMetadata(indexName, dataStreamName, null, null, null, settings, List.of(), builder, (k, v) -> {});
+            provider.provideAdditionalSettings(
+                indexName,
+                dataStreamName,
+                null,
+                null,
+                null,
+                settings,
+                List.of(),
+                IndexVersion.current(),
+                builder
+            );
             var result = builder.build();
-            assertEquals(expectedAdditionalSettings, result);
+            assertEquals(Settings.EMPTY, result);
         }
 
         for (String indexName : new String[] { ".profiling-sq-executables", ".profiling-sq-leafframes", ".profiling-stacktraces" }) {
             Settings.Builder builder = Settings.builder();
-            provider.provideAdditionalMetadata(indexName, null, null, null, null, settings, List.of(), builder, (k, v) -> {});
+            provider.provideAdditionalSettings(indexName, null, null, null, null, settings, List.of(), IndexVersion.current(), builder);
             var result = builder.build();
-            assertEquals(expectedAdditionalSettings, result);
+            assertEquals(Settings.EMPTY, result);
         }
     }
 
@@ -113,7 +133,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         Settings.Builder builder = Settings.builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             indexName,
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -121,14 +141,11 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             null,
             settings,
             List.of(),
-            builder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            builder
         );
         var result = builder.build();
-        Settings expectedAdditionalSettings = PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()
-            ? Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build()
-            : Settings.EMPTY;
-        assertEquals(expectedAdditionalSettings, result);
+        assertEquals(Settings.EMPTY, result);
     }
 
     public void testGetAdditionalIndexSettingsTsdbAfterCutoffDate() throws Exception {
@@ -159,7 +176,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         Settings.Builder builder = Settings.builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             indexName,
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -167,16 +184,12 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             null,
             settings,
             List.of(),
-            builder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            builder
         );
+
         var result = builder.build();
-
-        var expectedBuilder = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED");
-        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
-            expectedBuilder.put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true);
-        }
-
-        assertEquals(expectedBuilder.build(), result);
+        var expected = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED").build();
+        assertEquals(expected, result);
     }
 }

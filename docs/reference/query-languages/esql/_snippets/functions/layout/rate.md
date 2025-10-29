@@ -2,7 +2,8 @@
 
 ## `RATE` [esql-rate]
 ```{applies_to}
-stack: unavailable
+stack: preview 9.2.0
+serverless: preview
 ```
 
 **Syntax**

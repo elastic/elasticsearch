@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -47,8 +48,10 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Enrich extends UnaryPlan
     implements
         GeneratingPlan<Enrich>,
-        PostOptimizationVerificationAware,
+        PostOptimizationVerificationAware.CoordinatorOnly,
+        PostAnalysisVerificationAware,
         TelemetryAware,
+        Streaming,
         SortAgnostic,
         ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -69,12 +72,11 @@ public class Enrich extends UnaryPlan
 
     @Override
     public ExecuteLocation executesOn() {
-        if (mode == Mode.REMOTE) {
-            return ExecuteLocation.REMOTE;
-        } else if (mode == Mode.COORDINATOR) {
-            return ExecuteLocation.COORDINATOR;
-        }
-        return ExecuteLocation.ANY;
+        return switch (mode) {
+            case REMOTE -> ExecuteLocation.REMOTE;
+            case COORDINATOR -> ExecuteLocation.COORDINATOR;
+            default -> ExecuteLocation.ANY;
+        };
     }
 
     public enum Mode {
@@ -275,13 +277,43 @@ public class Enrich extends UnaryPlan
     private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
         Set<Source> fails = new HashSet<>();
 
-        this.forEachUp(LogicalPlan.class, u -> {
+        this.forEachDown(LogicalPlan.class, u -> {
             if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
-                fails.add(u.source());
+                failures.add(
+                    fail(this, "ENRICH with remote policy can't be executed after [" + u.source().text() + "]" + u.source().source())
+                );
             }
         });
+    }
 
-        fails.forEach(f -> failures.add(fail(this, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source())));
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (this.mode == Mode.REMOTE) {
+            checkMvExpandAfterLimit(failures);
+        }
+
+    }
+
+    /**
+     * Remote ENRICH (and any remote operation in fact) is not compatible with MV_EXPAND + LIMIT. Consider:
+     * `FROM *:events | SORT @timestamp | LIMIT 2 | MV_EXPAND ip | ENRICH _remote:clientip_policy ON ip`
+     * Semantically, this must take two top events and then expand them. However, this can not be executed remotely,
+     * because this means that we have to take top 2 events on each node, then expand them, then apply Enrich,
+     * then bring them to the coordinator - but then we can not select top 2 of them - because that would be pre-expand!
+     * We do not know which expanded rows are coming from the true top rows and which are coming from "false" top rows
+     * which should have been thrown out. This is only possible to execute if MV_EXPAND executes on the coordinator
+     * - which contradicts remote Enrich.
+     * This could be fixed by the optimizer by moving MV_EXPAND past ENRICH, at least in some cases, but currently we do not do that.
+     */
+    private void checkMvExpandAfterLimit(Failures failures) {
+        this.forEachDown(MvExpand.class, u -> {
+            u.forEachDown(p -> {
+                if (p instanceof Limit || p instanceof TopN) {
+                    failures.add(fail(this, "MV_EXPAND after LIMIT is incompatible with remote ENRICH"));
+                }
+            });
+        });
+
     }
 
     @Override

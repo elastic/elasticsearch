@@ -37,7 +37,6 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.DOC_VALUES_SKIPPER)
-        .feature(FeatureFlag.PATTERN_TEXT)
         .build();
 
     public LogsdbTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

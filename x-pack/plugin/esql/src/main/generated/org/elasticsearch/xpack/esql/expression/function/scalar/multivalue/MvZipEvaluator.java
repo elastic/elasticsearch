@@ -79,22 +79,23 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
         if (!rightFieldBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (delimBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (delimBlock.getValueCount(p) != 1) {
-          if (delimBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (delimBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
-        MvZip.process(result, p, leftFieldBlock, rightFieldBlock, delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch));
+        BytesRef delim = delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch);
+        MvZip.process(result, p, leftFieldBlock, rightFieldBlock, delim);
       }
       return result.build();
     }

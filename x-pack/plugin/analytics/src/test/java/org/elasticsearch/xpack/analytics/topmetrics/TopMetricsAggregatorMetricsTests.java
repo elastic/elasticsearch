@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -76,7 +76,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
     }
 
     public void testEmptyLong() throws IOException {
-        SortedNumericDocValues values = mock(SortedNumericDocValues.class);
+        SortedNumericLongValues values = mock(SortedNumericLongValues.class);
         when(values.advanceExact(0)).thenReturn(false);
         ValuesSourceConfig config = toConfig(values);
         withMetric(config, m -> {
@@ -97,7 +97,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
 
     public void testLoadLong() throws IOException {
         long value = randomLong();
-        SortedNumericDocValues values = mock(SortedNumericDocValues.class);
+        SortedNumericLongValues values = mock(SortedNumericLongValues.class);
         when(values.advanceExact(0)).thenReturn(true);
         when(values.docValueCount()).thenReturn(1);
         when(values.nextValue()).thenReturn(value);
@@ -138,7 +138,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
     public void testLoadAndSwapLong() throws IOException {
         long firstValue = randomLong();
         long secondValue = randomLong();
-        SortedNumericDocValues values = mock(SortedNumericDocValues.class);
+        SortedNumericLongValues values = mock(SortedNumericLongValues.class);
         when(values.advanceExact(0)).thenReturn(true);
         when(values.advanceExact(1)).thenReturn(true);
         when(values.docValueCount()).thenReturn(1);
@@ -177,7 +177,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         long[] values = IntStream.range(0, between(2, 100)).mapToLong(i -> randomLong()).toArray();
         List<ValuesSourceConfig> configs = Arrays.stream(values).mapToObj(v -> {
             try {
-                SortedNumericDocValues docValues = mock(SortedNumericDocValues.class);
+                SortedNumericLongValues docValues = mock(SortedNumericLongValues.class);
                 when(docValues.advanceExact(0)).thenReturn(true);
                 when(docValues.docValueCount()).thenReturn(1);
                 when(docValues.nextValue()).thenReturn(v);
@@ -198,7 +198,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         });
     }
 
-    private ValuesSourceConfig toConfig(SortedNumericDocValues values) throws IOException {
+    private ValuesSourceConfig toConfig(SortedNumericLongValues values) throws IOException {
         ValuesSource.Numeric source = mock(ValuesSource.Numeric.class);
         when(source.isFloatingPoint()).thenReturn(false);
         when(source.longValues(null)).thenReturn(values);

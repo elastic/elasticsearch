@@ -167,7 +167,7 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             null
         );
 
-        // No wildcards
+        // No wildcards, no per-field boosting
         RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
@@ -200,27 +200,9 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
             "foo2"
         );
-    }
 
-    public void testMultiFieldsParamsRewriteWithWeights() {
-        final String indexName = "test-index";
-        final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(Map.of(indexName, testInferenceFields), null, Map.of());
-        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            null,
-            null,
-            TransportVersion.current(),
-            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            resolvedIndices,
-            new PointInTimeBuilder(new BytesArray("pitid")),
-            null,
-            null,
-            false
-        );
-
-        // Simple per-field boosting
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+        // No wildcards, per-field boosting
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2^1.5", "semantic_field_1", "semantic_field_2^2"),
             "bar",
@@ -233,8 +215,24 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             queryRewriteContext,
             Map.of("field_1", 1.0f, "field_2", 1.5f),
             Map.of("semantic_field_1", 1.0f, "semantic_field_2", 2.0f),
-            "bar",
-            null
+            "bar"
+        );
+
+        // Zero weights
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^0", "field_2^1.0"),
+            "zero_test",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewrite(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field_1", 0.0f, "field_2", 1.0f),
+            Map.of(),
+            "zero_test"
         );
 
         // Glob matching on inference and non-inference fields with per-field boosting
@@ -251,8 +249,7 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             queryRewriteContext,
             Map.of("field_*", 1.5f, "*_field_1", 2.5f),
             Map.of("semantic_field_1", 2.5f),
-            "baz",
-            null
+            "baz"
         );
 
         // Multiple boosts defined on the same field
@@ -269,14 +266,13 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             queryRewriteContext,
             Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f),
             Map.of("semantic_field_1", 3.75f, "semantic_field_2", 1.5f),
-            "baz2",
-            null
+            "baz2"
         );
 
-        // All-fields wildcard with weights
+        // All-fields wildcard
         rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
-            List.of("*^2.0"),
+            List.of("*"),
             "qux",
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
@@ -285,81 +281,10 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
             queryRewriteContext,
-            Map.of("*", 2.0f),
-            Map.of("semantic_field_1", 2.0f, "semantic_field_2", 2.0f),
-            "qux",
-            null
+            Map.of("*", 1.0f),
+            Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
+            "qux"
         );
-
-        // Zero weights (testing that zero is allowed as non-negative)
-        rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field_1^0", "field_2^1.0"),
-            "zero_test",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-        assertMultiFieldsParamsRewrite(
-            rrfRetrieverBuilder,
-            queryRewriteContext,
-            Map.of("field_1", 0.0f, "field_2", 1.0f),
-            Map.of(),
-            "zero_test",
-            null
-        );
-
-        // Mixed weighted and unweighted fields in simplified syntax
-        rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("title^2.5", "content", "tags^1.5", "description"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-        assertMultiFieldsParamsRewrite(
-            rrfRetrieverBuilder,
-            queryRewriteContext,
-            Map.of("title", 2.5f, "content", 1.0f, "tags", 1.5f, "description", 1.0f),
-            Map.of(),
-            "test query",
-            null
-        );
-
-        // Decimal weight precision handling
-        rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field1^0.1", "field2^2.75", "field3^10.999"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-        assertMultiFieldsParamsRewrite(
-            rrfRetrieverBuilder,
-            queryRewriteContext,
-            Map.of("field1", 0.1f, "field2", 2.75f, "field3", 10.999f),
-            Map.of(),
-            "test query",
-            null
-        );
-
-        // Test negative weight validation
-        RRFRetrieverBuilder negativeWeightBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field_1^-1.0"),
-            "negative_test",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> negativeWeightBuilder.doRewrite(queryRewriteContext)
-        );
-        assertEquals("[rrf] per-field weights must be non-negative", iae.getMessage());
     }
 
     public void testMultiIndexMultiFieldsParamsRewrite() {
@@ -418,33 +343,6 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             null
         );
 
-        // Glob matching on inference and non-inference fields
-        retriever = new RRFRetrieverBuilder(
-            null,
-            List.of("field_*", "field_1", "*_field_1", "semantic_*"),
-            "baz2",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-        assertMultiIndexMultiFieldsParamsRewrite(
-            retriever,
-            queryRewriteContext,
-            Map.of(Map.of("field_*", 1.0f, "field_1", 1.0f, "*_field_1", 1.0f, "semantic_*", 1.0f), List.of()),
-            Map.of(
-                new Tuple<>("semantic_field_1", List.of(indexName)),
-                1.0f,
-                new Tuple<>("semantic_field_2", List.of(indexName)),
-                1.0f,
-                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
-                1.0f,
-                new Tuple<>("semantic_field_3", List.of(anotherIndexName)),
-                1.0f
-            ),
-            "baz2",
-            null
-        );
-
         // Non-default rank window size and non-default rank_constant
         retriever = new RRFRetrieverBuilder(
             null,
@@ -472,6 +370,81 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
                 1.0f
             ),
             "foo2",
+            null
+        );
+
+        // No wildcards, per-field boosting
+        retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2^1.5", "semantic_field_1", "semantic_field_2^2"),
+            "bar",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.5f),
+                List.of(indexName),
+                Map.of("field_1", 1.0f, "field_2", 1.5f, "semantic_field_1", 1.0f),
+                List.of(anotherIndexName)
+            ),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of(indexName)),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of(indexName)),
+                2.0f,
+                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
+                2.0f
+            ),
+            "bar",
+            null
+        );
+
+        // Glob matching on inference and non-inference fields with per-field boosting
+        retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("field_*^1.5", "*_field_1^2.5"),
+            "baz",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("field_*", 1.5f, "*_field_1", 2.5f), List.of()),
+            Map.of(new Tuple<>("semantic_field_1", List.of(indexName)), 2.5f),
+            "baz",
+            null
+        );
+
+        // Multiple boosts defined on the same field
+        retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("field_*^1.5", "field_1^3.0", "*_field_1^2.5", "semantic_*^1.5"),
+            "baz2",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f), List.of()),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of(indexName)),
+                3.75f,
+                new Tuple<>("semantic_field_2", List.of(indexName)),
+                1.5f,
+                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
+                1.5f,
+                new Tuple<>("semantic_field_3", List.of(anotherIndexName)),
+                1.5f
+            ),
+            "baz2",
             null
         );
 
@@ -552,13 +525,13 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             null
         );
 
-        // Non-default rank window size
+        // Non-default rank window size and rank constant
         retriever = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo2",
             DEFAULT_RANK_WINDOW_SIZE * 2,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT * 2,
             new float[0]
         );
         assertMultiIndexMultiFieldsParamsRewrite(
@@ -575,10 +548,51 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             null
         );
 
-        // Glob matching on inference and non-inference fields
+        // No wildcards, per-field boosting
         retriever = new RRFRetrieverBuilder(
             null,
-            List.of("field_*", "field_1", "*_field_1", "semantic_*"),
+            List.of("field_1", "field_2^1.5", "semantic_field_1", "semantic_field_2^2"),
+            "bar",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.5f),
+                List.of(indexName),
+                Map.of("field_1", 1.0f, "field_2", 1.5f, "semantic_field_1", 1.0f),
+                List.of(anotherIndexName)
+            ),
+            Map.of(new Tuple<>("semantic_field_1", List.of(indexName)), 1.0f, new Tuple<>("semantic_field_2", List.of()), 2.0f),
+            "bar",
+            null
+        );
+
+        // Glob matching on inference and non-inference fields with per-field boosting
+        retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("field_*^1.5", "*_field_1^2.5"),
+            "baz",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("field_*", 1.5f, "*_field_1", 2.5f), List.of()), // on index filter on the lexical query
+            Map.of(new Tuple<>("semantic_field_1", List.of(indexName)), 2.5f),
+            "baz",
+            null
+        );
+
+        // Multiple boosts defined on the same field
+        retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("field_*^1.5", "field_1^3.0", "*_field_1^2.5", "semantic_*^1.5"),
             "baz2",
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
@@ -587,14 +601,14 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
         assertMultiIndexMultiFieldsParamsRewrite(
             retriever,
             queryRewriteContext,
-            Map.of(Map.of("field_*", 1.0f, "field_1", 1.0f, "*_field_1", 1.0f, "semantic_*", 1.0f), List.of()),
+            Map.of(Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f), List.of()),
             Map.of(
                 new Tuple<>("semantic_field_1", List.of(indexName)),
-                1.0f,
-                new Tuple<>("semantic_field_2", List.of()),
-                1.0f,
+                3.75f,
+                new Tuple<>("semantic_field_2", List.of()), // no index filter since both indices have this field
+                1.5f,
                 new Tuple<>("semantic_field_3", List.of(anotherIndexName)),
-                1.0f
+                1.5f
             ),
             "baz2",
             null

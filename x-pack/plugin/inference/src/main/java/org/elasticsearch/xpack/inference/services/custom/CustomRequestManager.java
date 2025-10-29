@@ -75,7 +75,7 @@ public class CustomRequestManager extends BaseRequestManager {
             requestParameters = CompletionParameters.of(chatInputs);
         } else if (inferenceInputs instanceof EmbeddingsInput) {
             requestParameters = EmbeddingParameters.of(
-                EmbeddingsInput.of(inferenceInputs),
+                inferenceInputs.castTo(EmbeddingsInput.class),
                 model.getServiceSettings().getInputTypeTranslator()
             );
         } else {

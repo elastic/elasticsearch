@@ -97,14 +97,10 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         Consumer<InternalMappedTerms<?, ?>> verify,
         ValueType valueType
     ) throws IOException {
-        MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(
-            KEYWORD_FIELD,
-            randomBoolean(),
-            true,
-            Collections.emptyMap()
-        );
+        boolean indexed = randomBoolean();
+        MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD, indexed, true, Collections.emptyMap());
         FieldType luceneFieldType = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-        if (keywordFieldType.isIndexed() == false) {
+        if (indexed == false) {
             luceneFieldType.setIndexOptions(IndexOptions.NONE);
         }
         luceneFieldType.freeze();

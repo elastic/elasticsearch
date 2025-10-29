@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -24,10 +23,10 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadEnrichPolicyResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.INLINE_STATS_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -35,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzer.analyze(parser.createStatement(query));
         return logicalOptimizer.optimize(analyzed);
     }
 
@@ -158,7 +157,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             """, analyzer);
         assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [STATS count(*) BY language_code]@3:3"));
 
-        if (INLINE_STATS_FEATURE_FLAG) {
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             err = error("""
                 FROM test
                 | EVAL language_code = languages
@@ -430,7 +429,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testDanglingOrderByInInlineStats() {
-        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
         var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test"));
 
         var err = error("""

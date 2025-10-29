@@ -79,18 +79,19 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
   public DoubleBlock eval(int positionCount, IntBlock valueBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valueBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valueBlock.getValueCount(p) != 1) {
-          if (valueBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(Decay.process(valueBlock.getInt(valueBlock.getFirstValueIndex(p)), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        int value = valueBlock.getInt(valueBlock.getFirstValueIndex(p));
+        result.appendDouble(Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }
@@ -99,7 +100,8 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
   public DoubleVector eval(int positionCount, IntVector valueVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.process(valueVector.getInt(p), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        int value = valueVector.getInt(p);
+        result.appendDouble(p, Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }

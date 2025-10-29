@@ -69,19 +69,20 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        BytesRef field = fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch);
         try {
-          result.appendBytesRef(ToBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), this.oScratch));
+          result.appendBytesRef(ToBase64.process(field, this.oScratch));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -95,8 +96,9 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef field = fieldVector.getBytesRef(p, fieldScratch);
         try {
-          result.appendBytesRef(ToBase64.process(fieldVector.getBytesRef(p, fieldScratch), this.oScratch));
+          result.appendBytesRef(ToBase64.process(field, this.oScratch));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

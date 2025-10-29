@@ -42,14 +42,17 @@
       "local": {
         "deprecated": true,
         "type": "boolean",
+        "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
       "include_defaults": {
         "type": "boolean",
+        "default": false,
         "description": "Return all default configurations for the component template (default: false)"
       },
       "flat_settings": {
         "type": "boolean",
+        "default": false,
         "description": "Return settings in flat format (default: false)"
       },
       "settings_filter": {

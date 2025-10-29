@@ -1,7 +1,7 @@
 ---
 applies_to:
-  stack: ga
-  serverless: ga
+  stack:
+  serverless:
 navigation_title: Get started
 ---
 

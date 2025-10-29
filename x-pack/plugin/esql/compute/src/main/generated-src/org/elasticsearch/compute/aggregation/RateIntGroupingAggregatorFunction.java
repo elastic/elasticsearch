@@ -36,6 +36,13 @@ import java.util.List;
 public final class RateIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
+        // Overriding constructor to support isRateOverTime flag
+        private final boolean isRateOverTime;
+
+        public FunctionSupplier(boolean isRateOverTime) {
+            this.isRateOverTime = isRateOverTime;
+        }
+
         @Override
         public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
             throw new UnsupportedOperationException("non-grouping aggregator is not supported");
@@ -53,7 +60,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
 
         @Override
         public RateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new RateIntGroupingAggregatorFunction(channels, driverContext);
+            return new RateIntGroupingAggregatorFunction(channels, driverContext, isRateOverTime);
         }
 
         @Override
@@ -74,11 +81,13 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
+    private final boolean isRateOverTime;
 
-    public RateIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
+    public RateIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, boolean isRateOverTime) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
+        this.isRateOverTime = isRateOverTime;
         ObjectArray<Buffer> buffers = driverContext.bigArrays().newObjectArray(256);
         try {
             this.reducedStates = driverContext.bigArrays().newObjectArray(256);
@@ -191,37 +200,22 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     }
 
     private void addRawInput(int positionOffset, IntVector groups, IntBlock valueBlock, LongVector timestampVector) {
+        int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, groups.getPositionCount(), timestampVector.getLong(positionOffset));
-            for (int p = 0; p < groups.getPositionCount(); p++) {
-                int valuePosition = positionOffset + p;
-                if (valueBlock.isNull(valuePosition)) {
-                    continue;
-                }
-                assert valueBlock.getValueCount(valuePosition) == 1 : "expected single-valued block " + valueBlock;
-                buffer.appendWithoutResize(timestampVector.getLong(valuePosition), valueBlock.getInt(valuePosition));
-            }
+            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueBlock, timestampVector);
         } else {
-            int lastGroup = -1;
-            Buffer buffer = null;
-            for (int p = 0; p < groups.getPositionCount(); p++) {
-                int valuePosition = positionOffset + p;
-                if (valueBlock.isNull(valuePosition)) {
-                    continue;
-                }
-                assert valueBlock.getValueCount(valuePosition) == 1 : "expected single-valued block " + valueBlock;
-                long timestamp = timestampVector.getLong(valuePosition);
-                var value = valueBlock.getInt(valuePosition);
-                int groupId = groups.getInt(p);
-                if (lastGroup != groupId) {
-                    buffer = getBuffer(groupId, 1, timestamp);
-                    buffer.appendWithoutResize(timestamp, value);
-                    lastGroup = groupId;
-                } else {
-                    buffer.maybeResizeAndAppend(bigArrays, timestamp, value);
+            int lastGroup = groups.getInt(0);
+            int lastPosition = 0;
+            for (int p = 1; p < positionCount; p++) {
+                int group = groups.getInt(p);
+                if (group != lastGroup) {
+                    addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueBlock, timestampVector);
+                    lastGroup = group;
+                    lastPosition = p;
                 }
             }
+            addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueBlock, timestampVector);
         }
     }
 
@@ -229,28 +223,30 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(positionOffset));
-            for (int p = 0; p < positionCount; p++) {
-                int valuePosition = positionOffset + p;
-                buffer.appendWithoutResize(timestampVector.getLong(valuePosition), valueVector.getInt(valuePosition));
-            }
+            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueVector, timestampVector);
         } else {
-            int lastGroup = -1;
-            Buffer buffer = null;
-            for (int p = 0; p < positionCount; p++) {
-                int valuePosition = positionOffset + p;
-                long timestamp = timestampVector.getLong(valuePosition);
-                var value = valueVector.getInt(valuePosition);
-                int groupId = groups.getInt(p);
-                if (lastGroup != groupId) {
-                    buffer = getBuffer(groupId, 1, timestamp);
-                    buffer.appendWithoutResize(timestamp, value);
-                    lastGroup = groupId;
-                } else {
-                    buffer.maybeResizeAndAppend(bigArrays, timestamp, value);
+            int lastGroup = groups.getInt(0);
+            int lastPosition = 0;
+            for (int p = 1; p < positionCount; p++) {
+                int group = groups.getInt(p);
+                if (group != lastGroup) {
+                    addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueVector, timestampVector);
+                    lastGroup = group;
+                    lastPosition = p;
                 }
             }
+            addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueVector, timestampVector);
         }
+    }
+
+    private void addSubRange(int group, int from, int to, IntVector valueVector, LongVector timestampVector) {
+        var buffer = getBuffer(group, to - from, timestampVector.getLong(from));
+        buffer.appendRange(from, to, valueVector, timestampVector);
+    }
+
+    private void addSubRange(int group, int from, int to, IntBlock valueBlock, LongVector timestampVector) {
+        var buffer = getBuffer(group, to - from, timestampVector.getLong(from));
+        buffer.appendRange(from, to, valueBlock, timestampVector);
     }
 
     @Override
@@ -434,6 +430,26 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             pendingCount++;
         }
 
+        void appendRange(int fromPosition, int toPosition, IntVector valueVector, LongVector timestampVector) {
+            for (int p = fromPosition; p < toPosition; p++) {
+                values.set(pendingCount, valueVector.getInt(p));
+                timestamps.set(pendingCount, timestampVector.getLong(p));
+                pendingCount++;
+            }
+        }
+
+        void appendRange(int fromPosition, int toPosition, IntBlock valueBlock, LongVector timestampVector) {
+            for (int p = fromPosition; p < toPosition; p++) {
+                if (valueBlock.isNull(p)) {
+                    continue;
+                }
+                assert valueBlock.getValueCount(p) == 1 : "expected single-valued block " + valueBlock;
+                values.set(pendingCount, valueBlock.getInt(p));
+                timestamps.set(pendingCount, timestampVector.getLong(p));
+                pendingCount++;
+            }
+        }
+
         void ensureCapacity(BigArrays bigArrays, int count, long firstTimestamp) {
             int newSize = pendingCount + count;
             timestamps = bigArrays.grow(timestamps, newSize);
@@ -565,9 +581,9 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
                 }
                 final double rate;
                 if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group), tsContext.rangeEndInMillis(group));
+                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group), tsContext.rangeEndInMillis(group), isRateOverTime);
                 } else {
-                    rate = computeRateWithoutExtrapolate(state);
+                    rate = computeRateWithoutExtrapolate(state, isRateOverTime);
                 }
                 rates.appendDouble(rate);
             }
@@ -636,13 +652,17 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         }
     }
 
-    private static double computeRateWithoutExtrapolate(ReducedState state) {
+    private static double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime) {
         assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
         final long firstTS = state.intervals[state.intervals.length - 1].t2;
         final long lastTS = state.intervals[0].t1;
         double firstValue = state.intervals[state.intervals.length - 1].v2;
         double lastValue = state.intervals[0].v1 + state.resets;
-        return (lastValue - firstValue) * 1000.0 / (lastTS - firstTS);
+        if (isRateOverTime) {
+            return (lastValue - firstValue) * 1000.0 / (lastTS - firstTS);
+        } else {
+            return lastValue - firstValue;
+        }
     }
 
     /**
@@ -654,7 +674,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
      * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
      * samples (which is our guess for where the series actually starts or ends).
      */
-    private static double extrapolateRate(ReducedState state, long rangeStart, long rangeEnd) {
+    private static double extrapolateRate(ReducedState state, long rangeStart, long rangeEnd, boolean isRateOverTime) {
         assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
         final long firstTS = state.intervals[state.intervals.length - 1].t2;
         final long lastTS = state.intervals[0].t1;
@@ -677,6 +697,10 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             }
             lastValue = lastValue + endGap * slope;
         }
-        return (lastValue - firstValue) * 1000.0 / (rangeEnd - rangeStart);
+        if (isRateOverTime) {
+            return (lastValue - firstValue) * 1000.0 / (rangeEnd - rangeStart);
+        } else {
+            return lastValue - firstValue;
+        }
     }
 }

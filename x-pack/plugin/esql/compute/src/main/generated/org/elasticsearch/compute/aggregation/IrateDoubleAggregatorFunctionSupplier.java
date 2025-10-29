@@ -44,6 +44,6 @@ public final class IrateDoubleAggregatorFunctionSupplier implements AggregatorFu
 
   @Override
   public String describe() {
-    return "irate of doubles";
+    return IrateDoubleAggregator.describe();
   }
 }

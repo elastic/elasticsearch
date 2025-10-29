@@ -67,18 +67,19 @@ public final class RoundToInt2Evaluator implements EvalOperator.ExpressionEvalua
   public IntBlock eval(int positionCount, IntBlock fieldBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendInt(RoundToInt.process(fieldBlock.getInt(fieldBlock.getFirstValueIndex(p)), this.p0, this.p1));
+        int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
+        result.appendInt(RoundToInt.process(field, this.p0, this.p1));
       }
       return result.build();
     }
@@ -87,7 +88,8 @@ public final class RoundToInt2Evaluator implements EvalOperator.ExpressionEvalua
   public IntVector eval(int positionCount, IntVector fieldVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, RoundToInt.process(fieldVector.getInt(p), this.p0, this.p1));
+        int field = fieldVector.getInt(p);
+        result.appendInt(p, RoundToInt.process(field, this.p0, this.p1));
       }
       return result.build();
     }

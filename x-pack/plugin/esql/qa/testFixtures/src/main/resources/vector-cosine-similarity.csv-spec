@@ -2,6 +2,7 @@
  
  similarityWithVectorField
  required_capability: cosine_vector_similarity_function
+ required_capability: dense_vector_field_type_released
  
 // tag::vector-cosine-similarity[]
  from colors
@@ -30,6 +31,7 @@ gray           | 0.9082483053207397
 
  similarityAsPartOfExpression
  required_capability: cosine_vector_similarity_function
+ required_capability: dense_vector_field_type_released
  
  from colors
  | where color != "black" 
@@ -54,6 +56,7 @@ gray         | 1.454
 
 similarityWithLiteralVectors
 required_capability: cosine_vector_similarity_function
+required_capability: dense_vector_field_type_released
  
 row a = 1
 | eval similarity = round(v_cosine([1, 2, 3], [0, 1, 2]), 3) 
@@ -66,6 +69,7 @@ similarity:double
 
  similarityWithStats
  required_capability: cosine_vector_similarity_function
+ required_capability: dense_vector_field_type_released
  
  from colors
  | where color != "black" 
@@ -80,6 +84,7 @@ avg:double | min:double | max:double
 similarityWithNull
 required_capability: cosine_vector_similarity_function
 required_capability: vector_similarity_functions_support_null
+required_capability: dense_vector_field_type_released
 
 from colors
 | eval similarity = v_cosine(rgb_vector, null) 
@@ -93,6 +98,7 @@ total_null:long
 similarityWithRow
 required_capability: cosine_vector_similarity_function
 required_capability: to_dense_vector_function
+required_capability: dense_vector_field_type_released
  
 row vector = to_dense_vector([1, 2, 3]) 
 | eval similarity = round(v_cosine(vector, [0, 1, 2]), 3) 
@@ -105,6 +111,7 @@ vector: dense_vector | similarity:double
 similarityWithVectorField
 required_capability: cosine_vector_similarity_function
 required_capability: to_dense_vector_function
+required_capability: dense_vector_field_type_released
 
 from colors
 | where color != "black" 

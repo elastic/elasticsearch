@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -122,7 +123,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.search.SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -154,7 +154,7 @@ public class TransportSearchActionTests extends ESTestCase {
     ) {
         ShardId shardId = new ShardId(index, id);
         List<ShardRouting> shardRoutings = SearchShardIteratorTests.randomShardRoutings(shardId);
-        return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices);
+        return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices, SplitShardCountSummary.UNSET);
     }
 
     private static ResolvedIndices createMockResolvedIndices(
@@ -1396,9 +1396,7 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(
-                List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, IVF_FORMAT.isEnabled() ? 10f : null, null, null))
-            );
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, 10f, null, null)));
             searchRequest.source(source);
 
             searchRequest.setCcsMinimizeRoundtrips(true);
@@ -1413,9 +1411,7 @@ public class TransportSearchActionTests extends ESTestCase {
             // If the search includes kNN, we should always use DFS_QUERY_THEN_FETCH
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(
-                List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, IVF_FORMAT.isEnabled() ? 10f : null, null, null))
-            );
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, 10f, null, null)));
             searchRequest.source(source);
 
             TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
@@ -1707,7 +1703,7 @@ public class TransportSearchActionTests extends ESTestCase {
             final ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
             final SearchShardIterator shardIterator = shardIterators.get(id);
             final SearchContextIdForNode context = contexts.get(shardId);
-            if (context.getSearchContextId().getSearcherId() == null) {
+            if (context.getSearchContextId().isRetryable() == false) {
                 assertThat(shardIterator.getTargetNodeIds(), hasSize(1));
             } else {
                 final List<String> targetNodes = clusterState.routingTable(project)

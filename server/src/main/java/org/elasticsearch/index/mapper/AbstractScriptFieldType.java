@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -61,7 +62,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         Map<String, String> meta,
         boolean isParsedFromSource
     ) {
-        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        super(name, IndexType.NONE, false, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
         this.isResultDeterministic = isResultDeterministic;
@@ -76,6 +77,11 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
     @Override
     public final boolean isAggregatable() {
         return true;
+    }
+
+    @Override
+    public TextSearchInfo getTextSearchInfo() {
+        return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
     }
 
     @Override
@@ -205,15 +211,32 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         }
     }
 
+    protected final FallbackSyntheticSourceBlockLoader numericFallbackSyntheticSourceBlockLoader(
+        BlockLoaderContext blContext,
+        NumberFieldMapper.NumberType numberType,
+        BiFunction<BlockLoader.BlockFactory, Integer, BlockLoader.Builder> builderSupplier,
+        BiConsumer<List<Number>, BlockLoader.Builder> writeToBlock
+    ) {
+        return fallbackSyntheticSourceBlockLoader(
+            blContext,
+            builderSupplier,
+            () -> new NumberFieldMapper.NumberType.NumberFallbackSyntheticSourceReader(numberType, null, true) {
+                @Override
+                public void writeToBlock(List<Number> values, BlockLoader.Builder blockBuilder) {
+                    writeToBlock.accept(values, blockBuilder);
+                }
+            }
+        );
+    }
+
     /**
      * Returns synthetic source fallback block loader if source mode is synthetic, runtime field is source only and field is only mapped
      * as a runtime field.
      */
     protected final FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader(
         BlockLoaderContext blContext,
-        NumberFieldMapper.NumberType numberType,
         BiFunction<BlockLoader.BlockFactory, Integer, BlockLoader.Builder> builderSupplier,
-        BiConsumer<List<Number>, BlockLoader.Builder> writeToBlock
+        Supplier<FallbackSyntheticSourceBlockLoader.Reader<?>> readerSupplier
     ) {
         var indexSettings = blContext.indexSettings();
         // A runtime and normal field can share the same name.
@@ -222,12 +245,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         if (isParsedFromSource
             && indexSettings.getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC
             && blContext.lookup().onlyMappedAsRuntimeField(name())) {
-            var reader = new NumberFieldMapper.NumberType.NumberFallbackSyntheticSourceReader(numberType, null, true) {
-                @Override
-                public void writeToBlock(List<Number> values, BlockLoader.Builder blockBuilder) {
-                    writeToBlock.accept(values, blockBuilder);
-                }
-            };
+            var reader = readerSupplier.get();
 
             return new FallbackSyntheticSourceBlockLoader(
                 reader,

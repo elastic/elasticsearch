@@ -223,9 +223,11 @@
  *         When it comes to the correct syntax, e.g.: annotations, groupings, etc., feel free to look at existing snapshot functions and
  *         Git history.
  *
- *         Depending on whether the new function requires a snapshot build, you may need to increment the expected ES|QL functions count in
- *         one or both places in {@code x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/esql/60_usage.yml}. You can also run
- *         these tests locally, just make sure to pass the right flags so you can toggle between snapshot and non-snapshot tests.
+ *         If your function should be available in snapshot <strong>only</strong>, add it to the list in
+ *         {@code x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/esql/60_usage.yml} around
+ *         {@code not_exists: esql.functions.delay}. The release build will fail if this function is
+ *         available. Check out the instructions for running a release build in {@code testing.asciidoc}
+ *         if you want to test this, but it's generally enough to let CI do it.
  *     </li>
  *     <li>
  *         Open the PR. The subject and description of the PR are important because those'll turn

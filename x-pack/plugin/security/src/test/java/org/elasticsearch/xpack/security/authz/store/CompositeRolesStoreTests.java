@@ -51,6 +51,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
@@ -141,6 +142,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -2652,7 +2654,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class),
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(FeatureService.class)
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2736,7 +2739,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class),
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(FeatureService.class)
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2837,7 +2841,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class),
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(FeatureService.class)
             )
         );
         final NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2996,7 +3001,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             mock(ThreadPool.class),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -3112,7 +3118,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             mock(ThreadPool.class),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -3752,6 +3759,27 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
         compositeRolesStore.getRoleDescriptors(subject, future);
         assertThat(future.actionGet(), equalTo(Set.of(expectedRoleDescriptor)));
+    }
+
+    public void testOrderedUsageStatsWithJustDls() {
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertThat(
+            "needs LinkedHashMap to be ordered in transport",
+            compositeRolesStore.usageStatsWithJustDls(),
+            instanceOf(LinkedHashMap.class)
+        );
     }
 
     private Role getRoleForRoleNames(CompositeRolesStore store, String... roleNames) {

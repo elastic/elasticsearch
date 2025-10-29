@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -76,10 +77,12 @@ final class RequestXContent {
     private static final ParseField FILTER_FIELD = new ParseField("filter");
     static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
+    static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
     private static final ParseField ACCEPT_PRAGMA_RISKS = new ParseField("accept_pragma_risks");
     private static final ParseField INCLUDE_CCS_METADATA_FIELD = new ParseField("include_ccs_metadata");
+    private static final ParseField INCLUDE_EXECUTION_METADATA_FIELD = new ParseField("include_execution_metadata");
     static final ParseField TABLES_FIELD = new ParseField("tables");
 
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
@@ -105,12 +108,14 @@ final class RequestXContent {
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
         parser.declareBoolean(EsqlQueryRequest::acceptedPragmaRisks, ACCEPT_PRAGMA_RISKS);
         parser.declareBoolean(EsqlQueryRequest::includeCCSMetadata, INCLUDE_CCS_METADATA_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::includeExecutionMetadata, INCLUDE_EXECUTION_METADATA_FIELD);
         parser.declareObject(
             EsqlQueryRequest::pragmas,
             (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
             PRAGMA_FIELD
         );
         parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
+        parser.declareString((request, timeZone) -> request.timeZone(ZoneId.of(timeZone)), TIME_ZONE_FIELD);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
@@ -220,6 +225,18 @@ final class RequestXContent {
                     }
                 }
             }
+        } else {
+            errors.add(
+                new XContentParseException(
+                    "Unexpected token ["
+                        + token
+                        + "] at "
+                        + p.getTokenLocation()
+                        + ", expected "
+                        + XContentParser.Token.START_ARRAY
+                        + ". Please check documentation for the correct format of the 'params' field."
+                )
+            );
         }
         // don't allow mixed named and unnamed parameters
         if (namedParams.isEmpty() == false && unNamedParams.isEmpty() == false) {

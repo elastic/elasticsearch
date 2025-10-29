@@ -43,6 +43,7 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.ulongCases(1, 1000, BigInteger.ZERO, UNSIGNED_LONG_MAX, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
@@ -60,6 +61,7 @@ public class PresentTests extends AbstractAggregationTestCase {
 
         // No rows
         for (var dataType : List.of(
+            DataType.AGGREGATE_METRIC_DOUBLE,
             DataType.BOOLEAN,
             DataType.CARTESIAN_POINT,
             DataType.CARTESIAN_SHAPE,

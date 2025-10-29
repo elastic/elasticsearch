@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -150,9 +151,13 @@ public final class ResponseValueUtils {
                     throw new UncheckedIOException(e);
                 }
             }
+            case TSID_DATA_TYPE -> {
+                BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
+                yield TimeSeriesIdFieldMapper.encodeTsid(val);
+            }
             case DENSE_VECTOR -> ((FloatBlock) block).getFloat(offset);
-            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, NULL,
-                PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
+            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, NULL, PARTIAL_AGG ->
+                throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 }

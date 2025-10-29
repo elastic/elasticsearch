@@ -27,7 +27,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -78,7 +77,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -132,7 +130,6 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -211,6 +208,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -1981,71 +1980,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testShardFieldStatsWithDeletes() throws IOException {
-        Settings settings = Settings.builder()
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
-            .build();
-        IndexShard shard = newShard(true, settings);
-        assertNull(shard.getShardFieldStats());
-        recoverShardFromStore(shard);
-        boolean liveDocsTrackingEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
-
-        // index some documents
-        int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            indexDoc(shard, "_doc", "first_" + i, """
-                {
-                    "f1": "foo",
-                    "f2": "bar"
-                }
-                """);
-        }
-        shard.refresh("test");
-        var stats = shard.getShardFieldStats();
-        assertThat(stats.numSegments(), equalTo(1));
-        assertThat(stats.liveDocsBytes(), equalTo(0L));
-
-        // delete a doc
-        deleteDoc(shard, "first_0");
-
-        // Refresh and fetch new stats:
-        shard.refresh("test");
-        stats = shard.getShardFieldStats();
-        // More segments because delete operation is stored in the new segment for replication purposes.
-        assertThat(stats.numSegments(), equalTo(2));
-        long expectedLiveDocsSize = 0;
-        if (liveDocsTrackingEnabled) {
-            // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-            expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
-            // Second segment the delete operation that is marked as deleted:
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-        }
-        assertThat(stats.liveDocsBytes(), equalTo(expectedLiveDocsSize));
-
-        // delete another doc:
-        deleteDoc(shard, "first_1");
-        shard.getMinRetainedSeqNo();
-
-        // Refresh and fetch new stats:
-        shard.refresh("test");
-        stats = shard.getShardFieldStats();
-        // More segments because delete operation is stored in the new segment for replication purposes.
-        assertThat(stats.numSegments(), equalTo(3));
-        expectedLiveDocsSize = 0;
-        if (liveDocsTrackingEnabled) {
-            // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-            // First segment with deletes
-            expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
-            // Second and third segments the delete operation that is marked as deleted:
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-        }
-        assertThat(stats.liveDocsBytes(), equalTo(expectedLiveDocsSize));
-
-        closeShards(shard);
-    }
-
     public void testIndexingOperationsListeners() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
@@ -3483,6 +3417,14 @@ public class IndexShardTests extends IndexShardTestCase {
             });
             closeShards(differentIndex);
 
+            // check that an error from the mapper service is handled correctly
+            final PlainActionFuture<Boolean> badMapperFuture = new PlainActionFuture<>();
+            final IndexShard badMapper = spy(targetShard);
+            doThrow(IllegalArgumentException.class).when(badMapper).mapperService();
+            final BiConsumer<MappingMetadata, ActionListener<Void>> noopConsumer = (mapping, listener) -> listener.onResponse(null);
+            badMapper.recoverFromLocalShards(noopConsumer, List.of(sourceShard), badMapperFuture);
+            assertThrows(IndexShardRecoveryException.class, badMapperFuture::actionGet);
+
             final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
             targetShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(sourceShard), future);
             assertTrue(future.actionGet());
@@ -4151,10 +4093,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/101008",
-        value = "org.elasticsearch.index.shard.IndexShard:TRACE"
-    )
     public void testScheduledRefresh() throws Exception {
         // Setup and make shard search idle:
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
@@ -4630,7 +4568,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSupplyTombstoneDoc() throws Exception {
         IndexShard shard = newStartedShard();
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
-        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(shard.indexSettings.seqNoIndexOptions(), id);
+        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(shard.indexSettings.seqNoIndexOptions(), randomBoolean(), id);
         assertThat(deleteTombstone.docs(), hasSize(1));
         LuceneDocument deleteDoc = deleteTombstone.docs().get(0);
         assertThat(

@@ -63,6 +63,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -237,6 +238,18 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return new TestMapperServiceBuilder().indexVersion(version).settings(settings).idFieldDataEnabled(idFieldDataEnabled).build();
     }
 
+    public MapperService createMapperServiceWithNamespaceValidator(String mappings, RootObjectMapperNamespaceValidator validator)
+        throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().indexVersion(getVersion())
+            .settings(getIndexSettings())
+            .idFieldDataEnabled(() -> true)
+            .namespaceValidator(validator)
+            .build();
+
+        merge(mapperService, mappings);
+        return mapperService;
+    }
+
     protected final MapperService withMapping(MapperService mapperService, XContentBuilder mapping) throws IOException {
         merge(mapperService, mapping);
         return mapperService;
@@ -249,6 +262,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         private ScriptCompiler scriptCompiler;
         private MapperMetrics mapperMetrics;
         private boolean applyDefaultMapping;
+        private RootObjectMapperNamespaceValidator namespaceValidator;
 
         public TestMapperServiceBuilder() {
             indexVersion = getVersion();
@@ -284,6 +298,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             return this;
         }
 
+        public TestMapperServiceBuilder namespaceValidator(RootObjectMapperNamespaceValidator validator) {
+            this.namespaceValidator = validator;
+            return this;
+        }
+
         public MapperService build() {
             Collection<? extends Plugin> plugins = getPlugins();
             Collection<Setting<?>> pluginIndexSettings = plugins.stream()
@@ -293,7 +312,12 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             IndexSettings indexSettings = createIndexSettings(indexVersion, settings, pluginIndexSettings);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
             MapperRegistry mapperRegistry = new IndicesModule(
-                plugins.stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+                plugins.stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList()),
+                plugins.stream()
+                    .filter(p -> p instanceof InternalVectorFormatProviderPlugin)
+                    .map(p -> (InternalVectorFormatProviderPlugin) p)
+                    .collect(toList()),
+                namespaceValidator
             ).getMapperRegistry();
 
             BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
@@ -412,7 +436,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
+        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates, null);
     }
 
     /**

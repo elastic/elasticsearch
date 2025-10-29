@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
@@ -78,17 +77,13 @@ public class KnnSearchIT extends ESIntegTestCase {
         // test top level knn search
         {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            sourceBuilder.knnSearch(
-                List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null))
-            );
+            sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, 10f, null, null)));
             executeScrollSearch(client, sourceBuilder, k);
         }
         // test top level knn search + another query
         {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            sourceBuilder.knnSearch(
-                List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null))
-            );
+            sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, 10f, null, null)));
             sourceBuilder.query(QueryBuilders.existsQuery("category").boost(10));
             executeScrollSearch(client, sourceBuilder, k + 10);
         }
@@ -96,9 +91,7 @@ public class KnnSearchIT extends ESIntegTestCase {
         // test knn query
         {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            sourceBuilder.query(
-                new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
-            );
+            sourceBuilder.query(new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, 10f, null, null));
             executeScrollSearch(client, sourceBuilder, k * numShards);
         }
         // test knn query + another query
@@ -106,17 +99,7 @@ public class KnnSearchIT extends ESIntegTestCase {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             sourceBuilder.query(
                 QueryBuilders.boolQuery()
-                    .should(
-                        new KnnVectorQueryBuilder(
-                            VECTOR_FIELD,
-                            new float[] { 0, 0 },
-                            k,
-                            100,
-                            IVF_FORMAT.isEnabled() ? 10f : null,
-                            null,
-                            null
-                        )
-                    )
+                    .should(new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, 10f, null, null))
                     .should(QueryBuilders.existsQuery("category").boost(10))
             );
             executeScrollSearch(client, sourceBuilder, k * numShards + 10);

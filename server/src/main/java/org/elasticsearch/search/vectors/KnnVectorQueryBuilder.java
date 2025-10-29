@@ -46,9 +46,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -72,33 +70,20 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
 
-    public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
-        if (IVF_FORMAT.isEnabled()) {
-            return new KnnVectorQueryBuilder(
-                (String) args[0],
-                (VectorData) args[1],
-                (QueryVectorBuilder) args[6],
-                null,
-                (Integer) args[2],
-                (Integer) args[3],
-                (Float) args[4],
-                (RescoreVectorBuilder) args[7],
-                (Float) args[5]
-            );
-        } else {
-            return new KnnVectorQueryBuilder(
-                (String) args[0],
-                (VectorData) args[1],
-                (QueryVectorBuilder) args[5],
-                null,
-                (Integer) args[2],
-                (Integer) args[3],
-                null,
-                (RescoreVectorBuilder) args[6],
-                (Float) args[4]
-            );
-        }
-    });
+    public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        "knn",
+        args -> new KnnVectorQueryBuilder(
+            (String) args[0],
+            (VectorData) args[1],
+            (QueryVectorBuilder) args[6],
+            null,
+            (Integer) args[2],
+            (Integer) args[3],
+            (Float) args[4],
+            (RescoreVectorBuilder) args[7],
+            (Float) args[5]
+        )
+    );
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
@@ -110,9 +95,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         );
         PARSER.declareInt(optionalConstructorArg(), K_FIELD);
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
-        if (IVF_FORMAT.isEnabled()) {
-            PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
-        }
+        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY_FIELD);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
@@ -314,7 +297,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.queryVectorBuilder = null;
         }
-        if (in.getTransportVersion().onOrAfter(KNN_QUERY_RESCORE_OVERSAMPLE)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
         } else {
             this.rescoreVectorBuilder = null;
@@ -431,7 +414,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
-        if (out.getTransportVersion().onOrAfter(KNN_QUERY_RESCORE_OVERSAMPLE)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalWriteable(rescoreVectorBuilder);
         }
     }

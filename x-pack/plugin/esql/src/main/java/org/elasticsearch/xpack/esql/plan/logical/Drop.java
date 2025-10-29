@@ -23,7 +23,7 @@ import java.util.Objects;
  * rewrites into {@link org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject} plans, along with other projection-like commands.
  * As such, Drop is neither serializable nor able to be mapped to a corresponding physical plan.
  */
-public class Drop extends UnaryPlan implements TelemetryAware, SortAgnostic {
+public class Drop extends UnaryPlan implements TelemetryAware, Streaming, SortAgnostic {
     private final List<NamedExpression> removals;
 
     public Drop(Source source, LogicalPlan child, List<NamedExpression> removals) {

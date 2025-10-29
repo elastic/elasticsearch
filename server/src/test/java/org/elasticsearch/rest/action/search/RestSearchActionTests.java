@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.mockito.Mockito.mock;
 
 public final class RestSearchActionTests extends RestActionTestCase {
@@ -84,15 +83,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
                 .build();
 
             SearchRequest searchRequest = new SearchRequest();
-            KnnSearchBuilder knnSearch = new KnnSearchBuilder(
-                "vector",
-                new float[] { 1, 1, 1 },
-                10,
-                100,
-                IVF_FORMAT.isEnabled() ? 10f : null,
-                null,
-                null
-            );
+            KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", new float[] { 1, 1, 1 }, 10, 100, 10f, null, null);
             searchRequest.source(new SearchSourceBuilder().knnSearch(List.of(knnSearch)));
 
             Exception ex = expectThrows(

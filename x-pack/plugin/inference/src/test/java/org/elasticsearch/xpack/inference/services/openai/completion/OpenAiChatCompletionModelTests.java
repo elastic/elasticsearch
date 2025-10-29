@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionRequestTaskSettingsTests.getChatCompletionRequestTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettingsTests.getOpenAiTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -25,7 +25,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesUser() {
         var model = createCompletionModel("url", "org", "api_key", "model_name", null);
-        var requestTaskSettingsMap = getChatCompletionRequestTaskSettingsMap("user_override");
+        var requestTaskSettingsMap = getOpenAiTaskSettingsMap("user_override");
 
         var overriddenModel = OpenAiChatCompletionModel.of(model, requestTaskSettingsMap);
 

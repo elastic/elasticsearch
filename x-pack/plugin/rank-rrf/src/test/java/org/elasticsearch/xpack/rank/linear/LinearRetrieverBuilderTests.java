@@ -24,7 +24,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 
 public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<LinearRetrieverBuilder> {
@@ -98,6 +97,25 @@ public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<L
             Map.of("field_1", 1.0f, "field_2", 1.5f),
             Map.of("semantic_field_1", 1.0f, "semantic_field_2", 2.0f),
             "bar",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
+        // Zero weights
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_1^0", "field_2^1.0"),
+            "zero_test",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of("field_1", 0.0f, "field_2", 1.0f),
+            Map.of(),
+            "zero_test",
             MinMaxScoreNormalizer.INSTANCE
         );
 
@@ -564,7 +582,7 @@ public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<L
             null,
             10,
             100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
+            10f,
             null,
             null
         );
@@ -594,7 +612,7 @@ public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<L
             null,
             10,
             100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
+            10f,
             null,
             null
         );

@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +47,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -512,7 +515,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(ctx);
             BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
 
-            assert loader.rowStrideStoredFieldSpec().requiresSource() == false;
+            assert loader.rowStrideStoredFieldSpec().requiresSource() == false
+                || loader.rowStrideStoredFieldSpec().sourcePaths().isEmpty() == false;
             BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
                 null
@@ -620,5 +624,19 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         boolean deterministicSource = "deterministic_source".equals(script.getIdOrCode());
         return deterministicSource ? (T) parseFromSource() : (T) dummyScript();
+    }
+
+    protected static LuceneDocument createDocumentWithIgnoredSource(String bytes) throws IOException {
+        var doc = new LuceneDocument();
+        var parser = XContentHelper.createParser(
+            XContentParserConfiguration.EMPTY,
+            new BytesArray(bytes),
+            XContentFactory.xContent(XContentType.JSON).type()
+        );
+        parser.nextToken();
+        var nameValue = new IgnoredSourceFieldMapper.NameValue("test", 0, XContentDataHelper.encodeToken(parser), doc);
+        var ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(IndexVersion.current());
+        ignoredSourceFormat.writeIgnoredFields(List.of(nameValue));
+        return doc;
     }
 }

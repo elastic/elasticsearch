@@ -788,3 +788,20 @@ from firewall_logs,threat_list,airports
 dsjbDWegyVkg:boolean    | name:integer  | nhIWDevxEtU:null  | iPIbTFddDK:integer    | rUvqtgSl:integer
 false                   | 1             | null              | 1                     | 1
 ;
+
+evalAfterGroupingUsingSameName6
+required_capability: fix_alias_id_when_drop_all_aggregates
+from employees
+| stats sum=sum(salary) by last_name, year = bucket(birth_date, 1 year)
+| DROP sum
+| DROP last_name
+| eval year = 12
+| LIMIT 4
+;
+
+year:integer
+12
+12
+12
+12
+;

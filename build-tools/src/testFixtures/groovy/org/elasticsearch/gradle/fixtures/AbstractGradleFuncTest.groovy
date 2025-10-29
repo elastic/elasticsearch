@@ -211,10 +211,10 @@ abstract class AbstractGradleFuncTest extends Specification {
         """
     }
 
-    String execute(String command, File workingDir = testProjectDir.root) {
+    String execute(String command, File workingDir = testProjectDir.root, boolean ignoreFailure = false) {
         def proc = command.execute(Collections.emptyList(), workingDir)
         proc.waitFor()
-        if (proc.exitValue()) {
+        if (proc.exitValue() && ignoreFailure == false) {
             String msg = """Error running command ${command}:
                 Sysout: ${proc.inputStream.text}
                 Syserr: ${proc.errorStream.text}

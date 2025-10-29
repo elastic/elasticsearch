@@ -76,7 +76,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -442,15 +441,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(
-            "vector",
-            queryVector,
-            10,
-            10,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null,
-            null
-        );
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 10, 10, 10f, null, null);
 
         // user1 has access to vector field, so the query should match with the document:
         assertResponse(
@@ -484,15 +475,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             }
         );
         // user1 can access field1, so the filtered query should match with the document:
-        KnnVectorQueryBuilder filterQuery1 = new KnnVectorQueryBuilder(
-            "vector",
-            queryVector,
-            10,
-            10,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null,
-            null
-        ).addFilterQuery(QueryBuilders.matchQuery("field1", "value1"));
+        KnnVectorQueryBuilder filterQuery1 = new KnnVectorQueryBuilder("vector", queryVector, 10, 10, 10f, null, null).addFilterQuery(
+            QueryBuilders.matchQuery("field1", "value1")
+        );
         assertHitCount(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
@@ -501,15 +486,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         );
 
         // user1 cannot access field2, so the filtered query should not match with the document:
-        KnnVectorQueryBuilder filterQuery2 = new KnnVectorQueryBuilder(
-            "vector",
-            queryVector,
-            10,
-            10,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null,
-            null
-        ).addFilterQuery(QueryBuilders.matchQuery("field2", "value2"));
+        KnnVectorQueryBuilder filterQuery2 = new KnnVectorQueryBuilder("vector", queryVector, 10, 10, 10f, null, null).addFilterQuery(
+            QueryBuilders.matchQuery("field2", "value2")
+        );
         assertHitCount(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
@@ -622,10 +601,10 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         final ShapeQueryBuilder shapeQuery2 = new ShapeQueryBuilder("field", "2").relation(ShapeRelation.WITHIN)
             .indexedShapeIndex("shape_index")
             .indexedShapePath("other");
-        IllegalStateException e;
+        IllegalArgumentException e;
         if (randomBoolean()) {
             e = expectThrows(
-                IllegalStateException.class,
+                IllegalArgumentException.class,
                 () -> client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
                     .prepareSearch("search_index")
                     .setQuery(QueryBuilders.matchAllQuery())
@@ -634,7 +613,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             );
         } else {
             e = expectThrows(
-                IllegalStateException.class,
+                IllegalArgumentException.class,
                 () -> client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
                     .prepareSearch("search_index")
                     .setQuery(shapeQuery2)

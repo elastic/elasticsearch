@@ -23,7 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
 
@@ -234,7 +234,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
 
     static InferenceAction.Response createResponse() {
         return new InferenceAction.Response(
-            new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) -1 })))
+            new DenseEmbeddingByteResults(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) -1 })))
         );
     }
 }

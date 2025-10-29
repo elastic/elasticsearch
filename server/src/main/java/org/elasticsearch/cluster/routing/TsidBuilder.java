@@ -207,7 +207,6 @@ public class TsidBuilder {
      * @throws IllegalArgumentException if no dimensions have been added
      */
     public MurmurHash3.Hash128 hash() {
-        throwIfEmpty();
         Collections.sort(dimensions);
         murmur3Hasher.reset();
         for (Dimension dim : dimensions) {

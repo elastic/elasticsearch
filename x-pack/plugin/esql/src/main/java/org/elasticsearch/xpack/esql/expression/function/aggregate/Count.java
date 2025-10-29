@@ -144,7 +144,13 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(
+            field(),
+            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types or dense_vector"
+        );
     }
 
     @Override

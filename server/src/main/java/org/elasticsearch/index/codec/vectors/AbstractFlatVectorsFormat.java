@@ -11,26 +11,16 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
-import org.elasticsearch.core.SuppressForbidden;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 public abstract class AbstractFlatVectorsFormat extends FlatVectorsFormat {
 
-    public static final boolean USE_DIRECT_IO = getUseDirectIO();
-
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
-    private static boolean getUseDirectIO() {
-        return Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "false"));
-    }
-
     protected AbstractFlatVectorsFormat(String name) {
         super(name);
     }
 
-    protected abstract FlatVectorsScorer flatVectorsScorer();
+    public abstract FlatVectorsScorer flatVectorsScorer();
 
     @Override
     public int getMaxDimensions(String fieldName) {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -30,12 +29,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<
     SparseVectorQueryBuilder> {
+
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
+
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         List<Plugin> plugins = new ArrayList<>(super.getPlugins());
@@ -56,6 +59,14 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
     }
 
     @Override
+    protected InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> createInterceptedQueryBuilder(
+        SparseVectorQueryBuilder originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        return new InterceptedInferenceSparseVectorQueryBuilder(originalQuery, inferenceResultsMap);
+    }
+
+    @Override
     protected QueryRewriteInterceptor createQueryRewriteInterceptor() {
         return new SemanticSparseVectorQueryRewriteInterceptor();
     }
@@ -73,7 +84,7 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         QueryRewriteContext queryRewriteContext
     ) {
         assertThat(original, instanceOf(SparseVectorQueryBuilder.class));
-        if (transportVersion.onOrAfter(TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+        if (transportVersion.supports(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
             assertThat(rewritten, instanceOf(InterceptedInferenceSparseVectorQueryBuilder.class));
 
             InterceptedInferenceSparseVectorQueryBuilder intercepted = (InterceptedInferenceSparseVectorQueryBuilder) rewritten;
@@ -121,7 +132,8 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
             Map.of(testIndex1.name(), testIndex1.semanticTextFields(), testIndex2.name(), testIndex2.semanticTextFields()),
             Map.of(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
         QueryBuilder coordinatorRewritten = rewriteAndFetch(sparseVectorQuery, queryRewriteContext);
 
@@ -134,7 +146,9 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         assertThat(coordinatorIntercepted.inferenceResultsMap, notNullValue());
         assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(1));
 
-        InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(SPARSE_INFERENCE_ID);
+        InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(
+            new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, SPARSE_INFERENCE_ID)
+        );
         assertThat(inferenceResults, notNullValue());
         assertThat(inferenceResults, instanceOf(TextExpansionResults.class));
         TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;

@@ -28,10 +28,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseDenseNumericValues;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseSortedDocValues;
@@ -59,12 +62,13 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
-    private final Codec codec = new Elasticsearch900Lucene101Codec() {
+    private final Codec codec = new Elasticsearch92Lucene103Codec() {
 
         final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
@@ -1166,7 +1170,19 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         var config = new IndexWriterConfig();
         config.setIndexSort(new Sort(new SortField(primaryField, SortField.Type.STRING, false)));
         config.setMergePolicy(new LogByteSizeMergePolicy());
-        config.setCodec(getCodec());
+        final Codec codec = new Elasticsearch92Lucene103Codec() {
+            final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+                ESTestCase.randomIntBetween(2, 4096),
+                1, // always enable range-encode
+                random().nextBoolean()
+            );
+
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return docValuesFormat;
+            }
+        };
+        config.setCodec(codec);
         Map<Integer, String> hostnames = new HashMap<>();
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
             int numDocs = ESTestCase.randomIntBetween(100, 5000);
@@ -1274,20 +1290,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                         return docId;
                                     }
                                 }, start);
-                                Set<String> seenValues = new HashSet<>();
-                                for (int p = start; p <= end; p++) {
-                                    String hostName = hostnames.get(((Number) idBlock.get(p)).intValue());
-                                    seenValues.add(hostName);
-                                }
-                                if (seenValues.size() == 1) {
-                                    assertNotNull(hostBlock);
-                                    assertThat(hostBlock.size(), equalTo(end - start + 1));
-                                    for (int i = 0; i < hostBlock.size(); i++) {
-                                        String actualHostName = BytesRefs.toString(hostBlock.get(i));
-                                        assertThat(actualHostName, equalTo(hostnames.get(((Number) idBlock.get(i + start)).intValue())));
-                                    }
-                                } else {
-                                    assertNull(hostBlock);
+                                assertNotNull(hostBlock);
+                                assertThat(hostBlock.size(), equalTo(end - start + 1));
+                                for (int i = 0; i < hostBlock.size(); i++) {
+                                    String actualHostName = BytesRefs.toString(hostBlock.get(i));
+                                    assertThat(actualHostName, equalTo(hostnames.get(((Number) idBlock.get(i + start)).intValue())));
                                 }
                                 if (start == idBlock.size() - 1) {
                                     break;
@@ -1297,6 +1304,79 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         }
                         writer.forceMerge(1);
                     }
+                }
+            }
+        }
+    }
+
+    public void testEncodeRangeWithSortedSetPrimarySortField() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, true, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+
+            int numDocs = 512 + random().nextInt(512);
+            int numHosts = numDocs / 20;
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                int batchIndex = i / numHosts;
+                {
+                    String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    d.add(new SortedSetDocValuesField(hostnameField, new BytesRef(hostName)));
+                }
+                {
+                    String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex + 1);
+                    d.add(new SortedSetDocValuesField(hostnameField, new BytesRef(hostName)));
+                }
+                // Index sorting doesn't work with NumericDocValuesField:
+                long timestamp = baseTimestamp + (1000L * i);
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var hostNameDV = leaf.getSortedSetDocValues(hostnameField);
+                assertNotNull(hostNameDV);
+                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
+                assertNotNull(timestampDV);
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals(i, hostNameDV.nextDoc());
+
+                    int batchIndex = i / numHosts;
+                    assertEquals(2, hostNameDV.docValueCount());
+
+                    long firstOrd = hostNameDV.nextOrd();
+                    assertEquals(batchIndex, firstOrd);
+                    String expectedFirstHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    String actualFirstHostName = hostNameDV.lookupOrd(firstOrd).utf8ToString();
+                    assertEquals(expectedFirstHostName, actualFirstHostName);
+
+                    batchIndex++;
+                    long secondOrd = hostNameDV.nextOrd();
+                    assertEquals(batchIndex, secondOrd);
+                    String expectedSecondHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    String actualSecondHostName = hostNameDV.lookupOrd(secondOrd).utf8ToString();
+                    assertEquals(expectedSecondHostName, actualSecondHostName);
+
+                    assertEquals(i, timestampDV.nextDoc());
+                    long timestamp = timestampDV.longValue();
+                    long lowerBound = baseTimestamp;
+                    long upperBound = baseTimestamp + (1000L * numDocs);
+                    assertTrue(
+                        "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
+                        timestamp >= lowerBound && timestamp < upperBound
+                    );
                 }
             }
         }
@@ -1314,12 +1394,144 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         return (BaseSortedDocValues) sortedDocValues;
     }
 
+    public void testDocIDEndRun() throws IOException {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            long counter1 = 0;
+
+            long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
+
+            // IndexedDISI stores ids in blocks of 4096. To test sparse end runs, we want a mixture of
+            // dense and sparse blocks, so we need the gap frequency to be larger than
+            // this value, but smaller than two blocks, and to index at least three blocks
+            int gap_frequency = 4500 + random().nextInt(2048);
+            int numDocs = 10000 + random().nextInt(10000);
+            int numHosts = numDocs / 20;
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+
+                int batchIndex = i / numHosts;
+                String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                long timestamp = baseTimestamp + (1000L * i);
+
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
+                d.add(new NumericDocValuesField("counter", counter1++));
+                if (i % gap_frequency != 0) {
+                    d.add(new NumericDocValuesField("sparse_counter", counter1));
+                }
+
+                int numGauge2 = 1 + random().nextInt(8);
+                for (int j = 0; j < numGauge2; j++) {
+                    d.add(new SortedNumericDocValuesField("gauge", gauge2Values[(i + j) % gauge2Values.length]));
+                    if (i % gap_frequency != 0) {
+                        d.add(new SortedNumericDocValuesField("sparse_gauge", gauge2Values[(i + j) % gauge2Values.length]));
+                    }
+                }
+
+                d.add(new SortedDocValuesField("tag", new BytesRef(randomFrom(tags))));
+                if (i % gap_frequency != 0) {
+                    d.add(new SortedDocValuesField("sparse_tag", new BytesRef(randomFrom(tags))));
+                }
+
+                int numTags = 1 + random().nextInt(8);
+                for (int j = 0; j < numTags; j++) {
+                    d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[(i + j) % tags.length])));
+                    if (i % gap_frequency != 0) {
+                        d.add(new SortedSetDocValuesField("sparse_tags", new BytesRef(tags[(i + j) % tags.length])));
+                    }
+                }
+
+                d.add(new BinaryDocValuesField("tags_as_bytes", new BytesRef(tags[i % tags.length])));
+                if (i % gap_frequency != 0) {
+                    d.add(new BinaryDocValuesField("sparse_tags_as_bytes", new BytesRef(tags[i % tags.length])));
+                }
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var hostNameDV = leaf.getSortedDocValues(hostnameField);
+                assertNotNull(hostNameDV);
+                validateRunEnd(hostNameDV);
+                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
+                assertNotNull(timestampDV);
+                validateRunEnd(timestampDV);
+                var counterOneDV = leaf.getNumericDocValues("counter");
+                assertNotNull(counterOneDV);
+                validateRunEnd(counterOneDV);
+                var sparseCounter = leaf.getNumericDocValues("sparse_counter");
+                assertNotNull(sparseCounter);
+                validateRunEnd(sparseCounter);
+                var gaugeOneDV = leaf.getSortedNumericDocValues("gauge");
+                assertNotNull(gaugeOneDV);
+                validateRunEnd(gaugeOneDV);
+                var sparseGaugeDV = leaf.getSortedNumericDocValues("sparse_gauge");
+                assertNotNull(sparseGaugeDV);
+                validateRunEnd(sparseGaugeDV);
+                var tagDV = leaf.getSortedDocValues("tag");
+                assertNotNull(tagDV);
+                validateRunEnd(tagDV);
+                var sparseTagDV = leaf.getSortedDocValues("sparse_tag");
+                assertNotNull(sparseTagDV);
+                validateRunEnd(sparseTagDV);
+                var tagsDV = leaf.getSortedSetDocValues("tags");
+                assertNotNull(tagsDV);
+                validateRunEnd(tagsDV);
+                var sparseTagsDV = leaf.getSortedSetDocValues("sparse_tags");
+                assertNotNull(sparseTagsDV);
+                validateRunEnd(sparseTagsDV);
+                var tagBytesDV = leaf.getBinaryDocValues("tags_as_bytes");
+                assertNotNull(tagBytesDV);
+                validateRunEnd(tagBytesDV);
+                var sparseTagBytesDV = leaf.getBinaryDocValues("sparse_tags_as_bytes");
+                assertNotNull(sparseTagBytesDV);
+                validateRunEnd(sparseTagBytesDV);
+            }
+        }
+    }
+
+    private void validateRunEnd(DocIdSetIterator iterator) throws IOException {
+        int runCount = 0;
+        while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            int runLength = iterator.docIDRunEnd() - iterator.docID() - 1;
+            if (runLength > 1) {
+                runCount++;
+                for (int i = 0; i < runLength; i++) {
+                    int expected = iterator.docID() + 1;
+                    assertEquals(expected, iterator.advance(expected));
+                }
+            }
+        }
+        assertTrue("Expected docid runs of greater than 1", runCount > 0);
+    }
+
     private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {
+        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField);
+    }
+
+    private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, boolean multiValued, String timestampField) {
         var config = new IndexWriterConfig();
         if (hostnameField != null) {
             config.setIndexSort(
                 new Sort(
-                    new SortField(hostnameField, SortField.Type.STRING, false),
+                    multiValued ? new SortedSetSortField(hostnameField, false) : new SortField(hostnameField, SortField.Type.STRING, false),
                     new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
                 )
             );

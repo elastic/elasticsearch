@@ -243,9 +243,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return createIndicator(
             finalStatus,
             symptomBuilder.toString(),
-            verbose
-                ? buildDetails(statusResults.stream().map(StatusResult::result).toList())
-                : HealthIndicatorDetails.EMPTY,
+            verbose ? buildDetails(statusResults.stream().map(StatusResult::result).toList()) : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
             verbose ? List.copyOf(diagnoses) : List.of()
         );

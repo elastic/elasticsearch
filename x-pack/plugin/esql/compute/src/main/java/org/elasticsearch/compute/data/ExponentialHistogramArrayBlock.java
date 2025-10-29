@@ -291,12 +291,12 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        minima.writeTo(out);
-        maxima.writeTo(out);
-        sums.writeTo(out);
-        valueCounts.writeTo(out);
-        zeroThresholds.writeTo(out);
-        encodedHistograms.writeTo(out);
+        Block.writeTypedBlock(minima, out);
+        Block.writeTypedBlock(maxima, out);
+        Block.writeTypedBlock(sums, out);
+        Block.writeTypedBlock(valueCounts, out);
+        Block.writeTypedBlock(zeroThresholds, out);
+        Block.writeTypedBlock(encodedHistograms, out);
     }
 
     public static ExponentialHistogramArrayBlock readFrom(BlockStreamInput in) throws IOException {
@@ -309,12 +309,12 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
 
         boolean success = false;
         try {
-            minima = DoubleBlock.readFrom(in);
-            maxima = DoubleBlock.readFrom(in);
-            sums = DoubleBlock.readFrom(in);
-            valueCounts = LongBlock.readFrom(in);
-            zeroThresholds = DoubleBlock.readFrom(in);
-            encodedHistograms = BytesRefBlock.readFrom(in);
+            minima = (DoubleBlock) Block.readTypedBlock(in);
+            maxima = (DoubleBlock) Block.readTypedBlock(in);
+            sums = (DoubleBlock) Block.readTypedBlock(in);
+            valueCounts = (LongBlock) Block.readTypedBlock(in);
+            zeroThresholds = (DoubleBlock) Block.readTypedBlock(in);
+            encodedHistograms = (BytesRefBlock) Block.readTypedBlock(in);
             success = true;
         } finally {
             if (success == false) {

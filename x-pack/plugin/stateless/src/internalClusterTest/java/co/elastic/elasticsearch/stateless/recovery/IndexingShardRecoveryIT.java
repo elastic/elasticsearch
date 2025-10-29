@@ -88,6 +88,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiConsumer;
 
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
@@ -259,7 +260,14 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
     public void testPeerRecovery() throws Exception {
         startMasterOnlyNode();
-        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+
+        final var indexNodesSettings = Settings.builder()
+            // TODO: consider modifying this test to considers hollow flushes when asserting generation numbers.
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), Boolean.FALSE)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+
+        var indexNode = startIndexNode(indexNodesSettings);
         var indexName = createIndex(randomIntBetween(1, 3), 0);
 
         var currentGeneration = new PrimaryTermAndGeneration(1L, 3L);
@@ -293,7 +301,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
                 expectedGenerationAfterRelocation = currentGeneration.generation() + 1L;
             }
 
-            var newIndexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+            var newIndexNode = startIndexNode(indexNodesSettings);
             logger.info("--> iteration {}/{}: node {} started", i, iters, newIndexNode);
 
             var excludedNode = indexNode;

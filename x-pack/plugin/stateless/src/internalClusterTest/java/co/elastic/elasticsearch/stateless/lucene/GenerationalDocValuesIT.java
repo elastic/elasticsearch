@@ -1155,6 +1155,18 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         indexingShard = findIndexShard(resolveIndex(indexName), 0, newIndexNode);
         indexDirectory = IndexDirectory.unwrapDirectory(indexingShard.store().directory());
 
+        // A generational file is associated to the generation from which it was open from. Therefore, after a relocation the generational
+        // files will be associated at the generation of the last commit.
+        // * In the non-hollow relocation, the source shard does not flush a new commit if there are no new changes. By consequence,
+        // the target node will recover commit 8 (and open generational files on it), and will then flush a new commit
+        // (see the flush in StatelessIndexEventListener#afterIndexShardRecovery()) 9. Therefore, even if we have segments_9,
+        // the generational files will be on generation 8.
+        // * In the hollow relocation, the source shard forces a flush (see IndexEngine#prepareForEngineReset()). Creating commit 9
+        // on the source node (along with copies of the generational files). Therefore, the target node will recovers commit 9,
+        // and because it's a hollow commit, will not flush a new commit. So the indexing node opens the generational files from
+        // the recovered commit 9.
+        long generationalFilesGen = STATELESS_HOLLOW_ENABLED ? 9L : 8L;
+
         filesLocations = Map.ofEntries(
             entry("segments_9", 9L),
             // referenced segment core _0
@@ -1165,16 +1177,20 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             entry("_4.cfe", 8L),
             entry("_4.cfs", 8L),
             entry("_4.si", 8L),
-            entry("_0_1.fnm", 8L),
-            entry("_0_1_Lucene90_0.dvd", 8L),
-            entry("_0_1_Lucene90_0.dvm", 8L)
+            entry("_0_1.fnm", generationalFilesGen),
+            entry("_0_1_Lucene90_0.dvd", generationalFilesGen),
+            entry("_0_1_Lucene90_0.dvm", generationalFilesGen)
         );
 
         assertThat(getShardGeneration.apply(indexingShard), equalTo(9L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
-        // the new indexing shard opens the generational files on the generation 8L (flush before relocation)
-        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 8L));
+        if (STATELESS_HOLLOW_ENABLED) {
+            assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of());
+        } else {
+            // the new indexing shard opens the generational files on the generation 8L (flush before relocation)
+            assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 8L));
+        }
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
 
         var blobContainerAfter = indexDirectory.getBlobStoreCacheDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
@@ -1227,23 +1243,42 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         forceMerge = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(true).get();
         assertThat(forceMerge.getSuccessfulShards(), equalTo(2));
 
+        long generationAfterForceMerge;
+        String segmentAfterForceMerge;
+
+        if (STATELESS_HOLLOW_ENABLED) {
+            // When hollow is enabled, forceMerge will trigger first an un-hollowing which will flush gen 10 (segment_a),
+            // before performing the force merge that will create gen 11 (segment_b).
+            generationAfterForceMerge = 11L;
+            segmentAfterForceMerge = "segments_b";
+        } else {
+            // If hollow is disable, forceMerge will create only gen 10 (segment_a)
+            generationAfterForceMerge = 10L;
+            segmentAfterForceMerge = "segments_a";
+        }
+
         filesLocations = Map.ofEntries(
-            entry("segments_a", 10L),
+            entry(segmentAfterForceMerge, generationAfterForceMerge),
             // referenced segment core _5
-            entry("_5.cfe", 10L),
-            entry("_5.cfs", 10L),
-            entry("_5.si", 10L)
+            entry("_5.cfe", generationAfterForceMerge),
+            entry("_5.cfs", generationAfterForceMerge),
+            entry("_5.si", generationAfterForceMerge)
         );
 
-        assertThat(getShardGeneration.apply(indexingShard), equalTo(10L));
+        assertThat(getShardGeneration.apply(indexingShard), equalTo(generationAfterForceMerge));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
         assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of());
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
 
         assertBusyOpenedGenerationalFiles(searchDirectory, Map.of());
-        assertBusyRefreshedGeneration(searchEngine, equalTo(10L));
-        assertBusy(() -> assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(new PrimaryTermAndGeneration(1L, 10L))));
+        assertBusyRefreshedGeneration(searchEngine, equalTo(generationAfterForceMerge));
+        assertBusy(
+            () -> assertThat(
+                searchEngine.getAcquiredPrimaryTermAndGenerations(),
+                contains(new PrimaryTermAndGeneration(1L, generationAfterForceMerge))
+            )
+        );
         assertBusyFilesLocations(searchDirectory, filesLocations);
 
         assertHitCount(client().prepareSearch(indexName).setSize(0), docsAfterSegment_3);

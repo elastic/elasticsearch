@@ -127,6 +127,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
@@ -837,12 +838,15 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testBackgroundMergeCommitAfterRelocationHasStartedDoesNotSendANewCommitNotification() throws Exception {
+
         var nodeSettings = Settings.builder()
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 12)
             // Ensure that merges are flushed immediately
             .put(SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.ZERO)
             // Disable background flushes
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            // Disable hollowing as the test force merges the shard directly without a client to unhollow
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), Boolean.FALSE)
             .build();
         var indexNode1 = startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);

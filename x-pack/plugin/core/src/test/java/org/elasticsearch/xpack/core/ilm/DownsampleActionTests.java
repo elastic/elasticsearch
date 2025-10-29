@@ -328,11 +328,10 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     }
 
     public static DownsampleConfig.SamplingMethod randomSamplingMethod() {
-        return switch (between(0, 2)) {
-            case 0 -> null;
-            case 1 -> DownsampleConfig.SamplingMethod.AGGREGATE;
-            case 2 -> DownsampleConfig.SamplingMethod.LAST_VALUE;
-            default -> throw new IllegalArgumentException("Unknown randomisation branch");
-        };
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
     }
 }

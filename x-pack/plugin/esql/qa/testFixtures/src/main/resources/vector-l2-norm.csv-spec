@@ -142,3 +142,75 @@ green      | 334.77117919921875
 maroon     | 334.77117919921875
 olive      | 313.31072998046875
 ;
+
+l2NormWithLookupJoin
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval s = v_l2_norm(rgb_vector, [1, 2, 3])
+| lookup join colors_cmyk on id
+| keep color, s, cmyk_vector
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double           | cmyk_vector:dense_vector
+white      | 438.2111511230469  | [0.0, 0.0, 0.0, 0.0]
+snow       | 432.468505859375   | [0.0, 2.0, 2.0, 0.0]
+ivory      | 429.7604064941406  | [0.0, 0.0, 6.0, 0.0]
+azure      | 429.6905822753906  | [6.0, 0.0, 0.0, 0.0]
+mint cream | 429.59747314453125 | [4.0, 0.0, 2.0, 0.0]
+sea shell  | 422.8356628417969  | [0.0, 4.0, 7.0, 0.0]
+honeydew   | 421.0688781738281  | [6.0, 0.0, 6.0, 0.0]
+old lace   | 417.2313537597656  | [0.0, 3.0, 9.0, 1.0]
+corn silk  | 414.87469482421875 | [0.0, 3.0, 14.0, 0.0]
+linen      | 412.5215148925781  | [0.0, 4.0, 8.0, 2.0]
+;
+
+l2NormWithLookupJoinOnJoinedField
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| lookup join colors_cmyk on id
+| eval s = v_l2_norm(cmyk_vector, [1, 2, 3, 4])
+| keep color, s
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double
+navy       | 146.73104858398438
+green      | 146.04794311523438
+maroon     | 145.3616180419922
+blue       | 139.39154052734375
+lime       | 138.67227172851562
+red        | 137.9492645263672
+indigo     | 115.40797424316406
+firebrick  | 114.02631378173828
+crimson    | 113.67497253417969
+teal       | 109.22454071044922
+;
+
+l2NormWithEnrich
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval s = v_l2_norm(rgb_vector, [1, 2, 3])
+| enrich colors_policy
+| keep color_name, s
+| sort s desc, color_name asc
+| limit 10
+;
+
+color_name:text | s:double
+white           | 438.2111511230469
+snow            | 432.468505859375
+ivory           | 429.7604064941406
+azure           | 429.6905822753906
+mint cream      | 429.59747314453125
+sea shell       | 422.8356628417969
+honeydew        | 421.0688781738281
+old lace        | 417.2313537597656
+corn silk       | 414.87469482421875
+linen           | 412.5215148925781
+;

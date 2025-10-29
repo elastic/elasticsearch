@@ -1,5 +1,8 @@
 {
   "properties": {
+    "id": {
+      "type": "integer"
+    },
     "color": {
       "type": "text"
     },

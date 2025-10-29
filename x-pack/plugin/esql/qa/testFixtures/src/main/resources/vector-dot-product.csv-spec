@@ -142,3 +142,75 @@ lavender   | 122401.0
 old lace   | 122146.0
 linen      | 121126.0
 ;
+
+dotProductWithLookupJoin
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval s = v_dot_product(rgb_vector, [1, 2, 3])
+| lookup join colors_cmyk on id
+| keep color, s, cmyk_vector
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double | cmyk_vector:dense_vector
+white      | 1530.0   | [0.0, 0.0, 0.0, 0.0]
+azure      | 1515.0   | [6.0, 0.0, 0.0, 0.0]
+mint cream | 1505.0   | [4.0, 0.0, 2.0, 0.0]
+snow       | 1505.0   | [0.0, 2.0, 2.0, 0.0]
+ivory      | 1485.0   | [0.0, 0.0, 6.0, 0.0]
+honeydew   | 1470.0   | [6.0, 0.0, 6.0, 0.0]
+sea shell  | 1459.0   | [0.0, 4.0, 7.0, 0.0]
+lavender   | 1440.0   | [8.0, 8.0, 0.0, 2.0]
+old lace   | 1433.0   | [0.0, 3.0, 9.0, 1.0]
+linen      | 1420.0   | [0.0, 4.0, 8.0, 2.0]
+;
+
+dotProductWithLookupJoinOnJoinedField
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| lookup join colors_cmyk on id
+| eval s = v_dot_product(cmyk_vector, [1, 2, 3, 4])
+| keep color, s
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double
+maroon     | 700.0
+green      | 600.0
+firebrick  | 525.0
+brown      | 515.0
+navy       | 500.0
+olive      | 500.0
+red        | 500.0
+sienna     | 462.0
+crimson    | 457.0
+indigo     | 438.0
+;
+
+dotProductWithEnrich
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval s = v_dot_product(rgb_vector, [1, 2, 3])
+| enrich colors_policy
+| keep color_name, s
+| sort s desc, color_name asc
+| limit 10
+;
+
+color_name:text | s:double
+white           | 1530.0
+azure           | 1515.0
+mint cream      | 1505.0
+snow            | 1505.0
+ivory           | 1485.0
+honeydew        | 1470.0
+sea shell       | 1459.0
+lavender        | 1440.0
+old lace        | 1433.0
+linen           | 1420.0
+;

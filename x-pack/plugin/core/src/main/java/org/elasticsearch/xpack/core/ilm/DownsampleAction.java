@@ -125,7 +125,7 @@ public class DownsampleAction implements LifecycleAction {
                 ? TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName())
                 : DEFAULT_WAIT_TIMEOUT,
             in.getTransportVersion().supports(ILM_FORCE_MERGE_IN_DOWNSAMPLING) ? in.readOptionalBoolean() : null,
-            in.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_ILM)
+            in.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_ILM)
                 ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
                 : null
         );
@@ -142,7 +142,7 @@ public class DownsampleAction implements LifecycleAction {
         if (out.getTransportVersion().supports(ILM_FORCE_MERGE_IN_DOWNSAMPLING)) {
             out.writeOptionalBoolean(forceMergeIndex);
         }
-        if (out.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_ILM)) {
+        if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_ILM)) {
             out.writeOptionalWriteable(samplingMethod);
         }
     }

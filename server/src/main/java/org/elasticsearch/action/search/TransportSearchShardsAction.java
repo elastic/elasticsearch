@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -60,6 +61,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
     public TransportSearchShardsAction(
@@ -70,7 +72,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(
             TYPE.name(),
@@ -88,6 +91,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.threadPool = transportService.getThreadPool();
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     @Override
@@ -176,7 +180,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         (SearchTask) task,
                         false,
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                        null // do not record a phase duration for can_match in search_shards
+                        searchResponseMetrics
                     )
                         .addListener(
                             delegate.map(

@@ -83,7 +83,7 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
             client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        assertMeasurements(List.of(QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC));
+        assertMeasurements(List.of(QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC), 1);
         assertNotMeasured(
             List.of(CAN_MATCH_SEARCH_PHASE_METRIC, DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC, OPEN_PIT_SEARCH_PHASE_METRIC)
         );
@@ -94,7 +94,7 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
             client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        assertMeasurements(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC));
+        assertMeasurements(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC), 1);
         assertNotMeasured(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, OPEN_PIT_SEARCH_PHASE_METRIC));
     }
 
@@ -112,8 +112,8 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
                     .setQuery(simpleQueryStringQuery("doc1")),
                 "1"
             );
-            assertMeasurements(List.of(OPEN_PIT_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC));
-            assertNotMeasured(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC));
+            assertMeasurements(List.of(OPEN_PIT_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC), 1);
+            assertNotMeasured(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC));
         } finally {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pointInTimeId)).actionGet();
         }
@@ -134,8 +134,10 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
                     .setQuery(simpleQueryStringQuery("doc1")),
                 "1"
             );
+            assertMeasurements(List.of(OPEN_PIT_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC), 1);
             assertMeasurements(
-                List.of(OPEN_PIT_SEARCH_PHASE_METRIC, CAN_MATCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC)
+                List.of(CAN_MATCH_SEARCH_PHASE_METRIC),
+                2 // one during open PIT, one during can-match phase of search
             );
             assertNotMeasured(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC));
         } finally {
@@ -152,7 +154,7 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
             "1"
         );
 
-        assertMeasurements(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC));
+        assertMeasurements(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC), 1);
         assertNotMeasured(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC, OPEN_PIT_SEARCH_PHASE_METRIC));
     }
 
@@ -167,15 +169,15 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
     private void assertNotMeasured(Collection<String> metricNames) {
         for (var metricName : metricNames) {
             List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(metricName);
-            assertThat(measurements, hasSize(0));
+            assertThat(metricName, measurements, hasSize(0));
         }
     }
 
-    private void assertMeasurements(Collection<String> metricNames) {
+    private void assertMeasurements(Collection<String> metricNames, int numberOfMeasurements) {
         for (var metricName : metricNames) {
             List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(metricName);
-            assertThat(measurements, hasSize(1));
-            assertThat(measurements.getFirst().getLong(), greaterThanOrEqualTo(0L));
+            assertThat(metricName, measurements, hasSize(numberOfMeasurements));
+            assertThat(metricName, measurements.getFirst().getLong(), greaterThanOrEqualTo(0L));
         }
     }
 }

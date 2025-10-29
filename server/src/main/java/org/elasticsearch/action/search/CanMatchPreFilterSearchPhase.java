@@ -93,8 +93,7 @@ final class CanMatchPreFilterSearchPhase {
         SearchTask task,
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-        ActionListener<List<SearchShardIterator>> listener,
-        SearchResponseMetrics searchResponseMetrics
+        ActionListener<List<SearchShardIterator>> listener
     ) {
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -152,13 +151,7 @@ final class CanMatchPreFilterSearchPhase {
         listener.addListener(new ActionListener<>() {
             @Override
             public void onResponse(List<SearchShardIterator> shardsIts) {
-                // we only want to record the phase duration if this call to execute is running on the coordinator node
-                // as part of the can-match phase or a search request. It will be null if this is the data node round trip can-match
-                // execution
-                // or an open PIT request
-                if (searchResponseMetrics != null) {
-                    searchResponseMetrics.recordSearchPhaseDuration(PHASE_NAME, System.nanoTime() - phaseStartTimeInNanos);
-                }
+                searchResponseMetrics.recordSearchPhaseDuration(PHASE_NAME, System.nanoTime() - phaseStartTimeInNanos);
             }
 
             @Override
@@ -193,8 +186,7 @@ final class CanMatchPreFilterSearchPhase {
                     task,
                     requireAtLeastOneMatch,
                     coordinatorRewriteContextProvider,
-                    listener,
-                    searchResponseMetrics
+                    listener
                 ).runCoordinatorRewritePhase();
             }
         });

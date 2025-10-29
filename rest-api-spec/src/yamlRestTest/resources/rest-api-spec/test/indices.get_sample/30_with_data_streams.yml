@@ -285,4 +285,4 @@ teardown:
 
   - do:
       indices.get_all_sample_configuration: {}
-  - length: { $body: 0 }
+  - length: { configurations: 0 }

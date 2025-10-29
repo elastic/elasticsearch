@@ -122,7 +122,7 @@ public final class Ascii extends UnaryScalarFunction {
                 case '\t' -> "\\\\t";
                 case '\b' -> "\\\\b";
                 case '\f' -> "\\\\f";
-                case '\\' -> "\\\\\\";
+                case '\\' -> "\\\\\\\\";
                 case '\'' -> "\\\\'";
                 case '\"' -> "\\\\\"";
                 default -> null;

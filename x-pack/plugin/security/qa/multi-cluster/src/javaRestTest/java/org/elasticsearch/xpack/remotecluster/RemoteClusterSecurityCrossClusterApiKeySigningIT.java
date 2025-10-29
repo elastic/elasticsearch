@@ -350,7 +350,7 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
         return client().performRequest(request);
     }
 
-    private String extractJsonValue(String jsonLine, String fieldName) {
+    private String extractAuditLogTimestamp(String jsonLine, String fieldName) {
         Map<String, Object> jsonMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), jsonLine, false);
         Object value = jsonMap.get(fieldName);
         if (value == null) {
@@ -382,7 +382,7 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
                         .filter(line -> line.contains("request.name"))
                         .anyMatch(line -> {
                             try {
-                                String tsString = extractJsonValue(line, "timestamp");
+                                String tsString = extractAuditLogTimestamp(line, "timestamp");
                                 long logTimeMillis = parseLogTimestamp(tsString);
 
                                 // Make sure log occurred after the test had started

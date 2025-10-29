@@ -149,11 +149,12 @@ silver     | 1.8164966106414795
 white      | 1.8164966106414795
 ;
 
-dotProductWithLookupJoin
+cosineSimilarityWithLookupJoin
 required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
 
 from colors
-| eval s = v_dot_product(rgb_vector, [1, 2, 3])
+| eval s = v_cosine(rgb_vector, [1, 2, 3])
 | lookup join colors_cmyk on id
 | keep color, s, cmyk_vector
 | sort s desc, color asc
@@ -173,12 +174,13 @@ old lace   | 1433.0   | [0.0, 3.0, 9.0, 1.0]
 linen      | 1420.0   | [0.0, 4.0, 8.0, 2.0]
 ;
 
-dotProductWithLookupJoinOnJoinedField
+cosineSimilarityWithLookupJoinOnJoinedField
 required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
 
 from colors
 | lookup join colors_cmyk on id
-| eval s = v_dot_product(cmyk_vector, [1, 2, 3, 4])
+| eval s = v_cosine(cmyk_vector, [1, 2, 3, 4])
 | keep color, s
 | sort s desc, color asc
 | limit 10
@@ -197,11 +199,12 @@ crimson    | 457.0
 indigo     | 438.0
 ;
 
-dotProductWithEnrich
+cosineSimilarityWithEnrich
 required_capability: vector_similarity_functions_pushdown
+required_capability: enrich_load
 
 from colors
-| eval s = v_dot_product(rgb_vector, [1, 2, 3])
+| eval s = v_cosine(rgb_vector, [1, 2, 3])
 | enrich colors_policy
 | keep color_name, s
 | sort s desc, color_name asc

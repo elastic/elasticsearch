@@ -145,6 +145,7 @@ yellow     | 511.0
 
 l1NormWithLookupJoin
 required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
 
 from colors
 | eval s = v_l1_norm(rgb_vector, [1, 2, 3])
@@ -169,6 +170,7 @@ linen      | 714.0    | [0.0, 4.0, 8.0, 2.0]
 
 l1NormWithLookupJoinOnJoinedField
 required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
 
 from colors
 | lookup join colors_cmyk on id
@@ -193,6 +195,7 @@ crimson    | 170.0
 
 l1NormWithEnrich
 required_capability: vector_similarity_functions_pushdown
+required_capability: enrich_load
 
 from colors
 | eval s = v_l1_norm(rgb_vector, [1, 2, 3])

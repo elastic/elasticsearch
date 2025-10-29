@@ -145,6 +145,7 @@ indigo     | 16.0
 
 hammingWithLookupJoin
 required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
 
 from colors
 | eval s = v_hamming(rgb_byte_vector, [1, 2, 3])
@@ -169,6 +170,7 @@ gainsboro   | 16.0     | [0.0, 0.0, 0.0, 14.0]
 
 hammingWithLookupJoinOnJoinedField
 required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
 
 from colors
 | lookup join colors_cmyk on id
@@ -193,6 +195,7 @@ lime       | 11.0
 
 hammingWithEnrich
 required_capability: vector_similarity_functions_pushdown
+required_capability: enrich_load
 
 from colors
 | eval s = v_hamming(rgb_byte_vector, [1, 2, 3])

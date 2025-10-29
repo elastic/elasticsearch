@@ -145,6 +145,7 @@ olive      | 313.31072998046875
 
 l2NormWithLookupJoin
 required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
 
 from colors
 | eval s = v_l2_norm(rgb_vector, [1, 2, 3])
@@ -169,6 +170,7 @@ linen      | 412.5215148925781  | [0.0, 4.0, 8.0, 2.0]
 
 l2NormWithLookupJoinOnJoinedField
 required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
 
 from colors
 | lookup join colors_cmyk on id
@@ -193,6 +195,7 @@ teal       | 109.22454071044922
 
 l2NormWithEnrich
 required_capability: vector_similarity_functions_pushdown
+required_capability: enrich_load
 
 from colors
 | eval s = v_l2_norm(rgb_vector, [1, 2, 3])

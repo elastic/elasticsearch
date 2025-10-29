@@ -101,28 +101,12 @@ public final class Ascii extends UnaryScalarFunction {
     static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef val) {
         UnicodeUtil.UTF8CodePoint codePoint = new UnicodeUtil.UTF8CodePoint();
 
-        int finalSize = 0;
-
-        /* A first iteration determines the total grow size. This is used to grow the scratch array
-            just once which guarantees O(n) as worst case time complexity for the appending operation.
-         */
-        int offset = val.offset;
-        while (offset < val.offset + val.length) {
-            codePoint = UnicodeUtil.codePointAt(val.bytes, offset, codePoint);
-
-            BytesRef input = new BytesRef(val.bytes, offset, codePoint.numBytes);
-            var maybeEscaped = escapeCodePoint(codePoint);
-
-            finalSize += maybeEscaped.orElse(input).length;
-
-            offset += codePoint.numBytes;
-        }
-
-        scratch.grow(finalSize);
+        // Pre-reserve at least as much as the input.
+        scratch.grow(val.length);
         scratch.clear();
 
         // The second pass fills in the escaped values
-        offset = val.offset;
+        int offset = val.offset;
         while (offset < val.offset + val.length) {
             codePoint = UnicodeUtil.codePointAt(val.bytes, offset, codePoint);
 

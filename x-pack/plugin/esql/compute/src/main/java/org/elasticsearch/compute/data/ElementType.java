@@ -77,7 +77,7 @@ public enum ElementType {
         ExponentialHistogramArrayBlock::readFrom
     ),
 
-    LONG_RANGE(11, "LongRange", BlockFactory::newLongRangeBlockBuilder, LongRangeArrayBlock::readFrom);
+    LONG_RANGE(12, "LongRange", BlockFactory::newLongRangeBlockBuilder, LongRangeArrayBlock::readFrom);
 
     private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");
 

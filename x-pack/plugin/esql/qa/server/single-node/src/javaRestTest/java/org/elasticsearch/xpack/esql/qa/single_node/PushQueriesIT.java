@@ -181,7 +181,7 @@ public class PushQueriesIT extends ESRestTestCase {
                  * single_value_match is here because there are extra documents hiding in the index
                  * that don't have the `foo` field.
                  */
-                List.of("#FieldExistsQuery [field=foo] #single_value_match(foo)", "foo:[1 TO 1]");
+                List.of("FieldExistsQuery [field=foo]", "foo:[1 TO 1]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;

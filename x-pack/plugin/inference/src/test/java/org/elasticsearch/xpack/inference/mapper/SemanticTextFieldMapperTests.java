@@ -115,7 +115,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FI
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_EIS_ELSER_INFERENCE_ID;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.INDEX_OPTIONS_FIELD;
@@ -686,10 +685,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertSemanticTextField(mapperService, fieldName, true, null, null);
 
         MinimalServiceSettings newModelSettings = MinimalServiceSettings.sparseEmbedding("new_service");
-        givenModelSettings(DEFAULT_ELSER_2_INFERENCE_ID, newModelSettings);
+        givenModelSettings(DEFAULT_EIS_ELSER_INFERENCE_ID, newModelSettings);
         merge(mapperService, mapping(b -> b.startObject(fieldName).field("type", "semantic_text").endObject()));
 
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID);
         assertSemanticTextField(mapperService, fieldName, true, null, null);
         SemanticTextFieldMapper semanticFieldMapper = getSemanticFieldMapper(mapperService, fieldName);
         assertThat(semanticFieldMapper.fieldType().getModelSettings(), equalTo(newModelSettings));
@@ -866,7 +865,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertSemanticTextField(mapperService, fieldName, true, null, null);
 
         MinimalServiceSettings newModelSettings = MinimalServiceSettings.sparseEmbedding("new_service");
-        givenModelSettings(DEFAULT_ELSER_2_INFERENCE_ID, newModelSettings);
+        givenModelSettings(DEFAULT_EIS_ELSER_INFERENCE_ID, newModelSettings);
 
         Exception exc = expectThrows(
             IllegalArgumentException.class,

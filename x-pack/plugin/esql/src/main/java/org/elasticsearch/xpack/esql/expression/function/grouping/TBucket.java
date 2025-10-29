@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -26,13 +26,13 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.IMPLICIT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Splits dates into a given number of buckets. The span is derived from a time range provided.
  */
-public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implements SurrogateExpression {
+public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implements SurrogateExpression, TimestampAware {
     public static final String NAME = "TBucket";
 
     /*
@@ -72,17 +72,9 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
     public TBucket(
         Source source,
         @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets,
+        Expression timestamp,
         Configuration configuration
     ) {
-        this(
-            source,
-            buckets,
-            new UnresolvedTimestamp(source, "TBucket function requires @timestamp field, but @timestamp was renamed or dropped"),
-            configuration
-        );
-    }
-
-    public TBucket(Source source, Expression buckets, Expression timestamp, Configuration configuration) {
         super(source, List.of(buckets, timestamp));
         this.buckets = buckets;
         this.timestamp = timestamp;
@@ -115,7 +107,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
             return new TypeResolution("Unresolved children");
         }
         return isType(buckets, DataType::isTemporalAmount, sourceText(), DEFAULT, "date_period", "time_duration").and(
-            isType(timestamp, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime")
+            isType(timestamp, DataType::isMillisOrNanos, sourceText(), IMPLICIT, "date_nanos or datetime")
         );
     }
 
@@ -134,7 +126,8 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
         return NodeInfo.create(this, TBucket::new, buckets, timestamp, configuration);
     }
 
-    public Expression field() {
+    @Override
+    public Expression timestamp() {
         return timestamp;
     }
 

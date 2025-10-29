@@ -7,25 +7,39 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 
+import java.io.BufferedReader;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Test for checking the overall grammar by throwing a number of valid queries at the parser to see whether any exception is raised.
  * In time, the queries themselves get to be checked against the actual execution model and eventually against the expected results.
  */
+//@TestLogging(reason = "debug", value = "org.elasticsearch.xpack.esql.parser.promql:TRACE")
 public class PromqlAstTests extends ESTestCase {
 
+    private static final Logger log = LogManager.getLogger(PromqlAstTests.class);
+
+    // @AwaitsFix(bugUrl = "going through them, one at a time")
     public void testValidQueries() throws Exception {
-        List<Tuple<String, Integer>> lines = PromqlGrammarTests.readQueries("/promql/grammar/queries-valid.promql");
+        List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-valid.promql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
             try {
@@ -39,37 +53,53 @@ public class PromqlAstTests extends ESTestCase {
         }
     }
 
-    public void testQuery() throws Exception {
-        String query = "rate(metric[5m])";
-        new PromqlParser().createStatement(query);
-    }
-
-    @AwaitsFix(bugUrl = "placeholder for individual queries")
-    public void testSingleQuery() throws Exception {
-        String query = "{x=\".*\"}";
-        new PromqlParser().createStatement(query);
-    }
-
-    // @AwaitsFix(bugUrl = "requires parsing validation, not the focus for now")
     public void testUnsupportedQueries() throws Exception {
-        List<Tuple<String, Integer>> lines = PromqlGrammarTests.readQueries("/promql/grammar/queries-invalid.promql");
+        List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid.promql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
             try {
-                System.out.println("Testing invalid query: " + q);
+                log.trace("Testing invalid query {}", q);
                 PromqlParser parser = new PromqlParser();
                 Exception pe = expectThrowsAnyOf(
                     asList(QlClientException.class, UnsupportedOperationException.class),
                     () -> parser.createStatement(q)
                 );
                 parser.createStatement(q);
-                // System.out.printf(pe.getMessage());
+                log.trace("{}", pe.getMessage());
             } catch (QlClientException | UnsupportedOperationException ex) {
                 // Expected
             }
-            // } catch (AssertionError ae) {
-            // fail(format(null, "Unexpected exception for line {}: [{}] \n {}", line.v2(), line.v1(), ae.getCause()));
-            // }
         }
+    }
+
+    static List<Tuple<String, Integer>> readQueries(String source) throws Exception {
+        var urls = EsqlTestUtils.classpathResources(source);
+        assertThat(urls, not(empty()));
+        List<Tuple<String, Integer>> queries = new ArrayList<>();
+
+        StringBuilder query = new StringBuilder();
+        for (URL url : urls) {
+            try (BufferedReader reader = EsqlTestUtils.reader(url)) {
+                String line;
+                int lineNumber = 1;
+
+                while ((line = reader.readLine()) != null) {
+                    // ignore comments
+                    if (line.isEmpty() == false && line.startsWith("//") == false) {
+                        query.append(line);
+
+                        if (line.endsWith(";")) {
+                            query.setLength(query.length() - 1);
+                            queries.add(new Tuple<>(query.toString(), lineNumber));
+                            query.setLength(0);
+                        } else {
+                            query.append("\n");
+                        }
+                    }
+                    lineNumber++;
+                }
+            }
+        }
+        return queries;
     }
 }

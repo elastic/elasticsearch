@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -261,9 +262,36 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Source source = source(ctx);
         LogicalPlan unary = wrapLiteral(ctx.expression());
 
+        // unary operators do not make sense outside numeric data
+        if (unary instanceof LiteralSelector literalSelector) {
+            Literal literal = literalSelector.literal();
+            Object value = literal.value();
+            DataType dataType = literal.dataType();
+            if (dataType.isNumeric() == false || value instanceof Number == false) {
+                throw new ParsingException(
+                    source,
+                    "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
+                    dataType.typeName()
+                );
+            }
+            // optimize negation in case of literals
+            if (ctx.operator.getType() == MINUS) {
+                Number negatedValue = Arithmetics.negate((Number) value);
+                unary = new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
+            }
+        }
+        // forbid range selectors
+        else if (unary instanceof InstantSelector == false) {
+            throw new ParsingException(
+                source,
+                "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
+                unary.nodeName()
+            );
+        }
+
+        // For non-literals (vectors), rewrite as 0 - expression
         if (ctx.operator.getType() == MINUS) {
-            // TODO: optimize negation of literal
-            LiteralSelector zero = new LiteralSelector(source, Literal.fromDouble(source, 0.0));
+            LiteralSelector zero = new LiteralSelector(source, Literal.integer(source, 0));
             return new VectorBinaryArithmetic(source, zero, unary, VectorMatch.NONE, VectorBinaryArithmetic.ArithmeticOp.SUB);
         }
 
@@ -311,7 +339,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         PromqlBaseParser.ModifierContext modifierCtx = ctx.modifier();
         if (modifierCtx != null) {
             // modifiers work only on vectors
-            if (le instanceof RangeSelector || re instanceof RangeSelector) {
+            if (le instanceof InstantSelector == false || re instanceof InstantSelector == false) {
                 throw new ParsingException(source, "Vector matching allowed only between instant vectors");
             }
 

@@ -12,9 +12,12 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -156,6 +159,21 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
 
         assertMeasurements(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC), 1);
         assertNotMeasured(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC, OPEN_PIT_SEARCH_PHASE_METRIC));
+    }
+
+    public void testSearchShards() {
+        var request = new SearchShardsRequest(
+            new String[] { indexName },
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
+            simpleQueryStringQuery("doc1"),
+            null,
+            null,
+            randomBoolean(),
+            randomBoolean() ? null : randomAlphaOfLength(10)
+        );
+        var resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
+        assertThat(resp.getGroups(), hasSize(num_primaries));
+        assertMeasurements(List.of(CAN_MATCH_SEARCH_PHASE_METRIC), 1);
     }
 
     private void resetMeter() {

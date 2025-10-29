@@ -1971,7 +1971,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         private IndexService indexService;
 
-        private long timeRangeFilterFromMillis;
+        private Long timeRangeFilterFromMillis;
 
         CanMatchContext(
             ShardSearchRequest request,
@@ -2021,8 +2021,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return this.indexService;
         }
 
-        void setTimeRangeFilterFromMillis(long timeRangeFilterFromMillis) {
+        void setTimeRangeFilterFromMillis(Long timeRangeFilterFromMillis) {
             this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+        }
+
+        Long getTimeRangeFilterFromMillis() {
+            return timeRangeFilterFromMillis;
         }
     }
 

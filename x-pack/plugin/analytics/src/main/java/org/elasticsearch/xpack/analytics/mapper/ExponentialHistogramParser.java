@@ -79,8 +79,8 @@ public class ExponentialHistogramParser {
         NEGATIVE_FIELD.getPreferredName()
     );
 
-    public static boolean isExponentialHistogramFieldName(String fieldName) {
-        return ROOT_FIELD_NAMES.contains(fieldName);
+    public static boolean isExponentialHistogramSubFieldName(String subFieldName) {
+        return ROOT_FIELD_NAMES.contains(subFieldName);
     }
 
     /**

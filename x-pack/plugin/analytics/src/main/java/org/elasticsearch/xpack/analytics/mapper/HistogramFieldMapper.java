@@ -326,7 +326,7 @@ public class HistogramFieldMapper extends FieldMapper {
             if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
                 && coerce()
                 && subParser.currentToken() == XContentParser.Token.FIELD_NAME
-                && ExponentialHistogramParser.isExponentialHistogramFieldName(subParser.currentName())) {
+                && ExponentialHistogramParser.isExponentialHistogramSubFieldName(subParser.currentName())) {
                 ExponentialHistogramParser.ParsedExponentialHistogram parsedExponential = ExponentialHistogramParser.parse(
                     fullPath(),
                     subParser

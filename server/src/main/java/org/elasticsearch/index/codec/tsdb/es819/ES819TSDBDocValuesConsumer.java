@@ -350,7 +350,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 assert maxLength >= minLength;
                 if (binaryDVCompressionMode == BinaryDVCompressionMode.NO_COMPRESS) {
                     var offsetsAccumulator = maxLength > minLength ? new OffsetsAccumulator(dir, context, data, numDocsWithField) : null;
-                    binaryWriter = new DirectBinaryWriter(offsetsAccumulator,  null);
+                    binaryWriter = new DirectBinaryWriter(offsetsAccumulator, null);
                 } else {
                     binaryWriter = new CompressedBinaryBlockWriter(binaryDVCompressionMode);
                 }

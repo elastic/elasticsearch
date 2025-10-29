@@ -445,12 +445,8 @@ If you want to avoid unnecessary inference and keep existing embeddings:
 For indices containing `semantic_text` fields, updates that use scripts have the
 following behavior:
 
-* Are supported through
-  the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update).
-* Are not supported through
-  the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1)
-  and will fail. Even if the script targets non-`semantic_text` fields, the
-  update will fail when the index contains a `semantic_text` field.
+- ✅ **Supported:** [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update)
+- ❌ **Not supported:** [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1). Scripted updates will fail even if the script targets non-`semantic_text` fields.
 
 ## Returning semantic field embeddings in `_source`
 

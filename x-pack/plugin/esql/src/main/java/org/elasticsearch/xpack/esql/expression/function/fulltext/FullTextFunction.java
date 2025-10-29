@@ -15,7 +15,6 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
@@ -211,8 +210,7 @@ public abstract class FullTextFunction extends Function
                     failures.add(
                         fail(
                             ftf,
-                            "[{}] {} is only supported in WHERE and STATS commands"
-                                + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : ""),
+                            "[{}] {} is only supported in WHERE and STATS commands or in EVAL within score(.) function",
                             ftf.functionName(),
                             ftf.functionType()
                         )

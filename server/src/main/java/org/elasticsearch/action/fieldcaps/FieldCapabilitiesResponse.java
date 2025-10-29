@@ -30,13 +30,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest.RESOLVED_FIELDS_CAPS;
+
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
 public class FieldCapabilitiesResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private static final TransportVersion MIN_TRANSPORT_VERSION = TransportVersion.fromName("min_transport_version");
-    private static final TransportVersion RESOLVED_FIELDS_CAPS = TransportVersion.fromName("resolved_fields_caps");
 
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");

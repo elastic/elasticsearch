@@ -86,6 +86,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest.RESOLVED_FIELDS_CAPS;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
@@ -675,7 +676,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
                         ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        // TODO MP maybe with can be auth too and maybe can remain a success if wildcard?
+                        // TODO MP maybe it can be auth error too?
                         null
                     ),
                     expression.remoteExpressions()
@@ -683,6 +684,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
             return expression;
         }).toList();
+
         // The merge method is only called on the primary coordinator for cross-cluster field caps, so we
         // log relevant "5xx" errors that occurred in this 2xx response to ensure they are only logged once.
         // These failures have already been deduplicated, before this method was called.
@@ -695,14 +697,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         }
 
-        return FieldCapabilitiesResponse.builder()
+        FieldCapabilitiesResponse.Builder responseBuilder = FieldCapabilitiesResponse.builder()
             .withIndices(indices)
-            .withResolvedLocally(new ResolvedIndexExpressions(collect))
-            .withResolvedRemotelyBuilder(resolvedRemotely)
             .withFields(Collections.unmodifiableMap(fields))
             .withFailures(failures)
-            .withMinTransportVersion(minTransportVersion.get())
-            .build();
+            .withMinTransportVersion(minTransportVersion.get());
+        if (request.includeResolvedTo() && minTransportVersion.get().supports(RESOLVED_FIELDS_CAPS)) {
+            // add resolution to response iff includeResolvedTo and all the nodes in the cluster supports it
+            responseBuilder.withResolvedLocally(new ResolvedIndexExpressions(collect)).withResolvedRemotelyBuilder(resolvedRemotely);
+        }
+        return responseBuilder.build();
     }
 
     private static boolean shouldLogException(Exception e) {

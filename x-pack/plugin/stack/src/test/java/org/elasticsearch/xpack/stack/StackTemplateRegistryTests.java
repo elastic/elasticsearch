@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.junit.After;
 import org.junit.Before;
+import org.apache.lucene.util.Constants;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -538,6 +539,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     public void testRegistryIsUpToDate() throws Exception {
+        assumeFalse("This test relies on text files checksum, which is inconsistent between Windows and Linux", Constants.WINDOWS);
         CRC32 crc32 = new CRC32();
         for (IndexTemplateConfig config : StackTemplateRegistry.getComponentTemplateConfigsAsConfigs()) {
             crc32.update(loadTemplate(config.getFileName()));

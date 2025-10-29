@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMu
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -68,6 +70,7 @@ public class MetadataUpdateSettingsService {
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
     private final MasterServiceTaskQueue<UpdateSettingsTask> taskQueue;
+    private final SetOnce<List<IndexNewPolicyProjectMetadataModifier>> indexNewPolicyModifiers = new SetOnce<>();
 
     public MetadataUpdateSettingsService(
         ClusterService clusterService,
@@ -106,6 +109,10 @@ public class MetadataUpdateSettingsService {
             }
             return state;
         });
+    }
+
+    public void setNewPolicyModifiersOnce(final List<IndexNewPolicyProjectMetadataModifier> modifiers) {
+        indexNewPolicyModifiers.set(List.copyOf(modifiers));
     }
 
     private final class UpdateSettingsTask implements ClusterStateTaskListener {
@@ -336,6 +343,9 @@ public class MetadataUpdateSettingsService {
                 }
             }
 
+            // will only modify metadata if index.lifecycle.name changed. therefore changed=true, so no need to update here.
+            callNewPolicyMetadataModifiersIfNeeded(currentProject, metadataBuilder, actualIndices);
+
             final Function<String, Boolean> verifiedReadOnly = indexName -> VERIFIED_READ_ONLY_SETTING.get(
                 currentProject.index(indexName).getSettings()
             );
@@ -512,5 +522,37 @@ public class MetadataUpdateSettingsService {
             }
         }
         return changed;
+    }
+
+    private void callNewPolicyMetadataModifiersIfNeeded(
+        final ProjectMetadata projectMetadata,
+        final ProjectMetadata.Builder projectBuilder,
+        final String[] indices
+    ) {
+        final var modifiers = indexNewPolicyModifiers.get();
+        if (modifiers == null || modifiers.isEmpty()) {
+            return;
+        }
+        for (final String indexName : indices) {
+            final String prevPolicy = projectMetadata.index(indexName).getLifecyclePolicyName();
+            final String newPolicy = projectBuilder.get(indexName).getLifecyclePolicyName();
+            if (Objects.equals(prevPolicy, newPolicy) == false) {
+                for (final var modifier : modifiers) {
+                    try {
+                        modifier.potentiallyModify(projectMetadata, projectBuilder, indexName, newPolicy);
+                    } catch (Exception e) {
+                        logger.warn(
+                            () -> Strings.format(
+                                "Modifying metadata on index policy change failed. index='{}' prev_policy={} new_policy={}",
+                                indexName,
+                                prevPolicy,
+                                newPolicy
+                            ),
+                            e
+                        );
+                    }
+                }
+            }
+        }
     }
 }

@@ -40,22 +40,18 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 public class ChangePolicyForIndexIT extends IlmESRestTestCase {
 
     /**
-     * This test aims to prove that an index will finish the current phase on an
-     * existing definition when the policy is changed for that index, and that
-     * after completing the current phase the new policy will be used for
-     * subsequent phases.
-     *
-     * The test creates two policies, one with a hot phase requiring 1 document
-     * to rollover and a warm phase with an impossible allocation action. The
-     * second policy has a rollover action requiring 1000 document and a warm
-     * phase that moves the index to known nodes that will succeed. An index is
-     * created with the first policy set and the test ensures the policy is in
-     * the rollover step. It then changes the policy for the index to the second
-     * policy. It indexes a single document and checks that the index moves past
-     * the hot phase and through the warm phase (proving the hot phase
-     * definition from the first policy was used) and then checks the allocation
-     * settings from the second policy are set ont he index (proving the second
-     * policy was used for the warm phase)
+     * This test verifies that after changing the lifecycle policy for an index
+     * ILM will have and use the updated phase definition from new policy for the current phase (if compatible).
+     * <p>
+     * The test creates two policies:
+     * - the first with a hot phase requiring 1000 documents to rollover and a warm phase with an impossible allocation action
+     * - the second with a hot phase requiring 1 document to rollover and a warm phase that allocates to known nodes
+     * <p>
+     * An index is created with the first policy and the test ensures it is on the rollover step.
+     * The policy is then changed to the second policy.
+     * A single document is indexed and the test asserts the index advances past the hot phase (using the new
+     * policy’s rollover threshold) and completes the warm phase.
+     * Finally, it checks the allocation settings from the second policy are applied.
      */
     public void testChangePolicyForIndex() throws Exception {
         String indexName = "test-000001";
@@ -66,7 +62,7 @@ public class ChangePolicyForIndexIT extends IlmESRestTestCase {
             new Phase(
                 "hot",
                 TimeValue.ZERO,
-                Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null, null, null))
+                Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L, null, null, null, null, null, null))
             )
         );
         phases1.put(
@@ -84,7 +80,7 @@ public class ChangePolicyForIndexIT extends IlmESRestTestCase {
             new Phase(
                 "hot",
                 TimeValue.ZERO,
-                Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L, null, null, null, null, null, null))
+                Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null, null, null))
             )
         );
         phases2.put(
@@ -167,6 +163,10 @@ public class ChangePolicyForIndexIT extends IlmESRestTestCase {
         assertEquals("test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3", includesAllocation);
     }
 
+    /**
+     * This test verifies that if we update an index lifecycle policy, to a policy where we can't refresh the cached steps (in this case
+     * we remove some steps), that the cached step definition is kept and used for the index until it moves to the next phase.
+     */
     public void testILMHonoursTheCachedPhaseAfterPolicyUpdate() throws Exception {
         String indexName = "test-000001";
         String policyName = "rolloverPolicy";

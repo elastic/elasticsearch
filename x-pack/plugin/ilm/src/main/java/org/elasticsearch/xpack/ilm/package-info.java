@@ -80,10 +80,12 @@
  * defined in the {@link org.elasticsearch.xpack.ilm.PolicyStepsRegistry}.
  * Once all the steps of a policy are executed successfully the policy execution will reach the
  * {@link org.elasticsearch.xpack.core.ilm.TerminalPolicyStep} and any changes made to the policy definition will not have any effect on
- * the already completed policies. Even more, any changes made to the policy HOT phase will have *no* effect on the already in-progress HOT
- * phase executions (the phase JSON representation being cached into the index metadata). However, a policy update to the WARM phase will
- * *have* an effect on the policies that are currently in the HOT execution state as the entire WARM phase will be reloaded from the
- * policy definition when transitioning to the phase.
+ * the already completed policies.
+ * While executing a phase, ILM caches that phase's definition in the index metadata. When a policy is updated,
+ * ILM will attempt to safely refresh the cached definition for indices currently in that phase if the phase's set of
+ * step keys is unchanged (for example, parameter-only changes such as rollover thresholds). If the updated policy
+ * removes/changes steps such that the step keys differ, or the current step no longer exists, ILM does not refresh the
+ * cached phase; instead, the updated policy takes effect on subsequent phase transitions.
  *
  * If a step execution fails, the policy execution state for the index will be moved into the
  * {@link org.elasticsearch.xpack.core.ilm.ErrorStep}.

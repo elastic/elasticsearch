@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNewPolicyProjectMetadataModifier;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -1062,6 +1063,12 @@ class NodeConstruction {
             // Return both
             return Stream.of(componentObjects, componentsFromInjector).flatMap(Collection::stream).toList();
         }).toList();
+
+        final List<IndexNewPolicyProjectMetadataModifier> listeners = pluginComponents.stream()
+            .map(c -> c instanceof IndexNewPolicyProjectMetadataModifier modifier ? modifier : null)
+            .filter(Objects::nonNull)
+            .toList();
+        metadataUpdateSettingsService.setNewPolicyModifiersOnce(listeners);
 
         var terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
             .stream()

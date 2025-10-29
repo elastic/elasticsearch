@@ -61,4 +61,9 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     protected Set<String> responseParams() {
         return Settings.FORMAT_PARAMS;
     }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of("ilm_phase_refresh_on_index_policy_change");
+    }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNewPolicyProjectMetadataModifier;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -45,9 +46,11 @@ import org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStep;
 import org.elasticsearch.xpack.core.ilm.DownsampleStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
+import org.elasticsearch.xpack.core.ilm.PhaseCacheManagement;
 import org.elasticsearch.xpack.core.ilm.ResizeIndexStep;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -82,7 +85,8 @@ public class IndexLifecycleService
         SchedulerEngine.Listener,
         Closeable,
         IndexEventListener,
-        ShutdownAwarePlugin {
+        ShutdownAwarePlugin,
+        IndexNewPolicyProjectMetadataModifier {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
     private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ResizeIndexStep.SHRINK, DownsampleStep.NAME);
     private volatile boolean isMaster = false;
@@ -97,6 +101,9 @@ public class IndexLifecycleService
     private final ThreadPool threadPool;
     private final LongSupplier nowSupplier;
     private final ExecutorService managementExecutor;
+    private final NamedXContentRegistry xContentRegistry;
+    private final Client client;
+    private final XPackLicenseState licenseState;
     /** A reference to the last seen cluster state. If it's not null, we're currently processing a cluster state. */
     private final AtomicReference<ClusterState> lastSeenState = new AtomicReference<>();
 
@@ -121,6 +128,9 @@ public class IndexLifecycleService
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
+        this.xContentRegistry = xContentRegistry;
+        this.client = client;
+        this.licenseState = licenseState;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client, licenseState);
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, ilmHistoryStore, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
@@ -129,6 +139,53 @@ public class IndexLifecycleService
         clusterService.addListener(this);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING, this::updatePollInterval);
+    }
+
+    @Override
+    public void potentiallyModify(
+        final ProjectMetadata currentProject,
+        final ProjectMetadata.Builder builder,
+        final String indexName,
+        final String newLifecyclePolicy
+    ) {
+        if (newLifecyclePolicy == null) {
+            // updating phases for this case is already handled by ILM on cluster state updates.
+            // it'll be a NOP without this `if` anyway since `isIndexPhaseDefinitionUpdatable` will return false.
+            return;
+        }
+        final IndexLifecycleMetadata ilmMetadata = currentProject.custom(IndexLifecycleMetadata.TYPE);
+        if (ilmMetadata == null) {
+            return;
+        }
+        final LifecyclePolicyMetadata policyMetadata = ilmMetadata.getPolicyMetadatas().get(newLifecyclePolicy);
+        if (policyMetadata == null) {
+            return;
+        }
+        final IndexMetadata idxMeta = builder.get(indexName);
+        if (idxMeta == null) {
+            return;
+        }
+
+        if (PhaseCacheManagement.isIndexPhaseDefinitionUpdatable(
+            xContentRegistry,
+            client,
+            idxMeta,
+            policyMetadata.getPolicy(),
+            licenseState
+        )) {
+            try {
+                PhaseCacheManagement.refreshPhaseDefinition(builder, idxMeta, policyMetadata);
+            } catch (Exception e) {
+                logger.warn(
+                    () -> format(
+                        "[%s] unable to refresh phase definition after lifecycle name change to policy [%s]",
+                        indexName,
+                        newLifecyclePolicy
+                    ),
+                    e
+                );
+            }
+        }
     }
 
     public void maybeRunAsyncAction(ProjectState state, IndexMetadata indexMetadata, StepKey nextStepKey) {

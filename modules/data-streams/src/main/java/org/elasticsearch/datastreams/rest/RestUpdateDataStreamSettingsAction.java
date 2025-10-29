@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -57,5 +58,10 @@ public class RestUpdateDataStreamSettingsAction extends BaseRestHandler {
             putDataStreamRequest,
             new RestRefCountedChunkedToXContentListener<>(channel)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of("ilm_phase_refresh_on_index_policy_change");
     }
 }

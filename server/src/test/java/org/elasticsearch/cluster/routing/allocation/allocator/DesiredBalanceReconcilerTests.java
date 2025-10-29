@@ -1408,6 +1408,176 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         );
     }
 
+    public void testShouldLogOnPersistentUndesiredAllocations() {
+
+        final int shardCount = randomIntBetween(5, 8);
+
+        final var allShardsDesiredOnDataNode1 = Maps.<ShardId, ShardAssignment>newMapWithExpectedSize(shardCount);
+        final var allShardsDesiredOnDataNode2 = Maps.<ShardId, ShardAssignment>newMapWithExpectedSize(shardCount);
+
+        final var metadataBuilder = Metadata.builder();
+        final var routingTableBuilder = RoutingTable.builder();
+        for (int i = 0; i < shardCount; i++) {
+            final var indexMetadata = IndexMetadata.builder("index-" + i).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+            final var index = indexMetadata.getIndex();
+            final var shardId = new ShardId(index, 0);
+            metadataBuilder.put(indexMetadata, false);
+            routingTableBuilder.add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "data-node-1", true, STARTED)));
+
+            allShardsDesiredOnDataNode1.put(shardId, new ShardAssignment(Set.of("data-node-1"), 1, 0, 0));
+            allShardsDesiredOnDataNode2.put(shardId, new ShardAssignment(Set.of("data-node-2"), 1, 0, 0));
+        }
+
+        final var shardToPreventMovement = "index-" + randomIntBetween(0, shardCount - 1);
+
+        // Prevent allocation of a specific shard node 2
+        final var preventAllocationOnNode2Decider = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return node.nodeId().equals("data-node-2") && shardToPreventMovement.equals(shardRouting.index().getName())
+                    ? Decision.single(Decision.Type.NO, "no_decider", "Blocks allocation on node 2")
+                    : Decision.YES;
+            }
+        };
+        // Just to illustrate that yes decisions are excluded from the summary
+        final var yesDecider = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return Decision.single(Decision.Type.YES, "yes_decider", "This should not be included in the summary");
+            }
+        };
+
+        final var initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("data-node-1")).add(newNode("data-node-2")))
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+
+        final var undesiredAllocationThreshold = TimeValue.timeValueMinutes(randomIntBetween(10, 50));
+        final var clusterSettings = createBuiltInClusterSettings(
+            Settings.builder()
+                .put(DesiredBalanceReconciler.UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING.getKey(), undesiredAllocationThreshold)
+                .build()
+        );
+        final var timeProvider = new AdvancingTimeProvider();
+        final var reconciler = new DesiredBalanceReconciler(clusterSettings, timeProvider);
+
+        final var currentStateHolder = new AtomicReference<ClusterState>();
+
+        final var shardInUndesiredAllocationMessage = "Shard [" + shardToPreventMovement + "][0] has been in an undesired allocation for *";
+
+        // Desired assignment matches current routing table, should not log
+        assertThatLogger(
+            () -> currentStateHolder.set(
+                reconcileAndBuildNewState(
+                    reconciler,
+                    initialClusterState,
+                    new DesiredBalance(1, allShardsDesiredOnDataNode1),
+                    preventAllocationOnNode2Decider
+                )
+            ),
+            DesiredBalanceReconciler.class,
+            new MockLog.UnseenEventExpectation(
+                "Should not log if all shards on desired location",
+                DesiredBalanceReconciler.class.getCanonicalName(),
+                Level.WARN,
+                shardInUndesiredAllocationMessage
+            )
+        );
+
+        // Shards are first identified as being in undesired allocations
+        assertThatLogger(
+            () -> currentStateHolder.set(
+                reconcileAndBuildNewState(
+                    reconciler,
+                    currentStateHolder.get(),
+                    new DesiredBalance(1, allShardsDesiredOnDataNode2),
+                    preventAllocationOnNode2Decider,
+                    yesDecider
+                )
+            ),
+            DesiredBalanceReconciler.class,
+            new MockLog.UnseenEventExpectation(
+                "Should not log because we haven't passed the threshold yet",
+                DesiredBalanceReconciler.class.getCanonicalName(),
+                Level.WARN,
+                shardInUndesiredAllocationMessage
+            )
+        );
+
+        // Advance past the logging threshold
+        timeProvider.advanceByMillis(randomLongBetween(undesiredAllocationThreshold.millis(), undesiredAllocationThreshold.millis() * 2));
+
+        // Now it should log
+        assertThatLogger(
+            () -> currentStateHolder.set(
+                reconcileAndBuildNewState(
+                    reconciler,
+                    currentStateHolder.get(),
+                    new DesiredBalance(1, allShardsDesiredOnDataNode2),
+                    preventAllocationOnNode2Decider,
+                    yesDecider
+                )
+            ),
+            DesiredBalanceReconciler.class,
+            new MockLog.SeenEventExpectation(
+                "Should log because this is the first reconciliation after the threshold is exceeded",
+                DesiredBalanceReconciler.class.getCanonicalName(),
+                Level.WARN,
+                shardInUndesiredAllocationMessage
+            ),
+            new MockLog.SeenEventExpectation(
+                "Should log the NO decisions",
+                DesiredBalanceReconciler.class.getCanonicalName(),
+                Level.WARN,
+                "[" + shardToPreventMovement + "][0] cannot be allocated on node [data-node-2]: [NO(Blocks allocation on node 2)]"
+            )
+        );
+
+        // The rate limiter should prevent it logging again
+        assertThatLogger(
+            () -> currentStateHolder.set(
+                reconcileAndBuildNewState(
+                    reconciler,
+                    currentStateHolder.get(),
+                    new DesiredBalance(1, allShardsDesiredOnDataNode2),
+                    preventAllocationOnNode2Decider,
+                    yesDecider
+                )
+            ),
+            DesiredBalanceReconciler.class,
+            new MockLog.UnseenEventExpectation(
+                "Should not log because the rate limiter should prevent it",
+                DesiredBalanceReconciler.class.getCanonicalName(),
+                Level.WARN,
+                shardInUndesiredAllocationMessage
+            )
+        );
+    }
+
+    /**
+     * Run reconciler, complete any shard movements, then return the resulting cluster state
+     */
+    private ClusterState reconcileAndBuildNewState(
+        DesiredBalanceReconciler desiredBalanceReconciler,
+        ClusterState clusterState,
+        DesiredBalance balance,
+        AllocationDecider... allocationDeciders
+    ) {
+        final RoutingAllocation routingAllocation = createRoutingAllocationFrom(clusterState, allocationDeciders);
+        desiredBalanceReconciler.reconcile(balance, routingAllocation);
+        // start all initializing shards
+        routingAllocation.routingNodes().forEach(routingNode -> routingNode.forEach(shardRouting -> {
+            if (shardRouting.initializing()) {
+                routingAllocation.routingNodes().startShard(shardRouting, routingAllocation.changes(), 0L);
+            }
+        }));
+        return ClusterState.builder(clusterState)
+            .routingTable(clusterState.globalRoutingTable().rebuild(routingAllocation.routingNodes(), routingAllocation.metadata()))
+            .incrementVersion()
+            .build();
+    }
+
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         reconcile(routingAllocation, desiredBalance, ALLOCATION_STATS_PLACEHOLDER);
     }

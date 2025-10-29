@@ -4635,13 +4635,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
      * Reseting the engine can prevent non-blocking engine refreshes (see {@link Engine#maybeRefresh(String, ActionListener)} to be
      * immediately executed, so it is expected that the new engine instance provides refreshed readers (if supported) after the reset.
-     * <p>
-     *     Throws if reset could not be completed or previous engine could not be closed.
-     * </p>
      *
      * @param postResetNewEngineConsumer A consumer that will be called with the newly created engine after the reset
      *                                   is complete, allowing for post-reset operations on the new engine instance.
      *                                   The provided engine reference should not be retained by the consumer.
+     * @throws Exception if reset could not be completed or previous engine could not be closed
      */
     public void resetEngine(Consumer<Engine> postResetNewEngineConsumer) throws Exception {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";

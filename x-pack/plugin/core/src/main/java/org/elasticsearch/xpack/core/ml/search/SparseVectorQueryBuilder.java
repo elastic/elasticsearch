@@ -25,16 +25,16 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -271,74 +271,59 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             throw new IllegalArgumentException("inference_id required to perform vector search on query string");
         }
 
-        InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-            TaskType.ANY,
+
+        CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             inferenceId,
-            null,
-            null,
-            null,
             List.of(query),
-            Map.of(),
-            InputType.INTERNAL_SEARCH,
-            null,
-            false
+            TextExpansionConfigUpdate.EMPTY_UPDATE,
+            false,
+            null
         );
+        inferRequest.setHighPriority(true);
+        inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction(
             (client, listener) -> executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                InferenceAction.INSTANCE,
-                inferenceRequest,
+                CoordinatedInferenceAction.INSTANCE,
+                inferRequest,
                 ActionListener.wrap(inferenceResponse -> {
-                    List<? extends InferenceResults> inferenceResults = inferenceResponse.getResults().transformToCoordinationFormat();
-                    TextExpansionResults textExpansionResults;
-                    try {
-                        textExpansionResults = validateAndExtractTextExpansionResults(inferenceResults, inferenceId);
-                    } catch (Exception e) {
-                        listener.onFailure(e);
+
+                    List<InferenceResults> inferenceResults = inferenceResponse.getInferenceResults();
+                    if (inferenceResults.isEmpty()) {
+                        listener.onFailure(new IllegalStateException("inference response contain no results"));
+                        return;
+                    }
+                    if (inferenceResults.size() > 1) {
+                        listener.onFailure(new IllegalStateException("inference response should contain only one result"));
                         return;
                     }
 
-                    textExpansionResultsSupplier.set(textExpansionResults);
-                    listener.onResponse(null);
+                    if (inferenceResults.get(0) instanceof TextExpansionResults textExpansionResults) {
+                        textExpansionResultsSupplier.set(textExpansionResults);
+                        listener.onResponse(null);
+                    } else if (inferenceResults.get(0) instanceof WarningInferenceResults warning) {
+                        listener.onFailure(new IllegalStateException(warning.getWarning()));
+                    } else {
+                        listener.onFailure(
+                            new IllegalArgumentException(
+                                "expected a result of type ["
+                                    + TextExpansionResults.NAME
+                                    + "] received ["
+                                    + inferenceResults.get(0).getWriteableName()
+                                    + "]. Is ["
+                                    + inferenceId
+                                    + "] a compatible model?"
+                            )
+                        );
+                    }
                 }, listener::onFailure)
             )
         );
 
         return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
-    }
-
-    private static TextExpansionResults validateAndExtractTextExpansionResults(
-        List<? extends InferenceResults> inferenceResults,
-        String inferenceId
-    ) {
-        if (inferenceResults.isEmpty()) {
-            throw new IllegalStateException("inference response contain no results");
-        }
-        if (inferenceResults.size() > 1) {
-            throw new IllegalStateException("inference response should contain only one result");
-        }
-
-        InferenceResults result = inferenceResults.getFirst();
-        if (result instanceof TextExpansionResults textExpansionResults) {
-            return textExpansionResults;
-        }
-
-        if (result instanceof WarningInferenceResults warning) {
-            throw new IllegalStateException(warning.getWarning());
-        }
-
-        throw new IllegalArgumentException(
-            "expected a result of type ["
-                + TextExpansionResults.NAME
-                + "] received ["
-                + result.getWriteableName()
-                + "]. Is ["
-                + inferenceId
-                + "] a compatible model?"
-        );
     }
 
     @Override

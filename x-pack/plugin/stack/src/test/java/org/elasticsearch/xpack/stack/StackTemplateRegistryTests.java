@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stack;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -56,7 +57,6 @@ import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.junit.After;
 import org.junit.Before;
-import org.apache.lucene.util.Constants;
 
 import java.io.IOException;
 import java.io.InputStream;

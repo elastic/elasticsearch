@@ -1329,11 +1329,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     // As per ES-12539, there is no need to load the entire IndexMetadata object just to read the shard count
                     // Instead, we read the minimum fields necessary, including the setting index.number_of_shards
-                    XContentParserConfiguration xContentParserConfiguration = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
-                        .withFiltering(Set.of("*.settings", "*.mapping_version", "*.settings_version", "*.aliases_version"), null, false);
+                    XContentParserConfiguration xContentParserConfiguration = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+                        LoggingDeprecationHandler.INSTANCE
+                    ).withFiltering(Set.of("*.settings", "*.mapping_version", "*.settings_version", "*.aliases_version"), null, false);
                     updateShardCount(
-                        INDEX_METADATA_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry, xContentParserConfiguration)
-                            .getNumberOfShards()
+                        INDEX_METADATA_FORMAT.read(
+                            getProjectRepo(),
+                            indexContainer,
+                            indexMetaGeneration,
+                            namedXContentRegistry,
+                            xContentParserConfiguration
+                        ).getNumberOfShards()
                     );
                 } catch (Exception ex) {
                     logger.warn(() -> format("[%s] [%s] failed to read metadata for index", indexMetaGeneration, indexId.getName()), ex);

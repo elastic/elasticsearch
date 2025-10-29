@@ -137,6 +137,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         telemetryProvider = mock(TelemetryProvider.class);
         when(telemetryProvider.getTracer()).thenReturn(Tracer.NOOP);
+        when(telemetryProvider.getMeterRegistry()).thenReturn(MeterRegistry.NOOP);
 
         tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
         final ApiKeyService apiKeyService = new ApiKeyService(

@@ -29,16 +29,15 @@ public class PromqlVerifierTests extends ESTestCase {
                   rate(network.bytes_in[5m])
                 )""", tsdb),
             equalTo(
-                "2:3: within time series aggregate function [rate(network.bytes_in[5m])] can only be used "
-                    + "inside an across time series aggregate function at this time"
+                "2:3: only aggregations across timeseries are supported at this time (found [rate(network.bytes_in[5m])])"
             )
         );
     }
 
     public void testPromqlIllegalNameLabelMatcher() {
         assertThat(
-            error("TS test | PROMQL step 5m ({__name__=~\"*.foo.*\"})", tsdb),
-            equalTo("1:27: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
+            error("TS test | PROMQL step 5m (avg({__name__=~\"*.foo.*\"}))", tsdb),
+            equalTo("1:31: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
         );
     }
 
@@ -96,8 +95,8 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testPromqlModifier() {
         assertThat(
-            error("TS test | PROMQL step 5m (foo offset 5m)", tsdb),
-            equalTo("1:27: offset modifiers are not supported at this time [foo offset 5m]")
+            error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m] offset 5m)))", tsdb),
+            equalTo("1:36: offset modifiers are not supported at this time [network.bytes_in[5m] offset 5m]")
         );
         /* TODO
         assertThat(

@@ -132,35 +132,17 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        promqlPlan().forEachDownMayReturnEarly((lp, breakEarly) -> {
-            if (lp instanceof PromqlFunctionCall fc) {
-                if (fc instanceof AcrossSeriesAggregate) {
-                    breakEarly.set(true);
-                    fc.forEachDown((childLp -> verifyNonFunctionCall(failures, childLp)));
-                } else if (fc instanceof WithinSeriesAggregate withinSeriesAggregate) {
-                    failures.add(
-                        fail(
-                            withinSeriesAggregate,
-                            "within time series aggregate function [{}] "
-                                + "can only be used inside an across time series aggregate function at this time",
-                            withinSeriesAggregate.sourceText()
-                        )
-                    );
-                }
-            } else {
-                verifyNonFunctionCall(failures, lp);
-            }
-        });
-    }
-
-    private void verifyNonFunctionCall(Failures failures, LogicalPlan logicalPlan) {
-        if (logicalPlan instanceof Selector s) {
+        LogicalPlan p = promqlPlan();
+        if (p instanceof AcrossSeriesAggregate == false) {
+            failures.add(fail(p, "only aggregations across timeseries are supported at this time (found [{}])", p.sourceText()));
+        }
+        p.forEachDown(Selector.class, s -> {
             if (s.labelMatchers().nameLabel().matcher().isRegex()) {
                 failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
             }
-            if (s.evaluation().offset() != null && s.evaluation().offset() != TimeValue.ZERO) {
+            if (s.evaluation() != null && s.evaluation().offset() != null && s.evaluation().offset() != TimeValue.ZERO) {
                 failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
             }
-        }
+        });
     }
 }

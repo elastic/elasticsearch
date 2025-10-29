@@ -97,20 +97,6 @@ tasks {
         systemProperty("es.test.stateless.hollow.ttl_ms", hollowTtlMs)
         // https://github.com/elastic/elasticsearch-serverless/issues/4458
         systemProperty("io.netty.leakDetection.targetRecords", 10)
-
-        filter {
-            // Following test needs unhollow shards as it force merges directly the shard without a client to unhollow
-            excludeTestsMatching("*.StatelessIT.testBackgroundMergeCommitAfterRelocationHasStartedDoesNotSendANewCommitNotification")
-            // Following test assumes a single BCC uploaded, but a hollow shard force flushes a second BCC and results
-            // in two writes on the cache instead of 1.
-            excludeTestsMatching("*.IndexingShardRelocationIT.testRelocatingIndexShardFetchesFirstRegionOnly")
-            // Following test pauses relocation and tries to force merge (which needs to unhollow), thus deadlocking
-            excludeTestsMatching("*.CorruptionWhileRelocatingIT.testMergeWhileRelocationCausesCorruption")
-            // Following test asserts successive generation numbers and does not count potential hollow flushes
-            excludeTestsMatching("*.GenerationalDocValuesIT.testSearchShardGenerationFilesRetention")
-            // Following test asserts generation numbers and does not count potential hollow flushes
-            excludeTestsMatching("*.IndexingShardRecoveryIT.testPeerRecovery")
-        }
     }
 
     check {

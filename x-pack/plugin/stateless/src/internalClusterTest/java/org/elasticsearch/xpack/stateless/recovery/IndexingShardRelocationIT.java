@@ -1192,8 +1192,10 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         var cacheService = internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, indexNode2).get();
-        assertThat(cacheService.getStats().writeCount(), equalTo(1L));
-        assertThat(cacheService.getStats().missCount(), equalTo(1L));
+        // Hollow shard force flushes a second BCC and results in two writes on the cache instead of 1.
+        long expectedWritesAndMissesCount = STATELESS_HOLLOW_ENABLED ? 2L : 1L;
+        assertThat(cacheService.getStats().writeCount(), equalTo(expectedWritesAndMissesCount));
+        assertThat(cacheService.getStats().missCount(), equalTo(expectedWritesAndMissesCount));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
     }
 

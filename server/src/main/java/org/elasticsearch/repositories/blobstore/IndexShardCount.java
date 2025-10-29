@@ -54,11 +54,13 @@ public record IndexShardCount(int count) {
                     indexShardCount = new IndexShardCount(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1));
                 } else {
                     // Iterate through the object, but we don't care for it's contents
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {}
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    }
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 // Iterate through the array, but we don't care for it's contents
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {}
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                }
             } else if (token.isValue() == false) {
                 throw new IllegalArgumentException("Unexpected token " + token);
             }

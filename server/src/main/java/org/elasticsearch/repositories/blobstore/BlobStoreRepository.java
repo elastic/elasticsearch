@@ -399,7 +399,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     public static final ChecksumBlobStoreFormat<IndexShardCount> INDEX_SHARD_COUNT_FORMAT = new ChecksumBlobStoreFormat<>(
-        "shard-count",
+        "index-metadata",
         METADATA_NAME_FORMAT,
         (repoName, parser) -> IndexShardCount.fromIndexMetaData(parser),
         (ignored) -> {

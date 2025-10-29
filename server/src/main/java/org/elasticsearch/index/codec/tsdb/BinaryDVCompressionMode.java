@@ -9,24 +9,20 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
-import org.apache.lucene.codecs.compressing.Compressor;
-import org.apache.lucene.codecs.compressing.Decompressor;
-import org.elasticsearch.index.codec.zstd.ZstdCompressor;
-import org.elasticsearch.index.codec.zstd.ZstdDecompressor;
+import org.apache.lucene.codecs.compressing.CompressionMode;
+import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
 
 public enum BinaryDVCompressionMode {
 
-    NO_COMPRESS((byte) 0, null, null),
-    COMPRESSED_WITH_ZSTD_LEVEL_1((byte) 1, new ZstdCompressor(1), new ZstdDecompressor());
+    NO_COMPRESS((byte) 0, null),
+    COMPRESSED_WITH_ZSTD_LEVEL_1((byte) 1, new ZstdCompressionMode(1));
 
     public final byte code;
-    public final Compressor compressor;
-    public final Decompressor decompressor;
+    public final CompressionMode compressionMode;
 
-    BinaryDVCompressionMode(byte code, Compressor compressor, Decompressor decompressor) {
+    BinaryDVCompressionMode(byte code, CompressionMode compressionMode) {
         this.code = code;
-        this.compressor = compressor;
-        this.decompressor = decompressor;
+        this.compressionMode = compressionMode;
     }
 
     public static BinaryDVCompressionMode fromMode(byte mode) {

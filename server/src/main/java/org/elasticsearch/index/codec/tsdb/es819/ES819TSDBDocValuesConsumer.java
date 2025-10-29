@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
@@ -528,7 +529,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         static final int MIN_BLOCK_BYTES = 256 * 1024;
         static final int START_BLOCK_DOCS = 1024;
 
-        final BinaryDVCompressionMode compressionMode;
+        final Compressor compressor;
 
         final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
         final long[] docOffsetsCompressBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
@@ -547,7 +548,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         final DelayedOffsetAccumulator blockDocRangeAcc;
 
         CompressedBinaryBlockWriter(BinaryDVCompressionMode compressionMode) throws IOException {
-            this.compressionMode = compressionMode;
+            this.compressor = compressionMode.compressionMode.newCompressor();
             long blockAddressesStart = data.getFilePointer();
             blockAddressAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block-addresses", blockAddressesStart);
 
@@ -620,7 +621,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         void compress(byte[] data, int uncompressedLength, DataOutput output) throws IOException {
             ByteBuffer inputBuffer = ByteBuffer.wrap(data, 0, uncompressedLength);
             ByteBuffersDataInput input = new ByteBuffersDataInput(List.of(inputBuffer));
-            compressionMode.compressor.compress(input, output);
+            compressor.compress(input, output);
         }
 
         @Override

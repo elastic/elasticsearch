@@ -10,9 +10,6 @@
 package org.elasticsearch.index.codec.zstd;
 
 import org.apache.lucene.codecs.StoredFieldsWriter;
-import org.apache.lucene.codecs.compressing.CompressionMode;
-import org.apache.lucene.codecs.compressing.Compressor;
-import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.codecs.lucene90.compressing.Lucene90CompressingStoredFieldsFormat;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
@@ -78,29 +75,6 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
 
     public Mode getMode() {
         return mode;
-    }
-
-    private static class ZstdCompressionMode extends CompressionMode {
-        private final int level;
-
-        ZstdCompressionMode(int level) {
-            this.level = level;
-        }
-
-        @Override
-        public Compressor newCompressor() {
-            return new ZstdCompressor(level);
-        }
-
-        @Override
-        public Decompressor newDecompressor() {
-            return new ZstdDecompressor();
-        }
-
-        @Override
-        public String toString() {
-            return "ZSTD(level=" + level + ")";
-        }
     }
 
 }

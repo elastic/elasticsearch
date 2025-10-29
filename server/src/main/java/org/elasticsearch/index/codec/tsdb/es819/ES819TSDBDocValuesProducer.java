@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
@@ -287,6 +288,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             final DirectMonotonicReader docRanges = DirectMonotonicReader.getInstance(entry.docRangeMeta, docRangeData);
             return new DenseBinaryDocValues(maxDoc) {
                 final BinaryDecoder decoder = new BinaryDecoder(
+                    entry.compression.compressionMode.newDecompressor(),
                     addresses,
                     docRanges,
                     data.clone(),
@@ -316,6 +318,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             final DirectMonotonicReader docRanges = DirectMonotonicReader.getInstance(entry.docRangeMeta, docRangeData);
             return new SparseBinaryDocValues(disi) {
                 final BinaryDecoder decoder = new BinaryDecoder(
+                    entry.compression.compressionMode.newDecompressor(),
                     addresses,
                     docRanges,
                     data.clone(),
@@ -347,15 +350,17 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private final BytesRef uncompressedBytesRef;
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
-        private final ZstdDecompressor decompressor = new ZstdDecompressor();
+        private final Decompressor decompressor;
 
         BinaryDecoder(
+            Decompressor decompressor,
             LongValues addresses,
             DirectMonotonicReader docRanges,
             IndexInput compressedData,
             int biggestUncompressedBlockSize,
             int maxNumDocsInAnyBlock
         ) {
+            this.decompressor = decompressor;
             this.addresses = addresses;
             this.docRanges = docRanges;
             this.compressedData = compressedData;

@@ -81,9 +81,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class MlDailyMaintenanceService implements Releasable {
 
-    // The service to use for creating log messages.
     private static final Logger logger = LogManager.getLogger(MlDailyMaintenanceService.class);
 
+    // The maximum value of a random offset used to calculate the time the nightly maintenance tasks are triggered on a given cluster.
+    // This is added in order to avoid multiple clusters running the maintenance tasks at the same time.
     private static final int MAX_TIME_OFFSET_MINUTES = 120;
 
     private final ThreadPool threadPool;
@@ -419,7 +420,7 @@ public class MlDailyMaintenanceService implements Releasable {
         ClusterState clusterState = clusterService.state();
 
         String[] indices = findIndicesNeedingRollover(clusterState);
-        if (indices.length == 0) {
+        if (rolloverMaxSize == ByteSizeValue.MINUS_ONE || indices.length == 0) {
             // Early bath
             finalListener.onResponse(AcknowledgedResponse.TRUE);
             return;

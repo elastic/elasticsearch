@@ -722,7 +722,7 @@ public class MachineLearning extends Plugin
     public static final Setting<ByteSizeValue> RESULTS_INDEX_ROLLOVER_MAX_SIZE = Setting.byteSizeSetting(
         "xpack.ml.results_index_rollover_max_size",
         ByteSizeValue.of(50, ByteSizeUnit.GB),
-        ByteSizeValue.ofBytes(0L),
+        ByteSizeValue.ofBytes(-1L),
         ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.OperatorDynamic,
         Property.NodeScope

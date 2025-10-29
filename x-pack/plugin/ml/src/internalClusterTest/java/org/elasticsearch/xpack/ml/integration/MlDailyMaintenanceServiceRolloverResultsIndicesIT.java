@@ -102,6 +102,24 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         }
     }
 
+    public void testTriggerRollResultsIndicesIfNecessaryTask_givenMinusOnRolloverMaxSize() throws Exception {
+        // The null case, nothing to do.
+
+        // set the rollover max size to -1B so the indices should not be rolled over
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.MINUS_ONE);
+
+        // Create jobs that will use the default results indices - ".ml-anomalies-shared-*"
+        Job.Builder[] jobs_with_default_index = { createJob("job_using_default_index"), createJob("another_job_using_default_index") };
+
+        // Create jobs that will use custom results indices - ".ml-anomalies-custom-fred-*"
+        Job.Builder[] jobs_with_custom_index = {
+            createJob("job_using_custom_index").setResultsIndexName("fred"),
+            createJob("another_job_using_custom_index").setResultsIndexName("fred") };
+
+        runTestScenarioWithNoRolloverOccurring(jobs_with_default_index, "shared");
+        runTestScenarioWithNoRolloverOccurring(jobs_with_custom_index, "custom-fred");
+    }
+
     public void testTriggerRollResultsIndicesIfNecessaryTask_givenUnmetConditions() throws Exception {
         // Create jobs that will use the default results indices - ".ml-anomalies-shared-*"
         Job.Builder[] jobs_with_default_index = { createJob("job_using_default_index"), createJob("another_job_using_default_index") };
@@ -111,8 +129,8 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
             createJob("job_using_custom_index").setResultsIndexName("fred"),
             createJob("another_job_using_custom_index").setResultsIndexName("fred") };
 
-        runTestScenarioWithUnmetConditions(jobs_with_default_index, "shared");
-        runTestScenarioWithUnmetConditions(jobs_with_custom_index, "custom-fred");
+        runTestScenarioWithNoRolloverOccurring(jobs_with_default_index, "shared");
+        runTestScenarioWithNoRolloverOccurring(jobs_with_custom_index, "custom-fred");
     }
 
     public void testTriggerRollResultsIndicesIfNecessaryTask_withMixedIndexTypes() throws Exception {
@@ -207,7 +225,7 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         runTestScenario(jobs_with_custom_index, "custom-fred");
     }
 
-    private void runTestScenarioWithUnmetConditions(Job.Builder[] jobs, String indexNamePart) throws Exception {
+    private void runTestScenarioWithNoRolloverOccurring(Job.Builder[] jobs, String indexNamePart) throws Exception {
         String firstJobId = jobs[0].getId();
         String secondJobId = jobs[1].getId();
         String indexWildcard = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "*";

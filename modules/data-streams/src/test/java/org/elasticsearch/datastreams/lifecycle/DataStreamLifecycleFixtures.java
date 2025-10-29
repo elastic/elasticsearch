@@ -40,6 +40,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstanc
 import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.frequently;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.junit.Assert.assertTrue;
 
@@ -184,11 +185,10 @@ public class DataStreamLifecycleFixtures {
     }
 
     public static DownsampleConfig.SamplingMethod randomSamplingMethod() {
-        return switch (between(0, 2)) {
-            case 0 -> null;
-            case 1 -> DownsampleConfig.SamplingMethod.AGGREGATE;
-            case 2 -> DownsampleConfig.SamplingMethod.LAST_VALUE;
-            default -> throw new IllegalStateException("Unknown randomisation path");
-        };
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
     }
 }

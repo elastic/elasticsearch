@@ -50,6 +50,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
@@ -96,6 +97,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         TSID_DATA_TYPE,
         PARTIAL_AGG,
         AGGREGATE_METRIC_DOUBLE,
+        EXPONENTIAL_HISTOGRAM,
         DENSE_VECTOR };
 
     private final JoinConfig config;

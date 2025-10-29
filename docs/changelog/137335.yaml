@@ -1,0 +1,5 @@
+pr: 137335
+summary: Pass XContentParserConfiguration into `ChecksumBlobStoreFormat`
+area: Distributed
+type: bug
+issues: []

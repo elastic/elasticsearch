@@ -2,7 +2,7 @@
 
 ## `FIRST` [esql-first]
 ```{applies_to}
-stack: ga 9.2.0
+stack: unavailable 9.2.0
 ```
 
 **Syntax**

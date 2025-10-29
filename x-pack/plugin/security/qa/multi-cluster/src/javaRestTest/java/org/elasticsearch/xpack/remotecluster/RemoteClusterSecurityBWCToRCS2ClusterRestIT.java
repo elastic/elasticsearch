@@ -40,8 +40,6 @@ public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteC
             .setting("xpack.ml.enabled", "false")
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
-            .setting("cluster.remote.signing.certificate_authorities", "signing.crt")
-            .configFile("signing.crt", Resource.fromClasspath("signing/signing.crt"))
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")

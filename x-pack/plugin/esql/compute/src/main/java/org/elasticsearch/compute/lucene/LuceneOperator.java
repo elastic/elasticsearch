@@ -367,7 +367,7 @@ public abstract class LuceneOperator extends SourceOperator {
             sliceMin = in.readVInt();
             sliceMax = in.readVInt();
             current = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 rowsEmitted = in.readVLong();
             } else {
                 rowsEmitted = 0;
@@ -389,7 +389,7 @@ public abstract class LuceneOperator extends SourceOperator {
             out.writeVInt(sliceMin);
             out.writeVInt(sliceMax);
             out.writeVInt(current);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 out.writeVLong(rowsEmitted);
             }
             if (serializeShardPartitioning(out.getTransportVersion())) {

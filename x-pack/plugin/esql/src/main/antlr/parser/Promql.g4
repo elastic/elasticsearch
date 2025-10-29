@@ -7,5 +7,19 @@
 parser grammar Promql;
 
 promqlCommand
-    : DEV_PROMQL PROMQL_TEXT?
+    : DEV_PROMQL promqlParam+ LP promqlQueryPart* RP
+    ;
+
+promqlParam
+    : name=promqlParamContent value=promqlParamContent
+    ;
+
+promqlParamContent
+    : PROMQL_UNQUOTED_IDENTIFIER
+    | QUOTED_IDENTIFIER
+    ;
+
+promqlQueryPart
+    : PROMQL_QUERY_TEXT           // Regular text
+    | LP promqlQueryPart* RP    // Nested parens (recursive!)
     ;

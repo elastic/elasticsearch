@@ -506,7 +506,7 @@ public class AuthorizationService {
                 targetProjectListener = new SubscribableListener<>();
                 authorizedProjectsResolver.resolveAuthorizedProjects(targetProjectListener);
             } else {
-                targetProjectListener = SubscribableListener.newSucceeded(TargetProjects.NOT_CROSS_PROJECT);
+                targetProjectListener = SubscribableListener.newSucceeded(TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
             }
 
             targetProjectListener.addListener(ActionListener.wrap(targetProjects -> {

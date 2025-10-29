@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.IntLongBlockAdd;
 import org.elasticsearch.core.ReleasableIterator;
@@ -143,28 +145,59 @@ final class BytesRefLongBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys() {
-        int positions = (int) finalHash.size();
         BytesRefBlock k1 = null;
         LongVector k2 = null;
-        try (
-            BytesRefBlock.Builder keys1 = blockFactory.newBytesRefBlockBuilder(positions);
-            LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions)
-        ) {
-            BytesRef scratch = new BytesRef();
-            for (long i = 0; i < positions; i++) {
-                keys2.appendLong(finalHash.getKey2(i));
-                long h1 = finalHash.getKey1(i);
-                if (h1 == 0) {
-                    keys1.appendNull();
-                } else {
-                    keys1.appendBytesRef(bytesHash.hash.get(h1 - 1, scratch));
+        int positions = (int) finalHash.size();
+        if (OrdinalBytesRefBlock.isDense(positions, bytesHash.hash.size())) {
+            try (var ordinals = blockFactory.newIntBlockBuilder(positions); var longs = blockFactory.newLongVectorBuilder(positions)) {
+                for (long p = 0; p < positions; p++) {
+                    long h1 = finalHash.getKey1(p);
+                    if (h1 == 0) {
+                        ordinals.appendNull();
+                    } else {
+                        ordinals.appendInt(Math.toIntExact(h1 - 1));
+                    }
+                    longs.appendLong(finalHash.getKey2(p));
+                }
+                // TODO: make takeOwnershipOf work?
+                BytesRefArray bytes = BytesRefArray.deepCopy(bytesHash.hash.getBytesRefs());
+                BytesRefVector dict = null;
+
+                try {
+                    dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
+                    bytes = null; // transfer ownership to dict
+                    k1 = new OrdinalBytesRefBlock(ordinals.build(), dict);
+                    dict = null;  // transfer ownership to k1
+                } finally {
+                    Releasables.closeExpectNoException(bytes, dict);
+                }
+                k2 = longs.build();
+            } finally {
+                if (k2 == null) {
+                    Releasables.closeExpectNoException(k1);
                 }
             }
-            k1 = keys1.build();
-            k2 = keys2.build();
-        } finally {
-            if (k2 == null) {
-                Releasables.closeExpectNoException(k1);
+        } else {
+            try (
+                BytesRefBlock.Builder keys1 = blockFactory.newBytesRefBlockBuilder(positions);
+                LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions)
+            ) {
+                BytesRef scratch = new BytesRef();
+                for (long i = 0; i < positions; i++) {
+                    long h1 = finalHash.getKey1(i);
+                    if (h1 == 0) {
+                        keys1.appendNull();
+                    } else {
+                        keys1.appendBytesRef(bytesHash.hash.get(h1 - 1, scratch));
+                    }
+                    keys2.appendLong(finalHash.getKey2(i));
+                }
+                k1 = keys1.build();
+                k2 = keys2.build();
+            } finally {
+                if (k2 == null) {
+                    Releasables.closeExpectNoException(k1);
+                }
             }
         }
         if (reverseOutput) {

@@ -200,7 +200,7 @@ public class MinTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
     }
 
     @Override

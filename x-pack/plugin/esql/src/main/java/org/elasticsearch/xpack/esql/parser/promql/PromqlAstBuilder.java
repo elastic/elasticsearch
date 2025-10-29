@@ -13,18 +13,18 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.time.Instant;
 
-public class PromqlAstBuilder extends LogicalPlanBuilder {
+public class PromqlAstBuilder extends PromqlLogicalPlanBuilder {
 
     public static final int MAX_EXPRESSION_DEPTH = 200;
 
     private int expressionDepth = 0;
 
     public PromqlAstBuilder() {
-        this(null, null);
+        this(null, null, 0, 0);
     }
 
-    public PromqlAstBuilder(Instant start, Instant stop) {
-        super(start, stop);
+    public PromqlAstBuilder(Instant start, Instant end, int startLine, int startColumn) {
+        super(start, end, startLine, startColumn);
     }
 
     public LogicalPlan plan(ParseTree ctx) {

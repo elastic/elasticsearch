@@ -12,11 +12,13 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 
 import java.io.IOException;
+import java.sql.Time;
 import java.util.List;
 import java.util.Objects;
 
@@ -24,7 +26,7 @@ import java.util.Objects;
  * Base class representing a PromQL vector selector.
  * A vector selector is defined by a set of label matchers and a point in time evaluation context.
  */
-public abstract class Selector extends UnaryPlan {
+public abstract class Selector extends UnaryPlan implements TimestampAware {
     // implements TelemetryAware
 
     // in Promql this is the __name__ label however for now, this gets mapped to an exact field

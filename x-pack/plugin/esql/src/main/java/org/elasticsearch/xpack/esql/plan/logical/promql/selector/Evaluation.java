@@ -26,10 +26,6 @@ public class Evaluation {
     private final boolean offsetNegative;
     private final Instant at;
 
-    public Evaluation(Instant at) {
-        this(TimeValue.ZERO, false, at);
-    }
-
     public Evaluation(TimeValue offset, boolean offsetNegative, Instant at) {
         this.offset = offset;
         this.offsetNegative = offsetNegative;

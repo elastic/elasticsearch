@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramMapperPlugin;
-import org.elasticsearch.xpack.exponentialhistogram.IndexWithCount;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,7 +24,14 @@ import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE;
+
 public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorTestCase {
+
+    @Before
+    public void setup() {
+        assumeTrue("Only when exponential_histogram feature flag is enabled", EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled());
+    }
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
@@ -32,30 +39,7 @@ public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorT
     }
 
     protected static List<ExponentialHistogram> createRandomHistograms(int count) {
-        return IntStream.range(0, count).mapToObj(i -> {
-            boolean hasNegativeValues = randomBoolean();
-            boolean hasPositiveValues = randomBoolean();
-            boolean hasZeroValues = randomBoolean();
-            double[] rawValues = IntStream.concat(
-                IntStream.concat(
-                    hasNegativeValues ? IntStream.range(0, randomIntBetween(1, 1000)).map(i1 -> -1) : IntStream.empty(),
-                    hasPositiveValues ? IntStream.range(0, randomIntBetween(1, 1000)).map(i1 -> 1) : IntStream.empty()
-                ),
-                hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
-            ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
-
-            int numBuckets = randomIntBetween(4, 300);
-            ExponentialHistogram histo = ExponentialHistogram.create(numBuckets, ExponentialHistogramCircuitBreaker.noop(), rawValues);
-            // Randomize sum, min and max a little
-            if (histo.valueCount() > 0) {
-                ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, ExponentialHistogramCircuitBreaker.noop());
-                builder.sum(histo.sum() + (randomDouble() - 0.5) * 10_000);
-                builder.max(histo.max() - randomDouble());
-                builder.min(histo.min() + randomDouble());
-                histo = builder.build();
-            }
-            return histo;
-        }).toList();
+        return IntStream.range(0, count).mapToObj(i -> ExponentialHistogramTestUtils.randomHistogram()).toList();
     }
 
     protected static void addHistogramDoc(
@@ -73,17 +57,13 @@ public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorT
                 histogram.zeroBucket().zeroThreshold(),
                 histogram.valueCount(),
                 histogram.sum(),
-                nanToNull(histogram.min()),
-                nanToNull(histogram.max())
+                histogram.min(),
+                histogram.max()
             );
             iw.addDocument(Stream.concat(docValues.fieldsAsList().stream(), Arrays.stream(additionalFields)).toList());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private static Double nanToNull(double value) {
-        return Double.isNaN(value) ? null : value;
     }
 
 }

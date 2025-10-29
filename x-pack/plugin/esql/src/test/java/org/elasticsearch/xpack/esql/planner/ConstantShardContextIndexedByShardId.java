@@ -20,6 +20,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 /** A rather roundabout way of ignoring shard ref counters in tests. */
@@ -60,7 +61,7 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
         }
 
         @Override
-        public SourceLoader newSourceLoader() {
+        public SourceLoader newSourceLoader(Set<String> sourcePaths) {
             throw new UnsupportedOperationException();
         }
 

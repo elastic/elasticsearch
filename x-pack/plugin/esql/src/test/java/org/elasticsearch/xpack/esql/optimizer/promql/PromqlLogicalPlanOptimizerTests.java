@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -20,13 +22,14 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -34,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 //@TestLogging(value="org.elasticsearch.xpack.esql:TRACE", reason="debug tests")
+//@Ignore("Proper assertions need to be added")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -50,15 +54,16 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                timeSeriesIndex,
+                Map.of(new IndexPattern(Source.EMPTY, "k8s"), timeSeriesIndex),
+                emptyMap(),
                 enrichResolution,
-                emptyInferenceResolution()
+                emptyInferenceResolution(),
+                TransportVersion.current()
             ),
             TEST_VERIFIER
         );
     }
 
-    @Ignore("Proper assertions need to be added")
     public void testExplainPromql() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=\"{{from}}\"
@@ -66,7 +71,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var plan = planPromql("""
             EXPLAIN (
             TS k8s
-            | promql avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))
+            | promql step 5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
             )
             """);
@@ -74,7 +79,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         System.out.println(plan);
     }
 
-    @Ignore("Proper assertions need to be added")
     public void testExplainPromqlSimple() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=\"{{from}}\"
@@ -90,21 +94,19 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         System.out.println(plan);
     }
 
-    @Ignore("Proper assertions need to be added")
     public void testAvgAvgOverTimeOutput() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=\"{{from}}\"
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
             TS k8s
-            | promql avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))
+            | promql step 5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
             """);
 
         System.out.println(plan);
     }
 
-    @Ignore("Proper assertions need to be added")
     public void testTSAvgAvgOverTimeOutput() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
@@ -117,7 +119,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         System.out.println(plan);
     }
 
-    @Ignore("Proper assertions need to be added")
     public void testTSAvgWithoutByDimension() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY TBUCKET(1h) | LIMIT 10000"
@@ -130,7 +131,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         System.out.println(plan);
     }
 
-    @Ignore("Proper assertions need to be added")
     public void testPromqlAvgWithoutByDimension() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY TBUCKET(1h) | LIMIT 10000"
@@ -143,29 +143,27 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         System.out.println(plan);
     }
 
-    @Ignore("Proper assertions need to be added")
     public void testRangeSelector() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=\"{{from}}\"
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
             TS k8s
-            | promql max by (pod) (avg_over_time(network.total_bytes_in[1h]))
+            | promql step 10 ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
             """);
 
         System.out.println(plan);
     }
 
-    @Ignore("Proper assertions need to be added")
     public void testRate() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <= \"{{from}}\"
         // | STATS AVG(RATE(`metrics.system.cpu.time`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         String testQuery = """
             TS k8s
-            | promql
-                avg by (pod) (rate(network.total_bytes_in[1h]))
-
+            | promql step a (
+                avg by (pod) (rate(network.bytes_in[1h]))
+                )
             """;
 
         var plan = planPromql(testQuery);
@@ -179,8 +177,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | STATS AVG(AVG_OVER_TIME(`system.cpu.load_average.1m`)) BY host.name, TBUCKET(5m) | LIMIT 10000"
         String testQuery = """
             TS k8s
-            | promql
-                max by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))
+            | promql time now (
+                max by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m])))
             """;
 
         var plan = planPromql(testQuery);
@@ -198,8 +196,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // STATS AVG(AVG_OVER_TIME(`metrics.system.cpu.load_average.1m`)) BY host.name, TBUCKET(5 minutes)"
         String testQuery = """
             TS k8s
-            | promql
+            | promql time now (
                 avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-.*"}[5m]))
+                )
             """;
 
         var plan = planPromql(testQuery);
@@ -214,8 +213,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     public void testLabelSelectorProperPrefix() {
         var plan = planPromql("""
             TS k8s
-            | promql avg(avg_over_time(network.bytes_in{pod=~"host-.+"}[1h]))
-            | LIMIT 1000
+            | promql time now (
+                avg(avg_over_time(network.bytes_in{pod=~"host-.+"}[1h]))
+              )
             """);
 
         var filters = plan.collect(Filter.class::isInstance);
@@ -228,8 +228,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     public void testLabelSelectorRegex() {
         var plan = planPromql("""
             TS k8s
-            | promql avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))
-            | LIMIT 1000
+            | promql time now (
+                avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))
+              )
             """);
 
         var filters = plan.collect(Filter.class::isInstance);
@@ -238,7 +239,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(RegexMatch.class::isInstance), equalTo(true));
     }
 
-    @Ignore("Proper assertions need to be added")
     public void testFsUsageTop5() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -250,14 +250,55 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // topk(5, sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m])))
         String testQuery = """
             TS k8s
-            | promql
+            | promql step 5m (
                 sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m]))
-
+                )
             """;
 
         var plan = planPromql(testQuery);
         System.out.println(plan);
     }
+
+    public void testGrammar() {
+        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
+        // \"{{from}}\"
+        // | WHERE attributes.state IN (\"used\", \"free\")
+        // | STATS sums = SUM(LAST_OVER_TIME(system.filesystem.usage)) by host.name, attributes.mountpoint
+        // | STATS top = TOP(sums, 5, \"desc\") by host.name, attributes.mountpoint
+        // | LIMIT 5
+
+        // topk(5, sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m])))
+        String testQuery = """
+            TS k8s
+            | promql step 5m (
+                foo or bar
+                )
+            """;
+
+        var plan = planPromql(testQuery);
+        System.out.println(plan);
+    }
+
+//    public void testPromqlArithmetricOperators() {
+//        // TODO doesn't parse
+//        //  line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; expected LogicalPlan but found VectorBinaryArithmetic
+//        assertThat(
+//            error("TS test | PROMQL step 5m (1+1)", tsdb),
+//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+//        );
+//        assertThat(
+//            error("TS test | PROMQL step 5m ( foo and bar )", tsdb),
+//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+//        );
+//        assertThat(
+//            error("TS test | PROMQL step 5m (1+foo)", tsdb),
+//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+//        );
+//        assertThat(
+//            error("TS test | PROMQL step 5m (foo+bar)", tsdb),
+//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+//        );
+//    }
 
     protected LogicalPlan planPromql(String query) {
         var analyzed = tsAnalyzer.analyze(parser.createStatement(query));

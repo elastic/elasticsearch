@@ -175,8 +175,8 @@ An example of a response snippet that could be generated from the above search r
   }
 }
 ```
-%  TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
-%  TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
+% TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
+% TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
 1. The name used in the inner hit definition in the search request. A custom key can be used via the `name` option.
 
@@ -510,5 +510,5 @@ An example of a response snippet that could be generated from the above search r
   }
 }
 ```
-%  TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
-%  TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
+% TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
+% TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]

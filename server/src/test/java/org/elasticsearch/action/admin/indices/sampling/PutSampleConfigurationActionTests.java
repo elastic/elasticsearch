@@ -55,7 +55,7 @@ public class PutSampleConfigurationActionTests extends AbstractWireSerializingTe
                     instance.masterNodeTimeout(),
                     instance.ackTimeout()
                 );
-                mutated.indices(randomValueOtherThan(instance.indices(), () -> new String[] { randomAlphaOfLengthBetween(1, 10) }));
+                mutated.indices(randomArrayOtherThan(instance.indices(), () -> new String[] { randomAlphaOfLengthBetween(1, 10) }));
                 yield mutated;
             }
             default -> throw new IllegalStateException("Invalid mutation case");

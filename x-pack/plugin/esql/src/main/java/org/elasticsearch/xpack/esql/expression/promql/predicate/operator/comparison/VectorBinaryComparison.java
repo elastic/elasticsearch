@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Objects;
 
@@ -47,7 +47,7 @@ public class VectorBinaryComparison extends VectorBinaryOperator {
     private final ComparisonOp op;
     private final boolean boolMode;
 
-    public VectorBinaryComparison(Source source, Expression left, Expression right, VectorMatch match, boolean boolMode, ComparisonOp op) {
+    public VectorBinaryComparison(Source source, LogicalPlan left, LogicalPlan right, VectorMatch match, boolean boolMode, ComparisonOp op) {
         super(source, left, right, match, boolMode == false, op);
         this.op = op;
         this.boolMode = boolMode;
@@ -62,12 +62,12 @@ public class VectorBinaryComparison extends VectorBinaryOperator {
     }
 
     @Override
-    protected VectorBinaryOperator replaceChildren(Expression left, Expression right) {
-        return new VectorBinaryComparison(source(), left, right, match(), boolMode, op());
+    public VectorBinaryOperator replaceChildren(LogicalPlan newLeft, LogicalPlan newRight) {
+        return new VectorBinaryComparison(source(), newLeft, newRight, match(), boolMode, op());
     }
 
     @Override
-    protected NodeInfo<? extends Expression> info() {
+    protected NodeInfo<VectorBinaryComparison> info() {
         return NodeInfo.create(this, VectorBinaryComparison::new, left(), right(), match(), boolMode(), op());
     }
 

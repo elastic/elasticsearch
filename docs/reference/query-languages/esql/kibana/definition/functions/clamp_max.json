@@ -168,7 +168,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| EVAL full_clamped_cost = clamp(network.cost, 1, 20)\n| KEEP full_clamped_cost, @timestamp"
+    "TS k8s\n| STATS full_clamped_cost=sum(clamp(network.cost, 1, 2)), clamped_cost=sum(clamp_max(network.cost, 1)), clamped_min_cost=sum(clamp_min(network.cost, 10)) BY time_bucket = bucket(@timestamp,1minute)"
   ],
   "preview" : false,
   "snapshot_only" : false

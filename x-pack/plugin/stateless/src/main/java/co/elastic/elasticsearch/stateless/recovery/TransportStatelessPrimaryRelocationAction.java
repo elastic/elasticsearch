@@ -109,7 +109,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     public static final Setting<TimeValue> SLOW_RELOCATION_THRESHOLD_SETTING = Setting.timeSetting(
         "serverless.cluster.primary_relocation.slow_handoff_warning_threshold",
-        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(5),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

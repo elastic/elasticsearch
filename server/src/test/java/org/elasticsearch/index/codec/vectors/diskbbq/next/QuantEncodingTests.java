@@ -58,7 +58,7 @@ public class QuantEncodingTests extends ESTestCase {
         int discretized = encoding.discretizedDimensions(randomIntBetween(1, 1024));
         // should discretize to something that can be packed into bytes from four bits and nibbles
         assertEquals(0, discretized % 2);
-        //assertEquals(0, discretized % 8);
+        // assertEquals(0, discretized % 8);
     }
 
     public void testHalfByteAndNibblesPackSize() {

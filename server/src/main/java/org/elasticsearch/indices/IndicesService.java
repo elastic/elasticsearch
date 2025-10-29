@@ -834,8 +834,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idFieldMappers.apply(idxSettings.getMode()),
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
-            snapshotCommitSuppliers,
-            queryRewriteInterceptor
+            snapshotCommitSuppliers
         );
     }
 

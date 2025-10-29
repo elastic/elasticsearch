@@ -526,7 +526,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         byte[] block = BytesRef.EMPTY_BYTES;
         int totalChunks = 0;
-        long maxPointer = 0;
         int maxNumDocsInAnyBlock = 0;
 
         final DelayedOffsetAccumulator blockAddressAcc;
@@ -583,8 +582,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             numDocsInCurrentBlock = 0;
 
             uncompressedBlockLength = 0;
-            maxPointer = data.getFilePointer();
-            long blockLenBytes = maxPointer - thisBlockStartPointer;
+            long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
             blockAddressAcc.addDoc(blockLenBytes);
         }
 

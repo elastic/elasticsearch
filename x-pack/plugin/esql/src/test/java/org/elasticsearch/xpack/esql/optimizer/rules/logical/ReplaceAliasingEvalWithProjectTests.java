@@ -20,7 +20,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.alias;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.findFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.mul;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
@@ -62,7 +61,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         List<Expression> expectedEvalFields = new ArrayList<>();
         expectedEvalFields.add(salary2);
         expectedEvalFields.add(salary3);
-        assertEqualsIgnoringIds(expectedEvalFields, eval.fields());
+        assertEquals(expectedEvalFields, eval.fields());
 
         List<Expression> expectedProjections = new ArrayList<>();
         expectedProjections.add(empNo);
@@ -71,7 +70,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedProjections.add(salary2.toAttribute());
         expectedProjections.add(alias("emp_no3", empNo));
         expectedProjections.add(salary3.toAttribute());
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
+        assertEquals(expectedProjections, project.projections());
     }
 
     /**
@@ -108,9 +107,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         List<Expression> expectedEvalFields = new ArrayList<>();
         expectedEvalFields.add(salary2);
         expectedEvalFields.add(salary3);
-        assertEqualsIgnoringIds(expectedEvalFields, eval.fields());
-        // assert using id to ensure we're pointing to the right salary
-        assertEquals(eval.fields().get(0).child(), mul(salary, of(2)));
+        assertEquals(expectedEvalFields, eval.fields());
 
         List<Expression> expectedProjections = new ArrayList<>();
         expectedProjections.add(empNo);
@@ -119,10 +116,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedProjections.add(salary2.toAttribute());
         expectedProjections.add(alias("emp_no3", empNo));
         expectedProjections.add(salary3.toAttribute());
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
-        // assert using id to ensure we're pointing to the right emp_no and salary
-        assertEquals(project.projections().get(0), empNo);
-        assertEquals(project.projections().get(1), salary);
+        assertEquals(expectedProjections, project.projections());
     }
 
     /**
@@ -155,7 +149,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedProjections.add(alias("salary", empNo));
         expectedProjections.add(alias("salary3", salary));
         expectedProjections.add(alias("emp_no", salary));
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
+        assertEquals(expectedProjections, project.projections());
     }
 
     /**
@@ -165,6 +159,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      *   \_EsRelation[test][_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, ..]
      * }</pre>
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131509")
     public void testAliasLoopTwoVars() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
         var plan = plan("""
@@ -183,7 +178,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         List<Expression> expectedProjections = new ArrayList<>();
         expectedProjections.add(alias("b", empNo));
         expectedProjections.add(alias("a", empNo));
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
+        assertEquals(expectedProjections, project.projections());
     }
 
     /**
@@ -212,7 +207,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedProjections.add(alias("b", empNo));
         expectedProjections.add(alias("c", empNo));
         expectedProjections.add(alias("a", empNo));
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
+        assertEquals(expectedProjections, project.projections());
     }
 
     /**
@@ -246,7 +241,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         assertEquals(mul(salary, of(2)), empNoTempName.child());
 
         var salary3 = alias("salary3", mul(empNoTempName.toAttribute(), of(2)));
-        assertEqualsIgnoringIds(salary3, eval.fields().get(1));
+        assertEquals(salary3, eval.fields().get(1));
 
         List<Expression> expectedProjections = new ArrayList<>();
         expectedProjections.add(salary);
@@ -254,7 +249,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedProjections.add(alias("emp_no", empNoTempName.toAttribute()));
         expectedProjections.add(alias("emp_no3", empNo));
         expectedProjections.add(salary3.toAttribute());
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
+        assertEquals(expectedProjections, project.projections());
     }
 
     /**
@@ -290,7 +285,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         assertEquals(mul(salary, of(2)), empNoTempName.child());
 
         var salary3 = alias("salary3", mul(empNoTempName.toAttribute(), of(2)));
-        assertEqualsIgnoringIds(salary3, eval.fields().get(1));
+        assertEquals(salary3, eval.fields().get(1));
 
         List<Expression> expectedAggregates = new ArrayList<>();
         expectedAggregates.add(alias("emp_no", empNoTempName.toAttribute()));
@@ -298,7 +293,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedAggregates.add(alias("emp_no3", empNo));
         expectedAggregates.add(salary);
         expectedAggregates.add(salary3.toAttribute());
-        assertEqualsIgnoringIds(expectedAggregates, agg.aggregates());
+        assertEquals(expectedAggregates, agg.aggregates());
     }
 
     /**
@@ -336,7 +331,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         assertEquals(mul(salary, of(2)), idTempName.child());
 
         var salary3 = alias("salary3", mul(idTempName.toAttribute(), of(2)));
-        assertEqualsIgnoringIds(salary3, eval.fields().get(1));
+        assertEquals(salary3, eval.fields().get(1));
 
         List<Expression> expectedProjections = new ArrayList<>();
         expectedProjections.add(salary);
@@ -344,7 +339,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedProjections.add(alias("emp_no", idTempName.toAttribute()));
         expectedProjections.add(alias("emp_no3", empNo));
         expectedProjections.add(salary3.toAttribute());
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
+        assertEquals(expectedProjections, project.projections());
     }
 
     /**
@@ -372,7 +367,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
 
         var empNo2 = alias("emp_no2", mul(salary, of(2)));
         var salary3 = alias("salary3", mul(empNo2.toAttribute(), of(3)));
-        assertEqualsIgnoringIds(List.of(empNo2, salary3), eval.fields());
+        assertEquals(List.of(empNo2, salary3), eval.fields());
 
         List<Expression> expectedProjections = new ArrayList<>();
         expectedProjections.add(empNo);
@@ -380,7 +375,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedProjections.add(alias("emp_no3", empNo));
         expectedProjections.add(empNo2.toAttribute());
         expectedProjections.add(salary3.toAttribute());
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
+        assertEquals(expectedProjections, project.projections());
     }
 
     /**
@@ -412,7 +407,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedProjections.add(alias("salary3", salary));
         expectedProjections.add(alias("emp_no2", salary));
         expectedProjections.add(alias("salary2", empNo));
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
+        assertEquals(expectedProjections, project.projections());
     }
 
     /**
@@ -439,7 +434,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
 
         var salary2 = alias("salary2", mul(salary, of(2)));
         var salary3 = alias("salary3", mul(salary2.toAttribute(), of(3)));
-        assertEqualsIgnoringIds(List.of(salary2, salary3), eval.fields());
+        assertEquals(List.of(salary2, salary3), eval.fields());
 
         List<Expression> expectedProjections = new ArrayList<>();
         expectedProjections.add(salary);
@@ -447,7 +442,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedProjections.add(alias("aliased_salary2", salary2.toAttribute()));
         expectedProjections.add(salary3.toAttribute());
         expectedProjections.add(alias("twice_aliased_salary2", salary2.toAttribute()));
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
+        assertEquals(expectedProjections, project.projections());
     }
 
     /**
@@ -476,12 +471,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
 
         assertEquals(3, eval.fields().size());
         var salary2 = alias("salary2", mul(salary, of(2)));
-        assertEqualsIgnoringIds(salary2, eval.fields().get(0));
+        assertEquals(salary2, eval.fields().get(0));
         var salary2TempName = eval.fields().get(1);
         assertThat(salary2TempName.name(), startsWith("$$salary2$temp_name$"));
-        assertEqualsIgnoringIds(mul(salary2.toAttribute(), of(3)), salary2TempName.child());
+        assertEquals(mul(salary2.toAttribute(), of(3)), salary2TempName.child());
         var salary3 = alias("salary3", mul(salary2TempName.toAttribute(), of(4)));
-        assertEqualsIgnoringIds(salary3, eval.fields().get(2));
+        assertEquals(salary3, eval.fields().get(2));
 
         List<Expression> expectedProjections = new ArrayList<>();
         expectedProjections.add(salary);
@@ -489,6 +484,6 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
         expectedProjections.add(alias("salary2", salary2TempName.toAttribute()));
         expectedProjections.add(salary3.toAttribute());
         expectedProjections.add(alias("salary4", salary3.toAttribute()));
-        assertEqualsIgnoringIds(expectedProjections, project.projections());
+        assertEquals(expectedProjections, project.projections());
     }
 }

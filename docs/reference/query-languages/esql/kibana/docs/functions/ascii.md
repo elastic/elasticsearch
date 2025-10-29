@@ -4,5 +4,5 @@
 Escape non ASCII characters.
 
 ```esql
-null
+ROW a = "Hello\\n\\t 世界! 🌍 Café naïve résumé こんにちは 🎉 中文测试 αβγδε 日本語テスト 🚀🔥💧🪨" | EVAL x = ASCII(a) | KEEP x;
 ```

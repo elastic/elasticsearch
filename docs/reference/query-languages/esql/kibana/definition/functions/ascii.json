@@ -30,7 +30,7 @@
     }
   ],
   "examples" : [
-    null
+    "ROW a = \"Hello\\\\n\\\\t 世界! \uD83C\uDF0D Café naïve résumé こんにちは \uD83C\uDF89 中文测试 αβγδε 日本語テスト \uD83D\uDE80\uD83D\uDD25\uD83D\uDCA7\uD83E\uDEA8\" | EVAL x = ASCII(a) | KEEP x;"
   ],
   "preview" : false,
   "snapshot_only" : false

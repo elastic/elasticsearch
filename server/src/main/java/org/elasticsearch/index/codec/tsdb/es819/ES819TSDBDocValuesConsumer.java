@@ -350,7 +350,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 assert maxLength >= minLength;
                 if (binaryDVCompressionMode == BinaryDVCompressionMode.NO_COMPRESS) {
                     var offsetsAccumulator = maxLength > minLength ? new OffsetsAccumulator(dir, context, data, numDocsWithField) : null;
-                    binaryWriter = new DirectBinaryWriterOptimized(offsetsAccumulator);
+                    binaryWriter = new DirectBinaryWriter(offsetsAccumulator,  null);
                 } else {
                     binaryWriter = new CompressedBinaryBlockWriter(binaryDVCompressionMode);
                 }
@@ -396,7 +396,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             BinaryWriter binaryWriter = null;
             try {
                 if (binaryDVCompressionMode == BinaryDVCompressionMode.NO_COMPRESS) {
-                    binaryWriter = new DirectBinaryWriterUnoptimized(valuesProducer, field);
+                    binaryWriter = new DirectBinaryWriter(null, valuesProducer.getBinary(field));
                 } else {
                     binaryWriter = new CompressedBinaryBlockWriter(binaryDVCompressionMode);
                 }
@@ -451,7 +451,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
     }
 
-    private interface BinaryWriter extends Closeable {
+    private sealed interface BinaryWriter extends Closeable {
         void addDoc(BytesRef v) throws IOException;
 
         default void flushData() throws IOException {}
@@ -462,11 +462,13 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         default void close() throws IOException {}
     }
 
-    private class DirectBinaryWriterOptimized implements BinaryWriter {
+    private final class DirectBinaryWriter implements BinaryWriter {
         final OffsetsAccumulator offsetsAccumulator;
+        final BinaryDocValues values;
 
-        private DirectBinaryWriterOptimized(OffsetsAccumulator offsetsAccumulator) {
+        private DirectBinaryWriter(OffsetsAccumulator offsetsAccumulator, BinaryDocValues values) {
             this.offsetsAccumulator = offsetsAccumulator;
+            this.values = values;
         }
 
         @Override
@@ -480,52 +482,35 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         @Override
         public void writeAddressMetadata(int minLength, int maxLength, int numDocsWithField) throws IOException {
             if (offsetsAccumulator != null) {
+                // If optimized merging and minLength > maxLength
                 offsetsAccumulator.build(meta, data);
-            }
-        }
-    }
+            } else if (values != null) {
+                if (maxLength > minLength) {
+                    // If optimized merging and minLength > maxLength
+                    long addressStart = data.getFilePointer();
+                    meta.writeLong(addressStart);
+                    meta.writeVInt(ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
 
-    private class DirectBinaryWriterUnoptimized implements BinaryWriter {
-        private final DocValuesProducer valuesProducer;
-        private final FieldInfo field;
-
-        private DirectBinaryWriterUnoptimized(DocValuesProducer valuesProducer, FieldInfo field) {
-            this.valuesProducer = valuesProducer;
-            this.field = field;
-        }
-
-        @Override
-        public void addDoc(BytesRef v) throws IOException {
-            data.writeBytes(v.bytes, v.offset, v.length);
-        }
-
-        @Override
-        public void writeAddressMetadata(int minLength, int maxLength, int numDocsWithField) throws IOException {
-            if (maxLength > minLength) {
-                long addressStart = data.getFilePointer();
-                meta.writeLong(addressStart);
-                meta.writeVInt(ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
-
-                final DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(
-                    meta,
-                    data,
-                    numDocsWithField + 1,
-                    ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
-                );
-                long addr = 0;
-                writer.add(addr);
-                var values = valuesProducer.getBinary(field);
-                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                    addr += values.binaryValue().length;
+                    final DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(
+                        meta,
+                        data,
+                        numDocsWithField + 1,
+                        ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                    );
+                    long addr = 0;
                     writer.add(addr);
+                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                        addr += values.binaryValue().length;
+                        writer.add(addr);
+                    }
+                    writer.finish();
+                    meta.writeLong(data.getFilePointer() - addressStart);
                 }
-                writer.finish();
-                meta.writeLong(data.getFilePointer() - addressStart);
             }
         }
     }
 
-    private class CompressedBinaryBlockWriter implements BinaryWriter {
+    private final class CompressedBinaryBlockWriter implements BinaryWriter {
         static final int MIN_BLOCK_BYTES = 256 * 1024;
         static final int START_BLOCK_DOCS = 1024;
 

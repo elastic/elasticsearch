@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -109,60 +108,55 @@ public final class Ascii extends UnaryScalarFunction {
         int offset = val.offset;
         while (offset < val.offset + val.length) {
             codePoint = UnicodeUtil.codePointAt(val.bytes, offset, codePoint);
+            var code = codePoint.codePoint;
 
             BytesRef input = new BytesRef(val.bytes, offset, codePoint.numBytes);
-            var maybeEscaped = escapeCodePoint(codePoint);
 
-            scratch.append(maybeEscaped.orElse(input));
-
+            // Bump offset so continue can be used starting from this point
             offset += codePoint.numBytes;
+
+            // Check for special ASCII control characters
+            String escapeStr = switch (code) {
+                case '\n' -> "\\\\n";
+                case '\r' -> "\\\\r";
+                case '\t' -> "\\\\t";
+                case '\b' -> "\\\\b";
+                case '\f' -> "\\\\f";
+                case '\\' -> "\\\\\\";
+                case '\'' -> "\\\\'";
+                case '\"' -> "\\\\\"";
+                default -> null;
+            };
+
+            // Printable ASCII characters (32-126) don't need escaping
+            if (escapeStr == null && code >= 32 && code <= 126) {
+                scratch.append(input);
+                continue;
+            }
+
+            // For any other, we use escaped templates depending on the range
+            if (escapeStr == null) {
+                String formatStr;
+
+                if (code < 128) {
+                    formatStr = "\\\\x%02x";
+                } else if (code <= 0xFF) {
+                    // Use xHH for code points 128-255
+                    formatStr = "\\\\x%02x";
+                } else if (code <= 0xFFFF) {
+                    // Use uHHHH for code points 256-65535
+                    formatStr = "\\\\u%04x";
+                } else {
+                    // Use UHHHHHHHH for code points above 65535
+                    formatStr = "\\\\U%08x";
+                }
+
+                escapeStr = Strings.format(formatStr, code);
+            }
+
+            scratch.append(new BytesRef(escapeStr));
         }
 
         return scratch.bytesRefView();
-    }
-
-    private static Optional<BytesRef> escapeCodePoint(UnicodeUtil.UTF8CodePoint codePoint) {
-        var code = codePoint.codePoint;
-
-        // Printable ASCII characters (32-126) don't need escaping
-        if (code >= 32 && code <= 126) {
-            return Optional.empty();
-        }
-
-        // Handle special ASCII control characters
-        String resultStr = switch (code) {
-            case '\n' -> "\\\\n";
-            case '\r' -> "\\\\r";
-            case '\t' -> "\\\\t";
-            case '\b' -> "\\\\b";
-            case '\f' -> "\\\\f";
-            case '\\' -> "\\\\\\";
-            case '\'' -> "\\\\'";
-            case '\"' -> "\\\\\"";
-            default -> null;
-        };
-
-        if (resultStr != null) {
-            return Optional.of(new BytesRef(resultStr));
-        }
-
-        String formatStr;
-
-        if (code < 128) {
-            formatStr = "\\\\x%02x";
-        } else if (code <= 0xFF) {
-            // Use xHH for code points 128-255
-            formatStr = "\\\\x%02x";
-        } else if (code <= 0xFFFF) {
-            // Use uHHHH for code points 256-65535
-            formatStr = "\\\\u%04x";
-        } else {
-            // Use UHHHHHHHH for code points above 65535
-            formatStr = "\\\\U%08x";
-        }
-
-        resultStr = Strings.format(formatStr, code);
-
-        return Optional.of(new BytesRef(resultStr));
     }
 }

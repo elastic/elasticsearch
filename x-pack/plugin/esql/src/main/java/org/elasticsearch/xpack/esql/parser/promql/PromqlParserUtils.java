@@ -18,7 +18,7 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class ParsingUtils {
+public class PromqlParserUtils {
     // time units recognized by Prometheus
     private static final Map<String, Long> TIME_UNITS;
 
@@ -37,7 +37,7 @@ public class ParsingUtils {
         TIME_UNITS = unmodifiableMap(map);
     }
 
-    private ParsingUtils() {}
+    private PromqlParserUtils() {}
 
     public static TimeValue parseTimeValue(Source source, String string) {
         char[] chars = string.toCharArray();

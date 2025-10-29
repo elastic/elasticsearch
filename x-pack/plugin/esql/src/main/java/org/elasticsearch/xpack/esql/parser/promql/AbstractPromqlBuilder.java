@@ -16,10 +16,10 @@ import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParserBaseVisitor;
 
-class AbstractBuilder extends PromqlBaseParserBaseVisitor<Object> {
+class AbstractPromqlBuilder extends PromqlBaseParserBaseVisitor<Object> {
     private final int startLine, startColumn;
 
-    AbstractBuilder(int startLine, int startColumn) {
+    AbstractPromqlBuilder(int startLine, int startColumn) {
         this.startLine = startLine;
         this.startColumn = startColumn;
     }
@@ -41,7 +41,7 @@ class AbstractBuilder extends PromqlBaseParserBaseVisitor<Object> {
     }
 
     static String unquote(Source source) {
-        return ParsingUtils.unquote(source);
+        return PromqlParserUtils.unquote(source);
     }
 
     @Override
@@ -51,19 +51,19 @@ class AbstractBuilder extends PromqlBaseParserBaseVisitor<Object> {
     }
 
     protected Source source(TerminalNode terminalNode) {
-        return ParsingUtils.adjustSource(ParserUtils.source(terminalNode), startLine, startColumn);
+        return PromqlParserUtils.adjustSource(ParserUtils.source(terminalNode), startLine, startColumn);
     }
 
     protected Source source(ParserRuleContext parserRuleContext) {
-        return ParsingUtils.adjustSource(ParserUtils.source(parserRuleContext), startLine, startColumn);
+        return PromqlParserUtils.adjustSource(ParserUtils.source(parserRuleContext), startLine, startColumn);
     }
 
     protected Source source(Token token) {
-        return ParsingUtils.adjustSource(ParserUtils.source(token), startLine, startColumn);
+        return PromqlParserUtils.adjustSource(ParserUtils.source(token), startLine, startColumn);
     }
 
     protected Source source(Token start, Token stop) {
-        return ParsingUtils.adjustSource(ParserUtils.source(start, stop), startLine, startColumn);
+        return PromqlParserUtils.adjustSource(ParserUtils.source(start, stop), startLine, startColumn);
     }
 
 }

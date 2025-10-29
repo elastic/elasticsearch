@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
-import org.elasticsearch.xpack.esql.parser.promql.ParsingUtils;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
@@ -1289,7 +1289,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             // The existing PromqlParser is used to parse the inner query
             promqlPlan = promqlParser.createStatement(promqlQuery, null, null, promqlStartLine, promqlStartColumn);
         } catch (ParsingException pe) {
-            throw ParsingUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
+            throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
         return plan -> time != null

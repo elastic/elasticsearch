@@ -66,7 +66,7 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.SLASH;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.UNLESS;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.NAME;
 
-public class PromqlLogicalPlanBuilder extends ExpressionBuilder {
+public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
     PromqlLogicalPlanBuilder() {
         this(null, null, 0, 0);

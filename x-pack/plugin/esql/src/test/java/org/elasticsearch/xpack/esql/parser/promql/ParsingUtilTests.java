@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 public class ParsingUtilTests extends ESTestCase {
 
     private TimeValue parseTimeValue(String value) {
-        return ParsingUtils.parseTimeValue(new Source(0, 0, value), value);
+        return PromqlParserUtils.parseTimeValue(new Source(0, 0, value), value);
     }
 
     private void invalidTimeValue(String value, String errorMessage) {
@@ -151,7 +151,7 @@ public class ParsingUtilTests extends ESTestCase {
     // Go escaping rules
     //
     private String unquote(String value) {
-        return ParsingUtils.unquote(new Source(0, 0, value));
+        return PromqlParserUtils.unquote(new Source(0, 0, value));
     }
 
     private void invalidString(String value, String errorMessage) {

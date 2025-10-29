@@ -19,32 +19,15 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorBinaryOperator;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorMatch;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.set.VectorBinarySet;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.set.VectorBinarySet.SetOp;
-import org.elasticsearch.xpack.esql.expression.promql.types.PromqlDataTypes;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ArithmeticBinaryContext;
-import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.HexLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelNameContext;
-import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ModifierContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.StringContext;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -52,37 +35,22 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AND;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ASTERISK;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AtContext;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.CARET;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.DecimalLiteralContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.DurationContext;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.EQ;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.EvaluationContext;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.GT;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.GTE;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LT;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LTE;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.MINUS;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.NEQ;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.OR;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.OffsetContext;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PERCENT;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PLUS;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.SLASH;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.TimeValueContext;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.UNLESS;
 
-class ExpressionBuilder extends IdentifierBuilder {
+class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     protected final Instant start, end;
 
-    ExpressionBuilder() {
+    PromqlExpressionBuilder() {
         this(null, null, 0, 0);
     }
 
-    ExpressionBuilder(Instant start, Instant end, int startLine, int startColumn) {
+    PromqlExpressionBuilder(Instant start, Instant end, int startLine, int startColumn) {
         super(startLine, startColumn);
         Instant now = null;
         if (start == null || end == null) {
@@ -323,7 +291,7 @@ class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private static TimeValue parseTimeValue(Source source, String text) {
-        TimeValue timeValue = ParsingUtils.parseTimeValue(source, text);
+        TimeValue timeValue = PromqlParserUtils.parseTimeValue(source, text);
         if (timeValue.duration() == 0) {
             throw new ParsingException(source, "Invalid time duration [{}], zero value specified", text);
         }

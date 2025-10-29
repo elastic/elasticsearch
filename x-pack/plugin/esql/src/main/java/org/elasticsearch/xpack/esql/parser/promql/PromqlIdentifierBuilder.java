@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IdentifierContext;
 
-abstract class IdentifierBuilder extends AbstractBuilder {
+abstract class PromqlIdentifierBuilder extends AbstractPromqlBuilder {
 
-    IdentifierBuilder(int startLine, int startColumn) {
+    PromqlIdentifierBuilder(int startLine, int startColumn) {
         super(startLine, startColumn);
     }
 

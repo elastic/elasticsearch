@@ -14,6 +14,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -22,6 +25,7 @@ import java.util.List;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.common.logging.Loggers.checkRestrictedLoggers;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -57,6 +61,56 @@ public class LoggersTests extends ESTestCase {
         }
     }
 
+    private void setLevel(String logger, Level level, Loggers.ConfigContext context) {
+        Loggers.setLevel(LogManager.getLogger(logger), level, context);
+    }
+
+    public void testSetLevelWithContext() {
+        TestLoggers.runWithLoggersRestored(() -> {
+            // make sure these loggers exist
+            shuffledList(LogManager.ROOT_LOGGER_NAME, "foo", "foo.bar", "foo.bar.a", "foo.bar.b").forEach(
+                logger -> setLevel(logger, Level.INFO, Loggers.newContext())
+            );
+
+            var context = Loggers.newContext();
+            shuffledList(
+                tuple(LogManager.ROOT_LOGGER_NAME, Level.FATAL),
+                tuple("foo", Level.ERROR),
+                tuple("foo.bar", Level.WARN),
+                tuple("foo.bar.a", Level.DEBUG)
+            ).forEach(t -> setLevel(t.v1(), t.v2(), context));
+
+            assertThat(LogManager.ROOT_LOGGER_NAME, hasLevel(Level.FATAL));
+            assertThat("foo", hasLevel(Level.ERROR));
+            assertThat("foo.bar", hasLevel(Level.WARN));
+            assertThat("foo.bar.inherited", hasLevel(Level.WARN)); // config doesn't exist, inherited from foo.bar
+            assertThat("foo.bar.b", hasLevel(Level.WARN)); // config exists, inherited from foo.bar
+            assertThat("foo.bar.a", hasLevel(Level.DEBUG));
+        });
+    }
+
+    private Matcher<String> hasLevel(Level level) {
+        return new TypeSafeMatcher<>() {
+            @Override
+            protected boolean matchesSafely(String name) {
+                return LogManager.getLogger(name).getLevel() == level;
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("log level ").appendValue(level);
+            }
+
+            @Override
+            protected void describeMismatchSafely(String name, Description mismatchDescription) {
+                mismatchDescription.appendText("logger ")
+                    .appendValue(name)
+                    .appendText(" has level ")
+                    .appendValue(LogManager.getLogger(name).getLevel());
+            }
+        };
+    }
+
     public void testSetLevelWithRestrictions() {
         for (String restricted : restrictedLoggers) {
             TestLoggers.runWithLoggersRestored(() -> {
@@ -67,26 +121,26 @@ public class LoggersTests extends ESTestCase {
                 Logger restrictedComponent = LogManager.getLogger(restricted + ".component");
                 Logger parentLogger = LogManager.getLogger(restricted.substring(0, restricted.lastIndexOf('.')));
 
-                Loggers.setLevel(restrictedLogger, Level.INFO, restrictedLoggers);
+                Loggers.setLevel(restrictedLogger, Level.INFO, Loggers.newContext(), restrictedLoggers);
                 assertHasINFO(restrictedLogger, restrictedComponent);
 
                 for (Logger log : List.of(restrictedComponent, restrictedLogger)) {
                     // DEBUG is rejected due to restriction
-                    Loggers.setLevel(log, Level.DEBUG, restrictedLoggers);
+                    Loggers.setLevel(log, Level.DEBUG, Loggers.newContext(), restrictedLoggers);
                     assertHasINFO(restrictedComponent, restrictedLogger);
                 }
 
                 // OK for parent `org.apache`, but restriction is enforced for restricted descendants
-                Loggers.setLevel(parentLogger, Level.DEBUG, restrictedLoggers);
+                Loggers.setLevel(parentLogger, Level.DEBUG, Loggers.newContext(), restrictedLoggers);
                 assertEquals(Level.DEBUG, parentLogger.getLevel());
                 assertHasINFO(restrictedComponent, restrictedLogger);
 
                 // Inheriting DEBUG of parent `org.apache` is rejected
-                Loggers.setLevel(restrictedLogger, null, restrictedLoggers);
+                Loggers.setLevel(restrictedLogger, null, Loggers.newContext(), restrictedLoggers);
                 assertHasINFO(restrictedComponent, restrictedLogger);
 
                 // DEBUG of root logger isn't propagated to restricted loggers
-                Loggers.setLevel(LogManager.getRootLogger(), Level.DEBUG, restrictedLoggers);
+                Loggers.setLevel(LogManager.getRootLogger(), Level.DEBUG, Loggers.newContext(), restrictedLoggers);
                 assertEquals(Level.DEBUG, LogManager.getRootLogger().getLevel());
                 assertHasINFO(restrictedComponent, restrictedLogger);
             });

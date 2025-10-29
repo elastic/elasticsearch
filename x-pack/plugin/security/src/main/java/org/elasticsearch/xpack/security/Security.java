@@ -2300,8 +2300,10 @@ public class Security extends Plugin
                     // We can rely on the fact that by this point, the "authenticate" trace has been ended.
                     // the restore has brought back some headers related to the "authenticate" trace that we don't want,
                     // however we do want to still keep the parent going. so we need to remove some trace headers but keep others
-                    threadContext.newStoredContext(List.of(Task.APM_TRACE_CONTEXT),
-                        List.of(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE));
+                    threadContext.newStoredContext(
+                        List.of(Task.APM_TRACE_CONTEXT),
+                        List.of(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE)
+                    );
                 } else {
                     // this is an unexpected internal error condition where {@code Netty4HttpHeaderValidator} does not work correctly
                     throw new ElasticsearchSecurityException("Request is not authenticated");

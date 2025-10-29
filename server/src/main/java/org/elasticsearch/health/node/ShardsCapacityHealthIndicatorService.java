@@ -244,7 +244,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             finalStatus,
             symptomBuilder.toString(),
             verbose
-                ? buildDetails(statusResults.stream().map(StatusResult::result).toList(), healthMetadata)
+                ? buildDetails(statusResults.stream().map(StatusResult::result).toList())
                 : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
             verbose ? List.copyOf(diagnoses) : List.of()
@@ -272,7 +272,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return new StatusResult(HealthStatus.GREEN, result);
     }
 
-    static HealthIndicatorDetails buildDetails(List<ShardLimitValidator.Result> results, HealthMetadata healthMetadata) {
+    static HealthIndicatorDetails buildDetails(List<ShardLimitValidator.Result> results) {
         return (builder, params) -> {
             builder.startObject();
             for (var result : results) {

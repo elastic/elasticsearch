@@ -882,7 +882,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     + "] with model settings ["
                     + previousModelSettings
                     + "] is not compatible with new inference endpoint ["
-                    + DEFAULT_ELSER_2_INFERENCE_ID
+                    + DEFAULT_EIS_ELSER_INFERENCE_ID
                     + "] with model settings ["
                     + newModelSettings
                     + "]"

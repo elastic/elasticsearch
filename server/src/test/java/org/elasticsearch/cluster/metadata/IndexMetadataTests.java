@@ -267,7 +267,7 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadata fromXContentMeta;
         XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry())
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        try (XContentParser xContentParser = XContentHelper.mapToXContentParser(config, indexMetadataMap);) {
+        try (XContentParser xContentParser = XContentHelper.mapToXContentParser(config, indexMetadataMap)) {
             fromXContentMeta = IndexMetadata.fromXContent(xContentParser);
         }
 

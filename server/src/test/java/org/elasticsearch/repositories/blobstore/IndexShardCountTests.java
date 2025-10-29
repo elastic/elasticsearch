@@ -9,7 +9,6 @@
 
 package org.elasticsearch.repositories.blobstore;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
@@ -23,12 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -143,10 +137,6 @@ public class IndexShardCountTests extends ESTestCase {
         return randomIndexMetadata(numberOfShards, system, customMap);
     }
 
-    private IndexMetadata randomIndexMetadata(boolean system, Map<String, String> customMap) {
-        return randomIndexMetadata(randomFrom(1, 2, 4, 8, 16), system, customMap);
-    }
-
     private IndexMetadata randomIndexMetadata(int numberOfShards, boolean system, Map<String, String> customMap) {
         int numberOfReplicas = randomIntBetween(0, 10);
         IndexVersion mappingsUpdatedVersion = IndexVersionUtils.randomVersion();
@@ -205,21 +195,6 @@ public class IndexShardCountTests extends ESTestCase {
         inner.remove(IndexMetadata.KEY_EVENT_INGESTED_RANGE);
         // validate that the IndexMetadata.KEY_EVENT_INGESTED_RANGE has been removed before calling fromXContent
         assertFalse(inner.containsKey(IndexMetadata.KEY_EVENT_INGESTED_RANGE));
-    }
-
-    private IndexMetadata roundTripWithVersion(IndexMetadata indexMetadata, TransportVersion version) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(version);
-            indexMetadata.writeTo(out);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
-                in.setTransportVersion(version);
-                return IndexMetadata.readFrom(in);
-            }
-        }
-    }
-
-    private static Settings indexSettingsWithDataTier(String dataTier) {
-        return indexSettings(IndexVersion.current(), 1, 0).put(DataTier.TIER_PREFERENCE, dataTier).build();
     }
 
     public static Map<String, InferenceFieldMetadata> randomInferenceFields() {

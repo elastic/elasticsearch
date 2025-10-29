@@ -1268,6 +1268,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try {
                 return findReaderContext(contextId, request);
             } catch (SearchContextMissingException e) {
+                logger.debug("failed to find active reader context [id: {}]", contextId);
                 if (contextId.isRetryable() == false) {
                     throw e;
                 }
@@ -1283,19 +1284,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 ReaderContext readerContext = null;
                 if (PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
-                    // we are using a PIT here so set singleSession to false to prevent clearing after the search finishes
-                    readerContext = createAndPutReaderContext(
+                    readerContext = createAndPutRelocatedPitContext(
                         contextId,
-                        request,
                         indexService,
                         shard,
                         searcherSupplier,
-                        false,
                         getDefaultKeepAliveInMillis()
                     );
                     logger.debug("Recreated reader context [{}]", readerContext.id());
                 } else {
-                    // when feature is disabled, stay with the old way of just adding a temporary context
+                    // when relocation feature is disabled, stay with the old way of just adding a temporary context
                     readerContext = createAndPutReaderContext(request, indexService, shard, searcherSupplier, defaultKeepAlive);
                 }
                 return readerContext;
@@ -1314,18 +1312,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         long keepAliveInMillis
     ) {
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
-        return createAndPutReaderContext(id, request, indexService, shard, reader, true, keepAliveInMillis);
-    }
-
-    private ReaderContext createAndPutReaderContext(
-        ShardSearchContextId id,
-        ShardSearchRequest request,
-        IndexService indexService,
-        IndexShard shard,
-        Engine.SearcherSupplier reader,
-        boolean singleSession,
-        long keepAliveInMillis
-    ) {
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
@@ -1338,7 +1324,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.addOnClose(decreaseScrollContexts);
                 decreaseScrollContexts = null;
             } else {
-                readerContext = new ReaderContext(id, indexService, shard, reader, keepAliveInMillis, singleSession);
+                readerContext = new ReaderContext(id, indexService, shard, reader, keepAliveInMillis, true);
             }
             reader = null;
             final ReaderContext finalReaderContext = readerContext;
@@ -1354,6 +1340,44 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return finalReaderContext;
         } finally {
             Releasables.close(reader, readerContext, decreaseScrollContexts);
+        }
+    }
+
+    final ReaderContext createAndPutRelocatedPitContext(
+        ShardSearchContextId contextId,
+        IndexService indexService,
+        IndexShard shard,
+        Engine.SearcherSupplier reader,
+        long keepAliveInMillis
+    ) {
+        ReaderContext readerContext = null;
+        try {
+            long newKey = idGenerator.incrementAndGet();
+            // Check that we don't already have a relocation mapping for this context id
+            final Long previous = activeReaders.generateRelocationMapping(contextId, newKey);
+            if (previous == null) {
+                readerContext = new ReaderContext(contextId, indexService, shard, reader, keepAliveInMillis, false);
+                reader = null;
+                final ReaderContext finalReaderContext = readerContext;
+                final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
+                searchOperationListener.onNewReaderContext(finalReaderContext);
+                readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
+                activeReaders.putRelocatedReader(newKey, readerContext);
+                // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
+                // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
+                final Index index = readerContext.indexShard().shardId().getIndex();
+                if (indicesService.hasIndex(index) == false) {
+                    removeReaderContext(readerContext.id());
+                    throw new IndexNotFoundException(index);
+                }
+                readerContext = null;
+                return finalReaderContext;
+            } else {
+                // we already have a mapping for this context, dont add a new one and use the existing instead
+                return activeReaders.get(new ShardSearchContextId(sessionId, previous, contextId.getSearcherId()));
+            }
+        } finally {
+            Releasables.close(reader, readerContext);
         }
     }
 
@@ -1931,6 +1955,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     freeReaderContext(context.id());
                 }
             }
+
         }
 
         @Override

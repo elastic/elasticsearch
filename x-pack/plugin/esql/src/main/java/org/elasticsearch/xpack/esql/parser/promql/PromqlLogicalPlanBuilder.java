@@ -11,8 +11,8 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -134,7 +134,7 @@ public class PromqlLogicalPlanBuilder extends ExpressionBuilder {
         final LabelMatchers matchers = new LabelMatchers(labels);
         final Evaluation finalEvaluation = evaluation;
 
-        UnresolvedAttribute timestamp = new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD);
+        UnresolvedTimestamp timestamp = new UnresolvedTimestamp(source);
 
         return rangeEx == null
             ? new InstantSelector(source, series, labelExpressions, matchers, finalEvaluation, timestamp)

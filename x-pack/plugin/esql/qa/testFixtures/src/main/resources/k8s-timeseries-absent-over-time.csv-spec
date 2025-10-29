@@ -295,3 +295,23 @@ events_received:integer | pod:keyword | time_bucket:datetime
 0                       | two         | 2024-05-10T00:20:00.000Z
 0                       | two         | 2024-05-10T00:22:00.000Z
 ;
+
+trange_absolute_epoch_millis_with_aggregations
+required_capability: ts_command_v0
+required_capability: fn_trange
+
+TS k8s 
+| WHERE TRANGE("2024-05-10T00:20:00.000Z", "2024-05-10T00:25:00.000Z") 
+| STATS events_received = max(absent_over_time(events_received)) BY pod, time_bucket = tbucket(1 minute) 
+| SORT time_bucket
+| LIMIT 5
+;
+ignoreOrder:true
+
+events_received:boolean | pod:keyword | time_bucket:datetime
+false                   | one         | 2024-05-10T00:20:00.000Z
+false                   | three       | 2024-05-10T00:20:00.000Z
+false                   | three       | 2024-05-10T00:21:00.000Z
+false                   | two         | 2024-05-10T00:20:00.000Z
+true                    | one         | 2024-05-10T00:21:00.000Z
+;

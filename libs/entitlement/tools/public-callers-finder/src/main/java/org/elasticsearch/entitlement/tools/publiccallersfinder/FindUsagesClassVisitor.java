@@ -18,13 +18,24 @@ import org.objectweb.asm.Type;
 import java.lang.constant.ClassDesc;
 import java.lang.reflect.AccessFlag;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static org.objectweb.asm.Opcodes.ACC_PROTECTED;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ASM9;
 
 class FindUsagesClassVisitor extends ClassVisitor {
+
+    /**
+     * Internal classes that should be skipped for further transitive analysis.
+     */
+    private static Map<MethodDescriptor, Set<String>> SKIPS = Map.of(
+        // heavily used internal low-level APIs used to write bytecode by MethodHandles and similar
+        new MethodDescriptor("java/nio/file/Files", "write", "(Ljava/nio/file/Path;[B[Ljava/nio/file/OpenOption;)Ljava/nio/file/Path;"),
+        Set.of("jdk/internal/foreign/abi/BindingSpecializer", "jdk/internal/util/ClassFileDumper")
+    );
 
     private int classAccess;
     private boolean accessibleViaInterfaces;
@@ -84,6 +95,9 @@ class FindUsagesClassVisitor extends ClassVisitor {
 
     @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+        if (SKIPS.getOrDefault(methodToFind, emptySet()).contains(className)) {
+            return null;
+        }
         return new FindUsagesMethodVisitor(super.visitMethod(access, name, descriptor, signature, exceptions), name, descriptor, access);
     }
 

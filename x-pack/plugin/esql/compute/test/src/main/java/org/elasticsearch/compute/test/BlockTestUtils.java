@@ -374,7 +374,7 @@ public class BlockTestUtils {
         }
     }
 
-    static ExponentialHistogram randomExponentialHistogram() {
+    public static ExponentialHistogram randomExponentialHistogram() {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
         boolean hasNegativeValues = randomBoolean();

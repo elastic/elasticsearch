@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.action.index.IndexRequest;
@@ -24,10 +25,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -327,6 +331,23 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
         return sampleInfo == null ? new SampleStats() : sampleInfo.stats;
     }
 
+    /*
+     * Throws an IndexNotFoundException if the first index in the IndicesRequest is not a data stream or a single index that exists
+     */
+    public static void throwIndexNotFoundExceptionIfNotDataStreamOrIndex(
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
+        ClusterState state,
+        IndicesRequest request
+    ) {
+        assert request.indices().length == 1 : "Expected IndicesRequest to have a single index but found " + request.indices().length;
+        assert request.includeDataStreams() : "Expected IndicesRequest to include data streams but it did not";
+        boolean isDataStream = projectResolver.getProjectMetadata(state).dataStreams().containsKey(request.indices()[0]);
+        if (isDataStream == false) {
+            indexNameExpressionResolver.concreteIndexNames(state, request);
+        }
+    }
+
     public boolean atLeastOneSampleConfigured(ProjectMetadata projectMetadata) {
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
@@ -501,6 +522,22 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                     if (samplingConfiguration != null) {
                         logger.debug("Deleting sample configuration for {} because the index has been deleted", indexName);
                         deleteSampleConfiguration(projectId, indexName);
+                    }
+                }
+            }
+        }
+        if (currentProject.dataStreams() != previousProject.dataStreams()) {
+            for (DataStream dataStream : previousProject.dataStreams().values()) {
+                DataStream current = currentProject.dataStreams().get(dataStream.getName());
+                if (current == null) {
+                    String dataStreamName = dataStream.getName();
+                    SamplingConfiguration samplingConfiguration = getSamplingConfiguration(
+                        event.state().projectState(projectId).metadata(),
+                        dataStreamName
+                    );
+                    if (samplingConfiguration != null) {
+                        logger.debug("Deleting sample configuration for {} because the data stream has been deleted", dataStreamName);
+                        deleteSampleConfiguration(projectId, dataStreamName);
                     }
                 }
             }

@@ -48,8 +48,8 @@ public class ESNextOSQVectorsScorer {
 
     /** Sole constructor, called by sub-classes. */
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
-        if (queryBits != 4 || indexBits != 1) {
-            throw new IllegalArgumentException("Only asymmetric 4-bit query and 1-bit index supported");
+        if (queryBits != 4 || (indexBits != 1 && indexBits != 2)) {
+            throw new IllegalArgumentException("Only asymmetric 4-bit query and 1 or 2-bit index supported");
         }
         this.in = in;
         this.queryBits = queryBits;
@@ -65,15 +65,27 @@ public class ESNextOSQVectorsScorer {
     public long quantizeScore(byte[] q) throws IOException {
         if (indexBits == 1) {
             if (queryBits == 4) {
-                return quantized4BitScore(q);
+                return quantized4BitScore(q, length);
             }
             throw new IllegalArgumentException("Only asymmetric 4-bit query supported");
         }
+        if (indexBits == 2) {
+            if (queryBits == 4) {
+                return quantized4BitScore2BitIndex(q);
+            }
+        }
         throw new IllegalArgumentException("Only 1-bit index supported");
-
     }
 
-    private long quantized4BitScore(byte[] q) throws IOException {
+    private long quantized4BitScore2BitIndex(byte[] q) throws IOException {
+        assert q.length == length * 2;
+        assert length % 2 == 0 : "length must be even for 2-bit index length: " + length + " dimensions: " + dimensions;
+        int lower = (int) quantized4BitScore(q, length / 2);
+        int upper = (int) quantized4BitScore(q, length / 2);
+        return lower + ((long) upper << 1);
+    }
+
+    private long quantized4BitScore(byte[] q, int length) throws IOException {
         assert q.length == length * 4;
         final int size = length;
         long subRet0 = 0;
@@ -120,6 +132,15 @@ public class ESNextOSQVectorsScorer {
             }
             throw new IllegalArgumentException("Only asymmetric 4-bit query supported");
         }
+        if (indexBits == 2) {
+            if (queryBits == 4) {
+                for (int i = 0; i < count; i++) {
+                    scores[i] = quantizeScore(q);
+                }
+                return;
+            }
+            throw new IllegalArgumentException("Only asymmetric 4-bit query supported");
+        }
     }
 
     /**
@@ -140,9 +161,9 @@ public class ESNextOSQVectorsScorer {
     ) {
         float ax = lowerInterval;
         // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-        float lx = (upperInterval - ax) * BIT_SCALES[indexBits];
+        float lx = (upperInterval - ax) * BIT_SCALES[indexBits - 1];
         float ay = queryLowerInterval;
-        float ly = (queryUpperInterval - ay) * BIT_SCALES[queryBits];
+        float ly = (queryUpperInterval - ay) * BIT_SCALES[queryBits - 1];
         float y1 = queryComponentSum;
         float score = ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
         // For euclidean, we need to invert the score and apply the additional correction, which is

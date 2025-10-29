@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -191,9 +192,13 @@ public class CsvTests extends ESTestCase {
     private final CsvSpecReader.CsvTestCase testCase;
     private final String instructions;
 
-    private final Configuration configuration = EsqlTestUtils.configuration(
-        new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
-    );
+    /**
+     * The configuration to be used in the tests.
+     * <p>
+     *     Initialized in {@link #executePlan}.
+     * </p>
+     */
+    private Configuration configuration;
     private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
     private final Mapper mapper = new Mapper();
@@ -346,6 +351,10 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle multi_match function that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
             );
+            assumeFalse(
+                "CSV tests cannot currently handle subqueries",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(
@@ -391,7 +400,7 @@ public class CsvTests extends ESTestCase {
 
             var log = logResults() ? LOGGER : null;
             assertResults(expected, actualResults, testCase.ignoreOrder, log);
-            assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
+            assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()), actualResults);
         } finally {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
             // Give the breaker service some time to clear in case we got results before the rest of the driver had cleaned up
@@ -547,6 +556,7 @@ public class CsvTests extends ESTestCase {
 
     private LogicalPlan analyzedPlan(
         LogicalPlan parsed,
+        Configuration configuration,
         Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
         TransportVersion minimumVersion
     ) {
@@ -634,11 +644,16 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        LogicalPlan parsed = parser.createStatement(testCase.query);
-        var testDatasets = testDatasets(parsed);
+        EsqlStatement statement = parser.createQuery(testCase.query);
+        this.configuration = EsqlTestUtils.configuration(
+            new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
+            testCase.query,
+            statement
+        );
+        var testDatasets = testDatasets(statement.plan());
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
-        LogicalPlan analyzed = analyzedPlan(parsed, testDatasets, minimumVersion);
+        LogicalPlan analyzed = analyzedPlan(statement.plan(), configuration, testDatasets, minimumVersion);
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
@@ -717,7 +732,7 @@ public class CsvTests extends ESTestCase {
         SerializationTestUtils.assertSerialization(plan, configuration);
     }
 
-    private void assertWarnings(List<String> warnings) {
+    private void assertWarnings(List<String> warnings, Object context) {
         List<String> normalized = new ArrayList<>(warnings.size());
         for (String w : warnings) {
             String normW = HeaderWarning.extractWarningValueFromWarningHeader(w, false);
@@ -726,7 +741,7 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        testCase.assertWarnings(false).assertWarnings(normalized);
+        testCase.assertWarnings(false).assertWarnings(normalized, context);
     }
 
     PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {

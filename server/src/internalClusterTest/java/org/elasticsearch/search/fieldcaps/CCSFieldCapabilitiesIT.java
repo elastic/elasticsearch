@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fieldcaps;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
@@ -265,5 +266,13 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
                 assertThat(response.get().keySet(), not(hasItems("@timestamp", "field1", "field2")));
             }
         }
+    }
+
+    public void testIncludesMinTransportVersion() {
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareCreate("index"));
+        }
+        var response = client().prepareFieldCaps("_all").setFields("*").get();
+        assertThat(response.minTransportVersion(), equalTo(TransportVersion.current()));
     }
 }

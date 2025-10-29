@@ -398,12 +398,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Function.identity()
     );
 
-    public static final ChecksumBlobStoreFormat<IndexMetadata.IndexShardCount> INDEX_SHARD_COUNT_FORMAT = new ChecksumBlobStoreFormat<>(
-        "index-metadata",
+    public static final ChecksumBlobStoreFormat<IndexShardCount> INDEX_SHARD_COUNT_FORMAT = new ChecksumBlobStoreFormat<>(
+        "shard-count",
         METADATA_NAME_FORMAT,
-        (repoName, parser) -> IndexMetadata.IndexShardCount.fromLegacyIndexMetaData(parser),
-        (repoName, parser) -> IndexMetadata.IndexShardCount.fromIndexMetaData(parser),
-        Function.identity()
+        (repoName, parser) -> IndexShardCount.fromIndexMetaData(parser),
+        (ignored) -> {
+            assert false;
+            throw new UnsupportedOperationException();
+        }
     );
 
     private static final String SNAPSHOT_CODEC = "snapshot";
@@ -1335,8 +1337,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             private void getOneShardCount(String indexMetaGeneration) {
                 try {
                     updateShardCount(
-                        INDEX_SHARD_COUNT_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry)
-                            .getCount()
+                        INDEX_SHARD_COUNT_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry).count()
                     );
                 } catch (Exception ex) {
                     logger.warn(() -> format("[%s] [%s] failed to read shard count for index", indexMetaGeneration, indexId.getName()), ex);
@@ -1913,8 +1914,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }));
 
-                    // Write the index metadata and the shard count to memory for each index in the snapshot, so that it persists
-                    // even if the repository is deleted
+                    // Write the index metadata for each index in the snapshot
                     for (IndexId index : indices) {
                         executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
                             final IndexMetadata indexMetaData = projectMetadata.index(index.getName());

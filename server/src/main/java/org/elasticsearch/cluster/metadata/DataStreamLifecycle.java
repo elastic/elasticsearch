@@ -58,7 +58,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     // Versions over the wire
     public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
-    public static final TransportVersion ADD_LAST_VALUE_DOWNSAMPLE_DLM = TransportVersion.fromName("add_last_value_downsample_dlm");
+    public static final TransportVersion ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM = TransportVersion.fromName("add_sample_method_downsample_dlm");
     public static final String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
@@ -383,7 +383,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
             lifecycleType.writeTo(out);
         }
-        if (out.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)) {
+        if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
             out.writeOptionalWriteable(downsamplingMethod);
         }
     }
@@ -410,7 +410,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             enabled = true;
         }
         lifecycleType = in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? LifecycleType.read(in) : LifecycleType.DATA;
-        downsamplingMethod = in.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)
+        downsamplingMethod = in.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
             ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
             : null;
     }
@@ -628,7 +628,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
         public static DownsamplingRound read(StreamInput in) throws IOException {
             TimeValue after = in.readTimeValue();
-            DateHistogramInterval fixedInterval = in.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)
+            DateHistogramInterval fixedInterval = in.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
                 ? new DateHistogramInterval(in)
                 : new DownsampleConfig(in).getFixedInterval();
             return new DownsamplingRound(after, fixedInterval);
@@ -645,7 +645,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeTimeValue(after);
-            if (out.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)) {
+            if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
                 out.writeWriteable(fixedInterval);
             } else {
                 out.writeWriteable(new DownsampleConfig(fixedInterval, null));
@@ -819,7 +819,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
                 lifecycleType.writeTo(out);
             }
-            if (out.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)) {
+            if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
                 ResettableValue.write(out, downsamplingMethod, StreamOutput::writeWriteable);
             }
         }
@@ -883,7 +883,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 ? LifecycleType.read(in)
                 : LifecycleType.DATA;
             ResettableValue<DownsampleConfig.SamplingMethod> downsamplingMethod = in.getTransportVersion()
-                .supports(ADD_LAST_VALUE_DOWNSAMPLE_DLM)
+                .supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
                     ? ResettableValue.read(in, DownsampleConfig.SamplingMethod::read)
                     : ResettableValue.undefined();
             return new Template(lifecycleTarget, enabled, dataRetention, downsamplingRounds, downsamplingMethod);

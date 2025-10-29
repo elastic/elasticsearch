@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseSettings;
@@ -126,6 +128,13 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         }
 
         assertOrder(backingIndex, orderedDocs);
+
+
+        SearchRequest searchRequest = new SearchRequest(dataStreamName);
+        searchRequest.source().sort("@timestamp", SortOrder.DESC).query(
+            new TermQueryBuilder("host.name", "aaa")
+        );
+        client().search(searchRequest);
     }
 
     public void testTimestampOnlySortConfig() throws IOException {

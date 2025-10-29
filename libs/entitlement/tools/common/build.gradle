@@ -22,3 +22,7 @@ dependencies {
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
 }
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+}

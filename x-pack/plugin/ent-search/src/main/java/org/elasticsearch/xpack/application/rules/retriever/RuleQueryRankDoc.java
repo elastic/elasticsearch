@@ -40,7 +40,7 @@ public class RuleQueryRankDoc extends RankDoc {
 
     public RuleQueryRankDoc(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             List<String> inRulesetIds = in.readOptionalStringCollectionAsList();
             this.rulesetIds = inRulesetIds == null ? null : Collections.unmodifiableList(inRulesetIds);
             boolean matchCriteriaExists = in.readBoolean();
@@ -63,7 +63,7 @@ public class RuleQueryRankDoc extends RankDoc {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalStringCollection(rulesetIds);
             out.writeBoolean(matchCriteria != null);
             if (matchCriteria != null) {

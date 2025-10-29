@@ -161,7 +161,7 @@ FROM library
 """
 }
 ```
-%  TEST[setup:library]
+% TEST[setup:library]
 
 You can also use [query parameters](/reference/query-languages/esql/esql-rest.md#esql-rest-params) in function named parameters:
 
@@ -177,5 +177,5 @@ FROM library
 "params": [300, "Frank Herbert", 2]
 }
 ```
-%  TEST[setup:library]
+% TEST[setup:library]
 

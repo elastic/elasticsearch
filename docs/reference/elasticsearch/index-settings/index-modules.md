@@ -62,11 +62,12 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
       {
         "settings": {
           "index":{
-            "mode":"standard" # This index uses the `standard` index mode
+            "mode":"standard" <1>
           }
         }
       }
       ```
+      1. This index uses the `standard` index mode
     **Supported values**
 
     The `index.mode` setting supports the following values:

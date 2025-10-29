@@ -302,7 +302,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return this.runtimeFields;
     }
 
-    public Long nowInMillis() {
+    Long nowInMillis() {
         return nowInMillis;
     }
 

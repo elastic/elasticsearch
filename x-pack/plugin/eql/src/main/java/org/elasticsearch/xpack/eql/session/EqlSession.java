@@ -122,6 +122,7 @@ public class EqlSession {
             return;
         }
         Set<String> fieldNames = fieldNames(parsed);
+        // TODO pass configuration.projectRouting();
         indexResolver.resolveAsMergedMapping(
             indexWildcard,
             fieldNames,

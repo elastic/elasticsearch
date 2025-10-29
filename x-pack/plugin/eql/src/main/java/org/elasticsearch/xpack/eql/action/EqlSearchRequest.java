@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,6 +46,8 @@ import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP
 
 public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
+    private static final TransportVersion EQL_PROJECT_ROUTING = TransportVersion.fromName("eql_project_routing");
+
     public static final long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
     public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(true, true, true, false);
@@ -65,6 +69,8 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     private int maxSamplesPerKey = RequestDefaults.MAX_SAMPLES_PER_KEY;
     private Boolean allowPartialSearchResults;
     private Boolean allowPartialSequenceResults;
+    private String projectRouting;
+    private ResolvedIndexExpressions resolvedIndexExpressions;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -140,6 +146,19 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
             allowPartialSearchResults = false;
             allowPartialSequenceResults = false;
         }
+        if (in.getTransportVersion().supports(EQL_PROJECT_ROUTING)) {
+            projectRouting = in.readOptionalString();
+            resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
+        }
+    }
+
+    public String projectRouting() {
+        return projectRouting;
+    }
+
+    public EqlSearchRequest projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+        return this;
     }
 
     @Override
@@ -295,6 +314,21 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     public EqlSearchRequest indices(String... indices) {
         this.indices = indices;
         return this;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 
     public QueryBuilder filter() {
@@ -494,6 +528,10 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
             out.writeOptionalBoolean(allowPartialSequenceResults);
+        }
+        if (out.getTransportVersion().supports(EQL_PROJECT_ROUTING)) {
+            out.writeOptionalString(projectRouting);
+            out.writeOptionalWriteable(resolvedIndexExpressions);
         }
     }
 

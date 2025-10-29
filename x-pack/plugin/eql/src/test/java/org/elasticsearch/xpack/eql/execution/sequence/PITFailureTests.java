@@ -85,6 +85,7 @@ public class PITFailureTests extends ESTestCase {
                 1,
                 randomBoolean(),
                 randomBoolean(),
+                null,
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(

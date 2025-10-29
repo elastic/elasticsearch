@@ -32,6 +32,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final int maxSamplesPerKey;
     private final boolean allowPartialSearchResults;
     private final boolean allowPartialSequenceResults;
+    private final String projectRouting;
 
     @Nullable
     private final QueryBuilder filter;
@@ -54,6 +55,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         int maxSamplesPerKey,
         boolean allowPartialSearchResults,
         boolean allowPartialSequenceResults,
+        String projectRouting,
         String clientId,
         TaskId taskId,
         EqlSearchTask task
@@ -73,6 +75,11 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.maxSamplesPerKey = maxSamplesPerKey;
         this.allowPartialSearchResults = allowPartialSearchResults;
         this.allowPartialSequenceResults = allowPartialSequenceResults;
+        this.projectRouting = projectRouting;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
     }
 
     public String[] indices() {

@@ -238,7 +238,7 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceContext {
+    public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Boolean> store;
         private final Parameter<Boolean> norms;
@@ -301,7 +301,7 @@ public final class TextFieldMapper extends FieldMapper {
             boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
+            super(name, indexCreatedVersion, isWithinMultiField);
 
             this.indexMode = indexMode;
             this.analyzers = new TextParams.Analyzers(
@@ -409,7 +409,7 @@ public final class TextFieldMapper extends FieldMapper {
                     index.getValue(),
                     store.getValue(),
                     tsi,
-                    isSyntheticSourceEnabled(),
+                    context.isSourceSynthetic(),
                     isWithinMultiField(),
                     SyntheticSourceHelper.syntheticSourceDelegate(fieldType.stored(), multiFields),
                     meta.getValue(),
@@ -1116,9 +1116,8 @@ public final class TextFieldMapper extends FieldMapper {
             if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
                 return fallbackSyntheticSourceBlockLoader(blContext);
             }
-
             // otherwise, load values from _source (synthetic or not)
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }
 
@@ -1247,7 +1246,7 @@ public final class TextFieldMapper extends FieldMapper {
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name()), fieldDataContext.indexSettings()),
                 fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );

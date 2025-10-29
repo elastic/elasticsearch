@@ -13,6 +13,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -32,6 +34,11 @@ import static org.junit.Assert.assertNull;
 public class TestBlock implements BlockLoader.Block {
     public static BlockLoader.BlockFactory factory() {
         return new BlockLoader.BlockFactory() {
+            @Override
+            public void adjustBreaker(long delta) throws CircuitBreakingException {
+                // Intentionally NOOP
+            }
+
             @Override
             public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
                 return booleans(expectedCount);
@@ -56,8 +63,12 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.BytesRefBuilder bytesRefsFromDocValues(int expectedCount) {
                 class BytesRefsFromDocValuesBuilder extends TestBlock.Builder implements BlockLoader.BytesRefBuilder {
+
+                    private static final int SINGLE_DOC = 1;
+
                     private BytesRefsFromDocValuesBuilder() {
-                        super(1);
+                        // this is hard coded bc bytesRefsFromDocValues() is currently only used for singe-doc multi-valued fields
+                        super(SINGLE_DOC);
                     }
 
                     @Override
@@ -70,6 +81,7 @@ public class TestBlock implements BlockLoader.Block {
                     public TestBlock build() {
                         TestBlock result = super.build();
                         List<?> r;
+                        // we have a single, multi-valued document, so extract all those values into a list
                         if (result.values.get(0) instanceof List<?> l) {
                             r = l;
                         } else {
@@ -363,6 +375,15 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.Block constantInt(int value, int count) {
+                BlockLoader.IntBuilder builder = ints(count);
+                for (int i = 0; i < count; i++) {
+                    builder.appendInt(value);
+                }
+                return builder.build();
+            }
+
+            @Override
             public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(
                 SortedDocValues ordinals,
                 int expectedCount,
@@ -387,6 +408,14 @@ public class TestBlock implements BlockLoader.Block {
                     public BlockLoader.SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
                         for (int i = from; i < from + length; i++) {
                             appendOrd(values[i]);
+                        }
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int ord, int length) {
+                        for (int i = 0; i < length; i++) {
+                            appendOrd(ord);
                         }
                         return this;
                     }
@@ -465,6 +494,11 @@ public class TestBlock implements BlockLoader.Block {
     @Override
     public void close() {
         // TODO assert that we close the test blocks
+    }
+
+    @Override
+    public String toString() {
+        return "TestBlock" + values;
     }
 
     private abstract static class Builder implements BlockLoader.Builder {

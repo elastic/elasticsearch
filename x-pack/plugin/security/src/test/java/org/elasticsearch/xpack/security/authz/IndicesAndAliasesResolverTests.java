@@ -2000,7 +2000,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertEquals(1, resolved.expressions().size());
             var expression = resolved.expressions().getFirst();
             assertEquals("_all", expression.original());
-            assertThat(expression.localExpressions().expressions(), hasItem(SECURITY_MAIN_ALIAS));
+            assertThat(expression.localExpressions().indices(), hasItem(SECURITY_MAIN_ALIAS));
         }
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
@@ -2025,7 +2025,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertEquals(1, resolved.expressions().size());
         var expression = resolved.expressions().getFirst();
         assertEquals("_all", expression.original());
-        assertThat(expression.localExpressions().expressions(), not(hasItem(SECURITY_MAIN_ALIAS)));
+        assertThat(expression.localExpressions().indices(), not(hasItem(SECURITY_MAIN_ALIAS)));
     }
 
     public void testNonXPackUserAccessingSecurityIndex() {
@@ -2051,7 +2051,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertEquals(1, resolved.expressions().size());
             var expression = resolved.expressions().getFirst();
             assertEquals("_all", expression.original());
-            assertThat(expression.localExpressions().expressions(), not(hasItem(SECURITY_MAIN_ALIAS)));
+            assertThat(expression.localExpressions().indices(), not(hasItem(SECURITY_MAIN_ALIAS)));
         }
 
         {

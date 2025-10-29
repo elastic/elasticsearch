@@ -543,11 +543,15 @@ public class MetadataCreateIndexService {
         assert indicesService.hasIndex(temporaryIndexMeta.getIndex()) == false
             : Strings.format("Index [%s] already exists", temporaryIndexMeta.getIndex().getName());
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
-            try {
-                updateIndexMappingsAndBuildSortOrder(indexService, request, mappings, sourceMetadata);
-            } catch (Exception e) {
-                logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
-                throw e;
+            // If we're creating the index from an existing index, we should not provide any mappings, as the new index shards will take
+            // care of copying the mappings from the source index during recovery. Providing mappings here would cause conflicts.
+            if (sourceMetadata == null) {
+                try {
+                    updateIndexMappingsAndBuildSortOrder(indexService, request, mappings);
+                } catch (Exception e) {
+                    logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
+                    throw e;
+                }
             }
 
             final List<AliasMetadata> aliases = aliasSupplier.apply(indexService);
@@ -1550,8 +1554,7 @@ public class MetadataCreateIndexService {
     private static void updateIndexMappingsAndBuildSortOrder(
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
-        List<CompressedXContent> mappings,
-        @Nullable IndexMetadata sourceMetadata
+        List<CompressedXContent> mappings
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
         IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
@@ -1565,13 +1568,11 @@ public class MetadataCreateIndexService {
 
         indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
-        if (sourceMetadata == null) {
-            // now that the mapping is merged we can validate the index sort.
-            // we cannot validate for index shrinking since the mapping is empty
-            // at this point. The validation will take place later in the process
-            // (when all shards are copied in a single place).
-            indexService.getIndexSortSupplier().get();
-        }
+        // now that the mapping is merged we can validate the index sort.
+        // we cannot validate for index shrinking since the mapping is empty
+        // at this point. The validation will take place later in the process
+        // (when all shards are copied in a single place).
+        indexService.getIndexSortSupplier().get();
     }
 
     private static void validateActiveShardCount(ActiveShardCount waitForActiveShards, IndexMetadata indexMetadata) {
@@ -1948,7 +1949,7 @@ public class MetadataCreateIndexService {
         return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
             && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
             && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty) // index is a new index
-            && minClusterTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+            && minClusterTransportVersion.supports(TransportVersions.V_8_18_0);
     }
 
     private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state, TransportVersion minTransportVersion) {

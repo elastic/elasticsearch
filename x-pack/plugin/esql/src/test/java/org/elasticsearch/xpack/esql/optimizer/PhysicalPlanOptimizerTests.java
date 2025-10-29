@@ -189,6 +189,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
@@ -249,6 +250,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource cartesianMultipolygonsNoDocValues; // cartesian_shape field tests but has no doc values
     private TestDataSource countriesBbox;       // geo_shape field tests
     private TestDataSource countriesBboxWeb;    // cartesian_shape field tests
+    private TestDataSource metricsData; // k8s metrics index with time-series fields
 
     private final Configuration config;
     private PlannerSettings plannerSettings;
@@ -381,6 +383,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             functionRegistry,
             enrichResolution
         );
+        this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json", functionRegistry, enrichResolution);
         this.plannerSettings = TEST_PLANNER_SETTINGS;
     }
 
@@ -393,13 +396,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         SearchStats stats
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
-        EsIndex index = new EsIndex(indexName, mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(index);
+        EsIndex[] indexes = new EsIndex[1 + lookupResolution.size()];
+        indexes[0] = new EsIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
+        for (int i = 0; i < lookupResolution.size(); i++) {
+            indexes[i + 1] = lookupResolution.values().toArray(new IndexResolution[0])[i].get();
+        }
         Analyzer analyzer = new Analyzer(
-            testAnalyzerContext(config, functionRegistry, getIndexResult, lookupResolution, enrichResolution, emptyInferenceResolution()),
+            testAnalyzerContext(
+                config,
+                functionRegistry,
+                indexResolutions(indexes),
+                lookupResolution,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
-        return new TestDataSource(mapping, index, analyzer, stats);
+        return new TestDataSource(mapping, indexes[0], analyzer, stats);
     }
 
     TestDataSource makeTestDataSource(
@@ -670,8 +683,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
     */
     public void testEvalWithScoreImplicitLimit() {
-        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -704,8 +715,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
      */
     public void testEvalWithScoreExplicitLimit() {
-        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -747,8 +756,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      **/
     public void testEvalWithScoreAndFilterOnEval() {
-        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -802,8 +809,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      **/
     public void testEvalWithScoreAndGenericFilter() {
-        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -855,8 +860,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      */
     public void testEvalWithScoreForTopN() {
-        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -1440,7 +1443,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     public void testPushMultipleFunctions() {
         var plan = physicalPlan("""
-            from airports
+            from test
             | where starts_with(first_name, "*Firs") or ends_with(first_name, "irst*")
             | where ends_with(last_name, "ast")
             """);
@@ -3700,7 +3703,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             for (boolean withDocValues : new boolean[] { false, true }) {
                 var testData = withDocValues ? airports : airportsNoDocValues;
                 var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
-                var plan = physicalPlan(query, testData);
+                var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
 
                 var limit = as(plan, LimitExec.class);
                 var agg = as(limit.child(), AggregateExec.class);
@@ -3763,7 +3766,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             for (boolean withDocValues : new boolean[] { false, true }) {
                 var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
                 var testData = withDocValues ? airports : airportsNoDocValues;
-                var plan = physicalPlan(query, testData);
+                var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
 
                 var limit = as(plan, LimitExec.class);
                 var agg = as(limit.child(), AggregateExec.class);
@@ -3826,7 +3829,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             for (boolean withDocValues : new boolean[] { false, true }) {
                 var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
                 var testData = withDocValues ? airports : airportsNoDocValues;
-                var plan = physicalPlan(query, testData);
+                var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
 
                 var limit = as(plan, LimitExec.class);
                 var agg = as(limit.child(), AggregateExec.class);
@@ -3875,7 +3878,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var query = "FROM airports_city_boundaries | STATS extent = ST_EXTENT_AGG(city_boundary)";
         for (boolean useDocValues : new Boolean[] { true, false }) {
             var testData = useDocValues ? airportsCityBoundaries : airportsCityBoundariesNoDocValues;
-            var plan = physicalPlan(query, testData);
+            var plan = physicalPlan(query.replace("airports_city_boundaries", testData.index.name()), testData);
 
             var limit = as(plan, LimitExec.class);
             var agg = as(limit.child(), AggregateExec.class);
@@ -3938,11 +3941,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     public void testSpatialTypesAndStatsExtentOfCartesianShapesWithAndWithoutDocValues() {
         for (boolean hasDocValues : new boolean[] { true, false }) {
-            var query = """
-                FROM cartesian_multipolygons \
-                | STATS extent = ST_EXTENT_AGG(shape)""";
-            var testData = hasDocValues ? cartesianMultipolygons : cartesianMultipolygonsNoDocValues;
-            var fieldExtractPreference = hasDocValues ? FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS : FieldExtractPreference.NONE;
+            var query = "FROM cartesian_multipolygons | STATS extent = ST_EXTENT_AGG(shape)";
+            var testData = cartesianMultipolygons;
+            var fieldExtractPreference = FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
+            if (hasDocValues == false) {
+                query = "FROM cartesian_multipolygons_no_doc_values | STATS extent = ST_EXTENT_AGG(shape)";
+                testData = cartesianMultipolygonsNoDocValues;
+                fieldExtractPreference = FieldExtractPreference.NONE;
+            }
             var plan = physicalPlan(query, testData);
 
             var limit = as(plan, LimitExec.class);
@@ -3990,7 +3996,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     public void testMixedSpatialBoundsAndPointsExtracted() {
         var query = """
-            FROM airports_city_boundaries \
+            FROM INDEX \
             | STATS extent = ST_EXTENT_AGG(city_boundary), centroid = ST_CENTROID_AGG(city_location)""";
         for (boolean pointDocValues : new Boolean[] { true, false }) {
             for (boolean shapeDocValues : new Boolean[] { true, false }) {
@@ -3998,7 +4004,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     ? (shapeDocValues ? airportsCityBoundaries : airportsCityBoundariesNoShapeDocValues)
                     : (shapeDocValues ? airportsCityBoundariesNoPointDocValues : airportsCityBoundariesNoDocValues);
                 var msg = "DocValues[point:" + pointDocValues + ", shape:" + shapeDocValues + "]";
-                var plan = physicalPlan(query, testData);
+                var plan = physicalPlan(query.replace("INDEX", testData.index.name()), testData);
 
                 var limit = as(plan, LimitExec.class);
                 var agg = as(limit.child(), AggregateExec.class);
@@ -4289,7 +4295,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = this.physicalPlan("""
                 FROM airports
                 | STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
-                """, testData);
+                """.replace("airports", testData.index.name()), testData);
 
             var limit = as(plan, LimitExec.class);
             var agg = as(limit.child(), AggregateExec.class);
@@ -4856,7 +4862,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     var testData = useDocValues
                         ? (isIndexed ? airports : airportsNotIndexed)
                         : (isIndexed ? airportsNoDocValues : airportsNotIndexedNorDocValues);
-                    var plan = this.physicalPlan(query, testData);
+                    var plan = this.physicalPlan(query.replace("airports", testData.index.name()), testData);
                     var limit = as(plan, LimitExec.class);
                     var agg = as(limit.child(), AggregateExec.class);
                     assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
@@ -8698,6 +8704,63 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
         Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
+    }
+
+    /**
+     * <code>
+     * LimitExec[1000[INTEGER],1774]
+     * \_ExchangeExec[[@timestamp{f}#3, client.ip{f}#7, cluster{f}#4, event{f}#9, event_city{f}#12, event_city_boundary{f}#13, event
+     * _location{f}#15, event_log{f}#10, event_shape{f}#14, events_received{f}#11, network.bytes_in{f}#17, network.cost{f}#20, ...],
+     * false]
+     *   \_ProjectExec[[@timestamp{f}#3, client.ip{f}#7, cluster{f}#4, event{f}#9, event_city{f}#12, event_city_boundary{f}#13, event
+     * _location{f}#15, event_log{f}#10, event_shape{f}#14, events_received{f}#11, network.bytes_in{f}#17, network.cost{f}#20, ...]]
+     *     \_FieldExtractExec[@timestamp{f}#3, client.ip{f}#7, cluster{f}#4, even..]
+     *       \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#30], limit[1000], sort[] estimatedRowSize[1778] queryBuilderAndTags
+     *       [[QueryBuilderAndTags{queryBuilder=[{
+     *   "esql_single_value" : {
+     *     "field" : "@timestamp",
+     *     "next" : {
+     *       "range" : {
+     *         "@timestamp" : {
+     *           "gt" : "2023-10-23T12:00:00.000Z",
+     *           "lte" : "2023-10-23T14:00:00.000Z",
+     *           "format" : "strict_date_optional_time",
+     *           "boost" : 0.0
+     *         }
+     *       }
+     *     },
+     *     "source" : "TRANGE(\"2023-10-23T12:00:00.000Z\", \"2023-10-23T14:00:00.000Z\")@2:9"
+     *   }
+     * }], tags=[]}]]
+     * </code>
+     */
+    public void testPushTRangeFunction() {
+        String startRange = "2023-10-23T12:00:00.000Z";
+        String endRange = "2023-10-23T14:00:00.000Z";
+
+        String query = String.format(Locale.ROOT, """
+            FROM k8s
+            | WHERE TRANGE("%s", "%s")
+            """, startRange, endRange);
+
+        var plan = physicalPlan(query, metricsData);
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+
+        var singleValue = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat(singleValue.fieldName(), equalTo("@timestamp"));
+
+        var rangeQuery = as(sv(singleValue, "@timestamp"), RangeQueryBuilder.class);
+
+        assertThat(rangeQuery.fieldName(), equalTo("@timestamp"));
+        assertThat(rangeQuery.from(), equalTo(startRange));
+        assertThat(rangeQuery.to(), equalTo(endRange));
+        assertFalse(rangeQuery.includeLower());
+        assertTrue(rangeQuery.includeUpper());
     }
 
     @Override

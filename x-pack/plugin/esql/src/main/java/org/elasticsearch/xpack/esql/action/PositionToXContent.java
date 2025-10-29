@@ -15,9 +15,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockAccessor;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -166,6 +170,18 @@ public abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(aggregateMetricDoubleBlockToString((AggregateMetricDoubleBlock) block, valueIndex));
+                }
+            };
+            case EXPONENTIAL_HISTOGRAM -> new PositionToXContent(block) {
+
+                ExponentialHistogramBlockAccessor accessor = new ExponentialHistogramBlockAccessor((ExponentialHistogramBlock) block);
+
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    ExponentialHistogram histogram = accessor.get(valueIndex);
+                    ExponentialHistogramXContent.serialize(builder, histogram);
+                    return builder;
                 }
             };
             case NULL -> new PositionToXContent(block) {

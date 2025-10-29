@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -9617,5 +9618,66 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertTrue(e.getMessage().startsWith("Found "));
         final String header = "Found 1 problem\nline ";
         assertEquals("3:24: FORK inside subquery is not supported", e.getMessage().substring(header.length()));
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[a{r}#8, b{r}#12, c{r}#15, d{r}#18]]
+     * \_Eval[[a{r}#8 + a{r}#8 AS b#12]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_Aggregate[[],[COUNT(scalerank{f}#21,true[BOOLEAN]) AS a#8, COUNTDISTINCT(scalerank{f}#21,true[BOOLEAN],10[INTEGER]) AS c#15,
+     *                     COUNTDISTINCT(scalerank{f}#21,true[BOOLEAN],10[INTEGER]) AS d#18]]
+     *       \_EsRelation[airports][abbrev{f}#19, city{f}#25, city_location{f}#26, coun..]
+     * }</pre>
+     */
+    public void testAggsDeduplication() {
+        assumeTrue("requires FIX FOR CLASSCAST exception to be enabled", EsqlCapabilities.Cap.FIX_STATS_CLASSCAST_EXCEPTION.isEnabled());
+        String query = """
+                FROM airports
+                | rename scalerank AS x
+                | stats  a = count(x), b = count(x) + count(x), c = count_distinct(x, 10), d = count_distinct(x, 10 + 1 - 1)
+            """;
+
+        LogicalPlan plan = planAirports(query);
+        Project project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(4));
+        var a = as(project.projections().get(0), ReferenceAttribute.class);
+        var b = as(project.projections().get(1), ReferenceAttribute.class);
+        var c = as(project.projections().get(2), ReferenceAttribute.class);
+        var d = as(project.projections().get(3), ReferenceAttribute.class);
+
+        assertEquals("a", a.name());
+        assertEquals("b", b.name());
+        assertEquals("c", c.name());
+        assertEquals("d", d.name());
+
+        Eval eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var bEval = as(eval.fields().getFirst(), Alias.class);
+        var bAdd = as(bEval.child(), Add.class);
+
+        assertEquals("a", as(bAdd.left(), ReferenceAttribute.class).name());
+        assertEquals("a", as(bAdd.right(), ReferenceAttribute.class).name());
+        assertEquals("b", bEval.name());
+
+        Limit limit = as(eval.child(), Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
+
+        assertThat(agg.aggregates(), hasSize(3));
+        var countAlias = as(agg.aggregates().get(0), Alias.class);
+        var countDistinctAliasFirst = as(agg.aggregates().get(1), Alias.class);
+        var countDistinctAliasSecond = as(agg.aggregates().get(2), Alias.class);
+
+        var count = as(countAlias.child(), Count.class);
+        var countDistinctFirst = as(countDistinctAliasFirst.child(), CountDistinct.class);
+        // Unfortunately the second count_distinct is duplicated at the moment even if semantically is the same
+        var countDistinctSecond = as(countDistinctAliasSecond.child(), CountDistinct.class);
+
+        assertEquals("a", countAlias.name());
+        assertEquals("c", countDistinctAliasFirst.name());
+        assertEquals("d", countDistinctAliasSecond.name());
+        assertEquals("scalerank", as(count.field(), FieldAttribute.class).name());
+        assertEquals("scalerank", as(countDistinctFirst.field(), FieldAttribute.class).name());
+        assertEquals("scalerank", as(countDistinctSecond.field(), FieldAttribute.class).name());
     }
 }

@@ -7,17 +7,62 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.List;
 
-public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
+import static org.elasticsearch.compute.test.BlockTestUtils.randomAggregateMetricDoubleLiteral;
+import static org.hamcrest.Matchers.equalTo;
+
+public class AggregateMetricDoubleBlockTests extends ComputeTestCase {
 
     static final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
-    public void testEmptyBlock() {
+    public void testPopulatedBlockSerialization() throws IOException {
+        int elementCount = randomIntBetween(1, 100);
+        AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(elementCount);
+        for (int i = 0; i < elementCount; i++) {
+            if (randomBoolean()) {
+                builder.appendNull();
+            } else {
+                builder.appendLiteral(randomAggregateMetricDoubleLiteral(false));
+            }
+        }
+        AggregateMetricDoubleBlock block = builder.build();
+        Block deserializedBlock = serializationRoundTrip(block);
+        assertThat(deserializedBlock, equalTo(block));
+        Releasables.close(block, deserializedBlock);
+    }
+
+    public void testNullSerialization() throws IOException {
+        // sub-blocks can be constant null, those should serialize correctly too
+        int elementCount = randomIntBetween(1, 100);
+
+        Block block = new AggregateMetricDoubleArrayBlock(
+            (DoubleBlock) blockFactory.newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory.newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory.newConstantNullBlock(elementCount),
+            (IntBlock) blockFactory.newConstantNullBlock(elementCount)
+        );
+
+        Block deserializedBlock = serializationRoundTrip(block);
+        assertThat(deserializedBlock, equalTo(block));
+        Releasables.close(block, deserializedBlock);
+    }
+
+    private Block serializationRoundTrip(Block block) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        Block.writeTypedBlock(block, out);
+        try (BlockStreamInput input = new BlockStreamInput(out.bytes().streamInput(), blockFactory)) {
+            return Block.readTypedBlock(input);
+        }
+    }
+
+    public void testEmptyBlockEquality() {
         // all these "empty" blocks should be equivalent
         var partialMetricBuilder = blockFactory.newAggregateMetricDoubleBlockBuilder(0);
         for (var subBuilder : List.of(

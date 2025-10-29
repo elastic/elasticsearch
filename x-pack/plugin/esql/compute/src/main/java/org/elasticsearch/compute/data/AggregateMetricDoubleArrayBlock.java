@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -24,6 +25,10 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     private final DoubleBlock sumBlock;
     private final IntBlock countBlock;
     private final int positionCount;
+
+    private static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_SERIALIZE_NULL_BLOCK_FIX = TransportVersion.fromName(
+        "esql_aggregate_metric_double_serialize_null_block_fix"
+    );
 
     public AggregateMetricDoubleArrayBlock(DoubleBlock minBlock, DoubleBlock maxBlock, DoubleBlock sumBlock, IntBlock countBlock) {
         this.minBlock = minBlock;
@@ -235,8 +240,14 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-            block.writeTo(out);
+        if (out.getTransportVersion().supports(ESQL_AGGREGATE_METRIC_DOUBLE_SERIALIZE_NULL_BLOCK_FIX)) {
+            for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
+                Block.writeTypedBlock(block, out);
+            }
+        } else {
+            for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
+                block.writeTo(out);
+            }
         }
     }
 
@@ -248,10 +259,17 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         IntBlock countBlock = null;
         BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         try {
-            minBlock = DoubleBlock.readFrom(blockStreamInput);
-            maxBlock = DoubleBlock.readFrom(blockStreamInput);
-            sumBlock = DoubleBlock.readFrom(blockStreamInput);
-            countBlock = IntBlock.readFrom(blockStreamInput);
+            if (blockStreamInput.getTransportVersion().supports(ESQL_AGGREGATE_METRIC_DOUBLE_SERIALIZE_NULL_BLOCK_FIX)) {
+                minBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
+                maxBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
+                sumBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
+                countBlock = (IntBlock) Block.readTypedBlock(blockStreamInput);
+            } else {
+                minBlock = DoubleBlock.readFrom(blockStreamInput);
+                maxBlock = DoubleBlock.readFrom(blockStreamInput);
+                sumBlock = DoubleBlock.readFrom(blockStreamInput);
+                countBlock = IntBlock.readFrom(blockStreamInput);
+            }
             AggregateMetricDoubleArrayBlock result = new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
             success = true;
             return result;

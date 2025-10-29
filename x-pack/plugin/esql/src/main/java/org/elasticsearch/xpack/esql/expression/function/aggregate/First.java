@@ -59,11 +59,11 @@ public class First extends AggregateFunction implements ToAggregator {
         ) Expression field,
         @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort
     ) {
-        this(source, field, Literal.TRUE, sort);
+        this(source, field, Literal.TRUE, NO_WINDOW, sort);
     }
 
-    private First(Source source, Expression field, Expression filter, Expression sort) {
-        super(source, field, filter, List.of(sort));
+    private First(Source source, Expression field, Expression filter, Expression window, Expression sort) {
+        super(source, field, filter, window, List.of(sort));
         this.sort = sort;
     }
 
@@ -71,9 +71,10 @@ public class First extends AggregateFunction implements ToAggregator {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
         List<Expression> params = in.readNamedWriteableCollectionAsList(Expression.class);
         Expression sort = params.getFirst();
-        return new First(source, field, filter, sort);
+        return new First(source, field, filter, window, sort);
     }
 
     @Override
@@ -88,12 +89,12 @@ public class First extends AggregateFunction implements ToAggregator {
 
     @Override
     public First replaceChildren(List<Expression> newChildren) {
-        return new First(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new First(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public First withFilter(Expression filter) {
-        return new First(source(), field(), filter, sort);
+        return new First(source(), field(), filter, window(), sort);
     }
 
     public Expression sort() {

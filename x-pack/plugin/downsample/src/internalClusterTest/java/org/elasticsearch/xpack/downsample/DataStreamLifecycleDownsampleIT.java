@@ -189,7 +189,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
                     // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
-                    // least 2 seconds since rollover. only the 10 seconds round should be executed.
+                    // least 2 seconds since rollover. Only the 10 seconds round should be executed.
                     new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(10), new DateHistogramInterval("10m"))
                 )
             )
@@ -240,7 +240,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
 
         // update the lifecycle so that it only has one round, for the same `after` parameter as before, but a different interval
         // the different interval should yield a different downsample index name so we expect the data stream lifecycle to get the previous
-        // `10s` interval downsample index, downsample it to `20m` and replace it in the data stream instead of the `10s` one.
+        // `10m` interval downsample index, downsample it to `20m` and replace it in the data stream instead of the `10m` one.
         DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsamplingRounds(
                 List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(10), new DateHistogramInterval("20m")))
@@ -276,7 +276,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
      * This test ensures that when we change the sampling method, the already downsampled indices will use the original sampling method,
      * while the raw data ones will be downsampled with the most recent configuration.
      * To achieve that, we set the following test:
-     * 1. Create a data stream that is downsampled with the aggregate method.
+     * 1. Create a data stream that is downsampled with a sampling method.
      * 2. Rollover and wait for the downsampling to occur
      * 3. Double the downsample interval (so it can downsample the first index as well) and change the sampling method.
      * 4. Rollover and wait for both indices to be downsampled with the new interval
@@ -299,7 +299,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
             .buildTemplate();
 
         // Start and end time there just to ease with testing, so DLM doesn't have to wait for the end_time to lapse
-        // First backing index.
+        // Creating the first backing index.
         setupTSDBDataStreamAndIngestDocs(
             dataStreamName,
             "1986-01-08T23:40:53.384Z",
@@ -310,7 +310,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         );
 
         // before we roll over, we update the index template to have new start/end time boundaries
-        // Second backing index
+        // Creating the second backing index.
         putTSDBIndexTemplate(dataStreamName, "2022-01-08T23:40:53.384Z", "2023-01-08T23:40:53.384Z", lifecycle);
         RolloverResponse rolloverResponse = safeGet(client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)));
         assertTrue(rolloverResponse.isRolledOver());
@@ -319,16 +319,16 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         indexDocuments(dataStreamName, randomIntBetween(1, 1000), "2022-01-08T23:50:00");
 
         // Ensure that the first backing index has been downsampled
-        final var waitForInitialDownsampling = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+        awaitClusterState(clusterState -> {
             final var dataStream = clusterState.metadata().getProject().dataStreams().get(dataStreamName);
             if (dataStream == null) {
                 return false;
             }
             return dataStream.getIndices().size() > 1 && dataStream.getIndices().getFirst().getName().startsWith("downsample-");
         });
-        safeAwait(waitForInitialDownsampling);
-
-        // update the lifecycle so that the sampling method is different.
+        assertDownsamplingMethod(initialSamplingMethod, "downsample-5m-" + firstBackingIndex);
+        // We change the sampling method, but also we double the downsampling interval. We expect the data stream lifecycle to get the
+        // previous `5m` interval downsampled index, downsample it to `10m` and replace it in the data stream with the `5m` one.
         DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
             .downsamplingMethod(updatedSamplingMethod)
             .downsamplingRounds(
@@ -347,7 +347,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
             )
         );
 
-        // Third backing index
+        // We roll over one more time, so the second backing index will be eligible for downsampling
         putTSDBIndexTemplate(dataStreamName, null, null, lifecycle);
         rolloverResponse = safeGet(client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)));
         assertTrue(rolloverResponse.isRolledOver());

@@ -63,14 +63,16 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
                 downsamplingRounds = randomValueOtherThan(downsamplingRounds, DataStreamLifecycleTemplateTests::randomDownsamplingRounds);
                 if (downsamplingRounds.get() != null) {
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
+                } else {
+                    downsamplingMethod = ResettableValue.undefined();
                 }
             }
             case 4 -> {
-                if (downsamplingRounds.get() == null) {
+                downsamplingMethod = randomValueOtherThan(downsamplingMethod, DataStreamLifecycleTemplateTests::randomDownsamplingMethod);
+                if (downsamplingMethod.get() != null && downsamplingRounds.get() == null) {
                     downsamplingRounds = ResettableValue.create(DataStreamLifecycleTests.randomDownsamplingRounds());
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
                 }
-                downsamplingMethod = randomValueOtherThan(downsamplingMethod, DataStreamLifecycleTemplateTests::randomDownsamplingMethod);
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -219,7 +221,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
             downsamplingRounds,
             downsamplingRounds.get() == null
                 ? randomBoolean() ? ResettableValue.undefined() : ResettableValue.reset()
-                : ResettableValue.undefined()
+                : randomDownsamplingMethod()
         );
     }
 

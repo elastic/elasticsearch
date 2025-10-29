@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.downsample.DownsampleConfigTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -100,17 +99,11 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                 }
             }
             case 3 -> {
-                // We need to enable downsampling in order to add a non value downsampling method
-                if (downsamplingRounds == null) {
+                // We need to enable downsampling in order to add a non-value downsampling method
+                downsamplingMethod = randomValueOtherThan(downsamplingMethod, DownsampleConfigTests::randomSamplingMethod);
+                if (downsamplingMethod != null && downsamplingRounds == null) {
                     downsamplingRounds = randomDownsamplingRounds();
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
-                }
-                if (downsamplingMethod == null) {
-                    downsamplingMethod = randomFrom(DownsampleConfig.SamplingMethod.values());
-                } else if (downsamplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE) {
-                    downsamplingMethod = randomBoolean() ? null : DownsampleConfig.SamplingMethod.LAST_VALUE;
-                } else {
-                    downsamplingMethod = randomBoolean() ? null : DownsampleConfig.SamplingMethod.AGGREGATE;
                 }
             }
             default -> enabled = enabled == false;

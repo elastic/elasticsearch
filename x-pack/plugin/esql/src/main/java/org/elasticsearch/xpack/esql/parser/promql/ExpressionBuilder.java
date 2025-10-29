@@ -37,7 +37,10 @@ import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelNameContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ModifierContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.StringContext;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -96,140 +99,6 @@ class ExpressionBuilder extends IdentifierBuilder {
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
         return visitList(this, contexts, Expression.class);
-    }
-
-    @Override
-    public Expression visitArithmeticUnary(ArithmeticUnaryContext ctx) {
-        Source source = source(ctx);
-        Expression expression = expression(ctx.expression());
-        DataType dataType = expression.dataType();
-        if ((PromqlDataTypes.isScalar(dataType) || PromqlDataTypes.isInstantVector(dataType)) == false) {
-            throw new ParsingException(
-                source,
-                "Unary expression only allowed on expressions of type scalar or instance vector, got [{}]",
-                dataType.typeName()
-            );
-        }
-        // convert - into a binary operator
-        if (ctx.operator.getType() == MINUS) {
-            expression = new VectorBinaryArithmetic(
-                source,
-                Literal.fromDouble(source, 0.0),
-                expression,
-                VectorMatch.NONE,
-                ArithmeticOp.SUB
-            );
-        }
-
-        return expression;
-    }
-
-    @Override
-    public Expression visitArithmeticBinary(ArithmeticBinaryContext ctx) {
-        Expression le = expression(ctx.left);
-        Expression re = expression(ctx.right);
-        Source source = source(ctx);
-
-        boolean bool = ctx.BOOL() != null;
-        int opType = ctx.op.getType();
-        String opText = ctx.op.getText();
-
-        // validate operation against expression types
-        boolean leftIsScalar = PromqlDataTypes.isScalar(le.dataType());
-        boolean rightIsScalar = PromqlDataTypes.isScalar(re.dataType());
-
-        // comparisons against scalars require bool
-        if (bool == false && leftIsScalar && rightIsScalar) {
-            switch (opType) {
-                case EQ:
-                case NEQ:
-                case LT:
-                case LTE:
-                case GT:
-                case GTE:
-                    throw new ParsingException(source, "Comparisons [{}] between scalars must use the BOOL modifier", opText);
-            }
-        }
-        // set operations are not allowed on scalars
-        if (leftIsScalar || rightIsScalar) {
-            switch (opType) {
-                case AND:
-                case UNLESS:
-                case OR:
-                    throw new ParsingException(source, "Set operator [{}] not allowed in binary scalar expression", opText);
-            }
-        }
-
-        VectorMatch modifier = VectorMatch.NONE;
-
-        ModifierContext modifierCtx = ctx.modifier();
-        if (modifierCtx != null) {
-            // modifiers work only on vectors
-            if (PromqlDataTypes.isInstantVector(le.dataType()) == false || PromqlDataTypes.isInstantVector(re.dataType()) == false) {
-                throw new ParsingException(source, "Vector matching allowed only between instant vectors");
-            }
-
-            VectorMatch.Filter filter = modifierCtx.ON() != null ? VectorMatch.Filter.ON : VectorMatch.Filter.IGNORING;
-            List<String> filterList = visitLabelList(modifierCtx.modifierLabels);
-            VectorMatch.Joining joining = VectorMatch.Joining.NONE;
-            List<String> groupingList = visitLabelList(modifierCtx.groupLabels);
-            if (modifierCtx.joining != null) {
-                joining = modifierCtx.GROUP_LEFT() != null ? VectorMatch.Joining.LEFT : VectorMatch.Joining.RIGHT;
-
-                // grouping not allowed with logic operators
-                switch (opType) {
-                    case AND:
-                    case UNLESS:
-                    case OR:
-                        throw new ParsingException(source(modifierCtx), "No grouping [{}] allowed for [{}] operator", joining, opText);
-                }
-
-                // label declared in ON cannot appear in grouping
-                if (modifierCtx.ON() != null) {
-                    List<String> repeatedLabels = new ArrayList<>(groupingList);
-                    if (filterList.isEmpty() == false && repeatedLabels.retainAll(filterList) && repeatedLabels.isEmpty() == false) {
-                        throw new ParsingException(
-                            source(modifierCtx.ON()),
-                            "Label{} {} must not occur in ON and GROUP clause at once",
-                            repeatedLabels.size() > 1 ? "s" : "",
-                            repeatedLabels
-                        );
-                    }
-
-                }
-            }
-
-            modifier = new VectorMatch(filter, new LinkedHashSet<>(filterList), joining, new LinkedHashSet<>(groupingList));
-        }
-
-        VectorBinaryOperator.BinaryOp binaryOperator = switch (opType) {
-            // arithmetic
-            case CARET -> ArithmeticOp.POW;
-            case ASTERISK -> ArithmeticOp.MUL;
-            case PERCENT -> ArithmeticOp.MOD;
-            case SLASH -> ArithmeticOp.DIV;
-            case MINUS -> ArithmeticOp.SUB;
-            case PLUS -> ArithmeticOp.ADD;
-            // comparison
-            case EQ -> ComparisonOp.EQ;
-            case NEQ -> ComparisonOp.NEQ;
-            case LT -> ComparisonOp.LT;
-            case LTE -> ComparisonOp.LTE;
-            case GT -> ComparisonOp.GT;
-            case GTE -> ComparisonOp.GTE;
-            // set
-            case AND -> SetOp.INTERSECT;
-            case UNLESS -> SetOp.SUBTRACT;
-            case OR -> SetOp.UNION;
-            default -> throw new ParsingException(source(ctx.op), "Unknown arithmetic {}", opText);
-        };
-
-        return switch (binaryOperator) {
-            case ArithmeticOp arithmeticOp -> new VectorBinaryArithmetic(source, le, re, modifier, arithmeticOp);
-            case ComparisonOp comparisonOp -> new VectorBinaryComparison(source, le, re, modifier, bool, comparisonOp);
-            case SetOp setOp -> new VectorBinarySet(source, le, re, modifier, setOp);
-            default -> throw new ParsingException(source(ctx.op), "Unknown arithmetic {}", opText);
-        };
     }
 
     TimeValue expressionToTimeValue(Expression timeValueAsExpression) {

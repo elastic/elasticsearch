@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.predicate.operator.set;
 
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public class VectorBinarySet extends VectorBinaryOperator {
 
@@ -28,7 +28,7 @@ public class VectorBinarySet extends VectorBinaryOperator {
 
     private final SetOp op;
 
-    public VectorBinarySet(Source source, Expression left, Expression right, VectorMatch match, SetOp op) {
+    public VectorBinarySet(Source source, LogicalPlan left, LogicalPlan right, VectorMatch match, SetOp op) {
         super(source, left, right, match, true, op);
         this.op = op;
     }
@@ -38,12 +38,12 @@ public class VectorBinarySet extends VectorBinaryOperator {
     }
 
     @Override
-    protected VectorBinarySet replaceChildren(Expression left, Expression right) {
-        return new VectorBinarySet(source(), left, right, match(), op());
+    public VectorBinarySet replaceChildren(LogicalPlan newLeft, LogicalPlan newRight) {
+        return new VectorBinarySet(source(), newLeft, newRight, match(), op());
     }
 
     @Override
-    protected NodeInfo<? extends Expression> info() {
+    protected NodeInfo<VectorBinarySet> info() {
         return NodeInfo.create(this, VectorBinarySet::new, left(), right(), match(), op());
     }
 }

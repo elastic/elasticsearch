@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic;
 
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public class VectorBinaryArithmetic extends VectorBinaryOperator {
 
@@ -44,7 +44,7 @@ public class VectorBinaryArithmetic extends VectorBinaryOperator {
 
     private final ArithmeticOp op;
 
-    public VectorBinaryArithmetic(Source source, Expression left, Expression right, VectorMatch match, ArithmeticOp op) {
+    public VectorBinaryArithmetic(Source source, LogicalPlan left, LogicalPlan right, VectorMatch match, ArithmeticOp op) {
         super(source, left, right, match, true, op);
         this.op = op;
     }
@@ -54,12 +54,12 @@ public class VectorBinaryArithmetic extends VectorBinaryOperator {
     }
 
     @Override
-    protected VectorBinaryOperator replaceChildren(Expression left, Expression right) {
-        return new VectorBinaryArithmetic(source(), left, right, match(), op());
+    public VectorBinaryOperator replaceChildren(LogicalPlan newLeft, LogicalPlan newRight) {
+        return new VectorBinaryArithmetic(source(), newLeft, newRight, match(), op());
     }
 
     @Override
-    protected NodeInfo<? extends Expression> info() {
+    protected NodeInfo<VectorBinaryArithmetic> info() {
         return NodeInfo.create(this, VectorBinaryArithmetic::new, left(), right(), match(), op());
     }
 }

@@ -8,30 +8,31 @@
 package org.elasticsearch.xpack.esql.expression.promql.predicate.operator;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.promql.types.PromqlDataTypes;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
-import static java.util.Arrays.asList;
+public abstract class VectorBinaryOperator extends BinaryPlan {
 
-public abstract class VectorBinaryOperator extends Expression {
-
-    private final Expression left, right;
     private final VectorMatch match;
     private final boolean dropMetricName;
-
-    private DataType dataType;
-
-    private BinaryOp binaryOp;
+    private final BinaryOp binaryOp;
+    private List<Attribute> output;
 
     /**
      * Underlying binary operation (e.g. +, -, *, /, etc.) being performed
@@ -49,26 +50,16 @@ public abstract class VectorBinaryOperator extends Expression {
 
     protected VectorBinaryOperator(
         Source source,
-        Expression left,
-        Expression right,
+        LogicalPlan left,
+        LogicalPlan right,
         VectorMatch match,
         boolean dropMetricName,
         BinaryOp binaryOp
     ) {
-        super(source, asList(left, right));
-        this.left = left;
-        this.right = right;
+        super(source, left, right);
         this.match = match;
         this.dropMetricName = dropMetricName;
         this.binaryOp = binaryOp;
-    }
-
-    public Expression left() {
-        return left;
-    }
-
-    public Expression right() {
-        return right;
     }
 
     public VectorMatch match() {
@@ -84,55 +75,113 @@ public abstract class VectorBinaryOperator extends Expression {
     }
 
     @Override
-    public DataType dataType() {
-        if (dataType == null) {
-            dataType = PromqlDataTypes.operationType(left.dataType(), right.dataType());
+    public List<Attribute> output() {
+        if (output == null) {
+            output = computeOutputAttributes();
         }
-        return dataType;
+        return output;
+    }
+
+    private List<Attribute> computeOutputAttributes() {
+        // TODO: this isn't tested and should be revised
+        List<Attribute> leftAttrs = left().output();
+        List<Attribute> rightAttrs = right().output();
+
+        Set<String> leftLabels = extractLabelNames(leftAttrs);
+        Set<String> rightLabels = extractLabelNames(rightAttrs);
+
+        Set<String> outputLabels;
+
+        if (match != null) {
+            if (match.filter() == VectorMatch.Filter.ON) {
+                outputLabels = new HashSet<>(match.filterLabels());
+            } else if (match.filter() == VectorMatch.Filter.IGNORING) {
+                outputLabels = new HashSet<>(leftLabels);
+                outputLabels.addAll(rightLabels);
+                outputLabels.removeAll(match.filterLabels());
+            } else {
+                outputLabels = new HashSet<>(leftLabels);
+                outputLabels.retainAll(rightLabels);
+            }
+        } else {
+            outputLabels = new HashSet<>(leftLabels);
+            outputLabels.retainAll(rightLabels);
+        }
+
+        if (dropMetricName) {
+            outputLabels.remove(LabelMatcher.NAME);
+        }
+
+        List<Attribute> result = new ArrayList<>();
+        for (String label : outputLabels) {
+            Attribute attr = findAttribute(label, leftAttrs, rightAttrs);
+            if (attr != null) {
+                result.add(attr);
+            }
+        }
+
+        result.add(new ReferenceAttribute(source(), "value", DataType.DOUBLE));
+        return result;
+    }
+
+    private Set<String> extractLabelNames(List<Attribute> attrs) {
+        Set<String> labels = new HashSet<>();
+        for (Attribute attr : attrs) {
+            String name = attr.name();
+            if (name.equals("value") == false) {
+                labels.add(name);
+            }
+        }
+        return labels;
+    }
+
+    private Attribute findAttribute(String name, List<Attribute> left, List<Attribute> right) {
+        for (Attribute attr : left) {
+            if (attr.name().equals(name)) {
+                return attr;
+            }
+        }
+        for (Attribute attr : right) {
+            if (attr.name().equals(name)) {
+                return attr;
+            }
+        }
+        return null;
     }
 
     @Override
-    public VectorBinaryOperator replaceChildren(List<Expression> newChildren) {
-        return replaceChildren(left, right);
-    }
-
-    protected abstract VectorBinaryOperator replaceChildren(Expression left, Expression right);
+    public abstract VectorBinaryOperator replaceChildren(LogicalPlan newLeft, LogicalPlan newRight);
 
     @Override
-    public boolean foldable() {
-        return left.foldable() && right.foldable();
-    }
-
-    @Override
-    public Object fold(FoldContext ctx) {
-        return binaryOp.asFunction().create(source(), left(), right()).fold(ctx);
-    }
-
-    @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
+    public boolean expressionsResolved() {
+        return true;
     }
 
     @Override
     public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o)) {
             VectorBinaryOperator that = (VectorBinaryOperator) o;
-            return dropMetricName == that.dropMetricName && Objects.equals(match, that.match) && Objects.equals(binaryOp, that.binaryOp);
+            return dropMetricName == that.dropMetricName
+                && Objects.equals(match, that.match)
+                && Objects.equals(binaryOp, that.binaryOp);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(left, right, match, dropMetricName, binaryOp);
+        return Objects.hash(super.hashCode(), match, dropMetricName, binaryOp);
     }
 
+    @Override
     public String getWriteableName() {
-        throw new EsqlIllegalArgumentException("should not be serialized");
+        throw new UnsupportedOperationException("PromQL plans should not be serialized");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new EsqlIllegalArgumentException("should not be serialized");
+        throw new UnsupportedOperationException("PromQL plans should not be serialized");
     }
 }

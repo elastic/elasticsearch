@@ -517,70 +517,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Insist i -> resolveInsist(i, childrenOutput, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput);
+                case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
-        }
-
-            if (plan instanceof Completion c) {
-                return resolveCompletion(c, childrenOutput);
-            }
-
-            if (plan instanceof Drop d) {
-                return resolveDrop(d, childrenOutput);
-            }
-
-            if (plan instanceof Rename r) {
-                return resolveRename(r, childrenOutput);
-            }
-
-            if (plan instanceof Keep p) {
-                return resolveKeep(p, childrenOutput);
-            }
-
-            if (plan instanceof Fork f) {
-                return resolveFork(f, context);
-            }
-
-            if (plan instanceof Eval p) {
-                return resolveEval(p, childrenOutput);
-            }
-
-            if (plan instanceof Enrich p) {
-                return resolveEnrich(p, childrenOutput);
-            }
-
-            if (plan instanceof MvExpand p) {
-                return resolveMvExpand(p, childrenOutput);
-            }
-
-            if (plan instanceof Lookup l) {
-                return resolveLookup(l, childrenOutput);
-            }
-
-            if (plan instanceof LookupJoin j) {
-                return resolveLookupJoin(j, context);
-            }
-
-            if (plan instanceof Insist i) {
-                return resolveInsist(i, childrenOutput, context);
-            }
-
-            if (plan instanceof Fuse fuse) {
-                return resolveFuse(fuse, childrenOutput);
-            }
-
-            if (plan instanceof Rerank r) {
-                return resolveRerank(r, childrenOutput);
-            }
-
-            if (plan instanceof PromqlCommand p) {
-                LogicalPlan nested = p.promqlPlan();
-                return p.withPromqlPlan(
-                    nested.transformExpressionsDown(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput))
-                );
-            }
-
-            return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
         }
 
         private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -1159,6 +1098,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
+        }
+
+        private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
+            LogicalPlan promqlPlan = promql.promqlPlan();
+            Function<UnresolvedAttribute, Expression> lambda = ua -> maybeResolveAttribute(ua, childrenOutput);
+            // resolve the nested plan
+            return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, lambda))
+                // but also any unresolved expressions
+                .transformExpressionsOnly(UnresolvedAttribute.class, lambda);
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

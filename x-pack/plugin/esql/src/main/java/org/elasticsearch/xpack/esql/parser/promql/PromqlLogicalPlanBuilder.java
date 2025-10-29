@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -17,6 +18,11 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.set.VectorBinarySet;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.expression.promql.types.PromqlDataTypes;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -28,11 +34,13 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 
@@ -42,6 +50,21 @@ import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionTy
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AND;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ASTERISK;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.CARET;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.EQ;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.GT;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.GTE;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LT;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LTE;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.MINUS;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.NEQ;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.OR;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PERCENT;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PLUS;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.SLASH;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.UNLESS;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.NAME;
 
 public class PromqlLogicalPlanBuilder extends ExpressionBuilder {
@@ -214,6 +237,150 @@ public class PromqlLogicalPlanBuilder extends ExpressionBuilder {
         }
         //
         return plan;
+    }
+
+    private LogicalPlan wrapLiteral(ParserRuleContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+        Source source = source(ctx);
+        Object result = visit(ctx);
+        return switch (result) {
+            case LogicalPlan plan -> plan;
+            case Literal literal -> new LiteralSelector(source, literal);
+            case Expression expr -> throw new ParsingException(
+                source,
+                "Expected a plan or literal, got expression [{}]",
+                expr.getClass().getSimpleName()
+            );
+            default -> throw new ParsingException(source, "Expected a plan, got [{}]", result.getClass().getSimpleName());
+        };
+    }
+
+    @Override
+    public LogicalPlan visitArithmeticUnary(PromqlBaseParser.ArithmeticUnaryContext ctx) {
+        Source source = source(ctx);
+        LogicalPlan unary = wrapLiteral(ctx.expression());
+
+        if (ctx.operator.getType() == MINUS) {
+            // TODO: optimize negation of literal
+            LiteralSelector zero = new LiteralSelector(source, Literal.fromDouble(source, 0.0));
+            return new VectorBinaryArithmetic(source, zero, unary, VectorMatch.NONE, VectorBinaryArithmetic.ArithmeticOp.SUB);
+        }
+
+        return unary;
+    }
+
+    @Override
+    public LogicalPlan visitArithmeticBinary(PromqlBaseParser.ArithmeticBinaryContext ctx) {
+        Source source = source(ctx);
+        LogicalPlan le = wrapLiteral(ctx.left);
+        LogicalPlan re = wrapLiteral(ctx.right);
+
+        boolean bool = ctx.BOOL() != null;
+        int opType = ctx.op.getType();
+        String opText = ctx.op.getText();
+
+        // validate operation against expression types
+        boolean leftIsScalar = le instanceof LiteralSelector;
+        boolean rightIsScalar = re instanceof LiteralSelector;
+
+        // comparisons against scalars require bool
+        if (bool == false && leftIsScalar && rightIsScalar) {
+            switch (opType) {
+                case EQ:
+                case NEQ:
+                case LT:
+                case LTE:
+                case GT:
+                case GTE:
+                    throw new ParsingException(source, "Comparisons [{}] between scalars must use the BOOL modifier", opText);
+            }
+        }
+        // set operations are not allowed on scalars
+        if (leftIsScalar || rightIsScalar) {
+            switch (opType) {
+                case AND:
+                case UNLESS:
+                case OR:
+                    throw new ParsingException(source, "Set operator [{}] not allowed in binary scalar expression", opText);
+            }
+        }
+
+        VectorMatch modifier = VectorMatch.NONE;
+
+        PromqlBaseParser.ModifierContext modifierCtx = ctx.modifier();
+        if (modifierCtx != null) {
+            // modifiers work only on vectors
+            if (le instanceof RangeSelector || re instanceof RangeSelector) {
+                throw new ParsingException(source, "Vector matching allowed only between instant vectors");
+            }
+
+            VectorMatch.Filter filter = modifierCtx.ON() != null ? VectorMatch.Filter.ON : VectorMatch.Filter.IGNORING;
+            List<String> filterList = visitLabelList(modifierCtx.modifierLabels);
+            VectorMatch.Joining joining = VectorMatch.Joining.NONE;
+            List<String> groupingList = visitLabelList(modifierCtx.groupLabels);
+            if (modifierCtx.joining != null) {
+                joining = modifierCtx.GROUP_LEFT() != null ? VectorMatch.Joining.LEFT : VectorMatch.Joining.RIGHT;
+
+                // grouping not allowed with logic operators
+                switch (opType) {
+                    case AND:
+                    case UNLESS:
+                    case OR:
+                        throw new ParsingException(source(modifierCtx), "No grouping [{}] allowed for [{}] operator", joining, opText);
+                }
+
+                // label declared in ON cannot appear in grouping
+                if (modifierCtx.ON() != null) {
+                    List<String> repeatedLabels = new ArrayList<>(groupingList);
+                    if (filterList.isEmpty() == false && repeatedLabels.retainAll(filterList) && repeatedLabels.isEmpty() == false) {
+                        throw new ParsingException(
+                            source(modifierCtx.ON()),
+                            "Label{} {} must not occur in ON and GROUP clause at once",
+                            repeatedLabels.size() > 1 ? "s" : "",
+                            repeatedLabels
+                        );
+                    }
+
+                }
+            }
+
+            modifier = new VectorMatch(filter, new LinkedHashSet<>(filterList), joining, new LinkedHashSet<>(groupingList));
+        }
+
+        VectorBinaryOperator.BinaryOp binaryOperator = switch (opType) {
+            case CARET -> VectorBinaryArithmetic.ArithmeticOp.POW;
+            case ASTERISK -> VectorBinaryArithmetic.ArithmeticOp.MUL;
+            case PERCENT -> VectorBinaryArithmetic.ArithmeticOp.MOD;
+            case SLASH -> VectorBinaryArithmetic.ArithmeticOp.DIV;
+            case MINUS -> VectorBinaryArithmetic.ArithmeticOp.SUB;
+            case PLUS -> VectorBinaryArithmetic.ArithmeticOp.ADD;
+            case EQ -> VectorBinaryComparison.ComparisonOp.EQ;
+            case NEQ -> VectorBinaryComparison.ComparisonOp.NEQ;
+            case LT -> VectorBinaryComparison.ComparisonOp.LT;
+            case LTE -> VectorBinaryComparison.ComparisonOp.LTE;
+            case GT -> VectorBinaryComparison.ComparisonOp.GT;
+            case GTE -> VectorBinaryComparison.ComparisonOp.GTE;
+            case AND -> VectorBinarySet.SetOp.INTERSECT;
+            case UNLESS -> VectorBinarySet.SetOp.SUBTRACT;
+            case OR -> VectorBinarySet.SetOp.UNION;
+            default -> throw new ParsingException(source(ctx.op), "Unknown arithmetic {}", opText);
+        };
+
+        return switch (binaryOperator) {
+            case VectorBinaryArithmetic.ArithmeticOp arithmeticOp -> new VectorBinaryArithmetic(source, le, re, modifier, arithmeticOp);
+            case VectorBinaryComparison.ComparisonOp comparisonOp -> new VectorBinaryComparison(
+                source,
+                le,
+                re,
+                modifier,
+                bool,
+                comparisonOp
+            );
+            case VectorBinarySet.SetOp setOp -> new VectorBinarySet(source, le, re, modifier, setOp);
+            default -> throw new ParsingException(source(ctx.op), "Unknown arithmetic {}", opText);
+        };
     }
 
     @Override

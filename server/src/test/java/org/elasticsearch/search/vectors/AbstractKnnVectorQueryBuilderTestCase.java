@@ -89,6 +89,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         String fieldName,
         int k,
         int numCands,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     );
@@ -145,10 +146,12 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         String fieldName = randomBoolean() ? VECTOR_FIELD : VECTOR_ALIAS_FIELD;
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
+        Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         KnnVectorQueryBuilder queryBuilder = createKnnVectorQueryBuilder(
             fieldName,
             k,
             numCands,
+            visitPercentage,
             isIndextypeBBQ() ? randomBBQRescoreVectorBuilder() : randomRescoreVectorBuilder(),
             randomFloat()
         );
@@ -221,6 +224,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         }
         BooleanQuery booleanQuery = builder.build();
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
+        Query approxFilterQuery = filterQuery != null ? new CachingEnableFilterQuery(filterQuery) : null;
         Integer numCands = queryBuilder.numCands();
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             float oversample = queryBuilder.rescoreVectorBuilder().oversample();
@@ -240,7 +244,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 queryBuilder.queryVector().asByteVector(),
                 k,
                 numCands,
-                filterQuery,
+                approxFilterQuery,
                 expectedStrategy
             );
             case FLOAT -> new ESKnnFloatVectorQuery(
@@ -248,7 +252,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 queryBuilder.queryVector().asFloatVector(),
                 k,
                 numCands,
-                filterQuery,
+                approxFilterQuery,
                 expectedStrategy
             );
         };
@@ -284,7 +288,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     public void testWrongDimension() {
         SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f }, 5, 10, null, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f }, 5, 10, 10f, null, null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
         assertThat(
             e.getMessage(),
@@ -294,7 +298,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     public void testNonexistentField() {
         SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, null, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, 10f, null, null);
         context.setAllowUnmappedFields(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.doToQuery(context));
         assertThat(e.getMessage(), containsString("No field mapping can be found for the field with name [nonexistent]"));
@@ -302,7 +306,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     public void testNonexistentFieldReturnEmpty() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, null, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, 10f, null, null);
         Query queryNone = query.doToQuery(context);
         assertThat(queryNone, instanceOf(MatchNoDocsQuery.class));
     }
@@ -314,6 +318,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             new float[] { 1.0f, 1.0f, 1.0f },
             5,
             10,
+            10f,
             null,
             null
         );
@@ -326,14 +331,15 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         int numCands = 3;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 1.0f, 1.0f }, k, numCands, null, null)
+            () -> new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 1.0f, 1.0f }, k, numCands, 10f, null, null)
         );
         assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
     }
 
     @Override
     public void testValidOutput() {
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, null, 10, null, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, null, 10, 10f, null, null);
+
         String expected = """
             {
               "knn" : {
@@ -343,13 +349,32 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                   2.0,
                   3.0
                 ],
-                "num_candidates" : 10
+                "num_candidates" : 10,
+                "visit_percentage" : 10.0
               }
             }""";
+
         assertEquals(expected, query.toString());
 
-        KnnVectorQueryBuilder query2 = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 5, 10, null, null);
+        KnnVectorQueryBuilder query2 = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 5, 10, 10f, null, null);
         String expected2 = """
+            {
+              "knn" : {
+                "field" : "vector",
+                "query_vector" : [
+                  1.0,
+                  2.0,
+                  3.0
+                ],
+                "k" : 5,
+                "num_candidates" : 10,
+                "visit_percentage" : 10.0
+              }
+            }""";
+        assertEquals(expected2, query2.toString());
+
+        KnnVectorQueryBuilder query3 = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 5, 10, null, null, null);
+        String expected3 = """
             {
               "knn" : {
                 "field" : "vector",
@@ -362,7 +387,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 "num_candidates" : 10
               }
             }""";
-        assertEquals(expected2, query2.toString());
+        assertEquals(expected3, query3.toString());
     }
 
     @Override
@@ -374,6 +399,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             VECTOR_FIELD,
             new float[] { 1.0f, 2.0f, 3.0f },
             vectorDimensions,
+            null,
             null,
             null,
             null
@@ -396,6 +422,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             null,
             query.numCands(),
             null,
+            null,
             null
         ).queryName(query.queryName()).boost(query.boost());
         TransportVersion beforeFilterVersion = TransportVersionUtils.randomVersionBetween(
@@ -414,6 +441,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             vectorData,
             null,
             query.numCands(),
+            null,
             null,
             null
         ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
@@ -435,6 +463,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             null,
             query.numCands(),
             null,
+            null,
             similarity
         ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
         assertBWCSerialization(query, queryOlderVersion, differentQueryVersion);
@@ -445,7 +474,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_8_8_1,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE)
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_18_0)
         );
         VectorData vectorData = version.onOrAfter(TransportVersions.V_8_14_0)
             ? query.queryVector()
@@ -456,6 +485,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             vectorData,
             k,
             query.numCands(),
+            null,
             null,
             query.getVectorSimilarity()
         ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
@@ -510,6 +540,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(expectedArray),
             null,
             5,
+            10f,
             1f
         );
         knnVectorQueryBuilder.boost(randomFloat());

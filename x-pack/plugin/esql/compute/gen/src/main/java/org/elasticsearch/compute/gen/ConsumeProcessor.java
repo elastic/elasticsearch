@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.gen;
 
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 
 import java.util.List;
 import java.util.Set;
@@ -44,7 +45,8 @@ public class ConsumeProcessor implements Processor {
             "org.elasticsearch.xpack.esql.expression.function.MapParam",
             "org.elasticsearch.rest.ServerlessScope",
             "org.elasticsearch.xcontent.ParserConstructor",
-            Fixed.class.getName()
+            Fixed.class.getName(),
+            Position.class.getName()
         );
     }
 

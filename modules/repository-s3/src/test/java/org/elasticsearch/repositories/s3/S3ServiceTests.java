@@ -19,6 +19,8 @@ import software.amazon.awssdk.services.s3.endpoints.internal.DefaultS3EndpointPr
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -33,7 +35,6 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.io.IOException;
 import java.net.URI;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -42,7 +43,7 @@ import static org.mockito.Mockito.mock;
 
 public class S3ServiceTests extends ESTestCase {
 
-    public void testCachedClientsAreReleased() throws IOException {
+    public void testCachedClientsAreReleased() {
         final S3Service s3Service = new S3Service(
             mock(Environment.class),
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
@@ -107,30 +108,45 @@ public class S3ServiceTests extends ESTestCase {
                 mock(ResourceWatcherService.class),
                 () -> {
                     assertTrue(regionRequested.compareAndSet(false, true));
-                    return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()), null);
+                    if (randomBoolean()) {
+                        throw new ElasticsearchException("simulated");
+                    } else {
+                        return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()));
+                    }
                 }
-            )
+            );
+            var mockLog = MockLog.capture(S3Service.class, S3DefaultRegionHolder.class)
         ) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no default region warning",
+                    S3DefaultRegionHolder.class.getCanonicalName(),
+                    Level.WARN,
+                    "*"
+                )
+            );
+
             s3Service.start();
             assertTrue(regionRequested.get());
 
             final var clientName = randomBoolean() ? "default" : randomIdentifier();
 
             final var region = randomBoolean() ? randomFrom(Region.regions()) : Region.of(randomIdentifier());
-            MockLog.assertThatLogger(
-                () -> assertSame(
-                    region,
-                    s3Service.getClientRegion(
-                        S3ClientSettings.getClientSettings(
-                            Settings.builder().put("s3.client." + clientName + ".region", region.id()).build(),
-                            clientName
-                        )
+
+            mockLog.addExpectation(new MockLog.UnseenEventExpectation("no warning", S3Service.class.getCanonicalName(), Level.WARN, "*"));
+            mockLog.addExpectation(new MockLog.UnseenEventExpectation("no debug", S3Service.class.getCanonicalName(), Level.DEBUG, "*"));
+
+            assertSame(
+                region,
+                s3Service.getClientRegion(
+                    S3ClientSettings.getClientSettings(
+                        Settings.builder().put("s3.client." + clientName + ".region", region.id()).build(),
+                        clientName
                     )
-                ),
-                S3Service.class,
-                new MockLog.UnseenEventExpectation("no warning", S3Service.class.getCanonicalName(), Level.WARN, "*"),
-                new MockLog.UnseenEventExpectation("no debug", S3Service.class.getCanonicalName(), Level.DEBUG, "*")
+                )
             );
+
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -145,10 +161,24 @@ public class S3ServiceTests extends ESTestCase {
                 mock(ResourceWatcherService.class),
                 () -> {
                     assertTrue(regionRequested.compareAndSet(false, true));
-                    return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()), null);
+                    if (randomBoolean()) {
+                        throw new ElasticsearchException("simulated");
+                    } else {
+                        return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()));
+                    }
                 }
-            )
+            );
+            var mockLog = MockLog.capture(S3Service.class, S3DefaultRegionHolder.class)
         ) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no default region warning",
+                    S3DefaultRegionHolder.class.getCanonicalName(),
+                    Level.WARN,
+                    "*"
+                )
+            );
+
             s3Service.start();
             assertTrue(regionRequested.get());
 
@@ -163,18 +193,7 @@ public class S3ServiceTests extends ESTestCase {
             ).url();
             final var endpoint = randomFrom(endpointUrl.toString(), endpointUrl.getHost());
 
-            MockLog.assertThatLogger(
-                () -> assertEquals(
-                    endpoint,
-                    guessedRegion,
-                    s3Service.getClientRegion(
-                        S3ClientSettings.getClientSettings(
-                            Settings.builder().put("s3.client." + clientName + ".endpoint", endpoint).build(),
-                            clientName
-                        )
-                    )
-                ),
-                S3Service.class,
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     endpoint + " -> " + guessedRegion,
                     S3Service.class.getCanonicalName(),
@@ -188,6 +207,18 @@ public class S3ServiceTests extends ESTestCase {
                     )
                 )
             );
+            assertEquals(
+                endpoint,
+                guessedRegion,
+                s3Service.getClientRegion(
+                    S3ClientSettings.getClientSettings(
+                        Settings.builder().put("s3.client." + clientName + ".endpoint", endpoint).build(),
+                        clientName
+                    )
+                )
+            );
+
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -205,16 +236,24 @@ public class S3ServiceTests extends ESTestCase {
                     assertTrue(regionRequested.compareAndSet(false, true));
                     return defaultRegion;
                 }
-            )
+            );
+            var mockLog = MockLog.capture(S3Service.class, S3DefaultRegionHolder.class)
         ) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no default region warning",
+                    S3DefaultRegionHolder.class.getCanonicalName(),
+                    Level.WARN,
+                    "*"
+                )
+            );
+
             s3Service.start();
             assertTrue(regionRequested.get());
 
             final var clientName = randomBoolean() ? "default" : randomIdentifier();
 
-            MockLog.assertThatLogger(
-                () -> assertSame(defaultRegion, s3Service.getClientRegion(S3ClientSettings.getClientSettings(Settings.EMPTY, clientName))),
-                S3Service.class,
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "warning",
                     S3Service.class.getCanonicalName(),
@@ -224,12 +263,17 @@ public class S3ServiceTests extends ESTestCase {
                         + "] from SDK"
                 )
             );
+
+            assertSame(defaultRegion, s3Service.getClientRegion(S3ClientSettings.getClientSettings(Settings.EMPTY, clientName)));
+
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
     @TestLogging(reason = "testing WARN log output", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
     public void testGetClientRegionFallbackToUsEast1() {
         final var regionRequested = new AtomicBoolean();
+        final var exceptionMessage = randomIdentifier();
         try (
             var s3Service = new S3Service(
                 mock(Environment.class),
@@ -238,23 +282,39 @@ public class S3ServiceTests extends ESTestCase {
                 mock(ResourceWatcherService.class),
                 () -> {
                     assertTrue(regionRequested.compareAndSet(false, true));
-                    return null;
+                    throw new ElasticsearchException(exceptionMessage);
                 }
-            )
+            );
+            var mockLog = MockLog.capture(S3Service.class, S3DefaultRegionHolder.class)
         ) {
             s3Service.start();
             assertTrue(regionRequested.get());
 
             final var clientName = randomBoolean() ? "default" : randomIdentifier();
 
-            MockLog.assertThatLogger(
-                () -> assertNull(s3Service.getClientRegion(S3ClientSettings.getClientSettings(Settings.EMPTY, clientName))),
-                S3Service.class,
-                new MockLog.SeenEventExpectation("warning", S3Service.class.getCanonicalName(), Level.WARN, """
-                    found S3 client with no configured region and no configured endpoint, \
-                    falling back to [us-east-1] and enabling cross-region access; \
-                    to suppress this warning, configure the [s3.client.CLIENT_NAME.region] setting on this node""")
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "default provider chain failure",
+                    S3DefaultRegionHolder.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to obtain region from default provider chain"
+                ) {
+                    @Override
+                    public void match(LogEvent event) {
+                        if (event.getThrown() instanceof ElasticsearchException e && exceptionMessage.equals(e.getMessage())) {
+                            super.match(event);
+                        }
+                    }
+                }
             );
+            mockLog.addExpectation(new MockLog.SeenEventExpectation("warning", S3Service.class.getCanonicalName(), Level.WARN, """
+                found S3 client with no configured region and no configured endpoint, \
+                falling back to [us-east-1] and enabling cross-region access; \
+                to suppress this warning, configure the [s3.client.CLIENT_NAME.region] setting on this node"""));
+
+            assertNull(s3Service.getClientRegion(S3ClientSettings.getClientSettings(Settings.EMPTY, clientName)));
+
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -302,15 +362,20 @@ public class S3ServiceTests extends ESTestCase {
     }
 
     private URI getEndpointUri(Settings.Builder settings, String clientName) {
-        return new S3Service(
-            mock(Environment.class),
-            ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-            mock(ResourceWatcherService.class),
-            () -> Region.of(randomIdentifier())
-        ).buildClient(S3ClientSettings.getClientSettings(settings.build(), clientName), mock(SdkHttpClient.class))
-            .serviceClientConfiguration()
-            .endpointOverride()
-            .get();
+        try (
+            var s3Service = new S3Service(
+                mock(Environment.class),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(ResourceWatcherService.class),
+                () -> Region.of(randomIdentifier())
+            )
+        ) {
+            s3Service.start();
+            return s3Service.buildClient(S3ClientSettings.getClientSettings(settings.build(), clientName), mock(SdkHttpClient.class))
+                .serviceClientConfiguration()
+                .endpointOverride()
+                .get();
+        }
     }
 }

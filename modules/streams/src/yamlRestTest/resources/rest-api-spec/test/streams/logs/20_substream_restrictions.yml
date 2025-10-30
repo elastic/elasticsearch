@@ -142,12 +142,15 @@ teardown:
             index.default_pipeline: "reroute-to-logs-foo-success"
   - do:
       bulk:
-        refresh: true
         body: |
           { "index": { "_index": "logs" } }
           { "foo": "bar", "baz": "qux" }
   - match: { errors: false }
   - match: { items.0.index.status: 201 }
+
+  - do:
+      indices.refresh:
+        index: logs.foo
 
   - do:
       delete_by_query:

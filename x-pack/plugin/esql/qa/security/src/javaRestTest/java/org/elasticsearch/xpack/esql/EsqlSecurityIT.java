@@ -592,15 +592,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoinIndexAllowed() throws Exception {
+        testLookupJoinIndexAllowedHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinIndexAllowedHelper(true);
+    }
+
+    private void testLookupJoinIndexAllowedHelper(boolean useExpressionJoin) throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
-        Response resp = runESQLCommand(
-            "metadata1_read2",
-            "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org"
-        );
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        Response resp = runESQLCommand("metadata1_read2", query);
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(
@@ -610,25 +619,19 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
         // user is not allowed to use the alias (but is allowed to use the index)
-        expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand(
-                "metadata1_read2",
-                "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org"
-            )
-        );
+        String aliasQuery = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org";
+        expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", aliasQuery));
 
         // user is not allowed to use the index (but is allowed to use the alias)
-        expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("metadata1_alias_read2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org")
-        );
+        String indexQuery = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_alias_read2", indexQuery));
 
         // user has permission on the alias, and can read the key
-        resp = runESQLCommand(
-            "metadata1_alias_read2",
-            "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org"
-        );
+        resp = runESQLCommand("metadata1_alias_read2", aliasQuery);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -638,10 +641,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
         // user has permission on the alias, but can't read the key (doc level security at role level)
-        resp = runESQLCommand(
-            "metadata1_alias_read2",
-            "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org"
-        );
+        String aliasQuery2 = useExpressionJoin
+            ? "ROW x = 32.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org";
+        resp = runESQLCommand("metadata1_alias_read2", aliasQuery2);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -656,7 +659,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(row.get(1), is(nullValue()));
 
         // user has permission on the alias, the alias has a filter that doesn't allow to see the value
-        resp = runESQLCommand("alias_user1", "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org");
+        String aliasQuery3 = useExpressionJoin
+            ? "ROW x = 12.0 | EVAL value_left = x | LOOKUP JOIN lookup-first-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org";
+        resp = runESQLCommand("alias_user1", aliasQuery3);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -671,7 +677,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(row.get(1), is(nullValue()));
 
         // user has permission on the alias, the alias has a filter that allows to see the value
-        resp = runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org");
+        String aliasQuery4 = useExpressionJoin
+            ? "ROW x = 31.0 | EVAL value_left = x | LOOKUP JOIN lookup-first-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org";
+        resp = runESQLCommand("alias_user1", aliasQuery4);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -683,12 +692,23 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLookupJoinDocLevelSecurity() throws Exception {
+        testLookupJoinDocLevelSecurityHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinDocLevelSecurityHelper(true);
+    }
+
+    private void testLookupJoinDocLevelSecurityHelper(boolean useExpressionJoin) throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
-
-        Response resp = runESQLCommand("dls_user", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        Response resp = runESQLCommand("dls_user", query);
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(
@@ -698,7 +718,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null))));
 
-        resp = runESQLCommand("dls_user", "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        query = useExpressionJoin
+            ? "ROW x = 32.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        resp = runESQLCommand("dls_user", query);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -709,7 +732,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         // same, but with a user that has two dls roles that allow him more visibility
 
-        resp = runESQLCommand("dls_user2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        resp = runESQLCommand("dls_user2", query);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -719,7 +745,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(40.0, "sales"))));
 
-        resp = runESQLCommand("dls_user2", "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        query = useExpressionJoin
+            ? "ROW x = 32.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        resp = runESQLCommand("dls_user2", query);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -732,12 +761,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLookupJoinFieldLevelSecurity() throws Exception {
+        testLookupJoinFieldLevelSecurityHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinFieldLevelSecurityHelper(true);
+    }
+
+    private void testLookupJoinFieldLevelSecurityHelper(boolean useExpressionJoin) throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
-        Response resp = runESQLCommand("fls_user2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value");
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, value, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, value, org";
+        Response resp = runESQLCommand("fls_user2", query);
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(
@@ -751,7 +792,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
             )
         );
 
-        resp = runESQLCommand("fls_user3", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value");
+        String query2 = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, value, org, other"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, value, org, other";
+        resp = runESQLCommand("fls_user3", query2);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -767,7 +811,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         );
 
-        resp = runESQLCommand("fls_user4", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value");
+        resp = runESQLCommand("fls_user4", query);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -781,21 +825,34 @@ public class EsqlSecurityIT extends ESRestTestCase {
             )
         );
 
-        ResponseException error = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("fls_user4_1", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value")
-        );
-        assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        ResponseException error = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user4_1", query));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        if (useExpressionJoin) {
+            assertThat(error.getMessage(), containsString("Unknown column [value], did you mean [value_left]?"));
+        } else {
+            assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        }
     }
 
     public void testLookupJoinFieldLevelSecurityOnAlias() throws Exception {
+        testLookupJoinFieldLevelSecurityOnAliasHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinFieldLevelSecurityOnAliasHelper(true);
+    }
+
+    private void testLookupJoinFieldLevelSecurityOnAliasHelper(boolean useExpressionJoin) throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
-        Response resp = runESQLCommand("fls_user2_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value");
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, value, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, value, org";
+        Response resp = runESQLCommand("fls_user2_alias", query);
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(
@@ -809,7 +866,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
             )
         );
 
-        resp = runESQLCommand("fls_user3_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value");
+        String query2 = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, value, org, other"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, value, org, other";
+        resp = runESQLCommand("fls_user3_alias", query2);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -825,7 +885,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         );
 
-        resp = runESQLCommand("fls_user4_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value");
+        resp = runESQLCommand("fls_user4_alias", query);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -839,48 +899,55 @@ public class EsqlSecurityIT extends ESRestTestCase {
             )
         );
 
-        ResponseException error = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("fls_user4_1_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value")
-        );
-        assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        ResponseException error = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user4_1_alias", query));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        if (useExpressionJoin) {
+            assertThat(error.getMessage(), containsString("Unknown column [value], did you mean [value_left]?"));
+        } else {
+            assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        }
     }
 
     public void testLookupJoinIndexForbidden() throws Exception {
+        testLookupJoinIndexForbiddenHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinIndexForbiddenHelper(true);
+    }
+
+    private void testLookupJoinIndexForbiddenHelper(boolean useExpressionJoin) throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
-        var resp = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-user1 ON value | KEEP x")
-        );
+        String query1 = useExpressionJoin
+            ? "FROM lookup-user2 | EVAL value_left = 10.0 | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
+            : "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-user1 ON value | KEEP x";
+        var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query1));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
-        resp = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand(
-                "metadata1_read2",
-                "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-first-alias ON value | KEEP x"
-            )
-        );
+        String query2 = useExpressionJoin
+            ? "FROM lookup-user2 | EVAL value_left = 10.0 | LOOKUP JOIN lookup-first-alias ON value_left == value | KEEP x"
+            : "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-first-alias ON value | KEEP x";
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query2));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
-        resp = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x")
-        );
+        String query3 = useExpressionJoin
+            ? "ROW x = 10.0 | EVAL value_left = x | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
+            : "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x";
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query3));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
-        resp = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x")
-        );
+        String query4 = useExpressionJoin
+            ? "ROW x = 10.0 | EVAL value_left = x | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
+            : "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x";
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user1", query4));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }

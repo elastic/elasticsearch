@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -71,6 +73,16 @@ public class AlibabaCloudSearchCompletionRequestManager extends AlibabaCloudSear
         ActionListener<InferenceServiceResults> listener
     ) {
         List<String> input = inferenceInputs.castTo(ChatCompletionInput.class).getInputs();
+        if (input.size() % 2 == 0) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Alibaba Completion's inputs must be an odd number. The last input is the current query, "
+                        + "all preceding inputs are the completion history as pairs of user input and the assistant's response.",
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
         AlibabaCloudSearchCompletionRequest request = new AlibabaCloudSearchCompletionRequest(account, input, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

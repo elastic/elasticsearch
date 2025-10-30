@@ -64,7 +64,8 @@ public abstract class PeerFinder {
         "discovery.request_peers_timeout",
         TimeValue.timeValueMillis(3000),
         TimeValue.timeValueMillis(1),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
 
     // We do not log connection failures immediately: some failures are expected, especially if the hosts list isn't perfectly up-to-date
@@ -79,7 +80,6 @@ public abstract class PeerFinder {
     );
 
     private final TimeValue findPeersInterval;
-    private final TimeValue requestPeersTimeout;
     private final TimeValue verbosityIncreaseTimeout;
 
     private final Object mutex = new Object();
@@ -104,7 +104,6 @@ public abstract class PeerFinder {
         ConfiguredHostsResolver configuredHostsResolver
     ) {
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
-        requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         verbosityIncreaseTimeout = VERBOSITY_INCREASE_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
         this.clusterCoordinationExecutor = transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION);

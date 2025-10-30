@@ -47,7 +47,7 @@ public class AllocationBalancingRoundSummaryService {
 
     /** Controls how frequently in time balancer round summaries are logged. */
     public static final Setting<TimeValue> BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING = Setting.timeSetting(
-        "cluster.routing.allocation.desired_balance.balanace_round_summaries_interval",
+        "cluster.routing.allocation.desired_balance.balancer_round_summaries_interval",
         TimeValue.timeValueSeconds(10),
         TimeValue.ZERO,
         Setting.Property.NodeScope,

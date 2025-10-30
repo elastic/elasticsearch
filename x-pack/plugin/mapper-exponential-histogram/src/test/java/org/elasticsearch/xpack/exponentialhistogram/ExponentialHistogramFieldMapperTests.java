@@ -18,6 +18,8 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
+import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
@@ -46,7 +48,7 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
     public void setup() {
         assumeTrue(
             "Only when exponential_histogram feature flag is enabled",
-            ExponentialHistogramFieldMapper.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
+            ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
         );
     }
 
@@ -137,6 +139,9 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
             }
             if (randomBoolean()) {
                 result.put("min", randomDoubleBetween(-1000, 1000, true));
+            }
+            if (randomBoolean()) {
+                result.put("max", randomDoubleBetween(-1000, 1000, true));
             }
         }
         return result;
@@ -406,6 +411,11 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
             // Min provided for empty histogram
             exampleMalformedValue(b -> b.startObject().field("scale", 0).field("min", 42.0).endObject()).errorMatches(
                 "min field must be null if the histogram is empty, but got 42.0"
+            ),
+
+            // Max provided for empty histogram
+            exampleMalformedValue(b -> b.startObject().field("scale", 0).field("max", 42.0).endObject()).errorMatches(
+                "max field must be null if the histogram is empty, but got 42.0"
             )
         );
     }
@@ -478,6 +488,21 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 }
                 if (min != null) {
                     result.put("min", min);
+                }
+
+                Object max = histogram.get("max");
+                if (max == null) {
+                    OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
+                        mapToZeroBucket(zeroBucket),
+                        IndexWithCount.asBuckets(scale, negative),
+                        IndexWithCount.asBuckets(scale, positive)
+                    );
+                    if (estimatedMax.isPresent()) {
+                        max = estimatedMax.getAsDouble();
+                    }
+                }
+                if (max != null) {
+                    result.put("max", max);
                 }
 
                 if (zeroBucket != null) {

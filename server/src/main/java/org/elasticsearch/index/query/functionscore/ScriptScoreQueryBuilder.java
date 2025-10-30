@@ -12,7 +12,6 @@ package org.elasticsearch.index.query.functionscore;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
@@ -204,6 +203,6 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

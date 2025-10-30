@@ -44,7 +44,39 @@ $$$index-look-back-time$$$
 :   (Static, [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Interval used to calculate the `index.time_series.start_time` for a TSDS’s first backing index when a tsdb data stream is created. Defaults to `2h` (2 hours). Accepts `1m` (one minute) to `7d` (seven days). Only indices with an `index.mode` of `time_series` support this setting. For more information, refer to [Look-back time](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#tsds-look-back-time).
 
 $$$index-routing-path$$$ `index.routing_path` {applies_to}`serverless: all`
-:   (Static, string or array of strings) Plain `keyword` fields used to route documents in a TSDS to index shards. Supports wildcards (`*`). Only indices with an `index.mode` of `time_series` support this setting. Defaults to an empty list, except for data streams then defaults to the list of [dimension fields](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-dimension) with a `time_series_dimension` value of `true` defined in your component and index templates. For more information, refer to [Dimension-based routing](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#dimension-based-routing).
+:   (Static, string or array of strings) Time series dimension fields used to route documents in a TSDS to index shards.
+Supports wildcards (`*`).
+Only indices with an `index.mode` of `time_series` support this setting.
+
+:   Defaults value:
+:   Indices that are not part of a time series data stream have no default value and require the routing path to be defined explicitly.
+If a time series data stream is used that is eligible for the `index.dimensions`-based routing (see [`index.dimensions_tsid_strategy_enabled`](#index-dimensions-tsid-strategy-enabled)),
+the `index.routing_path` will be empty.
+For time series data streams where the `index.dimensions`-based routing does not apply,
+this defaults to the list of [dimension fields](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-dimension) with a `time_series_dimension` value of `true` as defined in your component and index templates.
+
+:   Manually setting a value disables the `index.dimensions`-based routing strategy (see [`index.dimensions_tsid_strategy_enabled`](#index-dimensions-tsid-strategy-enabled)).
+For more information, refer to [Dimension-based routing](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#dimension-based-routing).
+
+
+$$$index-dimensions-tsid-strategy-enabled$$$
+
+`index.dimensions_tsid_strategy_enabled` {applies_to}`stack: ga 9.2` {applies_to}`serverless: all`
+:   (Static, boolean) Controls if the `_tsid` can be created using the `index.dimensions` index setting.
+This is an internal setting that will be automatically populated and updated for eligible time series data streams and is not user-configurable.
+This strategy offers an improved ingestion performance that avoids processing dimensions multiple times for the purposes of shard routing and creating the `_tsid`.
+When used, `index.routing_path` will not be set and shard routing uses the full `_tsid`,
+which can help to avoid shard hot-spotting.
+
+:   If set to `false`,
+or `index.routing_path` is configured manually,
+or in case the index isn't eligible (see below),
+shard routing will be based  on the `index.routing_path` instead.
+
+:   Defaults to `true`.
+
+:   This optimized `_tsid` creation strategy is only available for data streams and if there are no dynamic templates that set `time_series_dimension: true`.
+Trying to add such a dynamic template to existing backing indices after the fact will fail the update mapping request and you will need to roll over the data stream instead.
 
 $$$index-mapping-dimension-fields-limit$$$
 

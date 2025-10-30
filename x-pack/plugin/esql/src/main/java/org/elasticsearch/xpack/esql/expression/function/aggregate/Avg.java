@@ -71,7 +71,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == AGGREGATE_METRIC_DOUBLE,
+            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
             "aggregate_metric_double or numeric except unsigned_long or counter types"
@@ -115,11 +115,11 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     public Expression surrogate() {
         var s = source();
         var field = field();
-        if (field.foldable()) {
-            return new MvAvg(s, field);
-        }
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
             return new Div(s, new Sum(s, field, filter(), summationMode).surrogate(), new Count(s, field, filter()).surrogate());
+        }
+        if (field.foldable()) {
+            return new MvAvg(s, field);
         }
         return new Div(s, new Sum(s, field, filter(), summationMode), new Count(s, field, filter()), dataType());
     }

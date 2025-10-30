@@ -188,12 +188,23 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             return false;
         }
         ComponentTemplate other = (ComponentTemplate) obj;
+        return contentEquals(other)
+            && Objects.equals(createdDateMillis, other.createdDateMillis)
+            && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
+    }
+
+    /**
+     * Check whether the content of this component template is equal to another component template. Can be used to determine if a template
+     * already exists.
+     */
+    public boolean contentEquals(ComponentTemplate other) {
+        if (other == null) {
+            return false;
+        }
         return Objects.equals(template, other.template)
             && Objects.equals(version, other.version)
             && Objects.equals(metadata, other.metadata)
-            && Objects.equals(deprecated, other.deprecated)
-            && Objects.equals(createdDateMillis, other.createdDateMillis)
-            && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
+            && Objects.equals(deprecated, other.deprecated);
     }
 
     @Override

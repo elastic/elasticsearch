@@ -15,6 +15,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Duration;
@@ -48,7 +49,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             settableWrapper(TimeUnit.NANOSECONDS.toNanos(100)),
-            EsExecutors.daemonThreadFactory("queuetest"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
             randomBoolean()
@@ -116,7 +117,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             (runnable) -> adjustableTimedRunnable,
-            EsExecutors.daemonThreadFactory("queue-latency-test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("queue-latency-test"),
             new EsAbortPolicy(),
             context,
             randomBoolean()
@@ -183,7 +184,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             (runnable) -> adjustableTimedRunnable,
-            EsExecutors.daemonThreadFactory("queue-latency-test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("queue-latency-test"),
             new EsAbortPolicy(),
             context,
             randomBoolean()
@@ -233,7 +234,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             exceptionalWrapper(),
-            EsExecutors.daemonThreadFactory("queuetest"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
             randomBoolean()
@@ -269,7 +270,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             TimedRunnable::new,
-            EsExecutors.daemonThreadFactory("queuetest"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
             EsExecutors.TaskTrackingConfig.builder()
@@ -306,7 +307,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             TimedRunnable::new,
-            EsExecutors.daemonThreadFactory("queuetest"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             new ThreadContext(Settings.EMPTY),
             EsExecutors.TaskTrackingConfig.builder()

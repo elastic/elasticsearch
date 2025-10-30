@@ -124,8 +124,19 @@ public class ShardMovementWriteLoadSimulator {
         float shardWriteLoadDelta,
         int numberOfWriteThreads
     ) {
-        float newNodeUtilization = nodeUtilization + (shardWriteLoadDelta / numberOfWriteThreads);
+        float newNodeUtilization = nodeUtilization + calculateUtilizationForWriteLoad(shardWriteLoadDelta, numberOfWriteThreads);
         return (float) Math.max(newNodeUtilization, 0.0);
+    }
+
+    /**
+     * Calculate what percentage utilization increase would result from adding some amount of write-load
+     *
+     * @param totalShardWriteLoad The write-load being added/removed
+     * @param numberOfThreads The number of threads in the node-being-added-to's write thread pool
+     * @return The change in percentage utilization
+     */
+    public static float calculateUtilizationForWriteLoad(float totalShardWriteLoad, int numberOfThreads) {
+        return totalShardWriteLoad / numberOfThreads;
     }
 
     /**

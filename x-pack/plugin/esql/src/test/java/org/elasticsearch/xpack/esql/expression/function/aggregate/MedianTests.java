@@ -73,7 +73,7 @@ public class MedianTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, true);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true);
     }
 
     @Override
@@ -100,10 +100,5 @@ public class MedianTests extends AbstractAggregationTestCase {
                 );
             }
         });
-    }
-
-    @Override
-    protected boolean optIntoToAggregatorToStringChecks() {
-        return true;
     }
 }

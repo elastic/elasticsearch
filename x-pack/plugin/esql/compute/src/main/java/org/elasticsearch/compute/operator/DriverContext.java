@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -60,17 +61,24 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
+    private final @Nullable String driverDescription;
+
     private Runnable earlyTerminationChecker = () -> {};
 
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
-        this(bigArrays, blockFactory, WarningsMode.COLLECT);
+        this(bigArrays, blockFactory, null, WarningsMode.COLLECT);
     }
 
-    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode) {
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, String description) {
+        this(bigArrays, blockFactory, description, WarningsMode.COLLECT);
+    }
+
+    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable String description, WarningsMode warningsMode) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.driverDescription = description;
         this.warningsMode = warningsMode;
     }
 
@@ -87,6 +95,12 @@ public class DriverContext {
 
     public BlockFactory blockFactory() {
         return blockFactory;
+    }
+
+    /** See {@link Driver#shortDescription}. */
+    @Nullable
+    public String driverDescription() {
+        return driverDescription;
     }
 
     /** A snapshot of the driver context. */

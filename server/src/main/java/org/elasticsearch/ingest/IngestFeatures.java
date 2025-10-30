@@ -9,7 +9,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
@@ -17,18 +16,24 @@ import java.util.Set;
 
 public class IngestFeatures implements FeatureSpecification {
     private static final NodeFeature SIMULATE_INGEST_400_ON_FAILURE = new NodeFeature("simulate.ingest.400_on_failure", true);
+    private static final NodeFeature INGEST_APPEND_COPY_FROM = new NodeFeature("ingest.append.copy_from", true);
+    private static final NodeFeature INGEST_APPEND_IGNORE_EMPTY_VALUES = new NodeFeature("ingest.append.ignore_empty_values", true);
+    private static final NodeFeature RANDOM_SAMPLING = new NodeFeature("random_sampling", true);
+    private static final NodeFeature INGEST_APPEND_IGNORE_EMPTY_VALUES_FIX = new NodeFeature("ingest.append.ignore_empty_values_fix", true);
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-            return Set.of(IngestService.FIELD_ACCESS_PATTERN);
-        } else {
-            return Set.of();
-        }
+        return Set.of(IngestService.FIELD_ACCESS_PATTERN);
     }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(SIMULATE_INGEST_400_ON_FAILURE);
+        return Set.of(
+            SIMULATE_INGEST_400_ON_FAILURE,
+            INGEST_APPEND_COPY_FROM,
+            INGEST_APPEND_IGNORE_EMPTY_VALUES,
+            RANDOM_SAMPLING,
+            INGEST_APPEND_IGNORE_EMPTY_VALUES_FIX
+        );
     }
 }

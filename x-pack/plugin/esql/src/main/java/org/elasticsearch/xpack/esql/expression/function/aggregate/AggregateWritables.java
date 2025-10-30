@@ -25,10 +25,15 @@ public class AggregateWritables {
             Min.ENTRY,
             Percentile.ENTRY,
             Rate.ENTRY,
+            Irate.ENTRY,
+            Idelta.ENTRY,
+            Increase.ENTRY,
+            Delta.ENTRY,
             Sample.ENTRY,
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
             StdDev.ENTRY,
+            Variance.ENTRY,
             Sum.ENTRY,
             Top.ENTRY,
             Values.ENTRY,
@@ -41,10 +46,12 @@ public class AggregateWritables {
             SumOverTime.ENTRY,
             CountOverTime.ENTRY,
             CountDistinctOverTime.ENTRY,
-            // internal functions
-            ToPartial.ENTRY,
-            FromPartial.ENTRY,
-            WeightedAvg.ENTRY
+            WeightedAvg.ENTRY,
+            Present.ENTRY,
+            PresentOverTime.ENTRY,
+            Absent.ENTRY,
+            AbsentOverTime.ENTRY,
+            DimensionValues.ENTRY
         );
     }
 }

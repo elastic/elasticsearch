@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,6 +32,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereServiceSettings> {
+
+    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
 
     public static CohereServiceSettings createRandomWithNonNullUrl() {
         return createRandom(randomAlphaOfLength(15));
@@ -364,8 +365,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CohereServiceSettings mutateInstanceForVersion(CohereServiceSettings instance, TransportVersion version) {
-        if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            && (version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false)) {
+        if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
             return new CohereServiceSettings(
                 instance.uri(),
                 instance.similarity(),

@@ -106,7 +106,7 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
 
     @Override
     protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
-        return clusterState.routingTable(projectResolver.getProjectId()).allShards(concreteIndices);
+        return clusterState.routingTable(projectResolver.getProjectId()).allSearchableShards(concreteIndices);
     }
 
     @Override
@@ -117,6 +117,7 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
         ActionListener<DataStreamsStatsAction.DataStreamShardStats> listener
     ) {
         ActionListener.completeWith(listener, () -> {
+            assert shardRouting.isSearchable() : "shard routing is not searchable: " + shardRouting;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
             StoreStats storeStats = indexShard.storeStats();

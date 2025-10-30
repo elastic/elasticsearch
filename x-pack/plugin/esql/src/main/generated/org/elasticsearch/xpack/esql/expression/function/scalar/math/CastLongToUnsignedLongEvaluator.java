@@ -61,18 +61,19 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   public LongBlock eval(int positionCount, LongBlock vBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (vBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (vBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (vBlock.getValueCount(p) != 1) {
-          if (vBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendLong(Cast.castLongToUnsignedLong(vBlock.getLong(vBlock.getFirstValueIndex(p))));
+        long v = vBlock.getLong(vBlock.getFirstValueIndex(p));
+        result.appendLong(Cast.castLongToUnsignedLong(v));
       }
       return result.build();
     }
@@ -81,7 +82,8 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   public LongVector eval(int positionCount, LongVector vVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Cast.castLongToUnsignedLong(vVector.getLong(p)));
+        long v = vVector.getLong(p);
+        result.appendLong(p, Cast.castLongToUnsignedLong(v));
       }
       return result.build();
     }

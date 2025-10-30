@@ -42,6 +42,7 @@ public class OptimizedScalarQuantizerBenchmark {
     int dims;
 
     float[] vector;
+    float[] scratch;
     float[] centroid;
     int[] destination;
 
@@ -57,6 +58,7 @@ public class OptimizedScalarQuantizerBenchmark {
         destination = new int[dims];
         vector = new float[dims];
         centroid = new float[dims];
+        scratch = new float[dims];
         for (int i = 0; i < dims; ++i) {
             vector[i] = random.nextFloat();
             centroid[i] = random.nextFloat();
@@ -65,14 +67,14 @@ public class OptimizedScalarQuantizerBenchmark {
 
     @Benchmark
     public int[] scalar() {
-        osq.scalarQuantize(vector, destination, bits, centroid);
+        osq.scalarQuantize(vector, scratch, destination, bits, centroid);
         return destination;
     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public int[] vector() {
-        osq.scalarQuantize(vector, destination, bits, centroid);
+        osq.scalarQuantize(vector, scratch, destination, bits, centroid);
         return destination;
     }
 }

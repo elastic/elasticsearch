@@ -92,11 +92,12 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Creates a move decision for the shard being able to remain on its current node, so the shard won't
      * be forced to move to another node.
      */
-    public static MoveDecision remain(Decision canRemainDecision) {
+    public static MoveDecision createRemainYesDecision(Decision canRemainDecision) {
+        assert canRemainDecision.type() != Type.NO;
+        assert canRemainDecision.type() != Type.NOT_PREFERRED;
         if (canRemainDecision == Decision.YES) {
             return CACHED_STAY_DECISION;
         }
-        assert canRemainDecision.type() != Type.NO;
         return new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, canRemainDecision, null, 0);
     }
 
@@ -150,9 +151,19 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * returns {@code false} otherwise.  If {@link #isDecisionTaken()} returns {@code false},
      * then invoking this method will throw an {@code IllegalStateException}.
      */
-    public boolean forceMove() {
+    public boolean cannotRemainAndCanMove() {
         checkDecisionState();
         return canRemain() == false && canMoveDecision == AllocationDecision.YES;
+    }
+
+    /**
+     * Returns {@code true} if the shard cannot remain on its current node and _cannot_ be moved.
+     * returns {@code false} otherwise.  If {@link #isDecisionTaken()} returns {@code false},
+     * then invoking this method will throw an {@code IllegalStateException}.
+     */
+    public boolean cannotRemainAndCannotMove() {
+        checkDecisionState();
+        return canRemain() == false && canMoveDecision != AllocationDecision.YES;
     }
 
     /**
@@ -179,6 +190,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * the result of this method is meaningless, as no rebalance decision was taken.  If {@link #isDecisionTaken()}
      * returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
+    // @VisibleForTesting
     public boolean canRebalanceCluster() {
         checkDecisionState();
         return clusterRebalanceDecision != null && clusterRebalanceDecision.type() == Type.YES;
@@ -192,6 +204,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an
      * {@code IllegalStateException}.
      */
+    // @VisibleForTesting
     @Nullable
     public Decision getClusterRebalanceDecision() {
         checkDecisionState();
@@ -285,7 +298,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.field("can_rebalance_to_other_node", canMoveDecision);
                 builder.field("rebalance_explanation", getExplanation());
             } else {
-                builder.field("can_move_to_other_node", forceMove() ? "yes" : "no");
+                builder.field("can_move_to_other_node", cannotRemainAndCanMove() ? "yes" : "no");
                 builder.field("move_explanation", getExplanation());
             }
             return builder;

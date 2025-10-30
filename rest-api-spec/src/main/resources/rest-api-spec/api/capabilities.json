@@ -26,7 +26,11 @@
         "type": "enum",
         "description": "REST method to check",
         "options": [
-          "GET", "HEAD", "POST", "PUT", "DELETE"
+          "GET",
+          "HEAD",
+          "POST",
+          "PUT",
+          "DELETE"
         ],
         "default": "GET"
       },

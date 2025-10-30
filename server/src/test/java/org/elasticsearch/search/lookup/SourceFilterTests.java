@@ -156,4 +156,54 @@ public class SourceFilterTests extends ESTestCase {
         Source filteredBytes = fromBytes.filter(new SourceFilter(new String[] { "myObject" }, new String[] { "myObject.myField" }));
         assertEquals(filteredBytes.source(), Map.of("myObject", Map.of("other", "otherValue")));
     }
+
+    public void testIsExplicitlyIncluded() {
+        var filter = new SourceFilter(null, null);
+        assertFalse(filter.isExplicitlyIncluded("foo"));
+
+        filter = new SourceFilter(new String[] {}, null);
+        assertFalse(filter.isExplicitlyIncluded("foo"));
+
+        filter = new SourceFilter(new String[] { "foo", "bar.*" }, null);
+        assertTrue(filter.isExplicitlyIncluded("foo"));
+        assertTrue(filter.isExplicitlyIncluded("bar.field"));
+        assertFalse(filter.isExplicitlyIncluded("baz"));
+        assertFalse(filter.isExplicitlyIncluded("bar"));
+    }
+
+    public void testIsPathFilteredWithExcludes() {
+        var filter = new SourceFilter(null, new String[] { "foo", "bar.field" });
+        assertTrue(filter.isPathFiltered("foo", true));
+        assertTrue(filter.isPathFiltered("foo", false));
+
+        assertTrue(filter.isPathFiltered("bar.field", false));
+        assertFalse(filter.isPathFiltered("baz", false));
+        assertFalse(filter.isPathFiltered("bar", false));
+        assertFalse(filter.isPathFiltered("bar", true));
+    }
+
+    public void testIsPathFilteredWithIncludes() {
+        var filter = new SourceFilter(new String[] { "foo", "bar.field" }, null);
+        assertFalse(filter.isPathFiltered("foo", true));
+        assertFalse(filter.isPathFiltered("foo", false));
+
+        assertFalse(filter.isPathFiltered("bar.field", false));
+        assertTrue(filter.isPathFiltered("baz", false));
+        assertTrue(filter.isPathFiltered("bar", false));
+        assertFalse(filter.isPathFiltered("bar", true));
+    }
+
+    public void testIsPathFilteredWithIncludesAndExcludes() {
+        var filter = new SourceFilter(new String[] { "foo", "bar.*", "nested.field" }, new String[] { "foo", "bar.field" });
+        assertTrue(filter.isPathFiltered("foo", true));
+        assertTrue(filter.isPathFiltered("foo", false));
+
+        assertTrue(filter.isPathFiltered("bar.field", false));
+        assertTrue(filter.isPathFiltered("baz", false));
+        assertTrue(filter.isPathFiltered("bar", false));
+        assertFalse(filter.isPathFiltered("bar", true));
+
+        assertFalse(filter.isPathFiltered("nested.field", false));
+        assertTrue(filter.isPathFiltered("nested.another", false));
+    }
 }

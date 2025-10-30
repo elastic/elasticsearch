@@ -63,18 +63,19 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   public DoubleBlock eval(int positionCount, IntBlock vBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (vBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (vBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (vBlock.getValueCount(p) != 1) {
-          if (vBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(Cast.castIntToDouble(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+        int v = vBlock.getInt(vBlock.getFirstValueIndex(p));
+        result.appendDouble(Cast.castIntToDouble(v));
       }
       return result.build();
     }
@@ -83,7 +84,8 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   public DoubleVector eval(int positionCount, IntVector vVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Cast.castIntToDouble(vVector.getInt(p)));
+        int v = vVector.getInt(p);
+        result.appendDouble(p, Cast.castIntToDouble(v));
       }
       return result.build();
     }

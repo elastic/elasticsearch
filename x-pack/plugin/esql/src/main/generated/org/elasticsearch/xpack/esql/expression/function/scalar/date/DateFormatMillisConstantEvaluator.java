@@ -67,18 +67,19 @@ public final class DateFormatMillisConstantEvaluator implements EvalOperator.Exp
   public BytesRefBlock eval(int positionCount, LongBlock valBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBytesRef(DateFormat.processMillis(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.formatter));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        result.appendBytesRef(DateFormat.processMillis(val, this.formatter));
       }
       return result.build();
     }
@@ -87,7 +88,8 @@ public final class DateFormatMillisConstantEvaluator implements EvalOperator.Exp
   public BytesRefVector eval(int positionCount, LongVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(DateFormat.processMillis(valVector.getLong(p), this.formatter));
+        long val = valVector.getLong(p);
+        result.appendBytesRef(DateFormat.processMillis(val, this.formatter));
       }
       return result.build();
     }

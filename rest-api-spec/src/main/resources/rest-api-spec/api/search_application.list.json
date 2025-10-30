@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-get-behavioral-analytics",
       "description": "Get search applications"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [
@@ -28,6 +28,7 @@
       },
       "from": {
         "type": "int",
+        "default": 0,
         "description": "Starting offset (default: 0)"
       },
       "size": {

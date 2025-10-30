@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
@@ -137,17 +137,18 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     }
 
     private SearchRunner createSearchRunner(final ProjectId projectId, final String indexAlias) {
-        Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
+        final Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (value, maxMatches, reqSupplier, handler) -> {
+            final String concreteEnrichIndex = getEnrichIndexKey(projectId, indexAlias);
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             enrichCache.computeIfAbsent(
                 projectId,
-                getEnrichIndexKey(projectId, indexAlias),
+                concreteEnrichIndex,
                 value,
                 maxMatches,
                 (searchResponseActionListener) -> originClient.execute(
                     EnrichCoordinatorProxyAction.INSTANCE,
-                    reqSupplier.get(),
+                    reqSupplier.apply(concreteEnrichIndex),
                     searchResponseActionListener
                 ),
                 ActionListener.wrap(resp -> handler.accept(resp, null), e -> handler.accept(null, e))
@@ -167,7 +168,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         void accept(
             Object value,
             int maxMatches,
-            Supplier<SearchRequest> searchRequestSupplier,
+            Function<String, SearchRequest> searchRequestBuilder,
             BiConsumer<List<Map<?, ?>>, Exception> handler
         );
     }

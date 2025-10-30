@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -467,6 +468,10 @@ public interface SourceLoader {
      */
     static Source applySyntheticVectors(Source originalSource, List<SyntheticVectorPatch> patches) {
         Map<String, Object> newMap = originalSource.source();
+        // Make sure we have a mutable map, empty implies `Map.of()`
+        if (newMap.isEmpty()) {
+            newMap = new LinkedHashMap<>();
+        }
         applyPatches("", newMap, patches);
         return Source.fromMap(newMap, originalSource.sourceContentType());
     }

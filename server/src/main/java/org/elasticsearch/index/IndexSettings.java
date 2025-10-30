@@ -52,6 +52,7 @@ import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocat
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
@@ -617,21 +618,11 @@ public final class IndexSettings {
                 if (startTime.toEpochMilli() > value.toEpochMilli()) {
                     throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
                 }
-
-                // The index.time_series.end_time setting can only be specified if the index.mode setting has been set to time_series
-                // This check here is specifically needed because in case of updating index settings the validation the gets executed
-                // in IndexSettings constructor when reading the index.mode setting doesn't get executed.
-                IndexMode indexMode = (IndexMode) settings.get(MODE);
-                if (indexMode != IndexMode.TIME_SERIES) {
-                    throw new IllegalArgumentException(
-                        "[" + TIME_SERIES_END_TIME.getKey() + "] requires [index.mode=" + IndexMode.TIME_SERIES + "]"
-                    );
-                }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME, MODE);
+                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME);
                 return settings.iterator();
             }
         },
@@ -677,10 +668,56 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> LOGSDB_SORT_ON_MESSAGE_TEMPLATE = Setting.boolSetting(
+        "index.logsdb.sort_on_message_template",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
     public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
         "index.mapping.use_doc_values_skipper",
+        true,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
+    public static final Setting<Boolean> USE_SYNTHETIC_ID = Setting.boolSetting(
+        "index.mapping.use_synthetic_id",
         false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                if (enabled) {
+                    // Verify if index mode is TIME_SERIES
+                    var indexMode = (IndexMode) settings.get(MODE);
+                    if (indexMode != IndexMode.TIME_SERIES) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                                USE_SYNTHETIC_ID.getKey(),
+                                MODE.getKey(),
+                                IndexMode.TIME_SERIES.name(),
+                                indexMode.name()
+                            )
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> list = List.of(MODE);
+                return list.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Final
     );
@@ -815,20 +852,21 @@ public final class IndexSettings {
 
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
-        IndexSettings::getIgnoreAboveDefaultValue,
+        settings -> String.valueOf(getIgnoreAboveDefaultValue(settings)),
         0,
         Integer.MAX_VALUE,
         Property.IndexScope,
         Property.ServerlessPublic
     );
 
-    private static String getIgnoreAboveDefaultValue(final Settings settings) {
-        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
-            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)) {
-            return "8191";
-        } else {
-            return String.valueOf(Integer.MAX_VALUE);
+    private static int getIgnoreAboveDefaultValue(final Settings settings) {
+        if (settings == null) {
+            return Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE;
         }
+        return Mapper.IgnoreAbove.getIgnoreAboveDefaultValue(
+            IndexSettings.MODE.get(settings),
+            IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings)
+        );
     }
 
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
@@ -935,6 +973,7 @@ public final class IndexSettings {
     private volatile long mappingNestedDocsLimit;
     private volatile long mappingTotalFieldsLimit;
     private volatile boolean ignoreDynamicFieldsBeyondLimit;
+    private volatile boolean ignoreDynamicFieldNamesBeyondLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
@@ -944,6 +983,7 @@ public final class IndexSettings {
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
+    private final boolean tsdbSyntheticId;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1110,6 +1150,7 @@ public final class IndexSettings {
         mappingNestedDocsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
+        ignoreDynamicFieldNamesBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
@@ -1129,6 +1170,8 @@ public final class IndexSettings {
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
+        tsdbSyntheticId = TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
+        assert tsdbSyntheticId == false || mode == IndexMode.TIME_SERIES : mode;
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1226,6 +1269,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
             this::setIgnoreDynamicFieldsBeyondLimit
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
+            this::setIgnoreDynamicFieldNamesBeyondLimit
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING, this::setMappingTotalFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
@@ -1774,8 +1821,16 @@ public final class IndexSettings {
         this.ignoreDynamicFieldsBeyondLimit = ignoreDynamicFieldsBeyondLimit;
     }
 
+    private void setIgnoreDynamicFieldNamesBeyondLimit(boolean ignoreDynamicFieldNamesBeyondLimit) {
+        this.ignoreDynamicFieldNamesBeyondLimit = ignoreDynamicFieldNamesBeyondLimit;
+    }
+
     public boolean isIgnoreDynamicFieldsBeyondLimit() {
         return ignoreDynamicFieldsBeyondLimit;
+    }
+
+    public boolean isIgnoreDynamicFieldNamesBeyondLimit() {
+        return ignoreDynamicFieldNamesBeyondLimit;
     }
 
     public long getMappingDepthLimit() {
@@ -1822,6 +1877,14 @@ public final class IndexSettings {
         return indexMappingSourceMode;
     }
 
+    public IgnoredSourceFieldMapper.IgnoredSourceFormat getIgnoredSourceFormat() {
+        if (getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC) {
+            return IgnoredSourceFieldMapper.ignoredSourceFormat(getIndexVersionCreated());
+        } else {
+            return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+        }
+    }
+
     /**
      * @return Whether recovery source should be enabled if needed.
      *         Note that this is a node setting, and this setting is not sourced from index settings.
@@ -1839,6 +1902,13 @@ public final class IndexSettings {
 
     public boolean useDocValuesSkipper() {
         return useDocValuesSkipper;
+    }
+
+    /**
+     * @return Whether the index is a time-series index that use synthetic ids.
+     */
+    public boolean useTsdbSyntheticId() {
+        return tsdbSyntheticId;
     }
 
     /**

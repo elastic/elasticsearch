@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -419,7 +420,7 @@ public class ValuesSourceConfig {
      */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
-        return alignesWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
+        return alignsWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
     }
 
     /**
@@ -428,8 +429,12 @@ public class ValuesSourceConfig {
      * is searchable and there aren't missing values or a script to confuse
      * the ordering.
      */
-    public boolean alignesWithSearchIndex() {
-        return script() == null && missing() == null && fieldType() != null && fieldType().isIndexed();
+    public boolean alignsWithSearchIndex() {
+        boolean hasDocValuesSkipper = fieldType() instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
+        return script() == null
+            && missing() == null
+            && fieldType() != null
+            && (fieldType().indexType().supportsSortShortcuts() || hasDocValuesSkipper);
     }
 
     /**

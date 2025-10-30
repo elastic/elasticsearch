@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -46,7 +45,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -61,6 +59,9 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -92,10 +93,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 import static org.hamcrest.Matchers.contains;
@@ -120,14 +124,13 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
 
         analyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
@@ -514,21 +517,20 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         SearchStats searchStats = statsForExistingField("field000", "field001", "field002", "field003", "field004");
 
         EsIndex index = new EsIndex("large", large, Map.of("large", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(index);
         var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
 
         var analyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(index),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzer.analyze(parser.createStatement(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
@@ -1019,6 +1021,58 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Output has changed from"));
     }
 
+    /**
+     * Input:
+     * Project[[key{f}#2, int{f}#3, field1{f}#7, field2{f}#8]]
+     * \_Join[LEFT,[key{f}#2],[key{f}#6],null]
+     *   |_EsRelation[JLfQlKmn][key{f}#2, int{f}#3, field1{f}#4, field2{f}#5]
+     *   \_EsRelation[HQtEBOWq][LOOKUP][key{f}#6, field1{f}#7, field2{f}#8]
+     *
+     * Output:
+     * Project[[key{r}#2, int{f}#3, field1{r}#7, field1{r}#7 AS field2#8]]
+     * \_Eval[[null[KEYWORD] AS key#2, null[INTEGER] AS field1#7]]
+     *   \_EsRelation[JLfQlKmn][key{f}#2, int{f}#3, field1{f}#4, field2{f}#5]
+     */
+    public void testPruneLeftJoinOnNullMatchingFieldAndShadowingAttributes() {
+        var keyLeft = getFieldAttribute("key", KEYWORD);
+        var intFieldLeft = getFieldAttribute("int");
+        var fieldLeft1 = getFieldAttribute("field1");
+        var fieldLeft2 = getFieldAttribute("field2");
+        var leftRelation = EsqlTestUtils.relation(IndexMode.STANDARD)
+            .withAttributes(List.of(keyLeft, intFieldLeft, fieldLeft1, fieldLeft2));
+
+        var keyRight = getFieldAttribute("key", KEYWORD);
+        var fieldRight1 = getFieldAttribute("field1");
+        var fieldRight2 = getFieldAttribute("field2");
+        var rightRelation = EsqlTestUtils.relation(IndexMode.LOOKUP).withAttributes(List.of(keyRight, fieldRight1, fieldRight2));
+
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(keyLeft), List.of(keyRight), null);
+        var join = new Join(EMPTY, leftRelation, rightRelation, joinConfig);
+        var project = new Project(EMPTY, join, List.of(keyLeft, intFieldLeft, fieldRight1, fieldRight2));
+
+        var testStats = statsForMissingField("key");
+        var localPlan = localPlan(project, testStats);
+
+        var projectOut = as(localPlan, Project.class);
+        var projectionsOut = projectOut.projections();
+        assertThat(Expressions.names(projectionsOut), contains("key", "int", "field1", "field2"));
+        assertThat(projectionsOut.get(0).id(), is(keyLeft.id()));
+        assertThat(projectionsOut.get(1).id(), is(intFieldLeft.id()));
+        assertThat(projectionsOut.get(2).id(), is(fieldRight1.id())); // id must remain from the RHS.
+        var aliasField2 = as(projectionsOut.get(3), Alias.class); // the projection must contain an alias ...
+        assertThat(aliasField2.id(), is(fieldRight2.id())); // ... with the same id as the original field.
+
+        var eval = as(projectOut.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("key", "field1"));
+        var keyEval = as(Alias.unwrap(eval.fields().get(0)), Literal.class);
+        assertThat(keyEval.value(), is(nullValue()));
+        assertThat(keyEval.dataType(), is(KEYWORD));
+        var field1Eval = as(Alias.unwrap(eval.fields().get(1)), Literal.class);
+        assertThat(field1Eval.value(), is(nullValue()));
+        assertThat(field1Eval.dataType(), is(INTEGER));
+        var source = as(eval.child(), EsRelation.class);
+    }
+
     private IsNotNull isNotNull(Expression field) {
         return new IsNotNull(EMPTY, field);
     }
@@ -1030,7 +1084,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzer.analyze(parser.createStatement(query));
         return logicalOptimizer.optimize(analyzed);
     }
 
@@ -1058,13 +1112,12 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("integer_long_field", unionTypeField),
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)
         );
-        IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
@@ -1078,6 +1131,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public static EsRelation relation() {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), randomFrom(IndexMode.values()));
+        return EsqlTestUtils.relation(randomFrom(IndexMode.values()));
     }
 }

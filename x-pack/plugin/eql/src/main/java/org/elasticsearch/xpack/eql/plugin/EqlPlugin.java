@@ -10,7 +10,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -27,6 +26,7 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -76,14 +76,24 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        return createComponents(services.client(), services.environment().settings(), services.clusterService());
+        return createComponents(
+            services.client(),
+            services.environment().settings(),
+            services.clusterService().getClusterName().value(),
+            services.linkedProjectConfigService()
+        );
     }
 
-    private Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService) {
-        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+    private Collection<Object> createComponents(
+        Client client,
+        Settings settings,
+        String clusterName,
+        LinkedProjectConfigService linkedProjectConfigService
+    ) {
+        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
         IndexResolver indexResolver = new IndexResolver(
             client,
-            clusterService.getClusterName().value(),
+            clusterName,
             DefaultDataTypeRegistry.INSTANCE,
             remoteClusterResolver::remoteClusters
         );
@@ -127,7 +137,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
     ) {
 
         return List.of(
-            new RestEqlSearchAction(),
+            new RestEqlSearchAction(settings),
             new RestEqlStatsAction(),
             new RestEqlGetAsyncResultAction(),
             new RestEqlGetAsyncStatusAction(),

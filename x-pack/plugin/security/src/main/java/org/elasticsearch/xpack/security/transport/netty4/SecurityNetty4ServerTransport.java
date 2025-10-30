@@ -21,7 +21,7 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
-import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
+import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
@@ -40,7 +40,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
         @Nullable final IPFilter authenticator,
         final SSLService sslService,
         final SharedGroupFactory sharedGroupFactory,
-        final CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService
+        final RemoteClusterAuthenticationService remoteClusterAuthenticationService
     ) {
         super(
             settings,
@@ -52,7 +52,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
             circuitBreakerService,
             sslService,
             sharedGroupFactory,
-            crossClusterAccessAuthenticationService
+            remoteClusterAuthenticationService
         );
         this.authenticator = authenticator;
     }

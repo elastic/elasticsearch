@@ -13,10 +13,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * A {@link SourceProvider} that loads _source from a concurrent search.
@@ -26,16 +29,27 @@ import java.util.Map;
  * within-segment concurrency this will have to work entirely differently.
  * **/
 class ConcurrentSegmentSourceProvider implements SourceProvider {
+    private final Function<SourceFilter, SourceLoader> sourceLoaderProvider;
     private final SourceLoader sourceLoader;
     private final StoredFieldLoader storedFieldLoader;
     private final Map<Object, Leaf> leaves = ConcurrentCollections.newConcurrentMap();
     private final boolean isStoredSource;
 
-    ConcurrentSegmentSourceProvider(SourceLoader loader, boolean isStoredSource) {
-        this.sourceLoader = loader;
+    ConcurrentSegmentSourceProvider(MappingLookup lookup, SourceFilter filter, SourceFieldMetrics metrics) {
+        this.sourceLoaderProvider = sourceFilter -> lookup.newSourceLoader(sourceFilter, metrics);
+        this.sourceLoader = sourceLoaderProvider.apply(filter);
         // we force a sequential reader here since it is used during query execution where documents are scanned sequentially
+        this.isStoredSource = lookup.isSourceSynthetic() == false;
         this.storedFieldLoader = StoredFieldLoader.create(isStoredSource, sourceLoader.requiredStoredFields(), true);
-        this.isStoredSource = isStoredSource;
+    }
+
+    private ConcurrentSegmentSourceProvider(ConcurrentSegmentSourceProvider source, SourceFilter filter) {
+        assert source.isStoredSource == false;
+        this.sourceLoaderProvider = source.sourceLoaderProvider;
+        this.isStoredSource = source.isStoredSource;
+        this.sourceLoader = source.sourceLoaderProvider.apply(filter);
+        // Also re-initialize stored field loader:
+        this.storedFieldLoader = StoredFieldLoader.create(isStoredSource, sourceLoader.requiredStoredFields(), true);
     }
 
     @Override
@@ -56,6 +70,15 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
             leaves.put(id, leaf);
         }
         return leaf.getSource(ctx, doc);
+    }
+
+    @Override
+    public SourceProvider optimizedSourceProvider(SourceFilter sourceFilter) {
+        if (isStoredSource) {
+            return this;
+        } else {
+            return new ConcurrentSegmentSourceProvider(this, sourceFilter);
+        }
     }
 
     private static class Leaf implements SourceProvider {

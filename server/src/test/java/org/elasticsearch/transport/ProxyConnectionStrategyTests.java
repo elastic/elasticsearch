@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -62,7 +61,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     private final Settings settings = Settings.builder().put(modeKey, "proxy").build();
     private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(
         RemoteClusterSettings.toConfig("cluster", settings),
-        false
+        TransportSettings.DEFAULT_PROFILE
     );
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
@@ -248,7 +247,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible());
         try (MockTransportService transport1 = startTransport("incompatible-node", incompatibleVersion, incompatibleTransportVersion)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 

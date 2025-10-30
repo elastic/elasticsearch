@@ -46,6 +46,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
@@ -197,9 +198,10 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         ComposableIndexTemplate indexTemplate
     ) {
         IndexMode indexMode = state.metadata().retrieveIndexModeFromTemplate(indexTemplate);
+        IndexVersion indexVersion = state.metadata().index(dataStream.getWriteIndex()).getCreationVersion();
         for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
             Settings.Builder builder = Settings.builder();
-            provider.provideAdditionalMetadata(
+            provider.provideAdditionalSettings(
                 MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
                 dataStream.getName(),
                 indexMode,
@@ -207,8 +209,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 Instant.now(),
                 settings,
                 List.of(),
-                builder,
-                (k, v) -> {}
+                indexVersion,
+                builder
             );
             Settings addlSettings = builder.build();
             var rawMode = addlSettings.get(IndexSettings.MODE.getKey());

@@ -44,6 +44,8 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public abstract class AsyncOperator<Fetched> implements Operator {
 
+    private static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = TransportVersion.fromName("esql_profile_async_nanos");
+
     private volatile SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Fetched> buffers = ConcurrentCollections.newConcurrentMap();
@@ -265,7 +267,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         protected Status(StreamInput in) throws IOException {
             this.receivedPages = in.readVLong();
             this.completedPages = in.readVLong();
-            this.processNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ASYNC_NANOS)
+            this.processNanos = in.getTransportVersion().supports(ESQL_PROFILE_ASYNC_NANOS)
                 ? in.readVLong()
                 : TimeValue.timeValueMillis(in.readVLong()).nanos();
         }
@@ -275,7 +277,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             out.writeVLong(receivedPages);
             out.writeVLong(completedPages);
             out.writeVLong(
-                out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ASYNC_NANOS)
+                out.getTransportVersion().supports(ESQL_PROFILE_ASYNC_NANOS)
                     ? processNanos
                     : TimeValue.timeValueNanos(processNanos).millis()
             );

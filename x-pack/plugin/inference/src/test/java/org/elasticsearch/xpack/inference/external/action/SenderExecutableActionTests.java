@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.inference.external.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
@@ -89,31 +91,67 @@ public class SenderExecutableActionTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testSendThrowingExceptionIsWrapped() {
         var expectedException = new IllegalStateException("test");
-        var actualException = new AtomicReference<Exception>();
+        var actualExceptionReference = new AtomicReference<Exception>();
 
         doThrow(expectedException).when(sender)
             .send(eq(requestManager), any(InferenceInputs.class), any(TimeValue.class), any(ActionListener.class));
 
-        execute(actualException);
+        execute(actualExceptionReference);
 
-        assertThat(actualException.get(), notNullValue());
-        assertThat(actualException.get().getMessage(), is(failureExceptionMessage));
-        assertThat(actualException.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(actualException.get().getCause(), sameInstance(expectedException));
+        Exception actualException = actualExceptionReference.get();
+        assertThat(actualException, notNullValue());
+        assertThat(actualException.getMessage(), is(failureExceptionMessage));
+        assertThat(actualException, instanceOf(ElasticsearchStatusException.class));
+        assertThat(actualException.getCause(), sameInstance(expectedException));
+        assertThat(((ElasticsearchStatusException) actualException).status(), is(RestStatus.INTERNAL_SERVER_ERROR));
     }
 
     public void testSenderReturnedExceptionIsWrapped() {
         var expectedException = new IllegalStateException("test");
-        var actualException = new AtomicReference<Exception>();
+        var actualExceptionReference = new AtomicReference<Exception>();
 
         mockSender(listener -> listener.onFailure(expectedException));
 
-        execute(actualException);
+        execute(actualExceptionReference);
 
-        assertThat(actualException.get(), notNullValue());
-        assertThat(actualException.get().getMessage(), is(failureExceptionMessage));
-        assertThat(actualException.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(actualException.get().getCause(), sameInstance(expectedException));
+        Exception actualException = actualExceptionReference.get();
+        assertThat(actualException, notNullValue());
+        assertThat(actualException.getMessage(), is(failureExceptionMessage));
+        assertThat(actualException, instanceOf(ElasticsearchStatusException.class));
+        assertThat(actualException.getCause(), sameInstance(expectedException));
+        assertThat(((ElasticsearchStatusException) actualException).status(), is(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    public void testSenderReturnedExceptionHasCorrectStatus_whenExceptionIsIllegalArgumentException() {
+        var expectedException = new IllegalArgumentException("test");
+        var actualExceptionReference = new AtomicReference<Exception>();
+
+        mockSender(listener -> listener.onFailure(expectedException));
+
+        execute(actualExceptionReference);
+
+        Exception actualException = actualExceptionReference.get();
+        assertThat(actualException, notNullValue());
+        assertThat(actualException.getMessage(), is(failureExceptionMessage));
+        assertThat(actualException, instanceOf(ElasticsearchStatusException.class));
+        assertThat(actualException.getCause(), sameInstance(expectedException));
+        assertThat(((ElasticsearchStatusException) actualException).status(), is(RestStatus.BAD_REQUEST));
+    }
+
+    public void testSenderReturnedExceptionHasCorrectStatus_whenExceptionIsEsRejectedExecutionException() {
+        var expectedException = new EsRejectedExecutionException("test");
+        var actualExceptionReference = new AtomicReference<Exception>();
+
+        mockSender(listener -> listener.onFailure(expectedException));
+
+        execute(actualExceptionReference);
+
+        Exception actualException = actualExceptionReference.get();
+        assertThat(actualException, notNullValue());
+        assertThat(actualException.getMessage(), is(failureExceptionMessage));
+        assertThat(actualException, instanceOf(ElasticsearchStatusException.class));
+        assertThat(actualException.getCause(), sameInstance(expectedException));
+        assertThat(((ElasticsearchStatusException) actualException).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
     @SuppressWarnings("unchecked")

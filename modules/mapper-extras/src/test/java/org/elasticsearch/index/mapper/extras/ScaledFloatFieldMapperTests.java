@@ -46,7 +46,6 @@ import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -341,7 +340,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         }));
         var ft = (ScaledFloatFieldMapper.ScaledFloatFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.hasDocValues());
+        assertFalse(ft.indexType().hasDenseIndex());
     }
 
     @Override

@@ -18,25 +18,67 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.TransportVersions.ESQL_QUALIFIERS_IN_ATTRIBUTES;
 
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
  * In other words, an attribute represent a column in the results of a query.
- *
+ * <p>
  * In the statement {@code SELECT ABS(foo), A, B+C FROM ...} the three named
  * expressions {@code ABS(foo), A, B+C} get converted to attributes and the user can
  * only see Attributes.
- *
+ * <p>
  * In the statement {@code SELECT foo FROM TABLE WHERE foo > 10 + 1} only {@code foo} inside the SELECT
  * is a named expression (an {@code Alias} will be created automatically for it).
  * The rest are not as they are not part of the projection and thus are not part of the derived table.
+ * <p>
+ * Note on equality: Because the name alone is not sufficient to identify an attribute
+ * (two different relations can have the same attribute name), attributes get a unique {@link #id()}
+ * assigned at creation which is respected in equality checks and hashing.
+ * <p>
+ * Caution! {@link #semanticEquals(Expression)} and {@link #semanticHash()} rely solely on the id.
+ * But this doesn't extend to expressions containing attributes as children.
  */
 public abstract class Attribute extends NamedExpression {
     /**
+     * A wrapper class where equality of the contained attribute ignores the {@link Attribute#id()}. Useful when we want to create new
+     * attributes and want to avoid duplicates. Because we assign unique ids on creation, a normal equality check would always fail when
+     * we create the "same" attribute again.
+     * <p>
+     * C.f. {@link AttributeMap} (and its contained wrapper class) which does the exact opposite: ignores everything but the id by
+     * using {@link Attribute#semanticEquals(Expression)}.
+     */
+    public record IdIgnoringWrapper(Attribute inner) {
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            Attribute otherAttribute = ((IdIgnoringWrapper) o).inner();
+            return inner().equals(otherAttribute, true);
+        }
+
+        @Override
+        public int hashCode() {
+            return inner().hashCode(true);
+        }
+    }
+
+    public IdIgnoringWrapper ignoreId() {
+        return new IdIgnoringWrapper(this);
+    }
+
+    /**
      * Changing this will break bwc with 8.15, see {@link FieldAttribute#fieldName()}.
      */
-    protected static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
+    public static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
+
+    public static final String SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR = "$";
+
+    private static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = TransportVersion.fromName("esql_qualifiers_in_attributes");
 
     // can the attr be null
     private final Nullability nullability;
@@ -76,7 +118,7 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public static String rawTemporaryName(String... parts) {
-        var name = String.join("$", parts);
+        var name = String.join(SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR, parts);
         return name.isEmpty() || name.startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX) ? name : SYNTHETIC_ATTRIBUTE_NAME_PREFIX + name;
     }
 
@@ -151,7 +193,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public boolean semanticEquals(Expression other) {
-        return other instanceof Attribute ? id().equals(((Attribute) other).id()) : false;
+        return other instanceof Attribute otherAttr && id().equals(otherAttr.id());
     }
 
     @Override
@@ -160,15 +202,16 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), qualifier, nullability);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), qualifier, nullability);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (Attribute) o;
-        return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
+        return super.innerEquals(other, ignoreIds)
+            && Objects.equals(qualifier, other.qualifier)
+            && Objects.equals(nullability, other.nullability);
     }
 
     @Override
@@ -203,8 +246,13 @@ public abstract class Attribute extends NamedExpression {
      */
     public abstract boolean isDimension();
 
+    /**
+     * @return true if the attribute represents a TSDB metric type
+     */
+    public abstract boolean isMetric();
+
     protected void checkAndSerializeQualifier(PlanStreamOutput out, TransportVersion version) throws IOException {
-        if (version.onOrAfter(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+        if (version.supports(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
             out.writeOptionalCachedString(qualifier());
         } else if (qualifier() != null) {
             // Non-null qualifier means the query specifically defined one. Old nodes don't know what to do with it and just writing
@@ -215,7 +263,7 @@ public abstract class Attribute extends NamedExpression {
     }
 
     protected static String readQualifier(PlanStreamInput in, TransportVersion version) throws IOException {
-        if (version.onOrAfter(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+        if (version.supports(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
             return in.readOptionalCachedString();
         }
         return null;

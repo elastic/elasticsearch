@@ -67,19 +67,20 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (datetimeBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (datetimeBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (datetimeBlock.getValueCount(p) != 1) {
-          if (datetimeBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        long datetime = datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p));
         try {
-          result.appendLong(Sub.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), this.temporalAmount));
+          result.appendLong(Sub.processDatetimes(datetime, this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -92,8 +93,9 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongVector datetimeVector) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long datetime = datetimeVector.getLong(p);
         try {
-          result.appendLong(Sub.processDatetimes(datetimeVector.getLong(p), this.temporalAmount));
+          result.appendLong(Sub.processDatetimes(datetime, this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();

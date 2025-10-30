@@ -51,6 +51,10 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
@@ -169,7 +173,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try {
                 ft.fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_test"));
             } catch (Exception e) {
-                fail("Unexpected exception when fetching field data from aggregatable field type");
+                fail("Unexpected exception when fetching field data from aggregatable field type: " + e.getMessage());
             }
         } else {
             expectThrows(IllegalArgumentException.class, () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_test")));
@@ -340,7 +344,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             // is not added to _field_names because it is not indexed nor stored
             assertEquals("field", termQuery.getTerm().text());
             assertNoDocValuesField(fields, "field");
-            if (fieldType.isIndexed() || fieldType.isStored()) {
+            IndexType indexType = fieldType.indexType();
+            if (indexType.hasPoints() || indexType.hasTerms() || fieldType.isStored()) {
                 assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
             } else {
                 assertNoFieldNamesField(fields);
@@ -734,7 +739,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected void assertSearchable(MappedFieldType fieldType) {
-        assertEquals(fieldType.isIndexed(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
+        assertEquals(fieldType.isSearchable(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
     }
 
     /**
@@ -858,6 +863,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
@@ -1503,6 +1509,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return false;
     }
 
+    protected boolean supportsBulkIntBlockReading() {
+        return false;
+    }
+
     protected boolean supportsBulkDoubleBlockReading() {
         return false;
     }
@@ -1515,14 +1525,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return getThreeSampleValues();
     }
 
+    public void testSingletonIntBulkBlockReading() throws IOException {
+        assumeTrue("field type supports bulk singleton int reading", supportsBulkIntBlockReading());
+        testSingletonBulkBlockReading(columnAtATimeReader -> (IntsBlockLoader.SingletonInts) columnAtATimeReader);
+    }
+
     public void testSingletonLongBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonLongs) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (LongsBlockLoader.SingletonLongs) columnAtATimeReader);
     }
 
     public void testSingletonDoubleBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton double reading", supportsBulkDoubleBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonDoubles) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (DoublesBlockLoader.SingletonDoubles) columnAtATimeReader);
     }
 
     private void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
@@ -1593,8 +1608,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var numeric = ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues();
                 assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                 var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
-                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null));
-                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null);
+                boolean toInt = supportsBulkIntBlockReading();
+                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt));
+                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt);
                 assertNotNull(block);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                 assertThat(block.get(1), equalTo(expectedSampleValues[2]));
@@ -1624,7 +1640,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var columnReader = blockLoader.columnAtATimeReader(context);
                 assertThat(
                     columnReader,
-                    anyOf(instanceOf(BlockDocValuesReader.Longs.class), instanceOf(BlockDocValuesReader.Doubles.class))
+                    anyOf(
+                        instanceOf(LongsBlockLoader.Longs.class),
+                        instanceOf(DoublesBlockLoader.Doubles.class),
+                        instanceOf(IntsBlockLoader.Ints.class)
+                    )
                 );
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);

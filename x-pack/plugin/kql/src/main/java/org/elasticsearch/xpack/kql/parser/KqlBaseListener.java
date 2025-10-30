@@ -204,6 +204,26 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitFieldQueryValue(KqlBaseParser.FieldQueryValueContext ctx);
     /**
+     * Enter a parse tree produced by {@link KqlBaseParser#fieldQueryValueLiteral}.
+     * @param ctx the parse tree
+     */
+    void enterFieldQueryValueLiteral(KqlBaseParser.FieldQueryValueLiteralContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#fieldQueryValueLiteral}.
+     * @param ctx the parse tree
+     */
+    void exitFieldQueryValueLiteral(KqlBaseParser.FieldQueryValueLiteralContext ctx);
+    /**
+     * Enter a parse tree produced by {@link KqlBaseParser#fieldQueryValueUnquotedLiteral}.
+     * @param ctx the parse tree
+     */
+    void enterFieldQueryValueUnquotedLiteral(KqlBaseParser.FieldQueryValueUnquotedLiteralContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#fieldQueryValueUnquotedLiteral}.
+     * @param ctx the parse tree
+     */
+    void exitFieldQueryValueUnquotedLiteral(KqlBaseParser.FieldQueryValueUnquotedLiteralContext ctx);
+    /**
      * Enter a parse tree produced by {@link KqlBaseParser#booleanFieldQueryValue}.
      * @param ctx the parse tree
      */

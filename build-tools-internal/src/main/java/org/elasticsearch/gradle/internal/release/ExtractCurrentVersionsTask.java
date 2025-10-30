@@ -29,7 +29,7 @@ import java.util.function.Consumer;
 
 import javax.inject.Inject;
 
-public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
+public abstract class ExtractCurrentVersionsTask extends AbstractVersionsTask {
     private static final Logger LOGGER = Logging.getLogger(ExtractCurrentVersionsTask.class);
 
     private Path outputFile;

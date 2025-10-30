@@ -79,29 +79,31 @@ public final class DateFormatMillisEvaluator implements EvalOperator.ExpressionE
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (formatterBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (formatterBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (formatterBlock.getValueCount(p) != 1) {
-          if (formatterBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBytesRef(DateFormat.processMillis(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), this.locale));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        BytesRef formatter = formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch);
+        result.appendBytesRef(DateFormat.processMillis(val, formatter, this.locale));
       }
       return result.build();
     }
@@ -112,7 +114,9 @@ public final class DateFormatMillisEvaluator implements EvalOperator.ExpressionE
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(DateFormat.processMillis(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), this.locale));
+        long val = valVector.getLong(p);
+        BytesRef formatter = formatterVector.getBytesRef(p, formatterScratch);
+        result.appendBytesRef(DateFormat.processMillis(val, formatter, this.locale));
       }
       return result.build();
     }

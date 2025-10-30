@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -178,19 +177,8 @@ public final class LuceneSliceQueue {
         return partitioningStrategies;
     }
 
-    public Collection<String> remainingShardsIdentifiers() {
-        List<String> remaining = new ArrayList<>(slices.length());
-        for (int i = 0; i < slices.length(); i++) {
-            LuceneSlice slice = slices.get(i);
-            if (slice != null) {
-                remaining.add(slice.shardContext().shardIdentifier());
-            }
-        }
-        return remaining;
-    }
-
     public static LuceneSliceQueue create(
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         Function<Query, PartitioningStrategy> autoStrategy,
@@ -198,10 +186,10 @@ public final class LuceneSliceQueue {
         Function<ShardContext, ScoreMode> scoreModeFunction
     ) {
         List<LuceneSlice> slices = new ArrayList<>();
-        Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>(contexts.size());
+        Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>();
 
         int nextSliceId = 0;
-        for (ShardContext ctx : contexts) {
+        for (ShardContext ctx : contexts.collection()) {
             for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
                 var scoreMode = scoreModeFunction.apply(ctx);
                 Query query = queryAndExtra.query;

@@ -140,6 +140,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -157,6 +160,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -236,7 +242,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
-        if (DataType.isSpatial(left) && DataType.isSpatial(right)) {
+        if (DataType.isSpatialOrGrid(left) && DataType.isSpatialOrGrid(right)) {
             return left == right;
         }
         return DataType.areCompatible(left, right);
@@ -339,7 +345,11 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         if (commonType == INTEGER) {
             return new InIntEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == LONG || commonType == DATETIME || commonType == DATE_NANOS || commonType == UNSIGNED_LONG) {
+        if (commonType == LONG
+            || commonType == DATETIME
+            || commonType == DATE_NANOS
+            || commonType == UNSIGNED_LONG
+            || DataType.isGeoGrid(commonType)) {
             return new InLongEvaluator.Factory(source(), lhs, factories);
         }
         if (commonType == KEYWORD
@@ -362,7 +372,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             if (e.dataType() == NULL && value.dataType() != NULL) {
                 continue;
             }
-            if (DataType.isSpatial(commonType)) {
+            if (DataType.isSpatialOrGrid(commonType)) {
                 if (e.dataType() == commonType) {
                     continue;
                 } else {

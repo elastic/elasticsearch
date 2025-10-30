@@ -101,6 +101,15 @@ public final class Expressions {
     }
 
     public static AttributeSet references(List<? extends Expression> exps) {
+        if (exps.size() == 1) {
+            /*
+             * If we're getting the references from a single expression it's safe
+             * to just use its references. This is quite common. We use a ton of
+             * Aliases, for example. And every unary function can share its references
+             * with its input.
+             */
+            return exps.getFirst().references();
+        }
         return AttributeSet.of(exps, Expression::references);
     }
 

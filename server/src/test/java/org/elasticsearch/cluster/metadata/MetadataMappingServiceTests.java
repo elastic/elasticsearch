@@ -29,9 +29,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -151,7 +149,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor(
             new IndexSettingProviders(Set.of(new IndexSettingProvider() {
                 @Override
-                public void provideAdditionalMetadata(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -159,19 +157,17 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    Settings.Builder additionalSettings,
-                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {}
 
                 @Override
                 public void onUpdateMappings(
                     IndexMetadata indexMetadata,
                     DocumentMapper documentMapper,
-                    Settings.Builder additionalSettings,
-                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                    Settings.Builder additionalSettings
                 ) {
                     additionalSettings.put("index.mapping.total_fields.limit", 42);
-                    additionalCustomMetadata.accept("foo", Map.of("bar", "baz"));
                 }
             }))
         );
@@ -193,7 +189,6 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         IndexMetadata indexMetadata = resultingState.metadata().indexMetadata(indexService.index());
         assertThat(indexMetadata.getSettingsVersion(), equalTo(1 + previousVersion));
         assertThat(indexMetadata.getSettings().get("index.mapping.total_fields.limit"), equalTo("42"));
-        assertThat(indexMetadata.getCustomData("foo"), equalTo(Map.of("bar", "baz")));
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {

@@ -22,6 +22,7 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.usage.SearchUsageHolder;
 
 import java.io.IOException;
@@ -111,6 +112,10 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                         "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
                     );
                 }
+            }
+
+            if (indices.length == 1 && RemoteClusterService.isRemoteIndexName(indices[0])) {
+                throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices[0] + "].");
             }
             long[] checkpoints = searchRequest.getWaitForCheckpoints().get("*");
             if (checkpoints != null) {

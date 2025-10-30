@@ -84,7 +84,8 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
             (value) -> new BytesRef(EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.formatNanos(DateUtils.toLong((Instant) value))),
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        suppliers = TestCaseSupplier.mapTestCases(suppliers, testCase -> testCase.withStaticConfiguration());
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

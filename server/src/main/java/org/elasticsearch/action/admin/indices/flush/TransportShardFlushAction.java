@@ -103,7 +103,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         }));
     }
 
-    // We are here because there was mismatch between the SplitShardCountSummary in the flush request
+    // We are here because there was a mismatch between the SplitShardCountSummary in the request
     // and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
     // the current state.
     @Override
@@ -123,6 +123,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         return requestsByShard;
     }
 
+    @Override
     protected Tuple<ReplicationResponse, Exception> combineSplitResponses(
         ShardFlushRequest originalRequest,
         Map<ShardId, ShardFlushRequest> splitRequests,
@@ -133,6 +134,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         int total = 0;
         List<ReplicationResponse.ShardInfo.Failure> failures = new ArrayList<>();
 
+        // If the action fails on either one of the shards, we return an exception.
         // Case 1: Both source and target shards return a response: Add up total, successful, failures
         // Case 2: Both source and target shards return an exception : return exception
         // Case 3: One shards returns a response, the other returns an exception : return exception

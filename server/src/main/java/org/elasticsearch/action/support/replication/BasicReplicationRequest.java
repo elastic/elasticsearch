@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -26,6 +27,15 @@ public class BasicReplicationRequest extends ReplicationRequest<BasicReplication
      */
     public BasicReplicationRequest(ShardId shardId) {
         super(shardId);
+    }
+
+    /**
+     * Creates a new request with resolved shard id and SplitShardCountSummary (used
+     * to determine if the request needs to be executed on a split shard not yet seen by the
+     * coordinator that sent the request)
+     */
+    public BasicReplicationRequest(ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) {
+        super(shardId, reshardSplitShardCountSummary);
     }
 
     public BasicReplicationRequest(StreamInput in) throws IOException {

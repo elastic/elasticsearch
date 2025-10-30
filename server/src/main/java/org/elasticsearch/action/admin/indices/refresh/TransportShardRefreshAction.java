@@ -13,17 +13,24 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.flush.ShardFlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -32,6 +39,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 public class TransportShardRefreshAction extends TransportReplicationAction<
@@ -46,6 +58,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     public static final String SOURCE_API = "api";
 
     private final Executor refreshExecutor;
+    protected final ProjectResolver projectResolver;
 
     @Inject
     public TransportShardRefreshAction(
@@ -55,7 +68,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         IndicesService indicesService,
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -73,6 +87,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             PrimaryActionExecution.RejectOnOverload,
             ReplicaActionExecution.SubjectToCircuitBreaker
         );
+        this.projectResolver = projectResolver;
         // registers the unpromotable version of shard refresh action
         new TransportUnpromotableShardRefreshAction(
             clusterService,
@@ -102,6 +117,63 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             logger.trace("{} refresh request executed on primary", primary.shardId());
             return new PrimaryResult<>(replicaRequest, new ReplicationResponse());
         }));
+    }
+
+    // We are here because there was mismatch between the SplitShardCountSummary in the request
+    // and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
+    // the current state.
+    @Override
+    protected Map<ShardId, BasicReplicationRequest> splitRequestOnPrimary(BasicReplicationRequest request) {
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+        final ShardId sourceShard = request.shardId();
+        IndexMetadata indexMetadata = project.getIndexSafe(request.shardId().getIndex());
+        SplitShardCountSummary shardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, sourceShard.getId());
+        Map<ShardId, BasicReplicationRequest> requestsByShard = new HashMap<>();
+        requestsByShard.put(sourceShard, request);
+        // Create a request for original source shard and for each target shard.
+        // New requests that are to be handled by target shards should contain the
+        // latest ShardCountSummary.
+        int targetShardId = indexMetadata.getReshardingMetadata().getSplit().targetShard(sourceShard.id());
+        ShardId targetShard = new ShardId(request.shardId().getIndex(), targetShardId);
+        requestsByShard.put(targetShard, new BasicReplicationRequest(targetShard, shardCountSummary));
+        return requestsByShard;
+    }
+
+    @Override
+    protected Tuple<ReplicationResponse, Exception> combineSplitResponses(
+        BasicReplicationRequest originalRequest,
+        Map<ShardId, BasicReplicationRequest> splitRequests,
+        Map<ShardId, Tuple<ReplicationResponse, Exception>> responses
+    ) {
+        int failed = 0;
+        int successful = 0;
+        int total = 0;
+        List<ReplicationResponse.ShardInfo.Failure> failures = new ArrayList<>();
+
+        // If the action fails on either one of the shards, we return an exception.
+        // Case 1: Both source and target shards return a response: Add up total, successful, failures
+        // Case 2: Both source and target shards return an exception : return exception
+        // Case 3: One shards returns a response, the other returns an exception : return exception
+        for (Map.Entry<ShardId, Tuple<ReplicationResponse, Exception>> entry : responses.entrySet()) {
+            ShardId shardId = entry.getKey();
+            Tuple<ReplicationResponse, Exception> value = entry.getValue();
+            Exception exception = value.v2();
+            if (exception != null) {
+                return new Tuple<>(null, exception);
+            } else {
+                ReplicationResponse response = value.v1();
+                failed += response.getShardInfo().getFailed();
+                successful += response.getShardInfo().getSuccessful();
+                total += response.getShardInfo().getTotal();
+                Collections.addAll(failures, response.getShardInfo().getFailures());
+            }
+        }
+        ReplicationResponse.ShardInfo.Failure[] failureArray = failures.toArray(new ReplicationResponse.ShardInfo.Failure[0]);
+        assert failureArray.length == failed;
+        ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(total, successful, failureArray);
+        ReplicationResponse response = new ReplicationResponse();
+        response.setShardInfo(shardInfo);
+        return new Tuple<>(response, null);
     }
 
     @Override

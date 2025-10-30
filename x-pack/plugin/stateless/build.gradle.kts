@@ -81,28 +81,6 @@ tasks {
         jvmArgs("--add-opens=java.base/java.io=ALL-UNNAMED")
     }
 
-    /**
-     * Same as internalClusterTest but with hollow shards enabled
-     * TODO: ES-11519 Remove it by merging into internalClusterTest once hollow shards have been deployed to production
-     */
-    val internalClusterTestWithHollow = register<Test>("internalClusterTestWithHollow") {
-        val sourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
-        val hollowTtlMs = buildParams.random.map { r -> r.nextInt(0,1) }.get()
-
-        setTestClassesDirs(sourceSet.getOutput().getClassesDirs())
-        setClasspath(sourceSet.getRuntimeClasspath())
-        jvmArgs("--add-opens=java.base/java.io=ALL-UNNAMED")
-        systemProperty("es.test.stateless.hollow.enabled", "true")
-        systemProperty("es.test.stateless.hollow.ds_non_write_ttl_ms", hollowTtlMs)
-        systemProperty("es.test.stateless.hollow.ttl_ms", hollowTtlMs)
-        // https://github.com/elastic/elasticsearch-serverless/issues/4458
-        systemProperty("io.netty.leakDetection.targetRecords", 10)
-    }
-
-    check {
-        dependsOn(internalClusterTestWithHollow)
-    }
-
     yamlRestTest {
         usesDefaultDistribution("to be triaged")
     }

@@ -98,6 +98,9 @@ public class PreAnalyzer {
             if (fn.name().equalsIgnoreCase("to_aggregate_metric_double")) {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
+            if (List.of("to_date_range", "to_string").contains(fn.name().toLowerCase())) {
+                useDateRangeWhenNotSupported.set(true);
+            }
         }));
 
         // ATM we don't support any functions for DATE_RANGE.

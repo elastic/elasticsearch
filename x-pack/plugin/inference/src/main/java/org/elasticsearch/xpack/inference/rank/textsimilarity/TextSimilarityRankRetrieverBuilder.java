@@ -55,6 +55,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final ParseField CHUNK_RESCORER_FIELD = new ParseField("chunk_rescorer");
     public static final ParseField CHUNK_SIZE_FIELD = new ParseField("size");
     public static final ParseField CHUNKING_SETTINGS_FIELD = new ParseField("chunking_settings");
+    public static final ParseField CHUNK_SCORER_INFERENCE_ID_FIELD = new ParseField("inference_id");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
@@ -80,10 +81,11 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     private static final ConstructingObjectParser<ChunkScorerConfig, RetrieverParserContext> CHUNK_SCORER_PARSER =
         new ConstructingObjectParser<>(CHUNK_RESCORER_FIELD.getPreferredName(), true, args -> {
             Integer size = (Integer) args[0];
+            String chunkScorerInferenceId = (String) args[1];
             @SuppressWarnings("unchecked")
-            Map<String, Object> chunkingSettingsMap = (Map<String, Object>) args[1];
+            Map<String, Object> chunkingSettingsMap = (Map<String, Object>) args[2];
             ChunkingSettings chunkingSettings = ChunkScorerConfig.chunkingSettingsFromMap(chunkingSettingsMap);
-            return new ChunkScorerConfig(size, chunkingSettings);
+            return new ChunkScorerConfig(size, chunkScorerInferenceId, null, chunkingSettings);
         });
 
     static {
@@ -99,6 +101,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         PARSER.declareBoolean(optionalConstructorArg(), FAILURES_ALLOWED_FIELD);
         PARSER.declareObject(optionalConstructorArg(), CHUNK_SCORER_PARSER, CHUNK_RESCORER_FIELD);
         CHUNK_SCORER_PARSER.declareInt(optionalConstructorArg(), CHUNK_SIZE_FIELD);
+        CHUNK_SCORER_PARSER.declareString(optionalConstructorArg(), CHUNK_SCORER_INFERENCE_ID_FIELD);
         CHUNK_SCORER_PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), null, CHUNKING_SETTINGS_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(PARSER);

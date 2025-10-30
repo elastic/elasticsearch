@@ -179,7 +179,7 @@ public abstract class PositionToXContent {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
-                    ExponentialHistogram histogram = ((ExponentialHistogramBlock)block).getExponentialHistogram(valueIndex, scratch);
+                    ExponentialHistogram histogram = ((ExponentialHistogramBlock) block).getExponentialHistogram(valueIndex, scratch);
                     ExponentialHistogramXContent.serialize(builder, histogram);
                     return builder;
                 }

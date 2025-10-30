@@ -20,6 +20,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -79,6 +81,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private List<ActionListener<Void>> listeners = new ArrayList<>();
     private final AtomicBoolean initialConnectionAttempted = new AtomicBoolean(false);
 
+    static final String INITIAL_CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME = "es.projects.linked.connections.initial.error.total";
+    static final String RECONNECTION_ATTEMPT_FAILURES_COUNTER_NAME = "es.projects.linked.connections.reconnect.error.total";
+    private static LongCounter initialConnectionAttemptFailures;
+    private static LongCounter reconnectAttemptFailures;
+
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
     protected final ProjectId originProjectId;
@@ -92,7 +99,25 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         this.transportService = transportService;
         this.connectionManager = connectionManager;
         this.maxPendingConnectionListeners = config.maxPendingConnectionListeners();
+        registerMetrics(transportService.getTelemetryProvider());
         connectionManager.addListener(this);
+    }
+
+    private static synchronized void registerMetrics(TelemetryProvider telemetryProvider) {
+        final var meterRegistry = telemetryProvider == null ? null : telemetryProvider.getMeterRegistry();
+        if (initialConnectionAttemptFailures != null || meterRegistry == null) {
+            return;
+        }
+        initialConnectionAttemptFailures = meterRegistry.registerLongCounter(
+            INITIAL_CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME,
+            "linked project initial connection attempt failure count",
+            "count"
+        );
+        reconnectAttemptFailures = meterRegistry.registerLongCounter(
+            RECONNECTION_ATTEMPT_FAILURES_COUNTER_NAME,
+            "linked project reconnection attempt failure count",
+            "count"
+        );
     }
 
     static ConnectionProfile buildConnectionProfile(LinkedProjectConfig config, String transportProfile) {
@@ -221,7 +246,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             logger.debug(msgSupplier);
         } else {
             logger.warn(msgSupplier, e);
-            // TODO: ES-12695: Increment either the initial or retry connection failure metric.
+            final var counter = isInitialAttempt ? initialConnectionAttemptFailures : reconnectAttemptFailures;
+            counter.increment();
         }
     }
 

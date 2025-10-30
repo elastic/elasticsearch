@@ -19,6 +19,7 @@ import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -52,7 +53,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     public static TemporaryFolder configDir = new TemporaryFolder();
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .withConfigDir(() -> configDir.getRoot().toPath())
+        .withConfigDir(() -> getRootPath(configDir))
         .module("reindex")
         .module("ingest-geoip")
         .systemProperty("ingest.geoip.downloader.enabled.default", "true")
@@ -83,7 +84,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
 
     @BeforeClass
     public static void copyExtraDatabase() throws Exception {
-        Path configPath = configDir.getRoot().toPath();
+        Path configPath = getRootPath(configDir);
         assertThat(Files.exists(configPath), is(true));
         Path ingestGeoipDatabaseDir = configPath.resolve("ingest-geoip");
         Files.createDirectory(ingestGeoipDatabaseDir);
@@ -158,5 +159,10 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             // ensure that the extra config database has been set up, too:
             assertThat(node.get("config_databases"), equalTo(List.of("asn.mmdb")));
         });
+    }
+
+    @SuppressForbidden(reason = "fixtures use java.io.File based APIs")
+    private static Path getRootPath(TemporaryFolder folder) {
+        return folder.getRoot().toPath();
     }
 }

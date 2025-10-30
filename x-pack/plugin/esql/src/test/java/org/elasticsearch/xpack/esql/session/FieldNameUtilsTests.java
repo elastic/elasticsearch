@@ -3142,6 +3142,37 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("_index", "@timestamp", "@timestamp.*", "event_duration", "event_duration.*", "client_ip", "client_ip.*"));
     }
 
+    public void testSubqueryInFrom() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // TODO improve FieldNameUtils to process subqueries better, so that we don't call field-caps with "*"
+        assertFieldNames("""
+            FROM employees, (FROM books | WHERE author:"Faulkner" | KEEP title, author | SORT title | LIMIT 5)
+            | WHERE emp_no == 10000 OR author IS NOT NULL
+            | KEEP emp_no, first_name, last_name, author, title
+            | SORT emp_no, author
+            """, Set.of("*"));
+    }
+
+    public void testSubqueryInFromWithFork() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // nested fork may trigger assertion in FieldNameUtils, defer the check of nested subqueries or subquery with fork
+        // to logical plan optimizer.
+        // TODO Improve FieldNameUtils to process subqueries better, , so that we don't call field-caps with "*"
+        assertFieldNames("""
+            FROM employees, (FROM books | FORK (WHERE author:"Faulkner") (WHERE title:"Ring") | KEEP title, author | SORT title | LIMIT 5)
+            | WHERE emp_no == 10000 OR author IS NOT NULL
+            | KEEP emp_no, first_name, last_name, author, title
+            | SORT emp_no, author
+            """, Set.of("*"));
+
+        assertFieldNames("""
+            FROM books, (FROM employees | WHERE emp_no == 10000)
+            | FORK (WHERE author:"Faulkner") (WHERE title:"Ring")
+            | KEEP emp_no, first_name, last_name, author, title
+            | SORT emp_no, author
+            """, Set.of("*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, false, expected, Set.of());
     }

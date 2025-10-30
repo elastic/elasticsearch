@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,8 +36,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.mockito.ArgumentMatchers.any;
 
 public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
+
+    public void testCanAlwaysAllocateDuringReplace() {
+        var wld = new WriteLoadConstraintDecider(ClusterSettings.createBuiltInClusterSettings());
+        assertEquals(Decision.YES, wld.canForceAllocateDuringReplace(any(), any(), any()));
+    }
 
     /**
      * Test the write load decider behavior when disabled

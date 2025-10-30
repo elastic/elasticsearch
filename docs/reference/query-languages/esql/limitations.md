@@ -48,7 +48,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `shape`
 * TSDB metrics {preview}`9.2`
    * `counter` 
-   * `position` 
+   * `gauge` 
    * `aggregate_metric_double`
 
 
@@ -61,7 +61,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 :::{tab-item} 9.0-9.1
 * TSDB metrics
    * `counter` 
-   * `position` 
+   * `gauge` 
    * `aggregate_metric_double`
 :::
 :::{tab-item} 9.2+

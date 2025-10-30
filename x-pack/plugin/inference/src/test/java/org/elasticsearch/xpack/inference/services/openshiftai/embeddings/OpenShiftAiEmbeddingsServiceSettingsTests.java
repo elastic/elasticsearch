@@ -102,7 +102,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_NoUrl_Failure() {
+    public void testFromMap_NoUrl_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
@@ -124,7 +124,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_EmptyUrl_Failure() {
+    public void testFromMap_EmptyUrl_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
@@ -146,7 +146,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_InvalidUrl_Failure() {
+    public void testFromMap_InvalidUrl_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
@@ -201,7 +201,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_InvalidSimilarity_Failure() {
+    public void testFromMap_InvalidSimilarity_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
@@ -286,7 +286,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_WithDimensions_SetByUserNull_Persistent_Success() {
+    public void testFromMap_WithDimensions_SetByUserNull_Persistent_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
@@ -369,7 +369,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_WithDimensions_SetByUserTrue_Request_Failure() {
+    public void testFromMap_WithDimensions_SetByUserTrue_Request_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
@@ -392,7 +392,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_ZeroDimensions_Failure() {
+    public void testFromMap_ZeroDimensions_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
@@ -414,7 +414,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_NegativeDimensions_Failure() {
+    public void testFromMap_NegativeDimensions_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
@@ -466,7 +466,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_ZeroInputTokens_Failure() {
+    public void testFromMap_ZeroInputTokens_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
@@ -488,7 +488,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_NegativeInputTokens_Failure() {
+    public void testFromMap_NegativeInputTokens_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
@@ -606,9 +606,9 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         switch (between(0, 6)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(8));
             case 1 -> uri = randomValueOtherThan(uri, () -> ServiceUtils.createUri(randomAlphaOfLength(15)));
-            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomIntBetween(32, 256));
-            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
-            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomIntBetween(128, 256));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomBoolean() ? randomIntBetween(32, 256) : null);
+            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomBoolean() ? randomFrom(SimilarityMeasure.values()) : null);
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomBoolean() ? randomIntBetween(128, 256) : null);
             case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             case 6 -> dimensionsSetByUser = randomValueOtherThan(dimensionsSetByUser, ESTestCase::randomBoolean);
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -627,9 +627,10 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
     private static OpenShiftAiEmbeddingsServiceSettings createRandom() {
         var modelId = randomAlphaOfLength(8);
         var url = randomAlphaOfLength(15);
-        var similarityMeasure = randomFrom(SimilarityMeasure.values());
-        var dimensions = randomIntBetween(32, 256);
-        var maxInputTokens = randomIntBetween(128, 256);
+        var similarityMeasure = randomBoolean() ? randomFrom(SimilarityMeasure.values()) : null;
+        var dimensions = randomBoolean() ? randomIntBetween(32, 256) : null;
+        var maxInputTokens = randomBoolean() ? randomIntBetween(128, 256) : null;
+        boolean dimensionsSetByUser = randomBoolean();
         return new OpenShiftAiEmbeddingsServiceSettings(
             modelId,
             url,
@@ -637,7 +638,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             similarityMeasure,
             maxInputTokens,
             RateLimitSettingsTests.createRandom(),
-            randomBoolean()
+            dimensionsSetByUser
         );
     }
 

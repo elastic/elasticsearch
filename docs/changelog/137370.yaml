@@ -1,0 +1,5 @@
+pr: 137370
+summary: "OTel logs data streams: avoid loss of large stacktraces"
+area: Data streams
+type: bug
+issues: []

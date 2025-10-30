@@ -344,7 +344,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         if (hollowShardInfo != null && hollowShardInfo.unhollowing.compareAndSet(false, true)) {
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
-                protected void doRun() {
+                protected void doRun() throws Exception {
                     long startTime = relativeTimeSupplierInMillis.getAsLong();
                     final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
                     final var indexShard = indexService.getShard(shardId.id());
@@ -374,6 +374,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
 
                     logger.debug("Flushing shard [{}] to produce a blob with a local translog node id", shardId);
                     indexShard.withEngine(engine -> {
+                        assert engine instanceof IndexEngine : shardId + ": expected IndexEngine but was " + engine.getClass();
                         engine.flush(true, true, ActionListener.wrap(flushResult -> {
                             assert flushResult.skippedDueToCollision() == false : "Flush was skipped";
                             removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());

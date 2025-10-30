@@ -504,6 +504,9 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
+  method: testSimple
+  issue: https://github.com/elastic/elasticsearch/issues/137378
 
 # Examples:
 #

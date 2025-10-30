@@ -207,7 +207,6 @@ public class AuthorizationPollerTests extends ESTestCase {
             null
         );
 
-
         poller.sendAuthorizationRequest();
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }

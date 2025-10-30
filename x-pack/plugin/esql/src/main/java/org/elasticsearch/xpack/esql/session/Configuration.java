@@ -202,7 +202,7 @@ public class Configuration implements Writeable {
     /**
      * @return Start time of the ESQL query in nanos
      */
-    public long getQueryStartTimeNanos() {
+    public long queryStartTimeNanos() {
         return queryStartTimeNanos;
     }
 

@@ -172,11 +172,12 @@ POST /_query?format=txt
   "query": "FROM index-*",
   "filter": {
     "term": {
-      "f1": *
+      "f1": "*"
     }
   }
 }
 ```
+% TEST[skip:no index]
 
 Using a WHERE clause returns both the `f1` and `f2` columns:
 
@@ -186,7 +187,7 @@ POST /_query?format=txt
   "query": "FROM index-* WHERE f1 is not null"
 }
 ```
-
+% TEST[skip:no index]
 
 ### Columnar results [esql-rest-columnar]
 

@@ -56,6 +56,10 @@ public class MoveDecisionTests extends ESTestCase {
         assertEquals(stay1.getExplanation(), stay2.getExplanation());
     }
 
+    public void testMoveDecisionThrowsOnYes() {
+        assertThrows(AssertionError.class, () -> MoveDecision.move(Decision.YES, AllocationDecision.NO, null, null));
+    }
+
     public void testStayDecision() {
         MoveDecision stay = MoveDecision.createRemainYesDecision(Decision.YES);
         assertTrue(stay.canRemain());
@@ -64,18 +68,15 @@ public class MoveDecisionTests extends ESTestCase {
         assertNull(stay.getNodeDecisions());
         assertEquals(AllocationDecision.NO_ATTEMPT, stay.getAllocationDecision());
 
-        stay = MoveDecision.createRemainYesDecision(Decision.YES);
-        assertTrue(stay.canRemain());
-        assertFalse(stay.cannotRemainAndCanMove());
-        assertTrue(stay.isDecisionTaken());
-        assertNull(stay.getNodeDecisions());
-        assertEquals(AllocationDecision.NO_ATTEMPT, stay.getAllocationDecision());
+        assertThrows(AssertionError.class, () -> MoveDecision.createRemainYesDecision(Decision.NO));
+        assertThrows(AssertionError.class, () -> MoveDecision.createRemainYesDecision(Decision.NOT_PREFERRED));
+        assertThrows(AssertionError.class, () -> MoveDecision.createRemainYesDecision(Decision.THROTTLE));
     }
 
     public void testDecisionWithNodeExplanations() {
         DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
-        Decision nodeDecision = randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES);
+        Decision nodeDecision = randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES, Decision.NOT_PREFERRED);
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
         nodeDecisions.add(new NodeAllocationResult(node1, nodeDecision, 2));
         nodeDecisions.add(new NodeAllocationResult(node2, nodeDecision, 1));
@@ -101,7 +102,7 @@ public class MoveDecisionTests extends ESTestCase {
         nodeDecisions.add(
             new NodeAllocationResult(
                 node2,
-                finalDecision.allowed() ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
+                finalDecision.allowed() ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES, Decision.NOT_PREFERRED),
                 1
             )
         );

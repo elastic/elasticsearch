@@ -32,6 +32,9 @@ import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncDurationTestCases;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncPeriodTestCases;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -74,6 +77,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
             DataType.TIME_DURATION,
             Duration.ofDays(1L)
         );
+        dateTruncCases(suppliers);
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -117,6 +121,82 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                 resultsMatcher(args)
             ).withStaticConfiguration();
         }));
+    }
+
+    private static void dateTruncCases(List<TestCaseSupplier> suppliers) {
+        makeTruncPeriodTestCases().stream()
+            .map(
+                data -> List.of(
+                    new TestCaseSupplier(
+                        "period, millis; " + data.period() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                        List.of(DataType.DATE_PERIOD, DataType.DATETIME),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral(),
+                                new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "@timestamp")
+                            ),
+                            Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                            DataType.DATETIME,
+                            equalTo(data.expectedDateAsMillis())
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                    ),
+                    new TestCaseSupplier(
+                        "period, nanos; " + data.period() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                        List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral(),
+                                new TestCaseSupplier.TypedData(
+                                    DateUtils.toNanoSeconds(data.inputDateAsMillis()),
+                                    DataType.DATE_NANOS,
+                                    "@timestamp"
+                                )
+                            ),
+                            Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                            DataType.DATE_NANOS,
+                            equalTo(DateUtils.toLong(Instant.parse(data.expectedDate())))
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                    )
+                )
+            )
+            .forEach(suppliers::addAll);
+
+        makeTruncDurationTestCases().stream()
+            .map(
+                data -> List.of(
+                    new TestCaseSupplier(
+                        "duration, millis; " + data.duration() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                        List.of(DataType.TIME_DURATION, DataType.DATETIME),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral(),
+                                new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "@timestamp")
+                            ),
+                            Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                            DataType.DATETIME,
+                            equalTo(data.expectedDateAsMillis())
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                    ),
+                    new TestCaseSupplier(
+                        "duration, nanos; " + data.duration() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                        List.of(DataType.TIME_DURATION, DataType.DATE_NANOS),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral(),
+                                new TestCaseSupplier.TypedData(
+                                    DateUtils.toNanoSeconds(data.inputDateAsMillis()),
+                                    DataType.DATE_NANOS,
+                                    "@timestamp"
+                                )
+                            ),
+                            Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                            DataType.DATE_NANOS,
+                            equalTo(DateUtils.toLong(Instant.parse(data.expectedDate())))
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                    )
+                )
+            )
+            .forEach(suppliers::addAll);
     }
 
     private static Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {

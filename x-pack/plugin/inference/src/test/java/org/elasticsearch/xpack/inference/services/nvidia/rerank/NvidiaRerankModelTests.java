@@ -15,11 +15,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 public class NvidiaRerankModelTests extends ESTestCase {
 
-    public static NvidiaRerankModel createModel(
-        @Nullable String url,
-        String apiKey,
-        @Nullable String modelId
-    ) {
+    public static NvidiaRerankModel createModel(@Nullable String url, String apiKey, @Nullable String modelId) {
         return new NvidiaRerankModel(
             "inferenceEntityId",
             TaskType.RERANK,

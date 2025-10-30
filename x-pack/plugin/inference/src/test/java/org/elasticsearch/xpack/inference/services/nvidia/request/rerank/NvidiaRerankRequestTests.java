@@ -43,8 +43,7 @@ public class NvidiaRerankRequestTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> createRequest(null, "url"));
     }
 
-    private void testCreateRequest(NvidiaRerankRequest request, String expectedUrl)
-        throws IOException {
+    private void testCreateRequest(NvidiaRerankRequest request, String expectedUrl) throws IOException {
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -57,14 +56,12 @@ public class NvidiaRerankRequestTests extends ESTestCase {
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
 
         assertThat(requestMap.get(PASSAGES), is(List.of(Map.of("text", PASSAGES))));
-        assertThat(requestMap.get(QUERY), is(Map.of("text",QUERY)));
-            assertThat(requestMap.get("model"), is(MODEL_ID));
+        assertThat(requestMap.get(QUERY), is(Map.of("text", QUERY)));
+        assertThat(requestMap.get("model"), is(MODEL_ID));
         assertThat(requestMap, aMapWithSize(3));
     }
 
-    private static NvidiaRerankRequest createRequest(
-        @Nullable String modelId, @Nullable String url
-    ) {
+    private static NvidiaRerankRequest createRequest(@Nullable String modelId, @Nullable String url) {
         var rerankModel = NvidiaRerankModelTests.createModel(url, "secret", modelId);
         return new NvidiaRerankRequest(QUERY, List.of(PASSAGES), rerankModel);
     }

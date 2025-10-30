@@ -352,8 +352,6 @@ public class InferencePlugin extends Plugin
                     elasticInferenceServiceFactory.get(),
                     serviceComponents.get(),
                     inferenceServiceSettings,
-                    modelRegistry.get(),
-                    authorizationHandler,
                     context
                 ),
                 context -> new SageMakerService(

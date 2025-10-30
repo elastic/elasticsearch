@@ -72,6 +72,14 @@ public class PromqlAstTests extends ESTestCase {
         }
     }
 
+    //@AwaitsFix(bugUrl = "placeholder for individual queries")
+    public void testSingleQuery() throws Exception {
+        String query = """
+            rate(http_requests_total[5m])[30m:1m]
+            """;
+        new PromqlParser().createStatement(query);
+    }
+
     static List<Tuple<String, Integer>> readQueries(String source) throws Exception {
         var urls = EsqlTestUtils.classpathResources(source);
         assertThat(urls, not(empty()));

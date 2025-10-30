@@ -106,7 +106,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Evaluation visitEvaluation(EvaluationContext ctx) {
         if (ctx == null) {
-            return null;
+            return Evaluation.NONE;
         }
 
         TimeValue offset = null;

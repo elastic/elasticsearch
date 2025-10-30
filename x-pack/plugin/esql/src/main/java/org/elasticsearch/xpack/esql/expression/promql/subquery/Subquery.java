@@ -10,31 +10,25 @@ package org.elasticsearch.xpack.esql.expression.promql.subquery;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.UnaryExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.promql.types.PromqlDataTypes;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class Subquery extends UnaryExpression {
+public class Subquery extends UnaryPlan {
     private final TimeValue range;
     private final TimeValue resolution;
     private final Evaluation evaluation;
 
-    public Subquery(Source source, Expression query, TimeValue range, TimeValue resolution, Evaluation evaluation) {
-        super(source, query);
+    public Subquery(Source source, LogicalPlan child, TimeValue range, TimeValue resolution, Evaluation evaluation) {
+        super(source, child);
         this.range = range;
         this.resolution = resolution;
         this.evaluation = evaluation;
-    }
-
-    public Expression query() {
-        return child();
     }
 
     public TimeValue range() {
@@ -50,8 +44,8 @@ public class Subquery extends UnaryExpression {
     }
 
     @Override
-    public DataType dataType() {
-        return PromqlDataTypes.RANGE_VECTOR;
+    public boolean expressionsResolved() {
+        return true;
     }
 
     @Override
@@ -60,7 +54,7 @@ public class Subquery extends UnaryExpression {
     }
 
     @Override
-    protected Subquery replaceChild(Expression newChild) {
+    public Subquery replaceChild(LogicalPlan newChild) {
         return new Subquery(source(), newChild, range, resolution, evaluation);
     }
 

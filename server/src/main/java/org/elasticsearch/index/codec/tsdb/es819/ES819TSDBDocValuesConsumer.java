@@ -528,20 +528,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         int totalChunks = 0;
         int maxNumDocsInAnyBlock = 0;
 
-        final DelayedOffsetAccumulator blockAddressAcc;
-        final DelayedOffsetAccumulator blockDocRangeAcc;
+        final BlockMetadataAccumulator blockMetaAcc;
 
         CompressedBinaryBlockWriter(BinaryDVCompressionMode compressionMode) throws IOException {
             this.compressor = compressionMode.compressionMode().newCompressor();
             long blockAddressesStart = data.getFilePointer();
-            blockAddressAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block-addresses", blockAddressesStart);
-
-            try {
-                blockDocRangeAcc = new DelayedOffsetAccumulator(state.directory, state.context, data, "block-doc-ranges", 0);
-            } catch (IOException e) {
-                blockAddressAcc.close();
-                throw e;
-            }
+            this.blockMetaAcc = new BlockMetadataAccumulator(state.directory, state.context, data, blockAddressesStart);
         }
 
         @Override
@@ -578,12 +570,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             compressOffsets(data, numDocsInCurrentBlock);
             compress(block, uncompressedBlockLength, data);
 
-            blockDocRangeAcc.addDoc(numDocsInCurrentBlock);
-            numDocsInCurrentBlock = 0;
-
-            uncompressedBlockLength = 0;
             long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
-            blockAddressAcc.addDoc(blockLenBytes);
+            blockMetaAcc.addDoc(numDocsInCurrentBlock, blockLenBytes);
+            numDocsInCurrentBlock = uncompressedBlockLength = 0;
         }
 
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
@@ -621,21 +610,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             meta.writeVInt(maxNumDocsInAnyBlock);
             meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
 
-            blockAddressAcc.build(meta, data);
-            long dataDocRangeStart = data.getFilePointer();
-            long addressesLength = dataDocRangeStart - dataAddressesStart;
-            meta.writeLong(addressesLength);
-
-            meta.writeLong(dataDocRangeStart);
-            blockDocRangeAcc.build(meta, data);
-            long docRangesLen = data.getFilePointer() - dataDocRangeStart;
-            meta.writeLong(docRangesLen);
+            blockMetaAcc.build(meta, data);
         }
 
         @Override
         public void close() throws IOException {
-            blockDocRangeAcc.close();
-            blockAddressAcc.close();
+            blockMetaAcc.close();
         }
     }
 

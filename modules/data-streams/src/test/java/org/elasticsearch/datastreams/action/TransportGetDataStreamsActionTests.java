@@ -36,6 +36,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -57,7 +59,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportGetDataStreamsActionTests extends ESTestCase {
 
@@ -71,6 +75,13 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     );
     private final MetadataDataStreamsService metadataDataStreamsService = mock(MetadataDataStreamsService.class);
     private final IndicesService indicesService = mock(IndicesService.class);
+
+    @Before
+    public void setup() {
+        when(metadataDataStreamsService.addSettingsFromIndexSettingProviders(any(), any(), any(), any())).thenAnswer(
+            (Answer<Settings>) invocation -> invocation.getArgument(3, Settings.class)
+        );
+    }
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";

@@ -74,21 +74,10 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
 
     // We use prime numbers with the Kirsch-Mitzenmacher technique to obtain multiple hashes from two hash functions
     private static final int[] PRIMES = new int[] { 2, 5, 11, 17, 23, 29, 41, 47, 53, 59, 71 };
-    private static final int[] powerOfTwoBitSetSizes;
     private static final int DEFAULT_NUM_HASH_FUNCTIONS = 7;
     private static final byte BLOOM_FILTER_STORED = 1;
     private static final byte BLOOM_FILTER_NOT_STORED = 0;
-
-    static {
-        // Precompute powers of two (2^1 to 2^26) for efficient modulo operations using bitwise AND.
-        // We start from 2^1 (2 bits) and go up to 2^26 (67,108,864 bits / 8,388,608 bytes = 8 MB)
-        // as the maximum, staying within positive int range.
-        powerOfTwoBitSetSizes = new int[27];
-        for (int i = 0; i < powerOfTwoBitSetSizes.length; i++) {
-            powerOfTwoBitSetSizes[i] = 1 << i;
-            assert powerOfTwoBitSetSizes[i] > 0;
-        }
-    }
+    private static final ByteSizeValue MAX_BLOOM_FILTER_SIZE = ByteSizeValue.ofMb(8);
 
     private final BigArrays bigArrays;
     private final String segmentSuffix;
@@ -109,15 +98,23 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         this.delegate = delegate;
         this.bloomFilterFieldName = bloomFilterFieldName;
         this.numHashFunctions = DEFAULT_NUM_HASH_FUNCTIONS;
-        int bloomFilterSizeInBits = 0;
-        // Find the closest power of 2 that fits the required size
-        for (int powerOfTwoBitSetSize : powerOfTwoBitSetSizes) {
-            if (powerOfTwoBitSetSize <= (Math.multiplyExact(bloomFilterSize.getBytes(), Byte.SIZE))) {
-                bloomFilterSizeInBits = powerOfTwoBitSetSize;
-            }
+
+        if (bloomFilterSize.getBytes() <= 0) {
+            throw new IllegalArgumentException("bloom filter size must be greater than 0");
         }
-        assert bloomFilterSizeInBits > 0;
-        this.bloomFilterSizeInBits = bloomFilterSizeInBits;
+
+        var closestPowerOfTwoBloomFilterSizeInBytes = Long.highestOneBit(bloomFilterSize.getBytes());
+        if (closestPowerOfTwoBloomFilterSizeInBytes > MAX_BLOOM_FILTER_SIZE.getBytes()) {
+            throw new IllegalArgumentException(
+                "bloom filter size ["
+                    + bloomFilterSize
+                    + "] is too large; "
+                    + "must be "
+                    + MAX_BLOOM_FILTER_SIZE
+                    + " or less (rounded to nearest power of two)"
+            );
+        }
+        this.bloomFilterSizeInBits = (int) Math.multiplyExact(closestPowerOfTwoBloomFilterSizeInBytes, Byte.SIZE);
     }
 
     @Override
@@ -165,7 +162,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
             String bloomFilterFieldName,
             StoredFieldsWriter delegateWriter
         ) throws IOException {
-            assert isPowerOfTwo(bloomFilterSizeInBits) : "Bloom filter size is not a power of 2";
+            assert isPowerOfTwo(bloomFilterSizeInBits) : "Bloom filter size is not a power of 2: " + bloomFilterSizeInBits;
             assert numHashFunctions <= PRIMES.length
                 : "Number of hash functions must be <= " + PRIMES.length + " but was " + numHashFunctions;
 
@@ -223,41 +220,58 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
 
         @Override
         public void writeField(FieldInfo info, int value) throws IOException {
-            delegateWriter.writeField(info, value);
+            if (isBloomFilterField(info) == false) {
+                delegateWriter.writeField(info, value);
+            }
         }
 
         @Override
         public void writeField(FieldInfo info, long value) throws IOException {
-            delegateWriter.writeField(info, value);
+            if (isBloomFilterField(info) == false) {
+                delegateWriter.writeField(info, value);
+            }
         }
 
         @Override
         public void writeField(FieldInfo info, float value) throws IOException {
-            delegateWriter.writeField(info, value);
+            if (isBloomFilterField(info) == false) {
+                delegateWriter.writeField(info, value);
+            }
         }
 
         @Override
         public void writeField(FieldInfo info, double value) throws IOException {
-            delegateWriter.writeField(info, value);
+            if (isBloomFilterField(info) == false) {
+                delegateWriter.writeField(info, value);
+            }
         }
 
         @Override
         public void writeField(FieldInfo info, StoredFieldDataInput value) throws IOException {
-            delegateWriter.writeField(info, value);
+            if (isBloomFilterField(info) == false) {
+                delegateWriter.writeField(info, value);
+            }
         }
 
         @Override
         public void writeField(FieldInfo info, String value) throws IOException {
-            delegateWriter.writeField(info, value);
+            if (isBloomFilterField(info) == false) {
+                delegateWriter.writeField(info, value);
+            }
         }
 
         @Override
         public void writeField(FieldInfo info, BytesRef value) throws IOException {
-            if (info.getName().equals(bloomFilterFieldName)) {
+            if (isBloomFilterField(info)) {
                 addToBloomFilter(info, value);
             } else {
                 delegateWriter.writeField(info, value);
             }
+        }
+
+        private boolean isBloomFilterField(FieldInfo info) {
+            return (bloomFilterFieldInfo != null && bloomFilterFieldInfo.getFieldNumber() == info.getFieldNumber())
+                || info.getName().equals(bloomFilterFieldName);
         }
 
         private void addToBloomFilter(FieldInfo info, BytesRef value) {

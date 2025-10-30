@@ -911,9 +911,10 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode, null,
-                    null
-                ))
+                Map.of(
+                    SearchableSnapshotAction.NAME,
+                    new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode, null, null)
+                )
             ),
             null
         );

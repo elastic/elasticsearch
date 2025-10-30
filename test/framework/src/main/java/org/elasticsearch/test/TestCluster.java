@@ -249,7 +249,7 @@ public abstract class TestCluster {
 
     private void handleWipeIndicesFailure(Exception exception, boolean wipingAllIndices, ActionListener<AcknowledgedResponse> listener) {
         Throwable unwrapped = ExceptionsHelper.unwrap(exception, IndexNotFoundException.class, IllegalArgumentException.class);
-        logger.error("---- initial wiping of indices failed", unwrapped);
+        logger.error("---- initial wiping of indices failed", exception);
         if (unwrapped instanceof IndexNotFoundException) {
             // ignore
             listener.onResponse(AcknowledgedResponse.TRUE);
@@ -257,7 +257,7 @@ public abstract class TestCluster {
             // Happens if `action.destructive_requires_name` is set to true
             // which is the case in the CloseIndexDisableCloseAllTests
             if (wipingAllIndices) {
-                logger.info("---- retry wiping indices using their concrete names", unwrapped);
+                logger.info("---- retry wiping indices using their concrete names", exception);
                 SubscribableListener
 
                     .<ClusterStateResponse>newForked(l -> client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute(l))
@@ -280,7 +280,7 @@ public abstract class TestCluster {
                 logger.warn(
                     "This failure is ok, if this test is BootStrapTests.testTriggeredWatchLoading."
                         + " Otherwise, please investigate this failure:",
-                    unwrapped
+                    exception
                 );
                 listener.onResponse(AcknowledgedResponse.TRUE);
 

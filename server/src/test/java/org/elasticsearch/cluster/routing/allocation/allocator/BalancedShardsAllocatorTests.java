@@ -127,8 +127,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         allocation.debugDecision(false);
         AllocateUnassignedDecision allocateDecision = allocator.explainShardAllocation(shard, allocation).getAllocateDecision();
         allocation.debugDecision(true);
-        AllocateUnassignedDecision allocateDecisionWithExplain = allocator.explainShardAllocation(shard, allocation)
-            .getAllocateDecision();
+        AllocateUnassignedDecision allocateDecisionWithExplain = allocator.explainShardAllocation(shard, allocation).getAllocateDecision();
         // the allocation decision should have same target node no matter the debug is on or off
         assertEquals(allocateDecision.getTargetNode().getId(), allocateDecisionWithExplain.getTargetNode().getId());
 

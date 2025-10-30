@@ -2,7 +2,7 @@
 
 ## `SCORE` [esql-score]
 ```{applies_to}
-stack: development
+stack: preview 9.3.0
 serverless: preview
 ```
 

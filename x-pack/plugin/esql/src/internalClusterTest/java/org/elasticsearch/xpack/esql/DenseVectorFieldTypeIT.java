@@ -95,8 +95,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
         var query = """
             FROM test
-            | EVAL k = v_l2_norm(vector, [1])  // workaround to enable fetching dense_vector
-            | DROP k
             """;
 
         try (var resp = run(query)) {
@@ -111,7 +109,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
         var query = """
                 FROM test
-                | EVAL k = v_l2_norm(vector, [1])  // workaround to enable fetching dense_vector
                 | KEEP id, vector
                 | SORT id ASC
             """;
@@ -141,7 +138,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
         var query = """
             FROM test
-            | EVAL k = v_l2_norm(vector, [1])  // workaround to enable fetching dense_vector
             | KEEP id, vector
             """;
 
@@ -217,7 +213,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 for (int j = 0; j < numDims; j++) {
                     switch (elementType) {
                         case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
-                        case BYTE, BIT -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
+                        case BYTE, BIT -> vector.add((byte) randomIntBetween(-128, 127));
                         default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                     }
                 }

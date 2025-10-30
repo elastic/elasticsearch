@@ -721,13 +721,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (orig.canReturnNullResponseIfMatchNoDocs()) {
                     assert orig.scroll() == null;
                     ShardSearchRequest clone = new ShardSearchRequest(orig);
-                    CanMatchContext canMatchContext = new CanMatchContext(
-                        clone,
-                        indicesService::indexServiceSafe,
-                        this::findReaderContext,
-                        defaultKeepAlive,
-                        maxKeepAlive
-                    );
+                    CanMatchContext canMatchContext = createCanMatchContext(clone);
                     CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
                     if (canMatchResp.canMatch() == false) {
                         l.onResponse(QuerySearchResult.nullInstance());
@@ -1937,9 +1931,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         var shardLevelRequests = request.getShardLevelRequests();
         final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardLevelRequests.size());
         for (var shardLevelRequest : shardLevelRequests) {
+            long shardCanMatchStartTimeInNanos = System.nanoTime();
+            ShardSearchRequest shardSearchRequest = request.createShardSearchRequest(shardLevelRequest);
+            final IndexService indexService = indicesService.indexServiceSafe(shardSearchRequest.shardId().getIndex());
+            final IndexShard indexShard = indexService.getShard(shardSearchRequest.shardId().id());
             try {
-                // TODO remove the exception handling as it's now in canMatch itself
-                responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatch(request.createShardSearchRequest(shardLevelRequest))));
+                // TODO remove the exception handling as it's now in canMatch itself - the failure no longer needs to be serialized
+                CanMatchContext canMatchContext = createCanMatchContext(shardSearchRequest);
+                CanMatchShardResponse canMatchShardResponse = canMatch(canMatchContext, true);
+                responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatchShardResponse));
+                indexShard.getSearchOperationListener().onCanMatchPhase(System.nanoTime() - shardCanMatchStartTimeInNanos);
             } catch (Exception e) {
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(e));
             }
@@ -1953,14 +1954,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * won't match any documents on the current shard. Exceptions are handled within the method, and never re-thrown.
      */
     public CanMatchShardResponse canMatch(ShardSearchRequest request) {
-        CanMatchContext canMatchContext = new CanMatchContext(
-            request,
-            indicesService::indexServiceSafe,
-            this::findReaderContext,
-            defaultKeepAlive,
-            maxKeepAlive
-        );
+        CanMatchContext canMatchContext = createCanMatchContext(request);
         return canMatch(canMatchContext, true);
+    }
+
+    CanMatchContext createCanMatchContext(ShardSearchRequest request) {
+        return new CanMatchContext(request, indicesService::indexServiceSafe, this::findReaderContext, defaultKeepAlive, maxKeepAlive);
     }
 
     static class CanMatchContext {
@@ -1971,6 +1970,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         private final long maxKeepAlive;
 
         private IndexService indexService;
+
+        private Long timeRangeFilterFromMillis;
 
         CanMatchContext(
             ShardSearchRequest request,
@@ -2019,12 +2020,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             return this.indexService;
         }
+
+        void setTimeRangeFilterFromMillis(Long timeRangeFilterFromMillis) {
+            this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+        }
+
+        Long getTimeRangeFilterFromMillis() {
+            return timeRangeFilterFromMillis;
+        }
     }
 
     static CanMatchShardResponse canMatch(CanMatchContext canMatchContext, boolean checkRefreshPending) {
         assert canMatchContext.request.searchType() == SearchType.QUERY_THEN_FETCH
             : "unexpected search type: " + canMatchContext.request.searchType();
         Releasable releasable = null;
+        QueryRewriteContext queryRewriteContext = null;
         try {
             IndexService indexService;
             final boolean hasRefreshPending;
@@ -2037,7 +2047,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     readerContext = canMatchContext.findReaderContext();
                     releasable = readerContext.markAsUsed(canMatchContext.getKeepAlive());
                     indexService = readerContext.indexService();
-                    QueryRewriteContext queryRewriteContext = canMatchContext.getQueryRewriteContext(indexService);
+                    queryRewriteContext = canMatchContext.getQueryRewriteContext(indexService);
                     if (queryStillMatchesAfterRewrite(canMatchContext.request, queryRewriteContext) == false) {
                         return new CanMatchShardResponse(false, null);
                     }
@@ -2046,10 +2056,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     if (canMatchContext.request.readerId().isRetryable() == false) {
                         return new CanMatchShardResponse(true, null);
                     }
-                    if (queryStillMatchesAfterRewrite(
-                        canMatchContext.request,
-                        canMatchContext.getQueryRewriteContext(canMatchContext.getIndexService())
-                    ) == false) {
+                    queryRewriteContext = canMatchContext.getQueryRewriteContext(canMatchContext.getIndexService());
+                    if (queryStillMatchesAfterRewrite(canMatchContext.request, queryRewriteContext) == false) {
                         return new CanMatchShardResponse(false, null);
                     }
                     final Engine.SearcherSupplier searcherSupplier = canMatchContext.getShard().acquireSearcherSupplier();
@@ -2062,10 +2070,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 canMatchSearcher = searcher;
             } else {
-                if (queryStillMatchesAfterRewrite(
-                    canMatchContext.request,
-                    canMatchContext.getQueryRewriteContext(canMatchContext.getIndexService())
-                ) == false) {
+                queryRewriteContext = canMatchContext.getQueryRewriteContext(canMatchContext.getIndexService());
+                if (queryStillMatchesAfterRewrite(canMatchContext.request, queryRewriteContext) == false) {
                     return new CanMatchShardResponse(false, null);
                 }
                 boolean needsWaitForRefresh = canMatchContext.request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
@@ -2078,6 +2084,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             try (canMatchSearcher) {
                 SearchExecutionContext context = canMatchContext.getSearchExecutionContext(canMatchSearcher);
+                queryRewriteContext = context;
                 final boolean canMatch = queryStillMatchesAfterRewrite(canMatchContext.request, context);
                 if (canMatch || hasRefreshPending) {
                     FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(canMatchContext.request.source());
@@ -2089,6 +2096,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } catch (Exception e) {
             return new CanMatchShardResponse(true, null);
         } finally {
+            if (queryRewriteContext != null) {
+                canMatchContext.setTimeRangeFilterFromMillis(queryRewriteContext.getTimeRangeFilterFromMillis());
+            }
             Releasables.close(releasable);
         }
     }
@@ -2153,7 +2163,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips
     ) {
-        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, ccsMinimizeRoundTrips, false);
+        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, ccsMinimizeRoundTrips, false, false);
     }
 
     /**
@@ -2166,7 +2176,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile
     ) {
         return indicesService.getRewriteContext(
             nowInMillis,
@@ -2175,7 +2186,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             resolvedIndices,
             pit,
             ccsMinimizeRoundTrips,
-            isExplain
+            isExplain,
+            isProfile
         );
     }
 

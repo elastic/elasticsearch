@@ -71,29 +71,31 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock yBlock, DoubleBlock xBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (yBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (yBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (yBlock.getValueCount(p) != 1) {
-          if (yBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (xBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (xBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (xBlock.getValueCount(p) != 1) {
-          if (xBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(Atan2.process(yBlock.getDouble(yBlock.getFirstValueIndex(p)), xBlock.getDouble(xBlock.getFirstValueIndex(p))));
+        double y = yBlock.getDouble(yBlock.getFirstValueIndex(p));
+        double x = xBlock.getDouble(xBlock.getFirstValueIndex(p));
+        result.appendDouble(Atan2.process(y, x));
       }
       return result.build();
     }
@@ -102,7 +104,9 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleVector eval(int positionCount, DoubleVector yVector, DoubleVector xVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Atan2.process(yVector.getDouble(p), xVector.getDouble(p)));
+        double y = yVector.getDouble(p);
+        double x = xVector.getDouble(p);
+        result.appendDouble(p, Atan2.process(y, x));
       }
       return result.build();
     }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -49,6 +50,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(defaultSettings.readTimeoutMillis, is(Math.toIntExact(S3ClientSettings.Defaults.READ_TIMEOUT.millis())));
         assertThat(defaultSettings.maxConnections, is(S3ClientSettings.Defaults.MAX_CONNECTIONS));
         assertThat(defaultSettings.maxRetries, is(S3ClientSettings.Defaults.RETRY_COUNT));
+        assertThat(defaultSettings.connectionMaxIdleTimeMillis, is(S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME.millis()));
     }
 
     public void testDefaultClientSettingsCanBeSet() {
@@ -204,6 +206,21 @@ public class S3ClientSettingsTests extends ESTestCase {
             // by default, we simply do not know the region (which S3Service maps to us-east-1 with cross-region access enabled)
             assertNull(s3Service.getClientRegion(settings.get("default")));
         }
+    }
+
+    public void testConnectionMaxIdleTimeCanBeSet() {
+        final TimeValue connectionMaxIdleTimeValue = randomValueOtherThan(
+            S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME,
+            ESTestCase::randomTimeValue
+        );
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.connection_max_idle_time", connectionMaxIdleTimeValue).build()
+        );
+        assertThat(settings.get("default").connectionMaxIdleTimeMillis, is(S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME.millis()));
+        assertThat(settings.get("other").connectionMaxIdleTimeMillis, is(connectionMaxIdleTimeValue.millis()));
+
+        // the default appears in the docs so let's make sure it doesn't change:
+        assertEquals(TimeValue.timeValueSeconds(60), S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME);
     }
 
     public void testMaxConnectionsCanBeSet() {

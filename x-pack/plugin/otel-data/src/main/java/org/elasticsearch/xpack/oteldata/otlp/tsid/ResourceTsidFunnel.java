@@ -25,7 +25,7 @@ public class ResourceTsidFunnel implements TsidFunnel<ResourceMetrics> {
     }
 
     public static TsidBuilder forResource(BufferedByteStringAccessor byteStringAccessor, ResourceMetrics resourceMetrics) {
-        TsidBuilder tsidBuilder = new TsidBuilder(resourceMetrics.getResource().getAttributesCount() + 1);
+        TsidBuilder tsidBuilder = new TsidBuilder(resourceMetrics.getResource().getAttributesCount());
         new ResourceTsidFunnel(byteStringAccessor).add(resourceMetrics, tsidBuilder);
         return tsidBuilder;
     }
@@ -34,6 +34,5 @@ public class ResourceTsidFunnel implements TsidFunnel<ResourceMetrics> {
     public void add(ResourceMetrics resourceMetrics, TsidBuilder tsidBuilder) {
         List<KeyValue> resourceAttributes = resourceMetrics.getResource().getAttributesList();
         tsidBuilder.add(resourceAttributes, AttributeListTsidFunnel.get(byteStringAccessor, "resource.attributes."));
-        byteStringAccessor.addStringDimension(tsidBuilder, "schema_url", resourceMetrics.getSchemaUrlBytes());
     }
 }

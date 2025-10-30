@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.llama.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,6 +44,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri
  */
 public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "llama_embeddings_service_settings";
+    private static final TransportVersion ML_INFERENCE_LLAMA_ADDED = TransportVersion.fromName("ml_inference_llama_added");
     // There is no default rate limit for Llama, so we set a reasonable default of 3000 requests per minute
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
@@ -154,7 +154,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_LLAMA_ADDED;
+        return ML_INFERENCE_LLAMA_ADDED;
     }
 
     @Override

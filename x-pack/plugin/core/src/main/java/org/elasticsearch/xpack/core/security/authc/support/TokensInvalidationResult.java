@@ -62,9 +62,7 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         if (in.getTransportVersion().before(TransportVersions.V_7_2_0)) {
             in.readVInt();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.restStatus = RestStatus.readFrom(in);
-        }
+        this.restStatus = RestStatus.readFrom(in);
     }
 
     public static TokensInvalidationResult emptyResult(RestStatus restStatus) {
@@ -114,8 +112,6 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         if (out.getTransportVersion().before(TransportVersions.V_7_2_0)) {
             out.writeVInt(5);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            RestStatus.writeTo(out, restStatus);
-        }
+        RestStatus.writeTo(out, restStatus);
     }
 }

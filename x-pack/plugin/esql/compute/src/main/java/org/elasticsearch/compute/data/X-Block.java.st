@@ -54,6 +54,34 @@ $else$
     $type$ get$Type$(int valueIndex);
 $endif$
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+$if(BytesRef)$
+     * @param scratch the scratch BytesRef to use for this operation
+$endif$
+     */
+    default boolean hasValue(int position, $type$ value$if(BytesRef)$, BytesRef scratch$endif$) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+$if(BytesRef)$
+            var ref = getBytesRef(index, scratch);
+            if (value.equals(ref)) {
+                return true;
+            }
+$else$
+            if (value == get$Type$(index)) {
+                return true;
+            }
+$endif$
+        }
+        return false;
+    }
+
     @Override
     $Type$Vector asVector();
 
@@ -142,15 +170,15 @@ $endif$
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$ArrayBlock b) {
+        } else if (this instanceof $Type$ArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
 $if(BytesRef)$
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+        } else if (this instanceof OrdinalBytesRefBlock b && b.isDense()) {
             out.writeByte(SERIALIZE_BLOCK_ORDINAL);
             b.writeOrdinalBlock(out);
 $else$
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$BigArrayBlock b) {
+        } else if (this instanceof $Type$BigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
 $endif$

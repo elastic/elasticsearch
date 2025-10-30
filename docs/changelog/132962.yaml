@@ -1,0 +1,5 @@
+pr: 132962
+summary: Don't store keyword multi fields when they trip `ignore_above`
+area: Mapping
+type: bug
+issues: []

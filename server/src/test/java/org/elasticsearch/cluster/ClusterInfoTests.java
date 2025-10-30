@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -45,7 +46,8 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomReservedSpace(),
             randomNodeHeapUsage(),
             randomNodeUsageStatsForThreadPools(),
-            randomShardWriteLoad()
+            randomShardWriteLoad(),
+            randomMaxHeapSizes()
         );
     }
 
@@ -56,6 +58,15 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             builder.put(randomShardId(), randomDouble());
         }
         return builder;
+    }
+
+    private static Map<String, ByteSizeValue> randomMaxHeapSizes() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, ByteSizeValue> nodeMaxHeapSizes = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            nodeMaxHeapSizes.put(randomAlphaOfLength(32), randomByteSizeValue());
+        }
+        return nodeMaxHeapSizes;
     }
 
     private static Map<String, EstimatedHeapUsage> randomNodeHeapUsage() {

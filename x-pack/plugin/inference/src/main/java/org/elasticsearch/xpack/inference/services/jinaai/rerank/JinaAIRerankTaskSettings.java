@@ -118,7 +118,7 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+        return TransportVersions.V_8_18_0;
     }
 
     @Override

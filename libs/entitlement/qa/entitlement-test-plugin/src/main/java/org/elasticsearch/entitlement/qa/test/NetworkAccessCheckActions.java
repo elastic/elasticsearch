@@ -403,6 +403,13 @@ class NetworkAccessCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
+    static void connectDatagramSocketInetAddress() throws IOException {
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
+            socket.connect(InetAddress.getByAddress(new byte[] { (byte) 230, 0, 0, 1 }), 1234);
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void joinGroupDatagramSocket() throws IOException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.joinGroup(

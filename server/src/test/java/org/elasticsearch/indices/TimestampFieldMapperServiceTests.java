@@ -92,12 +92,19 @@ public class TimestampFieldMapperServiceTests extends ESTestCase {
     }
 
     private static IndexMetadata createIndex(boolean isTimeSeries) {
-        return IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(
-                indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-                    .put(IndexSettings.MODE.getKey(), isTimeSeries ? IndexMode.TIME_SERIES.getName() : IndexMode.STANDARD.getName())
-            )
-            .build();
+        Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), 1, 0).put(
+            IndexSettings.TIME_SERIES_START_TIME.getKey(),
+            "2021-04-28T00:00:00Z"
+        )
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .put(IndexSettings.MODE.getKey(), isTimeSeries ? IndexMode.TIME_SERIES.getName() : IndexMode.STANDARD.getName());
+        IndexMetadata.Builder metadataBuilder = IndexMetadata.builder(randomAlphaOfLength(5));
+        if (isTimeSeries) {
+            settingsBuilder.put(
+                randomBoolean() ? IndexMetadata.INDEX_DIMENSIONS.getKey() : IndexMetadata.INDEX_ROUTING_PATH.getKey(),
+                "dummy_value"
+            );
+        }
+        return metadataBuilder.settings(settingsBuilder).build();
     }
 }

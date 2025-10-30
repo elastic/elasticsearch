@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -224,7 +225,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             Map<String, String> meta,
             @Nullable SparseVectorIndexOptions indexOptions
         ) {
-            super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, IndexType.vectors(), isStored, meta);
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
         }
@@ -241,6 +242,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isVectorEmbedding() {
             return true;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_ONLY;
         }
 
         @Override
@@ -333,8 +339,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
         if (isExcludeSourceVectors) {
-            var syntheticField = new SparseVectorSyntheticFieldLoader(fullPath(), leafName());
-            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyAsMap);
+            return new SyntheticVectorsPatchFieldLoader<>(
+                // Recreate the object for each leaf so that different segments can be searched concurrently.
+                () -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()),
+                SparseVectorSyntheticFieldLoader::copyAsMap
+            );
         }
         return null;
     }

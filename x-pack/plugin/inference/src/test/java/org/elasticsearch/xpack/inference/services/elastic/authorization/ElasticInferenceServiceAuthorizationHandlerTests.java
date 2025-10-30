@@ -19,9 +19,9 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
@@ -257,7 +257,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
                     defaultEndpointId("rainbow-sprinkles"),
                     TaskType.CHAT_COMPLETION,
                     "test",
-                    new ElasticInferenceServiceCompletionServiceSettings("rainbow-sprinkles", null),
+                    new ElasticInferenceServiceCompletionServiceSettings("rainbow-sprinkles"),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     ElasticInferenceServiceComponents.EMPTY_INSTANCE
@@ -270,7 +270,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
                     defaultEndpointId("elser-2"),
                     TaskType.SPARSE_EMBEDDING,
                     "test",
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-2", null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-2", null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     ElasticInferenceServiceComponents.EMPTY_INSTANCE,

@@ -71,18 +71,19 @@ public final class DayNameNanosEvaluator implements EvalOperator.ExpressionEvalu
   public BytesRefBlock eval(int positionCount, LongBlock valBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBytesRef(DayName.processNanos(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.zoneId, this.locale));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        result.appendBytesRef(DayName.processNanos(val, this.zoneId, this.locale));
       }
       return result.build();
     }
@@ -91,7 +92,8 @@ public final class DayNameNanosEvaluator implements EvalOperator.ExpressionEvalu
   public BytesRefVector eval(int positionCount, LongVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(DayName.processNanos(valVector.getLong(p), this.zoneId, this.locale));
+        long val = valVector.getLong(p);
+        result.appendBytesRef(DayName.processNanos(val, this.zoneId, this.locale));
       }
       return result.build();
     }

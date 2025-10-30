@@ -191,8 +191,8 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                         var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize, randomBoolean())
                     ) {
                         for (int i = 0; i < batchSize; i++) {
-                            b1.appendOrd(ord);
-                            b2.appendOrd(ord);
+                            appendOrd(b1, ord);
+                            appendOrd(b2, ord);
                         }
                         try (BytesRefBlock block1 = b1.build(); BytesRefBlock block2 = b2.buildRegularBlock()) {
                             assertThat(block1, equalTo(block2));
@@ -201,6 +201,20 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     }
                 }
             }
+        }
+    }
+
+    private void appendOrd(SingletonOrdinalsBuilder builder, int ord) {
+        if (randomBoolean()) {
+            builder.appendOrd(ord);
+        } else if (randomBoolean()) {
+            int prefix = between(0, 2);
+            int suffix = between(0, 2);
+            int[] ords = new int[prefix + 1 + suffix];
+            ords[prefix] = ord;
+            builder.appendOrds(ords, prefix, 1, ord, ord);
+        } else {
+            builder.appendOrds(ord, 1);
         }
     }
 

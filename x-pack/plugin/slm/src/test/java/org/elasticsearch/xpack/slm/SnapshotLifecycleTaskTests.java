@@ -346,8 +346,22 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId snapForDeletedPolicy = randSnapshotId();
 
         SnapshotLifecycleTask.WriteJobStatus writeJobStatus = randomBoolean()
-            ? SnapshotLifecycleTask.WriteJobStatus.success(projectId, policyId, initiatingSnap, randomLong(), randomLong())
-            : SnapshotLifecycleTask.WriteJobStatus.failure(projectId, policyId, initiatingSnap, randomLong(), new RuntimeException());
+            ? SnapshotLifecycleTask.WriteJobStatus.success(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                randomLong(),
+                Collections.emptyList()
+            )
+            : SnapshotLifecycleTask.WriteJobStatus.failure(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                Collections.emptyList(),
+                new RuntimeException()
+            );
 
         // deletedPolicy is no longer defined
         var definedSlmPolicies = List.of(policyId);
@@ -373,8 +387,22 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId otherSnapNotRunning = randSnapshotId();
 
         SnapshotLifecycleTask.WriteJobStatus writeJobStatus = randomBoolean()
-            ? SnapshotLifecycleTask.WriteJobStatus.success(projectId, policyId, initiatingSnap, randomLong(), randomLong())
-            : SnapshotLifecycleTask.WriteJobStatus.failure(projectId, policyId, initiatingSnap, randomLong(), new RuntimeException());
+            ? SnapshotLifecycleTask.WriteJobStatus.success(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                randomLong(),
+                Collections.emptyList()
+            )
+            : SnapshotLifecycleTask.WriteJobStatus.failure(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                Collections.emptyList(),
+                new RuntimeException()
+            );
 
         var definedSlmPolicies = List.of(policyId, otherPolicy);
         var registeredSnapshots = Map.of(policyId, List.of(initiatingSnap), otherPolicy, List.of(otherSnapRunning, otherSnapNotRunning));
@@ -395,8 +423,22 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final SnapshotId initiatingSnap = randSnapshotId();
 
         SnapshotLifecycleTask.WriteJobStatus writeJobStatus = randomBoolean()
-            ? SnapshotLifecycleTask.WriteJobStatus.success(projectId, policyId, initiatingSnap, randomLong(), randomLong())
-            : SnapshotLifecycleTask.WriteJobStatus.failure(projectId, policyId, initiatingSnap, randomLong(), new RuntimeException());
+            ? SnapshotLifecycleTask.WriteJobStatus.success(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                randomLong(),
+                Collections.emptyList()
+            )
+            : SnapshotLifecycleTask.WriteJobStatus.failure(
+                projectId,
+                policyId,
+                initiatingSnap,
+                randomLong(),
+                Collections.emptyList(),
+                new RuntimeException()
+            );
 
         final SnapshotId stillRunning = randSnapshotId();
 
@@ -414,15 +456,21 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertEquals(List.of(stillRunning), newRegisteredPolicySnapshots.getSnapshotsByPolicy(policyId));
     }
 
-    public void testInferFailureInitiatedBySuccess() throws Exception {
+    public void testCleanUpRegisteredInitiatedBySuccess() throws Exception {
         final String policyId = randomAlphaOfLength(10);
         final SnapshotId initiatingSnapshot = randSnapshotId();
-        final SnapshotId previousFailedSnapshot = randSnapshotId();
+        final SnapshotId inferredFailureSnapshot = randSnapshotId();
         // currently running snapshots
         final SnapshotId stillRunning = randSnapshotId();
 
+        final SnapshotInfo snapshotInfoSuccess = randomSnapshotInfoSuccess(projectId);
+        final SnapshotInfo snapshotInfoFailure = randomSnapshotInfoFailure(projectId);
+
         var definedSlmPolicies = List.of(policyId);
-        var registeredSnapshots = Map.of(policyId, List.of(stillRunning, previousFailedSnapshot));
+        var registeredSnapshots = Map.of(
+            policyId,
+            List.of(stillRunning, inferredFailureSnapshot, snapshotInfoSuccess.snapshotId(), snapshotInfoFailure.snapshotId())
+        );
         var inProgress = Map.of(policyId, List.of(stillRunning));
         ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
 
@@ -431,24 +479,31 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             policyId,
             initiatingSnapshot,
             randomLong(),
-            randomLong()
+            randomLong(),
+            List.of(snapshotInfoSuccess, snapshotInfoFailure)
         );
 
         ClusterState newClusterState = writeJobTask.execute(clusterState);
 
-        // previous failure is now recorded in stats and metadata
+        // snapshotInfoSuccess, initiatingSnapshot
+        int expectedSuccessCount = 2;
+        // inferredFailureSnapshot, snapshotInfoFailure
+        int expectedFailureCount = 2;
+        // the last snapshot (initiatingSnapshot) was successful
+        int expectedInvocationsSinceLastSuccess = 0;
+        // registered snapshots state is now recorded in stats and metadata
         SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
         SnapshotLifecycleStats newStats = newSlmMetadata.getStats();
         SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newStats.getMetrics().get(policyId);
-        assertEquals(1, snapshotPolicyStats.getSnapshotFailedCount());
-        assertEquals(1, snapshotPolicyStats.getSnapshotTakenCount());
+        assertEquals(expectedFailureCount, snapshotPolicyStats.getSnapshotFailedCount());
+        assertEquals(expectedSuccessCount, snapshotPolicyStats.getSnapshotTakenCount());
 
         SnapshotLifecyclePolicyMetadata newSlmPolicyMetadata = newSlmMetadata.getSnapshotConfigurations().get(policyId);
-        assertEquals(previousFailedSnapshot.getName(), newSlmPolicyMetadata.getLastFailure().getSnapshotName());
+        assertEquals(snapshotInfoFailure.snapshotId().getName(), newSlmPolicyMetadata.getLastFailure().getSnapshotName());
         assertEquals(initiatingSnapshot.getName(), newSlmPolicyMetadata.getLastSuccess().getSnapshotName());
-        assertEquals(0, newSlmPolicyMetadata.getInvocationsSinceLastSuccess());
+        assertEquals(expectedInvocationsSinceLastSuccess, newSlmPolicyMetadata.getInvocationsSinceLastSuccess());
 
-        // failed snapshot no longer in registeredSnapshot set
+        // completed snapshot no longer in registeredSnapshot set
         RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata()
             .getProject(projectId)
             .custom(RegisteredPolicySnapshots.TYPE);
@@ -456,14 +511,27 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertEquals(List.of(stillRunning), newRegisteredSnapIds);
     }
 
-    public void testInferFailureInitiatedByFailure() throws Exception {
+    public void testCleanUpRegisteredInitiatedByFailure() throws Exception {
         final String policyId = randomAlphaOfLength(10);
         final SnapshotId initiatingSnapshot = randSnapshotId();
-        final SnapshotId previousFailedSnapshot = randSnapshotId();
+        final SnapshotId inferredFailureSnapshot = randSnapshotId();
         final SnapshotId stillRunning = randSnapshotId();
+        final SnapshotInfo snapshotInfoSuccess = randomSnapshotInfoSuccess(projectId);
+        final SnapshotInfo snapshotInfoFailure1 = randomSnapshotInfoFailure(projectId);
+        final SnapshotInfo snapshotInfoFailure2 = randomSnapshotInfoFailure(projectId);
 
         var definedSlmPolicies = List.of(policyId);
-        var registeredSnapshots = Map.of(policyId, List.of(stillRunning, previousFailedSnapshot));
+        var registeredSnapshots = Map.of(
+            policyId,
+            List.of(
+                stillRunning,
+                inferredFailureSnapshot,
+                snapshotInfoSuccess.snapshotId(),
+                snapshotInfoFailure1.snapshotId(),
+                snapshotInfoFailure2.snapshotId(),
+                initiatingSnapshot
+            )
+        );
         var inProgress = Map.of(policyId, List.of(stillRunning));
         ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
 
@@ -472,24 +540,31 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             policyId,
             initiatingSnapshot,
             randomLong(),
+            List.of(snapshotInfoSuccess, snapshotInfoFailure1, snapshotInfoFailure2),
             new RuntimeException()
         );
 
         ClusterState newClusterState = writeJobTask.execute(clusterState);
 
-        // previous failure is now recorded in stats and metadata
+        // snapshotInfoSuccess
+        int expectedSuccessCount = 1;
+        // inferredFailureSnapshot, snapshotInfoFailure1, snapshotInfoFailure2, initiatingSnapshot
+        int expectedFailureCount = 4;
+        // snapshotInfoFailure1, snapshotInfoFailure2, initiatingSnapshot
+        int expectedInvocationsSinceLastSuccess = 3;
+        // registered snapshots state is now recorded in stats and metadata
         SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
         SnapshotLifecycleStats newStats = newSlmMetadata.getStats();
         SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newStats.getMetrics().get(policyId);
-        assertEquals(2, snapshotPolicyStats.getSnapshotFailedCount());
-        assertEquals(0, snapshotPolicyStats.getSnapshotTakenCount());
+        assertEquals(expectedFailureCount, snapshotPolicyStats.getSnapshotFailedCount());
+        assertEquals(expectedSuccessCount, snapshotPolicyStats.getSnapshotTakenCount());
 
         SnapshotLifecyclePolicyMetadata newSlmPolicyMetadata = newSlmMetadata.getSnapshotConfigurations().get(policyId);
         assertEquals(initiatingSnapshot.getName(), newSlmPolicyMetadata.getLastFailure().getSnapshotName());
-        assertNull(newSlmPolicyMetadata.getLastSuccess());
-        assertEquals(2, newSlmPolicyMetadata.getInvocationsSinceLastSuccess());
+        assertEquals(snapshotInfoSuccess.snapshotId().getName(), newSlmPolicyMetadata.getLastSuccess().getSnapshotName());
+        assertEquals(expectedInvocationsSinceLastSuccess, newSlmPolicyMetadata.getInvocationsSinceLastSuccess());
 
-        // failed snapshot no longer in registeredSnapshot set
+        // completed snapshot no longer in registeredSnapshot set
         RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata()
             .getProject(projectId)
             .custom(RegisteredPolicySnapshots.TYPE);
@@ -658,5 +733,43 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         public void putAsync(SnapshotHistoryItem item) {
             verifier.accept(item);
         }
+    }
+
+    private static SnapshotInfo randomSnapshotInfoSuccess(ProjectId projectId) {
+        long startTime = randomNonNegativeLong();
+        long endTime = randomLongBetween(startTime, Long.MAX_VALUE);
+        return new SnapshotInfo(
+            new Snapshot(projectId, "repo", randSnapshotId()),
+            List.of("index1", "index2"),
+            List.of(),
+            List.of(),
+            null,
+            endTime,
+            2,
+            List.of(),
+            randomBoolean(),
+            Map.of(),
+            startTime,
+            Map.of()
+        );
+    }
+
+    private static SnapshotInfo randomSnapshotInfoFailure(ProjectId projectId) {
+        long startTime = randomNonNegativeLong();
+        long endTime = randomLongBetween(startTime, Long.MAX_VALUE);
+        return new SnapshotInfo(
+            new Snapshot(projectId, "repo", randSnapshotId()),
+            List.of("index1", "index2"),
+            List.of(),
+            List.of(),
+            "failed snapshot",
+            endTime,
+            2,
+            List.of(new SnapshotShardFailure("nodeId", new ShardId("index", "uuid", 0), "forced failure")),
+            randomBoolean(),
+            Map.of(),
+            startTime,
+            Map.of()
+        );
     }
 }

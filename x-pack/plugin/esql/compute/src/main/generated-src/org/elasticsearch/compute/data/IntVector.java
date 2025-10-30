@@ -129,10 +129,10 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeInt(getInt(0));
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntArrayVector v) {
+        } else if (this instanceof IntArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntBigArrayVector v) {
+        } else if (this instanceof IntBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {

@@ -421,6 +421,13 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         }
     }
 
+    public void applyNewFrequency(TransformConfig config) {
+        var frequency = config != null ? config.getFrequency() : null;
+        if (frequency != null) {
+            transformScheduler.updateFrequency(config.getId(), frequency);
+        }
+    }
+
     @Override
     protected void init(
         PersistentTasksService persistentTasksService,

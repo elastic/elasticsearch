@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -245,7 +246,13 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
             DataStreamTestHelper.getClusterStateWithDataStream(mbBuilder, dataStreamName, List.of(new Tuple<>(start, end)));
         }
 
-        Settings settings = Settings.builder().put("index.mode", "logsdb").build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
+            .put(
+                IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start.minus(1, ChronoUnit.SECONDS))
+            )
+            .build();
         var im = createIndexMetadata(getDefaultBackingIndexName(dataStreamName2, 2, start.toEpochMilli()), true, settings, 0);
         mbBuilder.put(im, true);
         var ds2 = mbBuilder.dataStreamMetadata().dataStreams().get(dataStreamName2);

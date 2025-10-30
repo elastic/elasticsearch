@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-types.html
 ---
@@ -77,8 +80,8 @@ Dates
 
 ### Text search types [text-search-types]
 
-[`text` fields](/reference/elasticsearch/mapping-reference/text.md)
-:   The text family, including `text` and `match_only_text`. Analyzed, unstructured text.
+[`text` fields](/reference/elasticsearch/mapping-reference/text-type-family.md)
+:   The text family, including `text`, `match_only_text`, and `pattern_text`. Analyzed, unstructured text.
 
 [`annotated-text`](/reference/elasticsearch-plugins/mapper-annotated-text.md)
 :   Text containing special markup. Used for identifying named entities.

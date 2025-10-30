@@ -143,7 +143,7 @@ public final class CsvTestUtils {
                         return;
                     }
                     stringValue = mvStrings[0].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                } else if (stringValue.contains(",")) {// multi-value field
+                } else if (stringValue.contains(",") && type != Type.AGGREGATE_METRIC_DOUBLE) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
 
                     String[] arrayOfValues = delimitedListToStringArray(stringValue, ",");
@@ -593,6 +593,7 @@ public final class CsvTestUtils {
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
                 case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
+                case EXPONENTIAL_HISTOGRAM -> throw new IllegalArgumentException("exponential histogram blocks not supported yet");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

@@ -38,7 +38,7 @@ public class ZstdTests extends ESTestCase {
     }
 
     public void testCompressValidation() {
-        try (var src = nativeAccess.newBuffer(1000); var dst = nativeAccess.newBuffer(500)) {
+        try (var src = nativeAccess.newConfinedBuffer(1000); var dst = nativeAccess.newConfinedBuffer(500)) {
             var srcBuf = src.buffer();
             var dstBuf = dst.buffer();
 
@@ -58,9 +58,9 @@ public class ZstdTests extends ESTestCase {
 
     public void testDecompressValidation() {
         try (
-            var original = nativeAccess.newBuffer(1000);
-            var compressed = nativeAccess.newBuffer(500);
-            var restored = nativeAccess.newBuffer(500)
+            var original = nativeAccess.newConfinedBuffer(1000);
+            var compressed = nativeAccess.newConfinedBuffer(500);
+            var restored = nativeAccess.newConfinedBuffer(500)
         ) {
             var originalBuf = original.buffer();
             var compressedBuf = compressed.buffer();
@@ -105,9 +105,9 @@ public class ZstdTests extends ESTestCase {
 
     private void doTestRoundtrip(byte[] data) {
         try (
-            var original = nativeAccess.newBuffer(data.length);
-            var compressed = nativeAccess.newBuffer(zstd.compressBound(data.length));
-            var restored = nativeAccess.newBuffer(data.length)
+            var original = nativeAccess.newConfinedBuffer(data.length);
+            var compressed = nativeAccess.newConfinedBuffer(zstd.compressBound(data.length));
+            var restored = nativeAccess.newConfinedBuffer(data.length)
         ) {
             original.buffer().put(0, data);
             int compressedLength = zstd.compress(compressed, original, randomIntBetween(-3, 9));
@@ -121,9 +121,9 @@ public class ZstdTests extends ESTestCase {
         final int compressedOffset = randomIntBetween(1, 1000);
         final int decompressedOffset = randomIntBetween(1, 1000);
         try (
-            var original = nativeAccess.newBuffer(decompressedOffset + data.length);
-            var compressed = nativeAccess.newBuffer(compressedOffset + zstd.compressBound(data.length));
-            var restored = nativeAccess.newBuffer(decompressedOffset + data.length)
+            var original = nativeAccess.newConfinedBuffer(decompressedOffset + data.length);
+            var compressed = nativeAccess.newConfinedBuffer(compressedOffset + zstd.compressBound(data.length));
+            var restored = nativeAccess.newConfinedBuffer(decompressedOffset + data.length)
         ) {
             original.buffer().put(decompressedOffset, data);
             original.buffer().position(decompressedOffset);

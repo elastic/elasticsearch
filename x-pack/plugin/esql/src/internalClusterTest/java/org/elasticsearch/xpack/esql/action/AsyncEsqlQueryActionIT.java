@@ -312,6 +312,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 assertThat(resp.isRunning(), is(false));
             }
         });
+        assertThat(getExpirationFromDoc(asyncId), greaterThanOrEqualTo(nowInMillis + keepAlive.getMillis()));
         // update the keepAlive after the query has completed
         int iters = between(1, 5);
         for (int i = 0; i < iters; i++) {

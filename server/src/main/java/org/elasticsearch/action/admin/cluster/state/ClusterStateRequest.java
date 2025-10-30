@@ -39,6 +39,7 @@ public class ClusterStateRequest extends LocalClusterStateRequest implements Ind
     private TimeValue waitForTimeout = DEFAULT_WAIT_FOR_NODE_TIMEOUT;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
+    private boolean multiproject = false;
 
     public ClusterStateRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
@@ -140,6 +141,15 @@ public class ClusterStateRequest extends LocalClusterStateRequest implements Ind
         return customs;
     }
 
+    public ClusterStateRequest multiproject(boolean multiproject) {
+        this.multiproject = multiproject;
+        return this;
+    }
+
+    public boolean multiproject() {
+        return multiproject;
+    }
+
     public TimeValue waitForTimeout() {
         return waitForTimeout;
     }
@@ -200,5 +210,4 @@ public class ClusterStateRequest extends LocalClusterStateRequest implements Ind
         stringBuilder.append("master timeout [").append(masterTimeout()).append("]]");
         return stringBuilder.toString();
     }
-
 }

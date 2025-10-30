@@ -13,8 +13,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -68,7 +70,8 @@ public interface BlockLoader {
          *
          * @param nullsFiltered if {@code true}, then target docs are guaranteed to have a value for the field.
          *                      see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
-         * @param toDouble a function to convert long values to double, or null if no conversion is needed/supported
+         * @param toDouble      a function to convert long values to double, or null if no conversion is needed/supported
+         * @param toInt         whether to convert to int in case int block / vector is needed
          */
         @Nullable
         BlockLoader.Block tryRead(
@@ -76,7 +79,8 @@ public interface BlockLoader {
             Docs docs,
             int offset,
             boolean nullsFiltered,
-            BlockDocValuesReader.ToDouble toDouble
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
         ) throws IOException;
     }
 
@@ -375,6 +379,13 @@ public interface BlockLoader {
      */
     interface BlockFactory {
         /**
+         * Adjust the circuit breaker with the given delta, if the delta is negative, the breaker will
+         * be adjusted without tripping.
+         * @throws CircuitBreakingException if the breaker was put above its limit
+         */
+        void adjustBreaker(long delta) throws CircuitBreakingException;
+
+        /**
          * Build a builder to load booleans as loaded from doc values. Doc values
          * load booleans in sorted order.
          */
@@ -446,6 +457,17 @@ public interface BlockLoader {
         SingletonLongBuilder singletonLongs(int expectedCount);
 
         /**
+         * Build a specialized builder for singleton dense int based fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonIntBuilder singletonInts(int expectedCount);
+
+        /**
          * Build a specialized builder for singleton dense double based fields with the following constraints:
          * <ul>
          *     <li>Only one value per document can be collected</li>
@@ -471,6 +493,12 @@ public interface BlockLoader {
          * {@code size} times.
          */
         Block constantBytes(BytesRef value, int count);
+
+        /**
+         * Build a block that contains {@code value} repeated
+         * {@code count} times.
+         */
+        Block constantInt(int value, int count);
 
         /**
          * Build a reader for reading {@link SortedDocValues}
@@ -570,6 +598,13 @@ public interface BlockLoader {
         SingletonDoubleBuilder appendLongs(BlockDocValuesReader.ToDouble toDouble, long[] values, int from, int length);
     }
 
+    /**
+     * Specialized builder for collecting dense arrays of double values.
+     */
+    interface SingletonIntBuilder extends Builder {
+        SingletonIntBuilder appendLongs(long[] values, int from, int length);
+    }
+
     interface LongBuilder extends Builder {
         /**
          * Appends a long to the current entry.
@@ -582,6 +617,11 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+
+        /**
+         * Appends a single ord for the next N positions
+         */
+        SingletonOrdinalsBuilder appendOrds(int ord, int length);
 
         SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd);
     }

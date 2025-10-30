@@ -18,9 +18,11 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 /**
@@ -124,8 +126,13 @@ public class DesiredBalanceMetrics {
     public static final String CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME =
         "es.allocator.allocations.node.forecasted_disk_usage_bytes.current";
 
-    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(0, Map.of());
+    // Decider metrics
+    public static final String WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE = "es.allocator.deciders.write_load.max_latency_value.current";
 
+    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(0, Map.of());
+    public static final DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
+
+    private final MeterRegistry meterRegistry;
     private volatile boolean nodeIsMaster = false;
 
     /**
@@ -153,6 +160,7 @@ public class DesiredBalanceMetrics {
     }
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
         meterRegistry.registerLongsGauge(
             UNASSIGNED_SHARDS_METRIC_NAME,
             "Current number of unassigned shards",
@@ -258,6 +266,15 @@ public class DesiredBalanceMetrics {
 
     public AllocationStats allocationStats() {
         return lastReconciliationAllocationStats;
+    }
+
+    public void registerWriteLoadDeciderMaxLatencyGauge(Supplier<Collection<LongWithAttributes>> maxLatencySupplier) {
+        meterRegistry.registerLongsGauge(
+            WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
+            "max latency for write load decider",
+            "ms",
+            maxLatencySupplier
+        );
     }
 
     private List<LongWithAttributes> getUnassignedShardsMetrics() {

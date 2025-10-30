@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.registry;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -38,8 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
-import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -91,18 +88,36 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         return resp != null ? resp : EMPTY_NOT_UPGRADED;
     }
 
+    private static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = TransportVersion.fromName(
+        "inference_model_registry_metadata"
+    );
+
     public ModelRegistryMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {
-        final var existing = modelMap.get(inferenceEntityId);
-        if (existing != null && settings.equals(existing)) {
+        return withAddedModels(List.of(new ModelRegistry.ModelAndSettings(inferenceEntityId, settings)));
+    }
+
+    public ModelRegistryMetadata withAddedModels(List<ModelRegistry.ModelAndSettings> models) {
+        var modifiedMap = false;
+        ImmutableOpenMap.Builder<String, MinimalServiceSettings> settingsBuilder = ImmutableOpenMap.builder(modelMap);
+
+        for (var model : models) {
+            if (model.settings().equals(modelMap.get(model.inferenceEntityId())) == false) {
+                modifiedMap = true;
+
+                settingsBuilder.fPut(model.inferenceEntityId(), model.settings());
+            }
+        }
+
+        if (modifiedMap == false) {
             return this;
         }
-        var settingsBuilder = ImmutableOpenMap.builder(modelMap);
-        settingsBuilder.fPut(inferenceEntityId, settings);
+
         if (isUpgraded) {
             return new ModelRegistryMetadata(settingsBuilder.build());
         }
+
         var newTombstone = new HashSet<>(tombstones);
-        newTombstone.remove(inferenceEntityId);
+        models.forEach(existing -> newTombstone.remove(existing.inferenceEntityId()));
         return new ModelRegistryMetadata(settingsBuilder.build(), newTombstone);
     }
 
@@ -187,7 +202,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     }
 
     /**
-     * Determines whether all models created prior to {@link TransportVersions#INFERENCE_MODEL_REGISTRY_METADATA}
+     * Determines whether all models created prior to {@link #INFERENCE_MODEL_REGISTRY_METADATA}
      * have been successfully restored from the {@link InferenceIndex}.
      *
      * @return true if all such models have been restored; false otherwise.
@@ -237,7 +252,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+        return INFERENCE_MODEL_REGISTRY_METADATA;
     }
 
     @Override
@@ -259,7 +274,9 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
             return false;
         }
         ModelRegistryMetadata other = (ModelRegistryMetadata) obj;
-        return Objects.equals(this.modelMap, other.modelMap) && isUpgraded == other.isUpgraded;
+        return Objects.equals(this.modelMap, other.modelMap)
+            && isUpgraded == other.isUpgraded
+            && Objects.equals(this.tombstones, other.tombstones);
     }
 
     @Override
@@ -308,7 +325,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+            return INFERENCE_MODEL_REGISTRY_METADATA;
         }
 
         @Override
@@ -328,6 +345,6 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     }
 
     static boolean shouldSerialize(TransportVersion version) {
-        return version.isPatchFrom(INFERENCE_MODEL_REGISTRY_METADATA_8_19) || version.onOrAfter(INFERENCE_MODEL_REGISTRY_METADATA);
+        return version.supports(INFERENCE_MODEL_REGISTRY_METADATA);
     }
 }

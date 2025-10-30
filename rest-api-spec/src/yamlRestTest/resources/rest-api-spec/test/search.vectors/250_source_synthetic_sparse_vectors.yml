@@ -165,7 +165,6 @@ setup:
         index: test
         body:
           _source:
-            exclude_vectors: false
             includes: nested.emb
           sort: ["name"]
 
@@ -173,7 +172,7 @@ setup:
   - length:          { hits.hits.0._source: 0}
 
   - match:           { hits.hits.1._id: "2"}
-  - length:          { hits.hits.3._source: 1 }
+  - length:          { hits.hits.1._source: 1 }
   - length:          { hits.hits.1._source.nested: 3 }
   - exists:            hits.hits.1._source.nested.0.emb
   - not_exists:        hits.hits.1._source.nested.0.paragraph_id
@@ -194,6 +193,62 @@ setup:
   - exists:            hits.hits.3._source.nested.1.emb
   - length:          { hits.hits.3._source.nested.1.emb: 1 }
   - not_exists:        hits.hits.3._source.nested.1.paragraph_id
+
+  - do:
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: true
+            includes: nested.emb
+          sort: ["name"]
+
+  - match:           { hits.hits.0._id: "1"}
+  - length:          { hits.hits.0._source: 0}
+
+  - match:           { hits.hits.1._id: "2"}
+  - length:          { hits.hits.1._source: 1 }
+  - length:          { hits.hits.1._source.nested: 3 }
+  - exists:            hits.hits.1._source.nested.0.emb
+  - not_exists:        hits.hits.1._source.nested.0.paragraph_id
+  - exists:            hits.hits.1._source.nested.1.emb
+  - not_exists:        hits.hits.1._source.nested.1.paragraph_id
+  - exists:            hits.hits.1._source.nested.2.emb
+  - not_exists:        hits.hits.1._source.nested.2.paragraph_id
+
+  - match:           { hits.hits.2._id: "3" }
+  - length:          { hits.hits.2._source: 0}
+
+  - match:           { hits.hits.3._id: "4" }
+  - length:          { hits.hits.3._source: 1 }
+  - length:          { hits.hits.3._source.nested: 2 }
+  - exists:            hits.hits.3._source.nested.0.emb
+  - length:          { hits.hits.3._source.nested.0.emb: 3 }
+  - not_exists:        hits.hits.3._source.nested.0.paragraph_id
+  - exists:            hits.hits.3._source.nested.1.emb
+  - length:          { hits.hits.3._source.nested.1.emb: 1 }
+  - not_exists:        hits.hits.3._source.nested.1.paragraph_id
+
+  - do:
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: true
+            includes: nested.emb
+            excludes: nested*
+          sort: ["name"]
+
+  - match:           { hits.hits.0._id: "1"}
+  - length:          { hits.hits.0._source: 0}
+
+  - match:           { hits.hits.1._id: "2"}
+  - length:          { hits.hits.1._source: 0 }
+  - match:           { hits.hits.2._id: "3" }
+  - length:          { hits.hits.2._source: 0}
+
+  - match:           { hits.hits.3._id: "4" }
+  - length:          { hits.hits.3._source: 0 }
 
   - do:
       headers:

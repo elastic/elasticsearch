@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValueList;
+import static org.hamcrest.Matchers.equalTo;
 
 public class AttributeListTsidFunnelTests extends ESTestCase {
 
@@ -54,6 +55,18 @@ public class AttributeListTsidFunnelTests extends ESTestCase {
         plainBuilder.addLongDimension("attributes.nested.int", 42);
         plainBuilder.addStringDimension("attributes.foo", "bar");
         assertEquals(plainBuilder.hash(), funnelBuilder.hash());
+    }
+
+    public void testIgnoredAttributes() {
+        funnel.add(
+            List.of(
+                keyValue("elasticsearch.index", "index"),
+                keyValue("data_stream.dataset", "dataset"),
+                keyValue("data_stream.namespace", "namespace")
+            ),
+            funnelBuilder
+        );
+        assertThat(funnelBuilder.size(), equalTo(0));
     }
 
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,9 +23,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS;
-
 public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContentFragment {
+
+    private static final TransportVersion SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS = TransportVersion.fromName(
+        "snapshot_index_shard_status_missing_stats"
+    );
 
     private final SnapshotIndexShardStage stage;
 
@@ -42,7 +45,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         stats = new SnapshotStats(in);
         nodeId = in.readOptionalString();
         failure = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
+        if (in.getTransportVersion().supports(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
             description = in.readOptionalString();
         }
     }
@@ -159,7 +162,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         stats.writeTo(out);
         out.writeOptionalString(nodeId);
         out.writeOptionalString(failure);
-        if (out.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
+        if (out.getTransportVersion().supports(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
             out.writeOptionalString(description);
         }
     }

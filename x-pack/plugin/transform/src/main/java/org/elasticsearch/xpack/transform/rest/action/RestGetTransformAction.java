@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.rest.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -39,10 +40,11 @@ public class RestGetTransformAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        GetTransformAction.Request request = new GetTransformAction.Request();
+        var id = restRequest.param(TransformField.ID.getPreferredName());
+        var checkForDanglingTasks = restRequest.paramAsBoolean(TransformField.CHECK_FOR_DANGLING_TASKS.getPreferredName(), true);
+        var timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
-        String id = restRequest.param(TransformField.ID.getPreferredName());
-        request.setResourceId(id);
+        var request = new GetTransformAction.Request(id, checkForDanglingTasks, timeout);
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(

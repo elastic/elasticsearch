@@ -63,18 +63,19 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(Sqrt.processUnsignedLong(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        result.appendDouble(Sqrt.processUnsignedLong(val));
       }
       return result.build();
     }
@@ -83,7 +84,8 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   public DoubleVector eval(int positionCount, LongVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Sqrt.processUnsignedLong(valVector.getLong(p)));
+        long val = valVector.getLong(p);
+        result.appendDouble(p, Sqrt.processUnsignedLong(val));
       }
       return result.build();
     }

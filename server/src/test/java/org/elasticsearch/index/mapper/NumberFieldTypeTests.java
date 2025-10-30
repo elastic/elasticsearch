@@ -131,8 +131,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         return new NumberFieldType(
             "field",
             NumberType.LONG,
-            false,
-            false,
+            IndexType.NONE,
             false,
             true,
             null,

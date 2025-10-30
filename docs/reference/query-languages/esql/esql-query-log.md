@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Query log"
 ---
 
@@ -44,6 +47,7 @@ The following is an example of a successful query event in the query log:
     "elasticsearch.cluster.name": "runTask"
 }
 ```
+% NOTCONSOLE
 
 The following is an example of a failing query event in the query log:
 
@@ -72,7 +76,7 @@ The following is an example of a failing query event in the query log:
     "elasticsearch.cluster.name": "runTask"
 }
 ```
-
+% NOTCONSOLE
 
 ## Enable query logging [enable-query-log]
 

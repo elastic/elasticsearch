@@ -82,30 +82,32 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
       BytesRef algorithmScratch = new BytesRef();
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (algorithmBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (algorithmBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (algorithmBlock.getValueCount(p) != 1) {
-          if (algorithmBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (inputBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (inputBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (inputBlock.getValueCount(p) != 1) {
-          if (inputBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        BytesRef algorithm = algorithmBlock.getBytesRef(algorithmBlock.getFirstValueIndex(p), algorithmScratch);
+        BytesRef input = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch);
         try {
-          result.appendBytesRef(Hash.process(this.scratch, algorithmBlock.getBytesRef(algorithmBlock.getFirstValueIndex(p), algorithmScratch), inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
+          result.appendBytesRef(Hash.process(this.scratch, algorithm, input));
         } catch (NoSuchAlgorithmException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -121,8 +123,10 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
       BytesRef algorithmScratch = new BytesRef();
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef algorithm = algorithmVector.getBytesRef(p, algorithmScratch);
+        BytesRef input = inputVector.getBytesRef(p, inputScratch);
         try {
-          result.appendBytesRef(Hash.process(this.scratch, algorithmVector.getBytesRef(p, algorithmScratch), inputVector.getBytesRef(p, inputScratch)));
+          result.appendBytesRef(Hash.process(this.scratch, algorithm, input));
         } catch (NoSuchAlgorithmException e) {
           warnings().registerException(e);
           result.appendNull();

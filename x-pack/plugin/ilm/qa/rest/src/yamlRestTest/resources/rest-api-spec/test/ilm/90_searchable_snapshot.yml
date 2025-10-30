@@ -15,7 +15,7 @@ teardown:
         repository: foo
 
 ---
-"Test downsample in hot phase without rollover":
+"Test put lifecycle with searchable snapshot action including force_merge_on_clone":
   - requires:
       test_runner_features: [ warnings, capabilities ]
       capabilities:

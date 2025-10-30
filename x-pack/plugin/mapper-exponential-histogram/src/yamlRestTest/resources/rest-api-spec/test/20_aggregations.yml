@@ -71,3 +71,47 @@ setup:
 
   - match: { hits.total.value: 5 }
   - match: { aggregations.avg_agg.value: 2102.2195121951218 }
+
+---
+"Histogram aggregation":
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            histo_agg:
+              histogram:
+                field: histo
+                interval: 5
+                min_doc_count: 1
+  - match:
+     aggregations.histo_agg.buckets:
+       - key: -995.0
+         doc_count: 1
+       - key: -910.0
+         doc_count: 1
+       - key: -800.0
+         doc_count: 1
+       - key: -705.0
+         doc_count: 2
+       - key: -20.0
+         doc_count: 1
+       - key: -5.0
+         doc_count: 1
+       - key: 0.0
+         doc_count: 12
+       - key: 5.0
+         doc_count: 5
+       - key: 25.0
+         doc_count: 3
+       - key: 100.0
+         doc_count: 2
+       - key: 2000.0
+         doc_count: 1
+       - key: 2730.0
+         doc_count: 2
+       - key: 5460.0
+         doc_count: 4
+       - key: 10920.0
+         doc_count: 5

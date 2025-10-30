@@ -151,7 +151,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
         if (forceMergeIndex == false && forceMergeOnClone != null) {
             throw new IllegalArgumentException(
-                "[" + FORCE_MERGE_ON_CLONE.getPreferredName() + "] is not allowed when [" + FORCE_MERGE_INDEX + "] is [false]"
+                Strings.format(
+                    "[%s] is not allowed when [%s] is [false]",
+                    FORCE_MERGE_ON_CLONE.getPreferredName(),
+                    FORCE_MERGE_INDEX.getPreferredName()
+                )
             );
         }
         this.forceMergeOnClone = forceMergeOnClone;

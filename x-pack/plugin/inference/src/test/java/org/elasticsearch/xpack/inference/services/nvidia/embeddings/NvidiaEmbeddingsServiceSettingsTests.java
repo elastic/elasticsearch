@@ -504,9 +504,9 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         switch (between(0, 5)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> uri = randomValueOtherThan(uri, () -> ServiceUtils.createOptionalUri(randomAlphaOfLengthOrNull(15)));
-            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomIntBetween(32, 256));
-            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
-            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomIntBetween(128, 256));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomBoolean() ? randomIntBetween(32, 256) : null);
+            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomBoolean() ? randomFrom(SimilarityMeasure.values()) : null);
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomBoolean() ? randomIntBetween(128, 256) : null);
             case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -516,9 +516,9 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     private static NvidiaEmbeddingsServiceSettings createRandom() {
         var modelId = randomAlphaOfLength(8);
         var url = randomAlphaOfLengthOrNull(15);
-        var similarityMeasure = randomFrom(SimilarityMeasure.values());
-        var dimensions = randomIntBetween(32, 256);
-        var maxInputTokens = randomIntBetween(128, 256);
+        var similarityMeasure = randomBoolean() ? randomFrom(SimilarityMeasure.values()) : null;
+        var dimensions = randomBoolean() ? randomIntBetween(32, 256) : null;
+        var maxInputTokens = randomBoolean() ? randomIntBetween(128, 256) : null;
         return new NvidiaEmbeddingsServiceSettings(
             modelId,
             url,

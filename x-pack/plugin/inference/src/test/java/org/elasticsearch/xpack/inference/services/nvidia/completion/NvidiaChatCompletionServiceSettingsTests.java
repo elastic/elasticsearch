@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -193,13 +194,24 @@ public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSer
         return new NvidiaChatCompletionServiceSettings(modelId, ServiceUtils.createOptionalUri(url), RateLimitSettingsTests.createRandom());
     }
 
-    public static Map<String, Object> getServiceSettingsMap(String model, String url) {
-        var map = new HashMap<String, Object>();
+    public static Map<String, Object> buildServiceSettingsMap(
+        @Nullable String modelId,
+        @Nullable String url,
+        @Nullable HashMap<String, Integer> rateLimitSettings
+    ) {
+        var result = new HashMap<String, Object>();
 
-        map.put(ServiceFields.MODEL_ID, model);
-        map.put(ServiceFields.URL, url);
+        if (modelId != null) {
+            result.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (url != null) {
+            result.put(ServiceFields.URL, url);
+        }
+        if (rateLimitSettings != null) {
+            result.put(RateLimitSettings.FIELD_NAME, rateLimitSettings);
+        }
 
-        return map;
+        return result;
     }
 
 }

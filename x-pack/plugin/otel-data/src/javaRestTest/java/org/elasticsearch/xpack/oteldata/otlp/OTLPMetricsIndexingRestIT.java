@@ -76,6 +76,7 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .user(USER, PASS, "superuser", false)
+        .setting("xpack.security.enabled", "true")
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")

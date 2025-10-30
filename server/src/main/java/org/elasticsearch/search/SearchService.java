@@ -1283,7 +1283,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     throw e;
                 }
                 ReaderContext readerContext = null;
-                if (PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+                // don't handle contexts originating from the current SearchService session, they get added as normal temporary contexts
+                if (PIT_RELOCATION_FEATURE_FLAG.isEnabled() && sessionId.equals(contextId.getSessionId()) == false) {
                     readerContext = createAndPutRelocatedPitContext(
                         contextId,
                         indexService,
@@ -1293,7 +1294,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     );
                     logger.debug("Recreated reader context [{}]", readerContext.id());
                 } else {
-                    // when relocation feature is disabled, stay with the old way of just adding a temporary context
                     readerContext = createAndPutReaderContext(request, indexService, shard, searcherSupplier, defaultKeepAlive);
                 }
                 return readerContext;

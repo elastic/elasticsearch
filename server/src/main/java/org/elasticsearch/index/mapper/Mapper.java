@@ -136,7 +136,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * This class models the ignore_above parameter in indices.
      */
     public static final class IgnoreAbove {
-
+        // We use Integer.MAX_VALUE to represent a no-op, ignoring no values.
         public static final int IGNORE_ABOVE_DEFAULT_VALUE = Integer.MAX_VALUE;
         public static final int IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES = 8191;
 
@@ -176,6 +176,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          * Returns whether values are potentially ignored, either by an explicitly configured ignore_above or by the default value.
          */
         public boolean valuesPotentiallyIgnored() {
+            // We use Integer.MAX_VALUE to represent ignoring no values. If the value is anything else, then either we have an
+            // explicitly configured ignore_above, or we have a non no-op default.
             return get() != Integer.MAX_VALUE;
         }
 

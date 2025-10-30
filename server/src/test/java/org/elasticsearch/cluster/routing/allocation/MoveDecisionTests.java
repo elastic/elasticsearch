@@ -29,12 +29,12 @@ public class MoveDecisionTests extends ESTestCase {
 
     public void testCachedDecisions() {
         // cached stay decision
-        MoveDecision stay1 = MoveDecision.createMoveDecisionWithRemainYesDecision(Decision.YES);
-        MoveDecision stay2 = MoveDecision.createMoveDecisionWithRemainYesDecision(Decision.YES);
+        MoveDecision stay1 = MoveDecision.createRemainYesDecision(Decision.YES);
+        MoveDecision stay2 = MoveDecision.createRemainYesDecision(Decision.YES);
         assertSame(stay1, stay2); // not in explain mode, so should use cached decision
 
-        stay1 = MoveDecision.createMoveDecisionWithRemainYesDecision(new Decision.Single(Type.YES, null, null, (Object[]) null));
-        stay2 = MoveDecision.createMoveDecisionWithRemainYesDecision(new Decision.Single(Type.YES, null, null, (Object[]) null));
+        stay1 = MoveDecision.createRemainYesDecision(new Decision.Single(Type.YES, null, null, (Object[]) null));
+        stay2 = MoveDecision.createRemainYesDecision(new Decision.Single(Type.YES, null, null, (Object[]) null));
         assertNotSame(stay1, stay2);
 
         // cached cannot move decision
@@ -57,14 +57,14 @@ public class MoveDecisionTests extends ESTestCase {
     }
 
     public void testStayDecision() {
-        MoveDecision stay = MoveDecision.createMoveDecisionWithRemainYesDecision(Decision.YES);
+        MoveDecision stay = MoveDecision.createRemainYesDecision(Decision.YES);
         assertTrue(stay.canRemain());
         assertFalse(stay.cannotRemainAndCanMove());
         assertTrue(stay.isDecisionTaken());
         assertNull(stay.getNodeDecisions());
         assertEquals(AllocationDecision.NO_ATTEMPT, stay.getAllocationDecision());
 
-        stay = MoveDecision.createMoveDecisionWithRemainYesDecision(Decision.YES);
+        stay = MoveDecision.createRemainYesDecision(Decision.YES);
         assertTrue(stay.canRemain());
         assertFalse(stay.cannotRemainAndCanMove());
         assertTrue(stay.isDecisionTaken());

@@ -927,7 +927,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
             if (canRemain.type() != Decision.Type.NO && canRemain.type() != Decision.Type.NOT_PREFERRED) {
-                return MoveDecision.createMoveDecisionWithRemainYesDecision(canRemain);
+                return MoveDecision.createRemainYesDecision(canRemain);
             }
 
             // Check predicate to decide whether to assess movement options

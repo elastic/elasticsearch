@@ -92,8 +92,9 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Creates a move decision for the shard being able to remain on its current node, so the shard won't
      * be forced to move to another node.
      */
-    public static MoveDecision createMoveDecisionWithRemainYesDecision(Decision canRemainDecision) {
+    public static MoveDecision createRemainYesDecision(Decision canRemainDecision) {
         assert canRemainDecision.type() != Type.NO;
+        assert canRemainDecision.type() != Type.NOT_PREFERRED;
         if (canRemainDecision == Decision.YES) {
             return CACHED_STAY_DECISION;
         }
@@ -162,7 +163,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean cannotRemainAndCannotMove() {
         checkDecisionState();
-        return canRemainDecision.type() != Type.YES && canMoveDecision != AllocationDecision.YES;
+        return canRemain() == false && canMoveDecision != AllocationDecision.YES;
     }
 
     /**

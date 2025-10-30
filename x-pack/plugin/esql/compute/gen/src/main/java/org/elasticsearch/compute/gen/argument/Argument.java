@@ -26,6 +26,7 @@ import javax.lang.model.type.TypeMirror;
 
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 import static org.elasticsearch.compute.gen.argument.StandardArgument.isBlockType;
@@ -93,9 +94,20 @@ public interface Argument {
         return name() + "Offset";
     }
 
+    default ClassName scratchType() {
+        TypeName type = type();
+        if (BYTES_REF.equals(type)) {
+            return Types.BYTES_REF;
+        }
+        if (EXPONENTIAL_HISTOGRAM.equals(type)) {
+            return Types.EXPONENTIAL_HISTOGRAM_SCRATCH;
+        }
+        return null;
+    }
+
     default String scratchName() {
-        if (isBytesRef() == false) {
-            throw new IllegalStateException("can't build scratch for non-BytesRef");
+        if (scratchType() != null == false) {
+            throw new IllegalStateException("can't build scratch for " +type());
         }
 
         return name() + "Scratch";

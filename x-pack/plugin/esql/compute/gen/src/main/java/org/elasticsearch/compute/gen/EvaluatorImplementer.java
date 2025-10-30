@@ -18,6 +18,7 @@ import org.elasticsearch.compute.gen.argument.Argument;
 import org.elasticsearch.compute.gen.argument.BlockArgument;
 import org.elasticsearch.compute.gen.argument.BuilderArgument;
 import org.elasticsearch.compute.gen.argument.FixedArgument;
+import org.elasticsearch.compute.gen.argument.PositionArgument;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +52,7 @@ public class EvaluatorImplementer {
     private final ProcessFunction processFunction;
     private final ClassName implementation;
     private final boolean processOutputsMultivalued;
+    private final boolean vectorsUnsupported;
     private final boolean allNullsIsNull;
 
     public EvaluatorImplementer(
@@ -69,6 +71,11 @@ public class EvaluatorImplementer {
             declarationType.getSimpleName() + extraName + "Evaluator"
         );
         this.processOutputsMultivalued = this.processFunction.hasBlockType;
+        boolean anyParameterNotSupportingVectors =
+            this.processFunction.args.stream()
+                .filter(a -> a instanceof FixedArgument == false && a instanceof PositionArgument == false)
+                .anyMatch(a -> a.dataType(false) == null);
+        vectorsUnsupported = processOutputsMultivalued || anyParameterNotSupportingVectors;
         this.allNullsIsNull = allNullsIsNull;
     }
 
@@ -101,7 +108,7 @@ public class EvaluatorImplementer {
         builder.addMethod(eval());
         builder.addMethod(processFunction.baseRamBytesUsed());
 
-        if (processOutputsMultivalued) {
+        if (vectorsUnsupported) {
             if (processFunction.args.stream().anyMatch(x -> x instanceof FixedArgument == false)) {
                 builder.addMethod(realEval(true));
             }
@@ -145,7 +152,7 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC).returns(BLOCK).addParameter(PAGE, "page");
         processFunction.args.forEach(a -> a.evalToBlock(builder));
         String invokeBlockEval = invokeRealEval(true);
-        if (processOutputsMultivalued) {
+        if (vectorsUnsupported) {
             builder.addStatement(invokeBlockEval);
         } else {
             processFunction.args.forEach(a -> a.resolveVectors(builder, invokeBlockEval));

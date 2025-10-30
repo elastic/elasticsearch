@@ -52,6 +52,8 @@ public class Types {
     public static final ClassName LONG_BLOCK = ClassName.get(DATA_PACKAGE, "LongBlock");
     public static final ClassName DOUBLE_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleBlock");
     public static final ClassName FLOAT_BLOCK = ClassName.get(DATA_PACKAGE, "FloatBlock");
+    public static final ClassName EXPONENTIAL_HISTOGRAM_BLOCK = ClassName.get(DATA_PACKAGE, "ExponentialHistogramBlock");
+    public static final ClassName EXPONENTIAL_HISTOGRAM_SCRATCH = ClassName.get(DATA_PACKAGE, "ExponentialHistogramScratch");
 
     static final ClassName BOOLEAN_BLOCK_BUILDER = BOOLEAN_BLOCK.nestedClass("Builder");
     static final ClassName BYTES_REF_BLOCK_BUILDER = BYTES_REF_BLOCK.nestedClass("Builder");
@@ -59,6 +61,7 @@ public class Types {
     static final ClassName LONG_BLOCK_BUILDER = LONG_BLOCK.nestedClass("Builder");
     static final ClassName DOUBLE_BLOCK_BUILDER = DOUBLE_BLOCK.nestedClass("Builder");
     static final ClassName FLOAT_BLOCK_BUILDER = FLOAT_BLOCK.nestedClass("Builder");
+    static final ClassName EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER = ClassName.get(DATA_PACKAGE, "ExponentialHistogramBlockBuilder");
 
     static final ClassName ELEMENT_TYPE = ClassName.get(DATA_PACKAGE, "ElementType");
 
@@ -133,6 +136,7 @@ public class Types {
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.esql.core.tree", "Source");
 
     public static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
+    public static final ClassName EXPONENTIAL_HISTOGRAM = ClassName.get("org.elasticsearch.exponentialhistogram", "ExponentialHistogram");
 
     public static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     public static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
@@ -140,7 +144,7 @@ public class Types {
     private record TypeDef(TypeName type, String alias, ClassName block, ClassName vector) {
 
         public static TypeDef of(TypeName type, String alias, String block, String vector) {
-            return new TypeDef(type, alias, ClassName.get(DATA_PACKAGE, block), ClassName.get(DATA_PACKAGE, vector));
+            return new TypeDef(type, alias, ClassName.get(DATA_PACKAGE, block), vector == null ? null: ClassName.get(DATA_PACKAGE, vector));
         }
     }
 
@@ -150,7 +154,8 @@ public class Types {
         TypeDef.of(TypeName.LONG, "LONG", "LongBlock", "LongVector"),
         TypeDef.of(TypeName.FLOAT, "FLOAT", "FloatBlock", "FloatVector"),
         TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector"),
-        TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector")
+        TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector"),
+        TypeDef.of(EXPONENTIAL_HISTOGRAM, "EXPONENTIAL_HISTOGRAM", "ExponentialHistogramBlock", null)
     )
         .flatMap(def -> Stream.of(def.type.toString(), def.type + "[]", def.alias).map(alias -> Map.entry(alias, def)))
         .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -220,6 +225,9 @@ public class Types {
         if (resultType.equals(FLOAT_VECTOR)) {
             return FLOAT_VECTOR_BUILDER;
         }
+        if (resultType.equals(EXPONENTIAL_HISTOGRAM_BLOCK)) {
+            return EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER;
+        }
         throw new IllegalArgumentException("unknown builder type for [" + resultType + "]");
     }
 
@@ -260,6 +268,9 @@ public class Types {
         }
         if (t.equals(FLOAT_BLOCK) || t.equals(FLOAT_VECTOR) || t.equals(FLOAT_BLOCK_BUILDER)) {
             return TypeName.FLOAT;
+        }
+        if (t.equals(EXPONENTIAL_HISTOGRAM_BLOCK) || t.equals(EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER)) {
+            return EXPONENTIAL_HISTOGRAM;
         }
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }

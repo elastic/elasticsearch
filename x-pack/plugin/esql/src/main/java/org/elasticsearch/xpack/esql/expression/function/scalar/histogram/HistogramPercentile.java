@@ -7,22 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
-import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ExponentialHistogramBlock;
-import org.elasticsearch.compute.data.ExponentialHistogramBlockAccessor;
-import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -95,129 +87,19 @@ public class HistogramPercentile extends EsqlScalarFunction {
         out.writeNamedWriteable(percentile);
     }
 
+    @Evaluator
+    static double process(ExponentialHistogram value, double percentile) {
+        double result = ExponentialHistogramQuantile.getQuantile(value, percentile / 100.0);
+        return result;
+    }
+
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        DataType fieldDataType = histogram.dataType();
-        if (fieldDataType != DataType.EXPONENTIAL_HISTOGRAM) {
-            throw EsqlIllegalArgumentException.illegalDataType(fieldDataType);
-        }
         var fieldEvaluator = toEvaluator.apply(histogram);
         var percentileEvaluator = Cast.cast(source(), percentile.dataType(), DataType.DOUBLE, toEvaluator.apply(percentile));
 
-        return new EvalOperator.ExpressionEvaluator.Factory() {
-
-            @Override
-            public String toString() {
-                return "HistogramPercentileEvaluator[" + "field=" + fieldEvaluator + ",percentile=" + percentileEvaluator + "]";
-            }
-
-            @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-                var histogram = fieldEvaluator.get(context);
-                var percentile = percentileEvaluator.get(context);
-                return new Evaluator(source(), context, histogram, percentile);
-            }
-        };
+        return null;
     }
 
-    private static class Evaluator implements EvalOperator.ExpressionEvaluator {
 
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
-
-        private final DriverContext driverContext;
-        private final EvalOperator.ExpressionEvaluator histogram;
-        private final EvalOperator.ExpressionEvaluator percentile;
-        private final Source source;
-
-        private Warnings warnings;
-
-        private Evaluator(
-            Source source,
-            DriverContext driverContext,
-            EvalOperator.ExpressionEvaluator histogram,
-            EvalOperator.ExpressionEvaluator percentile
-        ) {
-            this.source = source;
-            this.driverContext = driverContext;
-            this.histogram = histogram;
-            this.percentile = percentile;
-        }
-
-        private Warnings warnings() {
-            if (warnings == null) {
-                this.warnings = Warnings.createWarnings(
-                    driverContext.warningsMode(),
-                    source.source().getLineNumber(),
-                    source.source().getColumnNumber(),
-                    source.text()
-                );
-            }
-            return warnings;
-        }
-
-        @Override
-        public Block eval(Page page) {
-            // TODO this is a ton of boilerplate, which will we repeated for every function
-            // we should adapt EvaluatorImplementer instead to deal with exponential histograms
-            ExponentialHistogramBlock histogramBlock = null;
-            DoubleBlock percentileBlock = null;
-            int positionCount = page.getPositionCount();
-            try (DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-                histogramBlock = (ExponentialHistogramBlock) histogram.eval(page);
-                percentileBlock = (DoubleBlock) percentile.eval(page);
-                var histogramAccessor = new ExponentialHistogramBlockAccessor(histogramBlock);
-                position: for (int p = 0; p < positionCount; p++) {
-                    switch (percentileBlock.getValueCount(p)) {
-                        case 0:
-                            result.appendNull();
-                            continue position;
-                        case 1:
-                            break;
-                        default:
-                            warnings().registerException(IllegalArgumentException.class, "single-value function encountered multi-value");
-                            result.appendNull();
-                            continue position;
-                    }
-                    switch (histogramBlock.getValueCount(p)) {
-                        case 0:
-                            result.appendNull();
-                            continue position;
-                        case 1:
-                            break;
-                        default:
-                            warnings().registerException(IllegalArgumentException.class, "single-value function encountered multi-value");
-                            result.appendNull();
-                            continue position;
-                    }
-
-                    ExponentialHistogram histogram = histogramAccessor.get(histogramBlock.getFirstValueIndex(p));
-                    double percentile = percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p));
-                    double resultValue = ExponentialHistogramQuantile.getQuantile(histogram, percentile / 100.0);
-                    if (Double.isNaN(resultValue)) {
-                        result.appendNull();
-                    } else {
-                        result.appendDouble(resultValue);
-                    }
-                }
-                return result.build();
-            } finally {
-                Releasables.close(histogramBlock, percentileBlock);
-            }
-        }
-
-        @Override
-        public long baseRamBytesUsed() {
-            return BASE_RAM_BYTES_USED + histogram.baseRamBytesUsed() + percentile.baseRamBytesUsed();
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(histogram, percentile);
-        }
-
-        @Override
-        public String toString() {
-            return "HistogramPercentileEvaluator[field=" + histogram + ",subfieldIndex=" + percentile + "]";
-        }
-    }
 }

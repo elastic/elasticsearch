@@ -837,3 +837,28 @@ TS Command grouping on text field:
   - match: {values.2.0: 530604797}
   - match: {values.2.1: "why cant i hold all these text"}
   - match: {values.2.2: "2021-04-28T18:00:00.000Z"}
+
+---
+error on rename timestamp:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message ]
+      reason: "TS specific check"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            TS test
+            | RENAME @timestamp AS newTs
+            | STATS max(rate(k8s.pod.network.tx))  BY tbucket = bucket(newTs, 1hour)
+
+  - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ \[rate\(k8s.pod.network.tx\)\]\ requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
+

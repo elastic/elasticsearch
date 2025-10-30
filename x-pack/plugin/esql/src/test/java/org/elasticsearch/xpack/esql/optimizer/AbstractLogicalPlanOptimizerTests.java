@@ -38,7 +38,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultSubqueryResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergeIndexResolutions;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
@@ -61,6 +63,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Analyzer metricsAnalyzer;
     protected static Analyzer multiIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
+    protected static Analyzer subqueryAnalyzer;
 
     protected static EnrichResolution enrichResolution;
 
@@ -212,6 +215,18 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             ),
             TEST_VERIFIER
         );
+
+        subqueryAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                mergeIndexResolutions(indexResolutions(test), defaultSubqueryResolution()),
+                defaultLookupResolution(),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
     }
 
     protected LogicalPlan optimizedPlan(String query) {
@@ -257,6 +272,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planSample(String query) {
         var analyzed = sampleDataIndexAnalyzer.analyze(parser.createStatement(query));
+        return logicalOptimizer.optimize(analyzed);
+    }
+
+    protected LogicalPlan planSubquery(String query) {
+        var analyzed = subqueryAnalyzer.analyze(parser.createStatement(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

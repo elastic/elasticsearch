@@ -1,0 +1,5 @@
+pr: 137139
+summary: Add binary doc value compression with variable doc count blocks
+area: Mapping
+type: feature
+issues: []

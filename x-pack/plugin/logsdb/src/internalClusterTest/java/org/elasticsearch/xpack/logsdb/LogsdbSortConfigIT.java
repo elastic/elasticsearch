@@ -78,7 +78,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         return new DocWithId(Integer.toString(id++), source);
     }
 
-    public void testHostnameTimestampSortConfig() throws IOException {
+    public void testHostnameTimestampSortConfig() throws Exception {
         final String dataStreamName = "test-logsdb-sort-hostname-timestamp";
 
         final String MAPPING = """
@@ -129,12 +129,13 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
         assertOrder(backingIndex, orderedDocs);
 
-
         SearchRequest searchRequest = new SearchRequest(dataStreamName);
         searchRequest.source().sort("@timestamp", SortOrder.DESC).query(
             new TermQueryBuilder("host.name", "aaa")
         );
-        client().search(searchRequest);
+        var response = client().search(searchRequest).get();
+        assertEquals(4, response.getHits().getHits().length);
+        response.decRef();
     }
 
     public void testTimestampOnlySortConfig() throws IOException {

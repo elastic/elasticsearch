@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -104,18 +106,26 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         boolean requiresCustomComparator = nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
             || targetNumericType != getNumericType();
+        boolean canUseOptimizedSort = canUseOptimizedSort(indexType());
         if (sortRequiresCustomComparator() || requiresCustomComparator) {
-            SortField sortField = new SortField(getFieldName(), source, reverse);
-            sortField.setOptimizeSortWithPoints(requiresCustomComparator == false && canUseOptimizedSort(indexType()));
-            return sortField;
+            return new SortField(getFieldName(), source, reverse) {
+                @Override
+                public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
+                    return super.getComparator(numHits, canUseOptimizedSort == false || requiresCustomComparator ? Pruning.NONE : pruning);
+                }
+            };
         }
 
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
             ? SortedNumericSelector.Type.MAX
             : SortedNumericSelector.Type.MIN;
-        SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
+        SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType) {
+            @Override
+            public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
+                return source.newComparator(getFieldName(), numHits, canUseOptimizedSort == false ? Pruning.NONE : pruning, reverse);
+            }
+        };
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
-        sortField.setOptimizeSortWithPoints(canUseOptimizedSort(indexType()));
         return sortField;
     }
 
@@ -182,11 +192,15 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             SortField.Type.LONG,
             sortField.getReverse(),
             numericSortField.getSelector()
-        );
+        ) {
+            @Override
+            public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
+                // we don't optimize sorting on int field for old indices
+                return super.getComparator(numHits, Pruning.NONE);
+            }
+        };
         XFieldComparatorSource longSource = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
         rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
-        // we don't optimize sorting on int field for old indices
-        rewrittenSortField.setOptimizeSortWithPoints(false);
         return rewrittenSortField;
     }
 

@@ -26,18 +26,30 @@ public class NvidiaEmbeddingsModelTests extends ESTestCase {
     }
 
     public static NvidiaEmbeddingsModel createModel(
-        String url,
+        @Nullable String url,
         String apiKey,
         @Nullable String modelId,
         @Nullable Integer maxInputTokens,
         @Nullable Integer dimensions
+    ) {
+        return createModel(url, apiKey, modelId, maxInputTokens, dimensions, InputType.SEARCH, CohereTruncation.NONE);
+    }
+
+    public static NvidiaEmbeddingsModel createModel(
+        @Nullable String url,
+        String apiKey,
+        @Nullable String modelId,
+        @Nullable Integer maxInputTokens,
+        @Nullable Integer dimensions,
+        @Nullable InputType inputType,
+        @Nullable CohereTruncation truncation
     ) {
         return new NvidiaEmbeddingsModel(
             "inferenceEntityId",
             TaskType.TEXT_EMBEDDING,
             "service",
             new NvidiaEmbeddingsServiceSettings(modelId, url, dimensions, SimilarityMeasure.DOT_PRODUCT, maxInputTokens, null),
-            new NvidiaEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
+            new NvidiaEmbeddingsTaskSettings(inputType, truncation),
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );

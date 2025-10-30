@@ -201,7 +201,10 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                         // we are very generious here, as the upload can take
                         // a long time depending on its size
                         long timeoutSec = calculateUploadWaitTimeoutSeconds(uploadFile);
-                        pb.start().waitFor(timeoutSec, TimeUnit.SECONDS);
+                        boolean completedInTime = pb.start().waitFor(timeoutSec, TimeUnit.SECONDS);
+                        if (completedInTime == false) {
+                            System.out.println("Timed out waiting for buildkite artifact upload after " + timeoutSec + " seconds");
+                        }
                     } catch (InterruptedException e) {
                         System.out.println("Failed to upload buildkite artifact " + e.getMessage());
                     }

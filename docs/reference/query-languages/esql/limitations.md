@@ -53,12 +53,6 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
 {{esql}} does not yet support the following field types:
 
-* TSDB metrics
-
-    * `counter`
-    * `position`
-    * `aggregate_metric_double`
-
 * Date/time
 
     * `date_range`

@@ -94,7 +94,8 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         }
     }
 
-    void serializeValue(int valueIndex, SerializedOutput out, BytesRef tempBytesRef) {
+    @Override
+    public void serializeExponentialHistogram(ExponentialHistogramBlock.SerializedOutput out, int valueIndex, BytesRef scratch) {
         long valueCount = getHistogramValueCount(valueIndex);
         out.appendLong(valueCount);
         out.appendDouble(getHistogramSum(valueIndex));
@@ -104,7 +105,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
             out.appendDouble(getHistogramMin(valueIndex));
             out.appendDouble(getHistogramMax(valueIndex));
         }
-        out.appendBytesRef(getEncodedHistogramBytes(valueIndex, tempBytesRef));
+        out.appendBytesRef(getEncodedHistogramBytes(valueIndex, scratch));
     }
 
     private double getHistogramMin(int valueIndex) {

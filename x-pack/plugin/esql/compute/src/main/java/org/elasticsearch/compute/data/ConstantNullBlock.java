@@ -301,6 +301,12 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public void serializeExponentialHistogram(SerializedOutput out, int valueIndex, BytesRef scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
     public int getTotalValueCount() {
         return 0;
     }

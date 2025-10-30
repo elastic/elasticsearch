@@ -105,7 +105,7 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
     /**
      * Decodes and appends a value serialized with
-     *  {@link ExponentialHistogramBlockAccessor#serializeValue(int, ExponentialHistogramBlock.SerializedOutput)}.
+     *  {@link ExponentialHistogramBlock#serializeExponentialHistogram(ExponentialHistogramBlock.SerializedOutput, int, BytesRef)} .
      *
      * @param input the input to deserialize from
      */

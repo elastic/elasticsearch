@@ -16,7 +16,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 public sealed interface ExponentialHistogramBlock extends Block permits ConstantNullBlock, ExponentialHistogramArrayBlock {
 
     /**
-     * Abstraction to use for writing individual values via {@link ExponentialHistogramBlockAccessor#serializeValue(int, SerializedOutput)}.
+     * Abstraction to use for writing individual values via
+     * {@link ExponentialHistogramBlock#serializeExponentialHistogram(SerializedOutput, int, BytesRef)}.
      */
     interface SerializedOutput {
         void appendDouble(double value);
@@ -50,6 +51,8 @@ public sealed interface ExponentialHistogramBlock extends Block permits Constant
      * @return the exponential histogram at the given index
      */
     ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch);
+
+    void serializeExponentialHistogram(ExponentialHistogramBlock.SerializedOutput out, int valueIndex, BytesRef scratch);
 
     static boolean equals(ExponentialHistogramBlock blockA, ExponentialHistogramBlock blockB) {
         if (blockA == blockB) {

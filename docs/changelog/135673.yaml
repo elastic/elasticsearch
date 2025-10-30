@@ -1,6 +1,0 @@
-pr: 135673
-summary: Add index setting that disables the `index.dimensions` based routing and
-  `_tsid` creation strategy
-area: TSDB
-type: enhancement
-issues: []

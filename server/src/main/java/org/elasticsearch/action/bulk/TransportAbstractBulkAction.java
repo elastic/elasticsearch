@@ -312,7 +312,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             });
             return true;
-        } else if (haveRunIngestService == false && samplingService != null && samplingService.atLeastOneSampleConfigured()) {
+        } else if (haveRunIngestService == false && samplingService != null && samplingService.atLeastOneSampleConfigured(project)) {
             /*
              * Else ample only if this request has not passed through IngestService::executeBulkRequest. Otherwise, some request within the
              * bulk had pipelines and we sampled in IngestService already.

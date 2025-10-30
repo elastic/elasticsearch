@@ -138,7 +138,7 @@
       },
       "project_routing": {
         "type": "string",
-        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:pr*. Only supported in serverless."
       },
       "rest_total_hits_as_int": {
         "type": "boolean",

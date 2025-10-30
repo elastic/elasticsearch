@@ -241,9 +241,10 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(ESQL_AGGREGATE_METRIC_DOUBLE_SERIALIZE_NULL_BLOCK_FIX)) {
-            for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-                Block.writeTypedBlock(block, out);
-            }
+            Block.writeTypedBlock(minBlock, out);
+            Block.writeTypedBlock(maxBlock, out);
+            Block.writeTypedBlock(sumBlock, out);
+            Block.writeTypedBlock(countBlock, out);
         } else {
             for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
                 block.writeTo(out);

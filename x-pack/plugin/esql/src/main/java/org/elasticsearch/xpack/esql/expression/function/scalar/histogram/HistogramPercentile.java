@@ -28,6 +28,9 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+
 public class HistogramPercentile extends EsqlScalarFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -58,6 +61,25 @@ public class HistogramPercentile extends EsqlScalarFunction {
 
     private HistogramPercentile(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return isType(
+            histogram,
+            dt -> dt == DataType.EXPONENTIAL_HISTOGRAM,
+            sourceText(),
+            DEFAULT,
+            "exponential_histogram"
+        ).and(
+            isType(
+                percentile,
+                DataType::isNumeric,
+                sourceText(),
+                DEFAULT,
+                "numeric types"
+            )
+        );
     }
 
     @Override

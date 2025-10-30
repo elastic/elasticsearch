@@ -332,6 +332,51 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
     }
 
+    public void testLogsdbIndexSortWithMessage() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.getKey(), true)
+            .build();
+        IndexSettings indexSettings = indexSettings(settings);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(2));
+
+        assertThat(config.sortSpecs[0].field, equalTo("message.template_id"));
+        assertThat(config.sortSpecs[1].field, equalTo("@timestamp"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
+    }
+
+    public void testLogsdbIndexSortWithMessageAndHostname() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
+            .put(IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.getKey(), true)
+            .build();
+        IndexSettings indexSettings = indexSettings(settings);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(3));
+
+        assertThat(config.sortSpecs[0].field, equalTo("host.name"));
+        assertThat(config.sortSpecs[1].field, equalTo("message.template_id"));
+        assertThat(config.sortSpecs[2].field, equalTo("@timestamp"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[2].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[2].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[2].mode, equalTo(MultiValueMode.MAX));
+    }
+
     public void testLogsdbIndexSortTimestampOnly() {
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "logsdb")

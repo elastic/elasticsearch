@@ -74,6 +74,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoaderProcessor;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -2689,8 +2690,38 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
 
+            BlockLoaderFunctionConfig functionConfig = blContext.blockLoaderFunctionConfig();
             if (indexed) {
-                return new DenseVectorBlockLoader(name(), dims, this);
+                if (functionConfig == null) {
+                    return new DenseVectorBlockLoader<>(
+                        name(),
+                        dims,
+                        this,
+                        new DenseVectorBlockLoaderProcessor.DenseVectorLoaderProcessor()
+                    );
+                } else if (functionConfig instanceof VectorSimilarityFunctionConfig similarityConfig) {
+                    if (getElementType() == ElementType.BYTE) {
+                        similarityConfig = similarityConfig.forByteVector();
+                    }
+                    return new DenseVectorBlockLoader<>(
+                        name(),
+                        dims,
+                        this,
+                        new DenseVectorBlockLoaderProcessor.DenseVectorSimilarityProcessor(similarityConfig)
+                    );
+                } else {
+                    throw new UnsupportedOperationException("Unknown block loader function config: " + functionConfig.getClass());
+                }
+            }
+
+            if (functionConfig != null) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + name()
+                        + "] of type ["
+                        + typeName()
+                        + "] doesn't support block loader functions when [index] is set to [false]"
+                );
             }
 
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
@@ -3133,5 +3164,66 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @FunctionalInterface
     public interface IntBooleanConsumer {
         void accept(int value, boolean isComplete);
+    }
+
+    public interface SimilarityFunction {
+        float calculateSimilarity(float[] leftVector, float[] rightVector);
+
+        float calculateSimilarity(byte[] leftVector, byte[] rightVector);
+    }
+
+    /**
+     * Configuration for a {@link MappedFieldType.BlockLoaderFunctionConfig} that calculates vector similarity.
+     * Functions that use this config should use SIMILARITY_FUNCTION_NAME as their name.
+     */
+    public static class VectorSimilarityFunctionConfig implements MappedFieldType.BlockLoaderFunctionConfig {
+
+        private final SimilarityFunction similarityFunction;
+        private final float[] vector;
+        private byte[] vectorAsBytes;
+
+        public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, float[] vector) {
+            this.similarityFunction = similarityFunction;
+            this.vector = vector;
+
+        }
+
+        /**
+         * Call before calculating byte vector similarities
+         */
+        public VectorSimilarityFunctionConfig forByteVector() {
+            vectorAsBytes = new byte[vector.length];
+            for (int i = 0; i < vector.length; i++) {
+                vectorAsBytes[i] = (byte) vector[i];
+            }
+            return this;
+        }
+
+        public byte[] vectorAsBytes() {
+            assert vectorAsBytes != null : "vectorAsBytes is null, call forByteVector() first";
+            return vectorAsBytes;
+        }
+
+        public float[] vector() {
+            return vector;
+        }
+
+        public SimilarityFunction similarityFunction() {
+            return similarityFunction;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            VectorSimilarityFunctionConfig that = (VectorSimilarityFunctionConfig) o;
+            return Objects.equals(similarityFunction, that.similarityFunction)
+                && Objects.deepEquals(vector, that.vector)
+                && Objects.deepEquals(vectorAsBytes, that.vectorAsBytes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(similarityFunction, Arrays.hashCode(vector), Arrays.hashCode(vectorAsBytes));
+        }
     }
 }

@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompo
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
@@ -1107,7 +1108,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
 
         var cacheSize = ByteSizeValue.ofMb(1L);
         var regionSize = ByteSizeValue.ofBytes(regionSizeInBytes);
-        final var indexNodesSettings = Settings.builder()
+        var indexNodesSettingsBuilder = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
@@ -1115,8 +1116,22 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .build();
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings());
+        final var hollowEnabled = randomBoolean();
+        if (hollowEnabled) {
+            indexNodesSettingsBuilder = indexNodesSettingsBuilder.put(
+                HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(),
+                true
+            )
+                .put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO)
+                .put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO);
+        } else {
+            indexNodesSettingsBuilder = indexNodesSettingsBuilder.put(
+                HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(),
+                false
+            );
+        }
+        final var indexNodesSettings = indexNodesSettingsBuilder.build();
 
         final var indexNode = startIndexNode(indexNodesSettings);
         final String indexName = randomIdentifier();
@@ -1193,7 +1208,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
 
         var cacheService = internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, indexNode2).get();
         // Hollow shard force flushes a second BCC and results in two writes on the cache instead of 1.
-        long expectedWritesAndMissesCount = STATELESS_HOLLOW_ENABLED ? 2L : 1L;
+        long expectedWritesAndMissesCount = hollowEnabled ? 2L : 1L;
         assertThat(cacheService.getStats().writeCount(), equalTo(expectedWritesAndMissesCount));
         assertThat(cacheService.getStats().missCount(), equalTo(expectedWritesAndMissesCount));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));

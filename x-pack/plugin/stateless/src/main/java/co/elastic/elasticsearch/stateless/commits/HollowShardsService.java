@@ -83,7 +83,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
      */
     public static final Setting<Boolean> STATELESS_HOLLOW_INDEX_SHARDS_ENABLED = Setting.boolSetting(
         "stateless.hollow_index_shards.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 
@@ -175,7 +175,6 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     }
 
     public boolean isHollowableIndexShard(IndexShard indexShard, boolean checkPrimaryPermits) {
-        // TODO remove this gate and the transport version, once hollow shards have been rolled out / enabled across the fleet (ES-11519)
         boolean clusterUpToDate = clusterService.state().getMinTransportVersion().supports(COMPOUND_COMMITS_WITH_EXTRA_CONTENT);
         boolean noActiveOperations = checkPrimaryPermits ? indexShard.getActiveOperationsCount() == 0 : true;
         // TODO consider that ingestion is not blocked. We should not hollow a shard that is being unhollowed due to new blocked ingestion.
@@ -224,7 +223,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         // Generic thread for recoveries and snapshot thread when restoring a snapshot
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
         final var shardId = indexShard.shardId();
-        logger.info(() -> "installing ingestion blocker for shard " + shardId + " due to " + reason);
+        logger.debug(() -> "installing ingestion blocker for shard " + shardId + " due to " + reason);
 
         // We only install the blocker when all primary permits are held during primary relocation or when a hollow shard
         // is recovering (before any ingestion is processed)
@@ -275,7 +274,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         var existingBlocker = hollowShards.remove(shardId);
         if (existingBlocker != null) {
             onRemove.run();
-            logger.info("{} removed hollow shard due to {}", shardId, reason);
+            logger.debug(() -> shardId + " removed hollow shard due to " + reason);
             existingBlocker.listener.onResponse(null);
             metrics.decrementHollowShardCount();
         }
@@ -362,7 +361,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
 
                     // Similar to the stateless recovery process without activating primary context
                     // (since we the shard is already in the primary mode and has checkpoint information)
-                    logger.info("{} unhollowing shard (reason: ingestion)", shardId);
+                    logger.debug(() -> shardId + " unhollowing shard (reason: ingestion)");
                     // Pre-warm the cache for the new index engine
                     indexShardCacheWarmer.preWarmIndexShardCache(indexShard, SharedBlobCacheWarmingService.Type.UNHOLLOWING);
                     indexShard.resetEngine(engine -> {
@@ -372,12 +371,13 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                         engine.skipTranslogRecovery(); // allows new flushes
                     });
 
-                    logger.debug("Flushing shard [{}] to produce a blob with a local translog node id", shardId);
+                    logger.debug(() -> "Flushing shard [" + shardId + "] to produce a blob with a local translog node id");
                     indexShard.withEngine(engine -> {
                         assert engine instanceof IndexEngine : shardId + ": expected IndexEngine but was " + engine.getClass();
                         engine.flush(true, true, ActionListener.wrap(flushResult -> {
                             assert flushResult.skippedDueToCollision() == false : "Flush was skipped";
                             removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
+                            logger.info("{} unhollowed shard with gen {}", shardId, flushResult.generation());
                             metrics.unhollowSuccessCounter().increment();
                             metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
                             assert assertIndexEngineLastCommitHollow(shardId, engine, false);

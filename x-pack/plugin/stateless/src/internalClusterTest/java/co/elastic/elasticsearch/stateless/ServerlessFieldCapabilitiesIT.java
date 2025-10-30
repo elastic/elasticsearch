@@ -47,11 +47,6 @@ public class ServerlessFieldCapabilitiesIT extends AbstractStatelessIntegTestCas
             }
         }""";
 
-    @Override
-    protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true);
-    }
-
     public void testFieldCapsAreExecutedOnSearchNodes() throws Exception {
         startMasterAndIndexNode();
 
@@ -73,7 +68,10 @@ public class ServerlessFieldCapabilitiesIT extends AbstractStatelessIntegTestCas
 
     public void testFieldCapsForHollowShards() throws Exception {
         startMasterOnlyNode();
-        var indexNodeSettings = Settings.builder().put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1)).build();
+        var indexNodeSettings = Settings.builder()
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .build();
         var indexNodeA = startIndexNode(indexNodeSettings);
         startSearchNode();
         ensureStableCluster(3);

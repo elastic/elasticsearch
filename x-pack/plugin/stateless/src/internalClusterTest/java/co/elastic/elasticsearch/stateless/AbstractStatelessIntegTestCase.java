@@ -78,7 +78,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
@@ -165,18 +164,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
-
-    public static final boolean STATELESS_HOLLOW_ENABLED = Booleans.parseBoolean(
-        System.getProperty("es.test.stateless.hollow.enabled", "false")
-    );
-
-    public static final TimeValue STATELESS_HOLLOW_DS_NON_WRITE_TTL = TimeValue.timeValueMillis(
-        Long.parseLong(System.getProperty("es.test.stateless.hollow.ds_non_write_ttl_ms", "100"))
-    );
-
-    public static final TimeValue STATELESS_HOLLOW_TTL = TimeValue.timeValueMillis(
-        Long.parseLong(System.getProperty("es.test.stateless.hollow.ttl_ms", "100"))
-    );
 
     private int uploadMaxCommits;
 
@@ -399,10 +386,13 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
         }
         builder.put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), getUploadMaxCommits());
-        if (STATELESS_HOLLOW_ENABLED) {
-            builder.put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true);
-            builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), STATELESS_HOLLOW_DS_NON_WRITE_TTL);
-            builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), STATELESS_HOLLOW_TTL);
+        if (randomBoolean()) {
+            // Randomly disable hollow shards
+            builder.put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false);
+        } else if (randomBoolean()) {
+            // Randomly make TTL zero for hollowing shards
+            builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO);
+            builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO);
         }
         if (multiProjectIntegrationTest()) {
             builder.put(ServerlessMultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true);

@@ -202,7 +202,7 @@ public record StatelessCompoundCommit(
     }
 
     public String toShortDescription() {
-        return '[' + blobNameFromGeneration(generation()) + "][" + primaryTerm() + "][" + generation() + ']';
+        return '[' + blobNameFromGeneration(generation()) + "][" + primaryTerm() + "][" + generation() + ']' + (hollow() ? "[h]" : "");
     }
 
     public String toLongDescription() {

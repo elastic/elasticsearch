@@ -32,7 +32,6 @@ Combining `query` and `retrievers` is not supported.
 :   (Optional, array of retriever objects)
 
     A list of child retrievers to specify which sets of returned top documents will have the RRF formula applied to them.
-    Two or more child retrievers are required.
     Each retriever can optionally include a weight to adjust its influence on the final ranking. {applies_to}`stack: ga 9.2`
     
     When weights are specified, the final RRF score is calculated as:

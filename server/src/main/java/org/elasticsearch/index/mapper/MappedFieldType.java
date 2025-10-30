@@ -35,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -709,12 +710,5 @@ public abstract class MappedFieldType {
             return null;
         }
     }
-
-    /**
-     * Marker interface that contains the configuration needed to transform loaded values into blocks.
-     * Is retrievable from the {@link BlockLoaderContext}. The {@link MappedFieldType} can use this configuration to choose the appropriate
-     * implementation for transforming loaded values into blocks.
-     */
-    public interface BlockLoaderFunctionConfig {}
 
 }

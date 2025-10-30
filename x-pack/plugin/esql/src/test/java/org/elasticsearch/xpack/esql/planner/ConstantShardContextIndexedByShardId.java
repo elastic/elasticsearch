@@ -11,6 +11,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -70,7 +71,7 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
             String name,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             throw new UnsupportedOperationException();
         }

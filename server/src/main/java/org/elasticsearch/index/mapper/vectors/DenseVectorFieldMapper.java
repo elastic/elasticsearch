@@ -59,6 +59,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -3173,10 +3174,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     /**
-     * Configuration for a {@link MappedFieldType.BlockLoaderFunctionConfig} that calculates vector similarity.
+     * Configuration for a {@link BlockLoaderFunctionConfig} that calculates vector similarity.
      * Functions that use this config should use SIMILARITY_FUNCTION_NAME as their name.
      */
-    public static class VectorSimilarityFunctionConfig implements MappedFieldType.BlockLoaderFunctionConfig {
+    public static class VectorSimilarityFunctionConfig implements BlockLoaderFunctionConfig {
 
         private final SimilarityFunction similarityFunction;
         private final float[] vector;
@@ -3185,7 +3186,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, float[] vector) {
             this.similarityFunction = similarityFunction;
             this.vector = vector;
-
         }
 
         /**

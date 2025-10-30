@@ -55,7 +55,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.Utf8CodePointsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -813,10 +815,19 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
-                return new BytesRefsFromOrdsBlockLoader(name());
+                return switch (blContext.blockLoaderFunctionConfig()) {
+                    case null -> new BytesRefsFromOrdsBlockLoader(name());
+                    case BlockLoaderFunctionConfig.Named named -> switch (named.name()) {
+                        case "LENGTH" -> new Utf8CodePointsFromOrdsBlockLoader(named.warnings(), name());
+                        default -> throw new UnsupportedOperationException("unknown fusion config [" + named.name() + "]");
+                    };
+                    default -> throw new UnsupportedOperationException(
+                        "unknown fusion config [" + blContext.blockLoaderFunctionConfig() + "]"
+                    );
+                };
             }
-            if (isStored()) {
-                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
+            if (blContext.blockLoaderFunctionConfig() != null) {
+                throw new UnsupportedOperationException("function fusing only supported for doc values");
             }
 
             // Multi fields don't have fallback synthetic source.

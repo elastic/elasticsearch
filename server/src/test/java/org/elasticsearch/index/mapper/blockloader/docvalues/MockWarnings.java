@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
+import org.elasticsearch.index.mapper.blockloader.Warnings;
+
 import java.util.ArrayList;
 import java.util.List;
 

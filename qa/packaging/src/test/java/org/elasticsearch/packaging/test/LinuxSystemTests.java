@@ -50,5 +50,4 @@ public class LinuxSystemTests extends PackagingTestCase {
         assertThat(coredumpFilter, equalTo("00000023"));
     }
 
-
 }

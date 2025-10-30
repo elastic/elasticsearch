@@ -175,7 +175,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToAscii;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -398,7 +398,7 @@ public class EsqlFunctionRegistry {
                 def(Tau.class, Tau::new, "tau") },
             // string
             new FunctionDefinition[] {
-                def(Ascii.class, Ascii::new, "ascii"),
+                def(ToAscii.class, ToAscii::new, "to_ascii"),
                 def(BitLength.class, BitLength::new, "bit_length"),
                 def(ByteLength.class, ByteLength::new, "byte_length"),
                 def(Concat.class, Concat::new, "concat"),

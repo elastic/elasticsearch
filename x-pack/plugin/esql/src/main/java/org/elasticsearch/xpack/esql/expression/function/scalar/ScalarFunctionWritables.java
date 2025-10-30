@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToAscii;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
@@ -68,7 +68,7 @@ public class ScalarFunctionWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(And.ENTRY);
-        entries.add(Ascii.ENTRY);
+        entries.add(ToAscii.ENTRY);
         entries.add(Atan2.ENTRY);
         entries.add(BitLength.ENTRY);
         entries.add(Case.ENTRY);

@@ -37,16 +37,16 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 /**
  * Escape non ASCII characters
  */
-public final class Ascii extends UnaryScalarFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Ascii", Ascii::new);
+public final class ToAscii extends UnaryScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToAscii", ToAscii::new);
 
     @FunctionInfo(
         returnType = { "keyword" },
         description = "Escape non ASCII characters.",
-        examples = @Example(file = "string", tag = "ascii"),
+        examples = @Example(file = "string", tag = "to_ascii"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
     )
-    public Ascii(
+    public ToAscii(
         Source source,
         @Param(
             name = "string",
@@ -57,7 +57,7 @@ public final class Ascii extends UnaryScalarFunction {
         super(source, str);
     }
 
-    private Ascii(StreamInput in) throws IOException {
+    private ToAscii(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -83,9 +83,9 @@ public final class Ascii extends UnaryScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var field = toEvaluator.apply(field());
-        return new AsciiEvaluator.Factory(
+        return new ToAsciiEvaluator.Factory(
             source(),
-            context -> new BreakingBytesRefBuilder(context.breaker(), "ascii"),
+            context -> new BreakingBytesRefBuilder(context.breaker(), "to_ascii"),
             context -> new UnicodeUtil.UTF8CodePoint(),
             field
         );
@@ -93,12 +93,12 @@ public final class Ascii extends UnaryScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Ascii(source(), newChildren.get(0));
+        return new ToAscii(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Ascii::new, field());
+        return NodeInfo.create(this, ToAscii::new, field());
     }
 
     @Evaluator

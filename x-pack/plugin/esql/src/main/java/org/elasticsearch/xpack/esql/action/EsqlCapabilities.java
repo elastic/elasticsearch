@@ -1532,9 +1532,9 @@ public class EsqlCapabilities {
         INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled),
 
         /**
-         * Support for string function ASCII
+         * Support for string function TO_ASCII
          */
-        ASCII
+        TO_ASCII
 
         ;
 

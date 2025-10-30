@@ -23,8 +23,8 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AsciiTests extends AbstractScalarFunctionTestCase {
-    public AsciiTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class ToAsciiTests extends AbstractScalarFunctionTestCase {
+    public ToAsciiTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -38,7 +38,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             String input = randomAlphaOfLength(between(1, 100));
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(input))
             );
@@ -49,7 +49,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             String input = randomAlphaOfLength(between(1, 100));
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.TEXT, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(input))
             );
@@ -61,7 +61,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             String expected = "Caf\\\\xe9 na\\\\xefve r\\\\xe9sum\\\\xe9";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(expected))
             );
@@ -73,7 +73,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             String expected = "hello\\\\nworld\\\\r\\\\t\\\\\"tab";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(expected))
             );
@@ -85,7 +85,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             String expected = "\\\\u4f60\\\\u597d\\\\u4e16\\\\u754c";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(expected))
             );
@@ -97,7 +97,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             String expected = "\\\\u3053\\\\u3093\\\\u306b\\\\u3061\\\\u306f";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(expected))
             );
@@ -109,7 +109,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             String expected = "\\\\U0001f680\\\\U0001f525\\\\U0001f4a7\\\\U0001faa8";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(expected))
             );
@@ -121,7 +121,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             String expected = "\\\\u03b1\\\\u03b2\\\\u03b3\\\\u03b4\\\\u03b5";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(expected))
             );
@@ -133,7 +133,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             String expected = "Hello \\\\u4e16\\\\u754c! \\\\U0001f30d";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(expected))
             );
@@ -143,7 +143,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
         cases.add(new TestCaseSupplier("empty string", List.of(DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(""), DataType.KEYWORD, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(""))
             );
@@ -155,7 +155,7 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
             String expected = "Caf\\\\xe9";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), DataType.TEXT, "str")),
-                "AsciiEvaluator[val=Attribute[channel=0]]",
+                "ToAsciiEvaluator[val=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(expected))
             );
@@ -166,6 +166,6 @@ public class AsciiTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Ascii(source, args.get(0));
+        return new ToAscii(source, args.get(0));
     }
 }

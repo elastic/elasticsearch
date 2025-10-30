@@ -829,6 +829,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (blContext.blockLoaderFunctionConfig() != null) {
                 throw new UnsupportedOperationException("function fusing only supported for doc values");
             }
+            if (isStored()) {
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
+            }
 
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSourceEnabled() && blContext.parentField(name()) == null) {

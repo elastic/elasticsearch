@@ -70,4 +70,10 @@ public class FunctionEsField extends EsField {
     public int hashCode() {
         return Objects.hash(super.hashCode(), functionConfig);
     }
+
+    @Override
+    public boolean pushable() {
+        // These fields are *never* pushable to the lucene index.
+        return false;
+    }
 }

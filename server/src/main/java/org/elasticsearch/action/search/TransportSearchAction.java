@@ -1020,7 +1020,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 expr -> expr.localExpressions().localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
             );
 
-        Map<String, SearchResponse.Cluster> reconciledMap = ConcurrentCollections.newConcurrentMap();
+        Map<String, SearchResponse.Cluster> reconciledMap = new HashMap<>();
         for (String project : projects.getClusterAliases()) {
             SearchResponse.Cluster computedProjectInfo = projects.getCluster(project);
             /*

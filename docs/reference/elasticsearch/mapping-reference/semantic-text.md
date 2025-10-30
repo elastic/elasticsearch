@@ -610,7 +610,7 @@ semantic search for `semantic_text` fields.
 ```
 % TEST[skip:Requires inference endpoint]
 1. The inference endpoint used to generate embeddings.
-2. Lists the model’s service and task type, showing how the embeddings were generated.
+2. Lists details about the model used to generate embeddings, such as the service name and task type.
 3. The embeddings generated for this chunk.
 
 

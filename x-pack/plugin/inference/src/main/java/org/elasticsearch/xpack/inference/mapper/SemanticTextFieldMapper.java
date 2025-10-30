@@ -156,11 +156,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
     public static final String DEFAULT_EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
-    /**
-     * @deprecated Replaced by {@link #DEFAULT_EIS_ELSER_INFERENCE_ID}.
-     */
-    @Deprecated(since = "9.3.0", forRemoval = false)
-    public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_EIS_ELSER_INFERENCE_ID;
+
     public static final String UNSUPPORTED_INDEX_MESSAGE = "["
         + CONTENT_TYPE
         + "] is available on indices created with 8.11 or higher. Please create a new index to use ["

@@ -159,6 +159,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
     private static final TestDataset DISTANCES = new TestDataset("distances");
     private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestDataset ALL_FIRST_DATASET = new TestDataset("all_first", "all-first-mappings.json", "all_first.csv").withSetting("k8s-settings.json");
     private static final TestDataset K8S_DOWNSAMPLED = new TestDataset(
         "k8s-downsampled",
         "k8s-downsampled-mappings.json",
@@ -229,6 +230,7 @@ public class CsvTestsDataLoader {
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(DATE_NANOS_UNION_TYPES.indexName, DATE_NANOS_UNION_TYPES),
         Map.entry(K8S.indexName, K8S),
+        Map.entry(ALL_FIRST_DATASET.indexName, ALL_FIRST_DATASET),
         Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),

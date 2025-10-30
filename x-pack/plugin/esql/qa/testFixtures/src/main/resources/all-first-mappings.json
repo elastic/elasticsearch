@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "x1": {
+      "type": "long",
+      "time_series_dimension": true
+    },
+    "x2": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "x3": {
+      "type": "keyword",
+      "time_series_dimension": true
+    }
+  }
+}

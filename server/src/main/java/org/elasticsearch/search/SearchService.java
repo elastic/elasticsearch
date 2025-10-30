@@ -717,26 +717,30 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 threadPool,
                 lifecycle
             ).delegateFailure((l, orig) -> {
-                // check if we can shortcut the query phase entirely.
-                if (orig.canReturnNullResponseIfMatchNoDocs()) {
-                    assert orig.scroll() == null;
-                    ShardSearchRequest clone = new ShardSearchRequest(orig);
-                    CanMatchContext canMatchContext = new CanMatchContext(
-                        clone,
-                        indicesService::indexServiceSafe,
-                        this::findReaderContext,
-                        defaultKeepAlive,
-                        maxKeepAlive
-                    );
-                    CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
-                    if (canMatchResp.canMatch() == false) {
-                        l.onResponse(QuerySearchResult.nullInstance());
-                        return;
+                // fork the execution in the search thread pool
+                Executor executor = getExecutor(shard);
+                executor.execute(() -> {
+                    // check if we can shortcut the query phase entirely.
+                    if (orig.canReturnNullResponseIfMatchNoDocs()) {
+                        assert orig.scroll() == null;
+                        ShardSearchRequest clone = new ShardSearchRequest(orig);
+                        CanMatchContext canMatchContext = new CanMatchContext(
+                            clone,
+                            indicesService::indexServiceSafe,
+                            this::findReaderContext,
+                            defaultKeepAlive,
+                            maxKeepAlive
+                        );
+                        CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
+                        if (canMatchResp.canMatch() == false) {
+                            l.onResponse(QuerySearchResult.nullInstance());
+                            return;
+                        }
                     }
-                }
-                // TODO: i think it makes sense to always do a canMatch here and
-                // return an empty response (not null response) in case canMatch is false?
-                ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
+                    // TODO: i think it makes sense to always do a canMatch here and
+                    // return an empty response (not null response) in case canMatch is false?
+                    ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
+                });
             })
         );
     }

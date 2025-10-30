@@ -227,9 +227,7 @@ class TopHitsAggregator extends MetricsAggregator {
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
 
         // When top_hits aggregation is inside a nested aggregation, do not inherit inner_hits from parent query.
-        // Query-level inner_hits operate at parent document scope, while nested aggregation top_hits operate
-        // at nested document scope within buckets. Inheriting inner_hits causes conflicting fetch contexts
-        // and fails when extracting nested documents by offset.
+        // Inheriting inner_hits means get nested documents from already nested documents which is incorrect
         InnerHitsContext innerHitsContext;
         if (isNestedAggregationContext()) {
             innerHitsContext = new InnerHitsContext();

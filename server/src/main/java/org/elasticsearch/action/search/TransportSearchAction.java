@@ -1104,6 +1104,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // We do not use the relaxed index options here when validating indices' existence.
                         ElasticsearchException validationEx = CrossProjectIndexResolutionValidator.validate(
                             originalIdxOpts,
+                            null,
                             originResolvedIdxExpressions,
                             resolvedIndexExpressions
                         );

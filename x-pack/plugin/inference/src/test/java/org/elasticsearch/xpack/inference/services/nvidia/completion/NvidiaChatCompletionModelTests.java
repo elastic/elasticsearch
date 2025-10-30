@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.nvidia.completion;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -19,15 +20,20 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaChatCompletionModelTests extends ESTestCase {
-    public static NvidiaChatCompletionModel createCompletionModel(String url, String apiKey, String modelName) {
+    public static NvidiaChatCompletionModel createCompletionModel(@Nullable String url, String apiKey, String modelName) {
         return createModelWithTaskType(url, apiKey, modelName, TaskType.COMPLETION);
     }
 
-    public static NvidiaChatCompletionModel createChatCompletionModel(String url, String apiKey, String modelName) {
+    public static NvidiaChatCompletionModel createChatCompletionModel(@Nullable String url, String apiKey, String modelName) {
         return createModelWithTaskType(url, apiKey, modelName, TaskType.CHAT_COMPLETION);
     }
 
-    private static NvidiaChatCompletionModel createModelWithTaskType(String url, String apiKey, String modelName, TaskType taskType) {
+    private static NvidiaChatCompletionModel createModelWithTaskType(
+        @Nullable String url,
+        String apiKey,
+        String modelName,
+        TaskType taskType
+    ) {
         return new NvidiaChatCompletionModel(
             "inferenceEntityId",
             taskType,

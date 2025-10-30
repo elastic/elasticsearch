@@ -39,7 +39,6 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.TransportVersions.ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
@@ -79,7 +78,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
         indexName,
         state) -> state.forceMergeCloneIndexName() != null ? state.forceMergeCloneIndexName() : indexName;
 
-    private static final Settings CLONE_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+    /** The cloned index should have 0 replicas, so we also need to remove the auto_expand_replicas setting if present. */
+    private static final Settings CLONE_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, (String) null)
+        .build();
     private static final Function<IndexMetadata, Settings> CLONE_SETTINGS_SUPPLIER = indexMetadata -> CLONE_SETTINGS;
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(
@@ -147,9 +150,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         this.snapshotRepository = in.readString();
         this.forceMergeIndex = in.readBoolean();
         this.totalShardsPerNode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalInt() : null;
-        this.replicateFor = in.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR)
-            ? in.readOptionalTimeValue()
-            : null;
+        this.replicateFor = in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readOptionalTimeValue() : null;
     }
 
     public boolean isForceMergeIndex() {
@@ -597,7 +598,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalInt(totalShardsPerNode);
         }
-        if (out.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalTimeValue(replicateFor);
         }
     }

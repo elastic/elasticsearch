@@ -216,6 +216,11 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             containsString("index [unavailable-index-1] has no active shard copy"),
             () -> run(syncEsqlQueryRequest().query("FROM *-index-1"))
         );
+        expectThrows(
+            NoShardAvailableActionException.class,
+            containsString("index [unavailable-index-1] has no active shard copy"),
+            () -> run(syncEsqlQueryRequest().query("FROM unavailable-index-1").allowPartialResults(true))
+        );
     }
 
     public void testPartialResolution() {
@@ -228,6 +233,11 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             VerificationException.class,
             containsString("Unknown index [nonexisting-1]"),
             () -> run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))
+        );
+        expectThrows(
+            VerificationException.class,
+            equalTo("no such index [nonexisting-1]"),
+            () -> run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1").allowPartialResults(true))
         );
         expectThrows(
             VerificationException.class,

@@ -66,12 +66,12 @@ import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -183,15 +183,8 @@ public class OperatorTests extends MapperServiceTestCase {
             );
             ValuesSourceReaderOperator.Factory load = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(
-                    new ValuesSourceReaderOperator.FieldInfo(
-                        "v",
-                        ElementType.LONG,
-                        false,
-                        f -> new BlockDocValuesReader.LongsBlockLoader("v")
-                    )
-                ),
-                new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                List.of(new ValuesSourceReaderOperator.FieldInfo("v", ElementType.LONG, false, f -> new LongsBlockLoader("v"))),
+                new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
                 0

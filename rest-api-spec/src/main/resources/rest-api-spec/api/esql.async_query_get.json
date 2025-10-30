@@ -29,8 +29,18 @@
     },
     "params": {
       "format": {
-        "type": "string",
-        "description": "a short version of the Accept header, e.g. json, yaml"
+        "type": "enum",
+        "description": "A short version of the Accept header, for example `json` or `yaml`.",
+        "options": [
+          "csv",
+          "json",
+          "tsv",
+          "txt",
+          "yaml",
+          "cbor",
+          "smile",
+          "arrow"
+        ]
       },
       "wait_for_completion_timeout": {
         "type": "time",

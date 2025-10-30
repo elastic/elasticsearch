@@ -19,6 +19,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -161,7 +162,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.ERROR_TRACE_IN_TRANSPORT_HEADER;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -603,7 +603,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Lifecycle lifecycle
     ) {
         final boolean header;
-        if (version.onOrAfter(ERROR_TRACE_IN_TRANSPORT_HEADER) && threadPool.getThreadContext() != null) {
+        if (version.supports(TransportVersions.V_8_18_0) && threadPool.getThreadContext() != null) {
             header = getErrorTraceHeader(threadPool);
         } else {
             header = true;
@@ -1937,9 +1937,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         var shardLevelRequests = request.getShardLevelRequests();
         final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardLevelRequests.size());
         for (var shardLevelRequest : shardLevelRequests) {
+            long shardCanMatchStartTimeInNanos = System.nanoTime();
+            ShardSearchRequest shardSearchRequest = request.createShardSearchRequest(shardLevelRequest);
+            final IndexService indexService = indicesService.indexServiceSafe(shardSearchRequest.shardId().getIndex());
+            final IndexShard indexShard = indexService.getShard(shardSearchRequest.shardId().id());
             try {
                 // TODO remove the exception handling as it's now in canMatch itself
-                responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatch(request.createShardSearchRequest(shardLevelRequest))));
+                responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatch(shardSearchRequest)));
+                indexShard.getSearchOperationListener().onCanMatchPhase(System.nanoTime() - shardCanMatchStartTimeInNanos);
             } catch (Exception e) {
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(e));
             }
@@ -2153,7 +2158,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips
     ) {
-        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, ccsMinimizeRoundTrips, false);
+        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, ccsMinimizeRoundTrips, false, false);
     }
 
     /**
@@ -2166,7 +2171,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile
     ) {
         return indicesService.getRewriteContext(
             nowInMillis,
@@ -2175,7 +2181,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             resolvedIndices,
             pit,
             ccsMinimizeRoundTrips,
-            isExplain
+            isExplain,
+            isProfile
         );
     }
 

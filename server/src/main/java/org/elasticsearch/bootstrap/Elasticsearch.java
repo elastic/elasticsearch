@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
@@ -62,7 +63,6 @@ import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.Security;
 import java.util.Collection;
 import java.util.HashMap;
@@ -489,7 +489,7 @@ class Elasticsearch {
             // which is the server CLI, which is also a JVM so it has these bits set. Thus, we set it explicitly.
             // See https://man7.org/linux/man-pages/man5/core.5.html for more info on the relevant bits of the filter
             try {
-                Files.writeString(Paths.get("/proc/self/coredump_filter"), "0x23");
+                Files.writeString(PathUtils.get("/proc/self/coredump_filter"), "0x23");
             } catch (IOException e) {
                 throw new RuntimeException("Could not set coredump filter", e);
             }

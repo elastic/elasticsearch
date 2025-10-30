@@ -47,7 +47,7 @@ public class Last extends AggregateFunction implements ToAggregator {
         type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double", "keyword" },
         description = "Calculates the latest value of a field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.3.0") },
         examples = @Example(file = "stats_last", tag = "last")
     )
     public Last(

@@ -57,11 +57,12 @@ public class ES93BloomFilterStoredFieldsFormatTests extends BaseStoredFieldsForm
         return new AssertingCodec() {
             @Override
             public StoredFieldsFormat storedFieldsFormat() {
+                var bloomFilterSizeInKb = atLeast(2);
                 return new ES93BloomFilterStoredFieldsFormat(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     "",
                     TestUtil.getDefaultCodec().storedFieldsFormat(),
-                    ByteSizeValue.ofKb(2),
+                    ByteSizeValue.ofKb(bloomFilterSizeInKb),
                     IdFieldMapper.NAME
                 );
             }

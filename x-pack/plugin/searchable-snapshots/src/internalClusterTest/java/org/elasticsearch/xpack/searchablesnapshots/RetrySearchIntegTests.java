@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchType;
@@ -123,45 +124,14 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
 
     public void testRetryPointInTime() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        int numberOfShards = between(1, 5);
-        assertAcked(
-            indicesAdmin().prepareCreate(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards).build())
-                .setMapping("""
-                    {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}""")
-        );
-        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         final int docCount = between(0, 100);
-        for (int i = 0; i < docCount; i++) {
-            indexRequestBuilders.add(prepareIndex(indexName).setSource("created_date", "2011-02-02"));
-        }
-        indexRandom(true, false, indexRequestBuilders);
-        assertThat(
-            indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
-        refresh(indexName);
-        // force merge with expunge deletes is not merging down to one segment only
-        forceMerge(false);
-
-        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createRepository(repositoryName, "fs");
-
-        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
-        assertAcked(indicesAdmin().prepareDelete(indexName));
-
-        final int numberOfReplicas = between(0, 2);
-        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
-        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
-
-        mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, indexSettings);
-        ensureGreen(indexName);
-
+        int numShards = between(1, 5);
+        createTestIndex(indexName, docCount, numShards);
         final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
         final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
-        assertEquals(numberOfShards, SearchContextId.decode(writableRegistry(), pitId).shards().size());
+        assertEquals(numShards, SearchContextId.decode(writableRegistry(), pitId).shards().size());
         logger.info(
             "---> Original PIT id: "
                 + new PointInTimeBuilder(pitId).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
@@ -220,5 +190,82 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         } finally {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(updatedPit.get())).actionGet();
         }
+    }
+
+    /**
+     * Test that for searchable snapshots, we can retry PIT searches even after the PIT has been closed (simulating also expired PITs).
+     */
+    public void testRetryRemovedPointInTime() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int docCount = between(0, 100);
+        int numShards = between(1, 5);
+        createTestIndex(indexName, docCount, numShards);
+
+        final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
+            IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
+        ).keepAlive(TimeValue.timeValueMinutes(1));
+        final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
+
+        try {
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+                assertHitCount(resp, docCount);
+            });
+
+            // remove PIT contexts by closing it. This should be similar to expired PIT contexts eventually be removed
+            ClosePointInTimeResponse closePointInTimeResponse = client().execute(
+                TransportClosePointInTimeAction.TYPE,
+                new ClosePointInTimeRequest(pitId)
+            ).actionGet();
+            assertEquals(numShards, closePointInTimeResponse.getNumFreed());
+
+            assertNoFailuresAndResponse(
+                prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setPreFilterShardSize(between(1, 10))
+                    .setAllowPartialSearchResults(true)
+                    .setPointInTime(new PointInTimeBuilder(pitId)),
+                resp -> {
+                    assertThat(resp.pointInTimeId(), equalTo(pitId));
+                    assertHitCount(resp, docCount);
+                }
+            );
+        } finally {
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
+    }
+
+    private void createTestIndex(String indexName, int docCount, int numShards) throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build())
+                .setMapping("""
+                    {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}""")
+        );
+        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 0; i < docCount; i++) {
+            indexRequestBuilders.add(prepareIndex(indexName).setSource("created_date", "2011-02-02"));
+        }
+        indexRandom(true, false, indexRequestBuilders);
+        assertThat(
+            indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+            equalTo(0)
+        );
+        refresh(indexName);
+        // force merge with expunge deletes is not merging down to one segment only
+        forceMerge(false);
+
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(repositoryName, "fs");
+
+        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        final int numberOfReplicas = between(0, 2);
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
+
+        mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, indexSettings);
+        ensureGreen(indexName);
     }
 }

@@ -2881,7 +2881,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         Settings settings = Settings.fromXContent(parser);
-                        checkSettingIndexVersionCompatibility(settings);
+                        if (SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).isLegacyIndexVersion() == false) {
+                            throw new IllegalStateException(
+                                "this method should only be used to parse older incompatible index metadata versions "
+                                    + "but got "
+                                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).toReleaseVersion()
+                            );
+                        }
                         builder.settings(settings);
                     } else if ("mappings".equals(currentFieldName)) {
                         Map<String, Object> mappingSourceBuilder = new HashMap<>();
@@ -2971,16 +2977,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else if (mapping.size() > 1) {
                 builder.putMapping(new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mapping));
             }
-        }
-    }
-
-    private static void checkSettingIndexVersionCompatibility(Settings settings) {
-        if (SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).isLegacyIndexVersion() == false) {
-            throw new IllegalStateException(
-                "this method should only be used to parse older incompatible index metadata versions "
-                    + "but got "
-                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).toReleaseVersion()
-            );
         }
     }
 

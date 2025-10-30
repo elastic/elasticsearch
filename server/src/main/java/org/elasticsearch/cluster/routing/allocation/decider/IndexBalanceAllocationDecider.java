@@ -81,7 +81,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         }
 
         if (node.node().getRoles().contains(INDEX_ROLE) && shardRouting.primary() == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Decider allows replicas move to index nodes.");
+            return Decision.single(Decision.Type.YES, NAME, "An index node cannot own search shards. Decider inactive.");
         }
 
         if (node.node().getRoles().contains(SEARCH_ROLE) && shardRouting.primary()) {

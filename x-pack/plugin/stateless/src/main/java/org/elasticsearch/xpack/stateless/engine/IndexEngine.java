@@ -425,7 +425,7 @@ public class IndexEngine extends InternalEngine {
                     + "] and current max seq no ["
                     + getMaxSeqNo()
                     + "]";
-            logger.debug(
+            logger.info(
                 () -> "flushing hollow commit with max seq no " + hollowMaxSeqNo + " and generation " + (getCurrentGeneration() + 1)
             );
             commitExtraUserData = Maps.newMapWithExpectedSize(4 + accumulatorUserData.size());

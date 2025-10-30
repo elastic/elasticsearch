@@ -197,7 +197,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
-            // TODO: ES-11519 Remove the explicit setting of the default values for TTLs here
             .put(SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.timeValueMinutes(15))
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueDays(3))
             .put(DATA_STREAM_LIFECYCLE_POLL_INTERVAL, TimeValue.timeValueSeconds(1))

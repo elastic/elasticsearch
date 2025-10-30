@@ -34,6 +34,7 @@ import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReade
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -883,8 +884,24 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSearchShardGenerationFilesRetention() throws Exception {
+        var indexingNodeSettingsBuilder = Settings.builder();
+        final var hollowEnabled = randomBoolean();
+        if (hollowEnabled) {
+            indexingNodeSettingsBuilder = indexingNodeSettingsBuilder.put(
+                HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(),
+                true
+            )
+                .put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO)
+                .put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO);
+        } else {
+            indexingNodeSettingsBuilder = indexingNodeSettingsBuilder.put(
+                HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(),
+                false
+            );
+        }
+        final var indexingNodeSettings = indexingNodeSettingsBuilder.build();
         var masterNode = startMasterOnlyNode();
-        var indexNode = startIndexNode();
+        var indexNode = startIndexNode(indexingNodeSettings);
 
         final var indexName = createIndex(1, 0);
         var indexingShard = findIndexShard(resolveIndex(indexName), 0);
@@ -1146,7 +1163,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> assertThat(blobContainerBefore.listBlobs(OperationPurpose.INDICES).keySet(), hasItem(bccBlobName)));
 
         // relocate the indexing shard
-        var newIndexNode = startIndexNode();
+        var newIndexNode = startIndexNode(indexingNodeSettings);
         ensureStableCluster(4);
         updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNode), indexName);
         ensureGreen(indexName);
@@ -1165,7 +1182,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         // on the source node (along with copies of the generational files). Therefore, the target node will recovers commit 9,
         // and because it's a hollow commit, will not flush a new commit. So the indexing node opens the generational files from
         // the recovered commit 9.
-        long generationalFilesGen = STATELESS_HOLLOW_ENABLED ? 9L : 8L;
+        long generationalFilesGen = hollowEnabled ? 9L : 8L;
 
         filesLocations = Map.ofEntries(
             entry("segments_9", 9L),
@@ -1185,7 +1202,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertThat(getShardGeneration.apply(indexingShard), equalTo(9L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
-        if (STATELESS_HOLLOW_ENABLED) {
+        if (hollowEnabled) {
             assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of());
         } else {
             // the new indexing shard opens the generational files on the generation 8L (flush before relocation)
@@ -1246,7 +1263,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         long generationAfterForceMerge;
         String segmentAfterForceMerge;
 
-        if (STATELESS_HOLLOW_ENABLED) {
+        if (hollowEnabled) {
             // When hollow is enabled, forceMerge will trigger first an un-hollowing which will flush gen 10 (segment_a),
             // before performing the force merge that will create gen 11 (segment_b).
             generationAfterForceMerge = 11L;

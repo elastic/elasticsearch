@@ -77,6 +77,15 @@ final class CanMatchPreFilterSearchPhase {
     private int numPossibleMatches;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
 
+    /**
+ * Temporary placeholder for ES|QL optimization:
+ * Future work will skip node-level can_match when handling ES|QL queries.
+ */
+private boolean shouldSkipNodeLevelCanMatch(SearchRequest request) {
+    // TODO: Implement ES|QL detection and version check
+    return false;
+}
+
     private CanMatchPreFilterSearchPhase(
         Logger logger,
         SearchTransportService searchTransportService,
@@ -303,6 +312,12 @@ final class CanMatchPreFilterSearchPhase {
                 }
 
                 var sendingTarget = entry.getKey();
+
+                    // TODO [ES|QL]: Skip node-level can_match once ES|QL request detection is integrated
+    if (shouldSkipNodeLevelCanMatch(request)) {
+        // Future: short-circuit node-level can_match here
+        continue;
+    }
                 try {
                     searchTransportService.sendCanMatch(
                         nodeIdToConnection.apply(sendingTarget.clusterAlias, sendingTarget.nodeId),

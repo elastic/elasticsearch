@@ -50,7 +50,6 @@ import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests.TestES819TSDBDocValuesFormatVersion0;
@@ -68,12 +67,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     public void testMixedIndexDocValueVersion0ToCurrent() throws Exception {
         var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES819TSDBDocValuesFormatVersion0());
         var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
-        testMixedIndex(
-            oldCodec,
-            newCodec,
-            this::assertVersion819,
-            this::assertVersion819
-        );
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
     }
 
     public void testMixedIndex816To900Lucene101() throws Exception {
@@ -98,7 +92,8 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         testMixedIndex(oldCodec, newCodec);
     }
 
-    void assertFieldInfoDocValuesFormat(DirectoryReader reader, String expectedSuffix, String expectedFormat) throws IOException, NoSuchFieldException, IllegalAccessException {
+    void assertFieldInfoDocValuesFormat(DirectoryReader reader, String expectedSuffix, String expectedFormat) throws IOException,
+        NoSuchFieldException, IllegalAccessException {
         // Assert per field format field info attributes:
         // (XPerFieldDocValuesFormat must produce the same attributes as PerFieldDocValuesFormat for BWC.
         // Otherwise, doc values fields may disappear)
@@ -121,12 +116,13 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         assertFieldInfoDocValuesFormat(reader, "0", "ES819TSDB");
     }
 
-    void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
+    void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException,
+        ClassNotFoundException {
         testMixedIndex(oldCodec, newCodec, this::assertVersion87, this::assertVersion819);
     }
 
-    void testMixedIndex(Codec oldCodec, Codec newCodec, VersionAssert assertOldVersion, VersionAssert assertNewVersion) throws IOException, NoSuchFieldException, IllegalAccessException,
-        ClassNotFoundException {
+    void testMixedIndex(Codec oldCodec, Codec newCodec, VersionAssert assertOldVersion, VersionAssert assertNewVersion) throws IOException,
+        NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
         String timestampField = "@timestamp";
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;

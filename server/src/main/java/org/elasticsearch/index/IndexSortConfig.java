@@ -147,6 +147,12 @@ public final class IndexSortConfig {
             }
 
             if (IndexMode.TIME_SERIES.getName().equals(indexMode)) {
+                if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+                    var useSyntheticId = settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey());
+                    if (useSyntheticId != null && useSyntheticId.equalsIgnoreCase(Boolean.TRUE.toString())) {
+                        return TIME_SERIES_WITH_SYNTHETIC_ID_SORT;
+                    }
+                }
                 return TIME_SERIES_SORT;
             } else if (IndexMode.LOGSDB.getName().equals(indexMode)) {
                 var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);

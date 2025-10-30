@@ -10,8 +10,11 @@
 package org.elasticsearch.entitlement.tools.publiccallersfinder;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.tools.AccessibleJdkMethods;
 import org.elasticsearch.entitlement.tools.ExternalAccess;
 import org.elasticsearch.entitlement.tools.Utils;
+import org.elasticsearch.entitlement.tools.publiccallersfinder.FindUsagesClassVisitor.EntryPoint;
+import org.elasticsearch.entitlement.tools.publiccallersfinder.FindUsagesClassVisitor.MethodDescriptor;
 import org.objectweb.asm.ClassReader;
 
 import java.io.IOException;
@@ -25,8 +28,12 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static java.util.Collections.emptyMap;
+import static java.util.function.Predicate.not;
 
 public class Main {
 
@@ -34,102 +41,106 @@ public class Main {
 
     private static String TRANSITIVE = "--transitive";
     private static String CHECK_INSTRUMENTATION = "--check-instrumentation";
-    private static Set<String> OPTIONAL_ARGS = Set.of(TRANSITIVE, CHECK_INSTRUMENTATION);
+    private static String INCLUDE_INCUBATOR = "--include-incubator";
 
-    private static final Set<FindUsagesClassVisitor.MethodDescriptor> INSTRUMENTED_METHODS = new HashSet<>();
+    private static Set<String> OPTIONAL_ARGS = Set.of(TRANSITIVE, CHECK_INSTRUMENTATION, INCLUDE_INCUBATOR);
 
-    record CallChain(FindUsagesClassVisitor.EntryPoint entryPoint, CallChain next) {}
+    private static final Set<MethodDescriptor> INSTRUMENTED_METHODS = new HashSet<>();
+    private static final Set<MethodDescriptor> ACCESSIBLE_JDK_METHODS = new HashSet<>();
+
+    record CallChain(EntryPoint entryPoint, CallChain next) {
+        boolean isPublic() {
+            return ExternalAccess.isExternallyAccessible(entryPoint.access());
+        }
+
+        CallChain prepend(MethodDescriptor method, EnumSet<ExternalAccess> access, String module, String source, int line) {
+            return new CallChain(new EntryPoint(module, source, line, method, access), this);
+        }
+
+        static CallChain firstLevel(MethodDescriptor method, EnumSet<ExternalAccess> access, String module, String source, int line) {
+            return new CallChain(new EntryPoint(module, source, line, method, access), null);
+        }
+    }
 
     interface UsageConsumer {
         void usageFound(CallChain originalEntryPoint, CallChain newMethod);
     }
 
+    private static void visitClasses(FindUsagesClassVisitor visitor, List<Path> classes) {
+        for (var clazz : classes) {
+            try {
+                ClassReader cr = new ClassReader(Files.newInputStream(clazz));
+                cr.accept(visitor, 0);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     private static void findTransitiveUsages(
         Collection<CallChain> firstLevelCallers,
         List<Path> classesToScan,
-        Set<String> moduleExports,
         boolean bubbleUpFromPublic,
         UsageConsumer usageConsumer
     ) {
         for (var caller : firstLevelCallers) {
             var methodsToCheck = new ArrayDeque<>(Set.of(caller));
-            var methodsSeen = new HashSet<FindUsagesClassVisitor.EntryPoint>();
+            var methodsSeen = new HashSet<EntryPoint>();
 
             while (methodsToCheck.isEmpty() == false) {
                 var methodToCheck = methodsToCheck.removeFirst();
                 var entryPoint = methodToCheck.entryPoint();
-                var visitor2 = new FindUsagesClassVisitor(moduleExports, entryPoint.method(), (source, line, method, access) -> {
-                    var newMethod = new CallChain(
-                        new FindUsagesClassVisitor.EntryPoint(entryPoint.moduleName(), source, line, method, access),
-                        methodToCheck
-                    );
-
-                    var notSeenBefore = methodsSeen.add(newMethod.entryPoint());
-                    if (notSeenBefore) {
-                        if (ExternalAccess.isExternallyAccessible(access)) {
-                            usageConsumer.usageFound(caller.next(), newMethod);
-                        }
-                        if (access.contains(ExternalAccess.PUBLIC_METHOD) == false || bubbleUpFromPublic) {
-                            methodsToCheck.add(newMethod);
+                var visitor2 = new FindUsagesClassVisitor(
+                    entryPoint.method(),
+                    ACCESSIBLE_JDK_METHODS::contains,
+                    (source, line, method, access) -> {
+                        var newMethod = methodToCheck.prepend(method, access, entryPoint.moduleName(), source, line);
+                        var notSeenBefore = methodsSeen.add(newMethod.entryPoint());
+                        if (notSeenBefore) {
+                            if (newMethod.isPublic()) {
+                                usageConsumer.usageFound(caller.next(), newMethod);
+                            }
+                            if (bubbleUpFromPublic || newMethod.isPublic() == false) {
+                                methodsToCheck.add(newMethod);
+                            }
                         }
                     }
-                });
-
-                for (var classFile : classesToScan) {
-                    try {
-                        ClassReader cr = new ClassReader(Files.newInputStream(classFile));
-                        cr.accept(visitor2, 0);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
+                );
+                visitClasses(visitor2, classesToScan);
             }
         }
     }
 
     private static void identifyTopLevelEntryPoints(
-        FindUsagesClassVisitor.MethodDescriptor methodToFind,
+        Predicate<String> modulePredicate,
+        MethodDescriptor methodToFind,
         String methodToFindModule,
         EnumSet<ExternalAccess> methodToFindAccess,
         boolean bubbleUpFromPublic
     ) throws IOException {
 
-        Utils.walkJdkModules((moduleName, moduleClasses, moduleExports) -> {
+        CallChain firstLevel = CallChain.firstLevel(methodToFind, methodToFindAccess, methodToFindModule, "", 0);
+        Utils.walkJdkModules(modulePredicate, emptyMap(), (moduleName, moduleClasses, ignore) -> {
             var originalCallers = new ArrayList<CallChain>();
             var visitor = new FindUsagesClassVisitor(
-                moduleExports,
                 methodToFind,
-                (source, line, method, access) -> originalCallers.add(
-                    new CallChain(
-                        new FindUsagesClassVisitor.EntryPoint(moduleName, source, line, method, access),
-                        new CallChain(
-                            new FindUsagesClassVisitor.EntryPoint(methodToFindModule, "", 0, methodToFind, methodToFindAccess),
-                            null
-                        )
-                    )
-                )
+                ACCESSIBLE_JDK_METHODS::contains,
+                (source, line, method, access) -> originalCallers.add(firstLevel.prepend(method, access, moduleName, source, line))
             );
+            visitClasses(visitor, moduleClasses);
 
-            for (var classFile : moduleClasses) {
-                try {
-                    ClassReader cr = new ClassReader(Files.newInputStream(classFile));
-                    cr.accept(visitor, 0);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            originalCallers.stream().filter(c -> ExternalAccess.isExternallyAccessible(c.entryPoint().access())).forEach(c -> {
+            originalCallers.stream().filter(CallChain::isPublic).forEach(c -> {
                 var originalCaller = c.next();
                 printRow(getEntryPointColumns(c.entryPoint().moduleName(), c.entryPoint()), getOriginalEntryPointColumns(originalCaller));
             });
-            var firstLevelCallers = bubbleUpFromPublic ? originalCallers : originalCallers.stream().filter(Main::isNotFullyPublic).toList();
+            var firstLevelCallers = bubbleUpFromPublic
+                ? originalCallers
+                : originalCallers.stream().filter(not(CallChain::isPublic)).toList();
 
             if (firstLevelCallers.isEmpty() == false) {
                 findTransitiveUsages(
                     firstLevelCallers,
                     moduleClasses,
-                    moduleExports,
                     bubbleUpFromPublic,
                     (originalEntryPoint, newMethod) -> printRow(
                         getEntryPointColumns(moduleName, newMethod.entryPoint()),
@@ -138,11 +149,6 @@ public class Main {
                 );
             }
         });
-    }
-
-    private static boolean isNotFullyPublic(CallChain c) {
-        return (c.entryPoint().access().contains(ExternalAccess.PUBLIC_CLASS)
-            && c.entryPoint().access().contains(ExternalAccess.PUBLIC_METHOD)) == false;
     }
 
     @SuppressForbidden(reason = "This tool prints the CSV to stdout")
@@ -154,7 +160,7 @@ public class Main {
         System.out.println(row);
     }
 
-    private static CharSequence[] getEntryPointColumns(String moduleName, FindUsagesClassVisitor.EntryPoint e) {
+    private static CharSequence[] getEntryPointColumns(String moduleName, EntryPoint e) {
         if (INSTRUMENTED_METHODS.isEmpty()) {
             return new CharSequence[] {
                 moduleName,
@@ -186,8 +192,7 @@ public class Main {
     }
 
     interface MethodDescriptorConsumer {
-        void accept(FindUsagesClassVisitor.MethodDescriptor methodDescriptor, String moduleName, EnumSet<ExternalAccess> access)
-            throws IOException;
+        void accept(MethodDescriptor methodDescriptor, String moduleName, EnumSet<ExternalAccess> access) throws IOException;
     }
 
     private static void parseCsv(Path csvPath, MethodDescriptorConsumer methodConsumer) throws IOException {
@@ -199,7 +204,7 @@ public class Main {
             var methodName = tokens[4];
             var methodDescriptor = tokens[5];
             var access = ExternalAccess.fromString(tokens[6]);
-            methodConsumer.accept(new FindUsagesClassVisitor.MethodDescriptor(className, methodName, methodDescriptor), moduleName, access);
+            methodConsumer.accept(new MethodDescriptor(className, methodName, methodDescriptor), moduleName, access);
         }
     }
 
@@ -213,7 +218,7 @@ public class Main {
             if (parts.length != 3) {
                 throw new IllegalStateException("Invalid line in entitlements dump: " + Arrays.toString(parts));
             }
-            INSTRUMENTED_METHODS.add(new FindUsagesClassVisitor.MethodDescriptor(parts[0], parts[1], parts[2]));
+            INSTRUMENTED_METHODS.add(new MethodDescriptor(parts[0], parts[1], parts[2]));
         }
     }
 
@@ -240,10 +245,22 @@ public class Main {
         var csvFilePath = Path.of(args[0]);
         boolean bubbleUpFromPublic = optionalArgs(args).anyMatch(TRANSITIVE::equals);
         boolean checkInstrumentation = optionalArgs(args).anyMatch(CHECK_INSTRUMENTATION::equals);
+        boolean includeIncubator = optionalArgs(args).anyMatch(INCLUDE_INCUBATOR::equals);
+
+        AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
+            .forEach(
+                t -> ACCESSIBLE_JDK_METHODS.add(
+                    new MethodDescriptor(t.v1().clazz(), t.v2().descriptor().method(), t.v2().descriptor().descriptor())
+                )
+            );
 
         if (checkInstrumentation && System.getProperty("es.entitlements.dump") != null) {
             loadInstrumentedMethods(Path.of(System.getProperty("es.entitlements.dump")));
         }
-        parseCsv(csvFilePath, (method, module, access) -> identifyTopLevelEntryPoints(method, module, access, bubbleUpFromPublic));
+        Predicate<String> modulePredicate = Utils.modulePredicate(includeIncubator);
+        parseCsv(
+            csvFilePath,
+            (method, module, access) -> identifyTopLevelEntryPoints(modulePredicate, method, module, access, bubbleUpFromPublic)
+        );
     }
 }

@@ -199,7 +199,10 @@ This returns the following response based on the final rrf score for each result
 ::::
 
 
-### Using the expanded format with weights {applies_to}`stack: ga 9.2`
+### Using the expanded format with weights 
+```{applies_to}
+stack: ga 9.2
+```
 
 The same query can be written using the expanded format, which allows you to specify custom weights to adjust the influence of each retriever on the final ranking.
 In this example, we're giving the `standard` retriever twice the influence of the `knn` retriever:

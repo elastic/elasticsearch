@@ -88,6 +88,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
@@ -133,6 +134,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -2227,7 +2229,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertDataStreamsActionResponse.run();
     }
 
-    // A mix of threads that do indexing, updates, gets, force merges, and one thread moving shards so they can be hollowed.
+    // A mix of threads that do indexing, updates, (m)gets, force merges, snapshots, and one thread moving shards so they can be hollowed.
     // Boolean flags give the possibility to randomly fail a relocation due to a relocation failure or object store failure.
     private void doTestStress(boolean failRelocations, boolean failObjectStore) throws Exception {
         final var masterNode = startMasterOnlyNode();
@@ -2262,7 +2264,16 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         threads.add(new Thread(() -> {
             while (stopThreads.get() == false) {
                 for (int i = 0; i < numOfShards; i++) {
-                    var indexShard = findIndexShard(index, i);
+                    IndexShard indexShard;
+                    try {
+                        indexShard = findIndexShard(index, i);
+                    } catch (AssertionError e) {
+                        if (failObjectStore) {
+                            logger.info("--> Failed to find index shard, ignoring as failObjectStore is true", e);
+                            continue;
+                        }
+                        throw e;
+                    }
                     if (indexShard.getEngineOrNull() instanceof IndexEngine indexEngine && indexEngine.isLastCommitHollow() == false) {
                         var shardId = indexShard.shardId();
                         var hollowShardsService = internalCluster().getInstance(
@@ -2298,7 +2309,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                                     ? Map.of(OperationPurpose.INDICES, ".*", OperationPurpose.TRANSLOG, ".*")
                                     : randomBoolean() ? Map.of(OperationPurpose.INDICES, ".*")
                                     : Map.of(OperationPurpose.TRANSLOG, ".*");
-                                setNodeRepositoryFailureStrategy(sourceNode, failReads, failWrites, operationPurposesToFail);
+                                setNodeRepositoryFailureStrategy(sourceNode, failReads, failWrites, operationPurposesToFail, 1);
                                 failingObjectStore = true;
                             }
 
@@ -2336,6 +2347,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                                 stopBreakingRelocation(sourceNode, targetNode);
                             }
                             if (failingObjectStore) {
+                                logger.info("--> Stop failing object store on {}", sourceNode);
                                 setNodeRepositoryStrategy(sourceNode, StatelessMockRepositoryStrategy.DEFAULT);
                             }
                             safeSleep(randomLongBetween(0, 100));
@@ -2347,7 +2359,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             logger.info("exiting");
         }, "RelocDriver"));
 
-        Queue<String> subetOfInsertedDocs = new ConcurrentLinkedQueue<>();
+        Queue<String> subsetOfInsertedDocs = new ConcurrentLinkedQueue<>();
         int numIndexingThreads = randomIntBetween(2, 4);
         var insertedDocsCount = new AtomicLong(docs0);
         for (int i = 0; i < numIndexingThreads; i++) {
@@ -2357,17 +2369,20 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                     // shards to become hollowable.
                     safeSleep(randomLongBetween(10, 100));
                     int docs = numOfShards / numIndexingThreads;
-                    var bulkResponse = indexDocs(indexName, docs, docIdSupplier);
+                    logger.info("Indexing {} docs", docs);
+                    var bulkResponse = indexDocs(indexName, docs, UnaryOperator.identity(), docIdSupplier, null, failObjectStore == false);
                     insertedDocsCount.addAndGet(Arrays.stream(bulkResponse.getItems()).filter(r -> r.isFailed() == false).count());
                     final var validIds = Arrays.stream(bulkResponse.getItems())
                         .filter(r -> r.isFailed() == false)
                         .map(e -> e.getId())
                         .toList();
                     final var someInsertedDocs = randomSubsetOf(validIds);
-                    subetOfInsertedDocs.addAll(someInsertedDocs);
+                    subsetOfInsertedDocs.addAll(someInsertedDocs);
+                    logger.info("Indexed {} docs out of {}, total indexed so far is {}", validIds.size(), docs, insertedDocsCount.get());
                     switch (randomInt(2)) {
                         case 0:
                             try {
+                                logger.info("Flushing index {}", indexName);
                                 client().admin().indices().prepareFlush(indexName).get();
                             } catch (Exception e) {
                                 // ignore
@@ -2375,6 +2390,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                             break;
                         case 1:
                             try {
+                                logger.info("Refreshing index {}", indexName);
                                 client().admin().indices().prepareRefresh(indexName).get();
                             } catch (Exception e) {
                                 // ignore
@@ -2423,10 +2439,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             threads.add(new Thread(() -> {
                 while (stopThreads.get() == false) {
                     safeSleep(randomLongBetween(0, 100));
-                    if (subetOfInsertedDocs.isEmpty()) {
+                    if (subsetOfInsertedDocs.isEmpty()) {
                         continue;
                     }
-                    List<String> docIds = randomSubsetOf(Math.min(8, subetOfInsertedDocs.size()), subetOfInsertedDocs);
+                    List<String> docIds = randomSubsetOf(Math.min(8, subsetOfInsertedDocs.size()), subsetOfInsertedDocs);
                     try {
                         if (randomBoolean()) {
                             var multiGetItemResponse = safeGet(client().prepareMultiGet().addIds(indexName, docIds).execute());
@@ -2448,6 +2464,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                         }
                     } catch (Exception e) {
                         throw new AssertionError("Unable to get docs in real-time", e);
+                    } catch (AssertionError e) {
+                        if (failObjectStore) {
+                            logger.info("Assertion when getting docs, ignoring as failObjectStore is true", e);
+                        } else {
+                            throw e;
+                        }
                     }
                 }
                 logger.info("exiting");
@@ -2457,10 +2479,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         threads.add(new Thread(() -> {
             while (stopThreads.get() == false) {
                 safeSleep(randomLongBetween(0, 100));
-                if (subetOfInsertedDocs.isEmpty()) {
+                if (subsetOfInsertedDocs.isEmpty()) {
                     continue;
                 }
-                List<String> docIds = randomSubsetOf(Math.min(subetOfInsertedDocs.size(), 64), subetOfInsertedDocs);
+                List<String> docIds = randomSubsetOf(Math.min(subsetOfInsertedDocs.size(), 64), subsetOfInsertedDocs);
                 if (docIds.isEmpty()) {
                     continue;
                 }
@@ -2472,7 +2494,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                         client.prepareUpdate(indexName, docId).setDoc("field", randomUnicodeOfCodepointLengthBetween(1, 25))
                     );
                 }
-                assertNoFailures(bulkRequestBuilder.get());
+                try {
+                    assertNoFailures(bulkRequestBuilder.get());
+                } catch (AssertionError e) {
+                    if (failObjectStore) {
+                        logger.info("Assertion when updating docs, ignoring as failObjectStore is true", e);
+                    } else {
+                        throw e;
+                    }
+                }
             }
             logger.info("exiting");
         }, "Update"));
@@ -2508,13 +2538,18 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                         // excepted exceptions if they ever change, as long as the general spirit is preserved, i.e., that the
                         // snapshot is not done due to the relocation/closure of the shard rather than, e.g., some missing file.
                         final var reason = failure.reason();
-                        assertThat(
-                            reason,
-                            either(containsString("aborted")).or(containsString("ShardNotFoundException"))
-                                .or(containsString("IndexShardSnapshotFailedException"))
-                        );
-                        if (reason.contains("IndexShardSnapshotFailedException")) {
-                            assertThat(reason, either(containsString("relocating")).or(containsString("closed")));
+                        // If we allow for object store failures, we may get other exceptions as well. Too many to enumerate here.
+                        if (failObjectStore == false) {
+                            assertThat(
+                                reason,
+                                either(containsString("aborted")).or(containsString("ShardNotFoundException"))
+                                    .or(containsString("IndexShardSnapshotFailedException"))
+                            );
+                            if (reason.contains("IndexShardSnapshotFailedException")) {
+                                assertThat(reason, either(containsString("relocating")).or(containsString("closed")));
+                            }
+                        } else {
+                            logger.warn("Snapshot of shard [{}] failed with exception: {}", failure.shardId(), reason);
                         }
                     });
                 }
@@ -2571,11 +2606,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         doTestStress(true, false);
     }
 
-    // TODO: Stabilize the test with injected object store failures
-    // (currently they sometimes make the test randomly hang for 1m+)
-    // Inject delays when the IndexWriter is created by introducing sleeps into the blob store reads,
-    // as currently we test only really tiny shards.
-    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-10705")
     public void testStressWithRelocationOrObjectStoreFailures() throws Exception {
         doTestStress(true, true);
     }

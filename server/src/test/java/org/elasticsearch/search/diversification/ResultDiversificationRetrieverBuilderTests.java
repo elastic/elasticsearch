@@ -225,7 +225,10 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> retriever.combineInnerRetrieverResults(docs, false)
         );
-        assertEquals("Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] field?", badDocFieldEx.getMessage());
+        assertEquals(
+            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] field?",
+            badDocFieldEx.getMessage()
+        );
         assertEquals(400, badDocFieldEx.status().getStatus());
 
         cleanDocsAndHits(docs, hits);

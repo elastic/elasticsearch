@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -336,9 +335,7 @@ public abstract class IndexRouting {
             assert indexMode != null : "Index mode must be set for ExtractFromSource routing";
             this.trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
                 && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
-            this.useTimeSeriesSyntheticId = trackTimeSeriesRoutingHash
-                && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID)
-                && IndexSettings.USE_SYNTHETIC_ID.get(metadata.getSettings());
+            this.useTimeSeriesSyntheticId = metadata.useTimeSeriesSyntheticId();
             addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(includePaths), null, true);
         }

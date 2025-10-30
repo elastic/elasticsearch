@@ -67,7 +67,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
-            if (context.indexSettings().useTsdbSyntheticId()) {
+            if (context.indexSettings().useTimeSeriesSyntheticId()) {
                 id = createSyntheticId(tsid, timestamp, routingHash);
             } else {
                 id = createId(routingHash, tsid, timestamp);
@@ -98,7 +98,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         context.id(id);
 
         final Field idField;
-        if (context.indexSettings().useTsdbSyntheticId()) {
+        if (context.indexSettings().useTimeSeriesSyntheticId()) {
             idField = syntheticIdField(context.id());
         } else {
             idField = standardIdField(context.id());

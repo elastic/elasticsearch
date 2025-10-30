@@ -245,7 +245,7 @@ public class InternalEngine extends Engine {
     InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
         this.maxDocs = maxDocs;
-        if (engineConfig.getIndexSettings().useTsdbSyntheticId()) {
+        if (engineConfig.getIndexSettings().useTimeSeriesSyntheticId()) {
             logger.info("using TSDB with synthetic id");
             useTsdbSyntheticId = true;
         } else {

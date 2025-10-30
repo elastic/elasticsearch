@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -110,7 +112,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     private static EsqlParser parser;
@@ -1071,6 +1073,32 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(field1Eval.value(), is(nullValue()));
         assertThat(field1Eval.dataType(), is(INTEGER));
         var source = as(eval.child(), EsRelation.class);
+    }
+
+    public void testFullTextFunctionOnMissingField() {
+        var plan = plan("""
+            from test
+            | where match(first_name, "John") or match(last_name, "Doe")
+            """);
+
+        var testStats = statsForMissingField("first_name");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+
+        // Introduces an Eval with first_name as null literal
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("first_name"));
+        var firstNameEval = as(Alias.unwrap(eval.fields().get(0)), Literal.class);
+        assertThat(firstNameEval.value(), is(nullValue()));
+        assertThat(firstNameEval.dataType(), is(KEYWORD));
+
+        var limit = as(eval.child(), Limit.class);
+
+        // Filter has a single match on last_name only
+        var filter = as(limit.child(), Filter.class);
+        var match = as(filter.condition(), Match.class);
+        assertThat(Expressions.name(match.field()), equalTo("last_name"));
     }
 
     private IsNotNull isNotNull(Expression field) {

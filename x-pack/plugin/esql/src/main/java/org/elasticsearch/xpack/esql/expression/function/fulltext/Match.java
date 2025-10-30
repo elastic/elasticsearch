@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -440,13 +442,18 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @Override
     public boolean foldable() {
-        return Literal.NULL.equals(field());
+        return Expressions.isGuaranteedNull(field());
     }
 
     @Override
     public Object fold(FoldContext ctx) {
         // We only fold when the field is null (it's not present in the mapping), so we return null
-        return null;
+        return Literal.NULL;
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Expressions.isGuaranteedNull(field()) ? Nullability.TRUE : Nullability.FALSE;
     }
 
     @Override

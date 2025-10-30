@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -378,7 +379,8 @@ public abstract class FullTextFunction extends Function
     public static void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
         // Only run the check if the current node contains the full-text function
         // This is to avoid running the check multiple times in the same plan
-        if (isInCurrentNode(plan, function) == false) {
+        // Field can be null when the field does not exist in the mapping
+        if (isInCurrentNode(plan, function) == false || ((field instanceof Literal literal) && literal.value() == null)) {
             return;
         }
         var fieldAttribute = fieldAsFieldAttribute(field);

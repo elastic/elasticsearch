@@ -46,6 +46,10 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `geo_shape`
     * `point`
     * `shape`
+* TSDB metrics {preview}`9.3`
+   * `counter` 
+   * `position` 
+   * `aggregate_metric_double`
 
 
 
@@ -53,6 +57,17 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
 {{esql}} does not yet support the following field types:
 
+::::{tab-set}
+:::{tab-item} 9.0-9.2
+* TSDB metrics
+   * `counter` 
+   * `position` 
+   * `aggregate_metric_double`
+:::
+:::{tab-item} 9.3+
+This limitation no longer exists and TSDB metrics are now supported.
+:::
+::::
 * Date/time
 
     * `date_range`

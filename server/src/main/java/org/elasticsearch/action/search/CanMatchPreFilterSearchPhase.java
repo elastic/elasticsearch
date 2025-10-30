@@ -152,7 +152,11 @@ final class CanMatchPreFilterSearchPhase {
         listener.addListener(new ActionListener<>() {
             @Override
             public void onResponse(List<SearchShardIterator> shardsIts) {
-                searchResponseMetrics.recordSearchPhaseDuration(PHASE_NAME, System.nanoTime() - phaseStartTimeInNanos);
+                searchResponseMetrics.recordSearchPhaseDuration(
+                    PHASE_NAME,
+                    System.nanoTime() - phaseStartTimeInNanos,
+                    searchRequestAttributes
+                );
             }
 
             @Override

@@ -98,7 +98,6 @@ public class ElasticInferenceService extends SenderService {
     // This mirrors the memory constraints observed with sparse embeddings
     private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
 
-
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
      */
@@ -116,12 +115,7 @@ public class ElasticInferenceService extends SenderService {
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        this(
-            factory,
-            serviceComponents,
-            elasticInferenceServiceSettings,
-            context.clusterService()
-        );
+        this(factory, serviceComponents, elasticInferenceServiceSettings, context.clusterService());
     }
 
     public ElasticInferenceService(
@@ -152,7 +146,6 @@ public class ElasticInferenceService extends SenderService {
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.CHAT_COMPLETION);
     }
-
 
     @Override
     protected void doUnifiedCompletionInfer(

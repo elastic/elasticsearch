@@ -100,7 +100,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceContext {
+    public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -112,10 +112,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             IndexVersion indexCreatedVersion,
             IndexAnalyzers indexAnalyzers,
             boolean storedFieldInBinaryFormat,
-            boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
+            super(name, indexCreatedVersion, isWithinMultiField);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
@@ -169,7 +168,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             n,
             c.indexVersionCreated(),
             c.getIndexAnalyzers(),
-            isSyntheticSourceStoredFieldInBinaryFormat(c.indexVersionCreated()),
             SourceFieldMapper.isSynthetic(c.getIndexSettings()),
             c.isWithinMultiField()
         )
@@ -604,6 +602,28 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 }
             }
 
+            /*
+             * TODO: This duplicates code from TextFieldMapper
+             * If this is a sub-text field try and return the parent's loader. Text
+             * fields will always be slow to load and if the parent is exact then we
+             * should use that instead.
+             */
+            String parentField = blContext.parentField(name());
+            if (parentField != null) {
+                MappedFieldType parent = blContext.lookup().fieldType(parentField);
+                if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
+                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                            @Override
+                            protected String delegatingTo() {
+                                return kwd.name();
+                            }
+                        };
+                    }
+                }
+            }
+
             // fallback to _source (synthetic or not)
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             // MatchOnlyText never has norms, so we have to use the field names field
@@ -677,14 +697,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexAnalyzers,
-            storedFieldInBinaryFormat,
-            fieldType().isSyntheticSourceEnabled(),
-            fieldType().isWithinMultiField()
-        ).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, storedFieldInBinaryFormat, fieldType().isWithinMultiField())
+            .init(this);
     }
 
     @Override

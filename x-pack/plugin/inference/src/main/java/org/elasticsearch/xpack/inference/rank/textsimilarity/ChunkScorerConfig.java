@@ -77,6 +77,10 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
         return size;
     }
 
+    public int sizeOrDefault() {
+        return size != null ? size : DEFAULT_SIZE;
+    }
+
     public String inferenceText() {
         return inferenceText;
     }
@@ -98,6 +102,19 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(size, inferenceText, chunkingSettings);
+    }
+
+    @Override
+    public String toString() {
+        return "ChunkScorerConfig{"
+            + "size="
+            + sizeOrDefault()
+            + ", inferenceText=["
+            + inferenceText
+            + ']'
+            + ", chunkingSettings="
+            + chunkingSettings
+            + "}";
     }
 
     @Override

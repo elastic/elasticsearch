@@ -414,9 +414,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testAggTooManyMvLongs
   issue: https://github.com/elastic/elasticsearch/issues/135585
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  method: testUsesFileBasedRecoveryIfOperationsBasedRecoveryWouldBeUnreasonable
-  issue: https://github.com/elastic/elasticsearch/issues/135737
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055
@@ -507,6 +504,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/error on rename timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/137259
+- class: org.elasticsearch.readiness.ReadinessClusterIT
+  method: testReadinessDuringRestartsNormalOrder
+  issue: https://github.com/elastic/elasticsearch/issues/136955
 
 # Examples:
 #

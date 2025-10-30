@@ -25,6 +25,7 @@ template:
             ignore_above: 1024
           exception.stacktrace:
             type: wildcard
+            ignore_above: 1024
             fields:
               text:
                 type: match_only_text

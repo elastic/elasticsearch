@@ -93,12 +93,14 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     }
 
     private class ByteDocValues implements FormattedDocValues {
+        private final int dims;
         private byte[] vector;
         private ByteVectorValues byteVectorValues; // use when indexed
         private KnnVectorValues.DocIndexIterator iterator; // use when indexed
         private BinaryDocValues binary; // use when not indexed
 
         ByteDocValues(int dims) {
+            this.dims = dims;
             this.vector = new byte[dims];
             try {
                 if (indexed) {

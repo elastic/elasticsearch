@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -171,7 +172,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
             IndexNumericFieldData.NumericType.DOUBLE,
             CoreValuesSourceType.NUMERIC,
             (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n),
-            false
+            IndexType.NONE
         );
         FunctionScoreQuery query = new FunctionScoreQuery(
             new MatchAllDocsQuery(),

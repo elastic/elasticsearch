@@ -1,0 +1,33 @@
+{
+  "indices.get_all_sample_configuration": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-all-sample-configuration",
+      "description": "Get sampling configurations for all indices and data streams"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "random_sampling",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_sample/config",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for connection to master node"
+      }
+    }
+  }
+}
+

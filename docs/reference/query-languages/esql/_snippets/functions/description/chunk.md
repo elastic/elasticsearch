@@ -6,5 +6,11 @@ Use `CHUNK` to split a text field into smaller chunks.
 
 Chunk can be used on fields from the text famiy like [text](/reference/elasticsearch/mapping-reference/text.md) and [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md).
     Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
+
     The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
+
+    Chunks may be rescored based on their relevance to a specified query.
+    If a query is provided, chunks will be scored based on BM25 text search matches for that query.
+    A smaller number of chunks than requested may be returned if there aren't enough matches for the query.
+    If no chunks match the provided text query, chunks will be returned in the order in which they appear in the document.
 

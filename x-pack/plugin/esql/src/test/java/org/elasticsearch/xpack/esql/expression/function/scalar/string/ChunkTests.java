@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ChunkTests extends AbstractScalarFunctionTestCase {
 
-    private static String PARAGRAPH_INPUT = """
+    private static final String PARAGRAPH_INPUT = """
         The Adirondacks, a vast mountain region in northern New York, offer a breathtaking mix of rugged wilderness, serene lakes,
         and charming small towns. Spanning over six million acres, the Adirondack Park is larger than Yellowstone, Yosemite, and the
         Grand Canyon combined, yet it’s dotted with communities where people live, work, and play amidst nature. Visitors come year-round
@@ -64,7 +64,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
                 String text = randomWordsBetween(25, 50);
                 ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(Chunk.DEFAULT_CHUNK_SIZE, 0);
 
-                List<String> chunks = Chunk.chunkText(text, chunkingSettings, Chunk.DEFAULT_NUM_CHUNKS);
+                List<String> chunks = Chunk.chunkText(text, chunkingSettings);
                 Object expectedResult = chunks.size() == 1
                     ? new BytesRef(chunks.get(0).trim())
                     : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
@@ -83,7 +83,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
                 String text = randomWordsBetween(25, 50);
                 ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(Chunk.DEFAULT_CHUNK_SIZE, 0);
 
-                List<String> chunks = Chunk.chunkText(text, chunkingSettings, Chunk.DEFAULT_NUM_CHUNKS);
+                List<String> chunks = Chunk.chunkText(text, chunkingSettings);
                 Object expectedResult = chunks.size() == 1
                     ? new BytesRef(chunks.get(0).trim())
                     : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
@@ -120,13 +120,9 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        // With MapParam, args contains: field, options_map
-        Expression options = args.size() < 2 ? null : args.get(1);
-        // TODO needed?
-        if (options instanceof Literal lit && lit.value() == null) {
-            options = null;
-        }
-        return new Chunk(source, args.get(0), options);
+        Expression query = args.size() < 2 ? null : args.get(1);
+        Expression options = args.size() < 3 ? null : args.get(2);
+        return new Chunk(source, args.get(0), query, options);
     }
 
     public void testDefaults() {
@@ -154,21 +150,27 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         int numChunksOrDefault = numChunks != null ? numChunks : Chunk.DEFAULT_NUM_CHUNKS;
         int chunkSizeOrDefault = chunkSize != null ? chunkSize : Chunk.DEFAULT_CHUNK_SIZE;
         ChunkingSettings settings = new SentenceBoundaryChunkingSettings(chunkSizeOrDefault, 0);
-        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, settings, numChunksOrDefault).stream().map(String::trim).toList();
+        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, settings).stream().map(String::trim).toList();
+        if (expected.size() > expectedNumChunksReturned) {
+            expected = expected.subList(0, expectedNumChunksReturned);
+        }
 
-        List<String> result = process(PARAGRAPH_INPUT, numChunksOrDefault, chunkSizeOrDefault);
+        List<String> result = process(PARAGRAPH_INPUT, null, numChunksOrDefault, chunkSizeOrDefault);
         assertThat(result.size(), equalTo(expectedNumChunksReturned));
         assertThat(result, equalTo(expected));
     }
 
-    private List<String> process(String str, Integer numChunks, Integer chunkSize) {
+    private List<String> process(String str, String query, Integer numChunks, Integer chunkSize) {
         MapExpression optionsMap = (numChunks == null && chunkSize == null) ? null : createOptionsMap(numChunks, chunkSize);
 
+        Expression queryExpr = query != null ? field("query", DataType.KEYWORD) : null;
+        List<Object> rowData = query != null ? List.of(new BytesRef(str), new BytesRef(query)) : List.of(new BytesRef(str));
+
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(new Chunk(Source.EMPTY, field("str", DataType.KEYWORD), optionsMap)).get(
-                driverContext()
-            );
-            Block block = eval.eval(row(List.of(new BytesRef(str))))
+            EvalOperator.ExpressionEvaluator eval = evaluator(
+                new Chunk(Source.EMPTY, field("str", DataType.KEYWORD), queryExpr, optionsMap)
+            ).get(driverContext());
+            Block block = eval.eval(row(rowData))
         ) {
             if (block.isNull(0)) {
                 return null;

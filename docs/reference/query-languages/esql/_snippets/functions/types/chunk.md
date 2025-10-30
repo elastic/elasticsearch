@@ -2,8 +2,8 @@
 
 **Supported types**
 
-| field | options | result |
-| --- | --- | --- |
-| keyword | | keyword |
-| text | | keyword |
+| field | query | options | result |
+| --- | --- | --- | --- |
+| keyword | | | keyword |
+| text | | | keyword |
 

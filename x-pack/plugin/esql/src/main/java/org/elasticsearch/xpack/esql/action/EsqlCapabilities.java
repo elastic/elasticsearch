@@ -1620,9 +1620,9 @@ public class EsqlCapabilities {
         FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
 
         /**
-         * Chunk function.
+         * Chunk function, with query/rescore
          */
-        CHUNK_FUNCTION(Build.current().isSnapshot()),
+        CHUNK_FUNCTION_V2(Build.current().isSnapshot()),
 
         /**
          * Support for vector similarity functtions pushdown

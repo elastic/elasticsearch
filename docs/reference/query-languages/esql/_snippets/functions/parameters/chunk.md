@@ -5,6 +5,9 @@
 `field`
 :   The input to chunk.
 
+`query`
+:      The query to use when scoring, to return the best chunks associated with this query.    If query is not provided or if no meaningful chunks can be found, chunks will be returned consecutively    from the start of the document. 
+
 `options`
 :   Options to customize chunking behavior.
 

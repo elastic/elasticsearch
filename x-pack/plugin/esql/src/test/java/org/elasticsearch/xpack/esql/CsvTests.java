@@ -357,7 +357,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "CSV tests cannot currently handle CHUNK function",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.CHUNK_FUNCTION.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {

@@ -53,11 +53,19 @@ import java.util.Map;
 import java.util.function.IntSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests.TestES819TSDBDocValuesFormatVersion0;
 
 public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
         var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        testMixedIndex(oldCodec, newCodec);
+    }
+
+    // TODO update Current to Version1 once version is incremented
+    public void testMixedIndexDocValueVersion0ToCurrent() throws Exception {
+        var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES819TSDBDocValuesFormatVersion0());
         var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
         testMixedIndex(oldCodec, newCodec);
     }

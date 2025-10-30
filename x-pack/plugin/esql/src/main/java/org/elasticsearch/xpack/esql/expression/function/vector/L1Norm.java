@@ -49,6 +49,11 @@ public class L1Norm extends VectorSimilarityFunction {
             }
             return result;
         }
+
+        @Override
+        public String toString() {
+            return "L1Norm";
+        }
     };
 
     @FunctionInfo(

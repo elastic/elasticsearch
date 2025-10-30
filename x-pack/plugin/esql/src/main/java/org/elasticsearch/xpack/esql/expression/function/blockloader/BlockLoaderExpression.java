@@ -45,12 +45,12 @@ public interface BlockLoaderExpression {
      * "fusing" the expression into the load. Or null if the fusion isn't possible.
      */
     @Nullable
-    Fuse tryFuse(SearchStats stats);
+    FusedExpression tryFuse(SearchStats stats);
 
     /**
      * Fused load configuration.
      * @param field the field whose load we're fusing into
      * @param config the fusion configuration
      */
-    record Fuse(FieldAttribute field, BlockLoaderFunctionConfig config) {}
+    record FusedExpression(FieldAttribute field, BlockLoaderFunctionConfig config) {}
 }

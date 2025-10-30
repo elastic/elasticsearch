@@ -37,6 +37,11 @@ public class L2Norm extends VectorSimilarityFunction {
         public float calculateSimilarity(float[] leftVector, float[] rightVector) {
             return (float) Math.sqrt(VectorUtil.squareDistance(leftVector, rightVector));
         }
+
+        @Override
+        public String toString() {
+            return "L1Norm";
+        }
     };
 
     @FunctionInfo(

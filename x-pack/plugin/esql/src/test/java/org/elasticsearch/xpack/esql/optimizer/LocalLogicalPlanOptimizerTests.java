@@ -118,6 +118,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LocalLogicalPlanOptimizerTests extends ESTestCase {
@@ -1128,6 +1129,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Check replaced field attribute
         FieldAttribute fieldAttr = (FieldAttribute) alias.child();
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
         var field = as(fieldAttr.field(), FunctionEsField.class);
         var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
         assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
@@ -1183,6 +1185,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Check replaced field attribute
         FieldAttribute fieldAttr = (FieldAttribute) alias.child();
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
         var field = as(fieldAttr.field(), FunctionEsField.class);
         var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
         assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
@@ -1297,6 +1300,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Check left side is the replaced field attribute
         var fieldAttr = as(greaterThan.left(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
         var field = as(fieldAttr.field(), FunctionEsField.class);
         var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
         assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
@@ -1345,6 +1349,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Check left side is the replaced field attribute
         var fieldAttr = as(filterCondition.left(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
         var field = as(fieldAttr.field(), FunctionEsField.class);
         var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
         assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
@@ -1387,6 +1392,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Check replaced field attribute
         var fieldAttr = as(alias.child(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(fieldAttr.name(), startsWith("$$dense_vector$Cosine"));
         var field = as(fieldAttr.field(), FunctionEsField.class);
         var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
         assertThat(blockLoaderFunctionConfig.similarityFunction(), is(CosineSimilarity.SIMILARITY_FUNCTION));
@@ -1400,7 +1406,9 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var innerProject = as(mvExpand.child(), EsqlProject.class);
         assertTrue(Expressions.names(innerProject.projections()).contains("keyword"));
         assertTrue(
-            innerProject.projections().stream().anyMatch(p -> (p instanceof FieldAttribute fa) && fa.name().startsWith("$$dense_vector$"))
+            innerProject.projections()
+                .stream()
+                .anyMatch(p -> (p instanceof FieldAttribute fa) && fa.name().startsWith("$$dense_vector$Cosine"))
         );
 
         // EsRelation[test_all][$$dense_vector$CosineSimilarity$33{f}#33, !alias_in..]
@@ -1433,6 +1441,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(s1Alias.name(), equalTo("s1"));
         var s1FieldAttr = as(s1Alias.child(), FieldAttribute.class);
         assertThat(s1FieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(s1FieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
         var s1Field = as(s1FieldAttr.field(), FunctionEsField.class);
         var s1Config = as(s1Field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
         assertThat(s1Config.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
@@ -1451,6 +1460,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(r1Alias.name(), equalTo("r1"));
         var r1FieldAttr = as(r1Alias.child(), FieldAttribute.class);
         assertThat(r1FieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(r1FieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
         var r1Field = as(r1FieldAttr.field(), FunctionEsField.class);
         var r1Config = as(r1Field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
         assertThat(r1Config.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
@@ -1468,6 +1478,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Right side: CosineSimilarity field
         var r2CosineFieldAttr = as(r2Add.right(), FieldAttribute.class);
         assertThat(r2CosineFieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(r2CosineFieldAttr.name(), startsWith("$$dense_vector$Cosine"));
         var r2CosineField = as(r2CosineFieldAttr.field(), FunctionEsField.class);
         var r2CosineConfig = as(r2CosineField.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
         assertThat(r2CosineConfig.similarityFunction(), is(CosineSimilarity.SIMILARITY_FUNCTION));

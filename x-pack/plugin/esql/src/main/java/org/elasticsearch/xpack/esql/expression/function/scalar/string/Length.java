@@ -98,13 +98,13 @@ public class Length extends UnaryScalarFunction implements BlockLoaderExpression
     }
 
     @Override
-    public Fuse tryFuse(SearchStats stats) {
+    public FusedExpression tryFuse(SearchStats stats) {
         if (field instanceof FieldAttribute f) {
             if (stats.hasDocValues(f.fieldName()) == false) {
                 return null;
             }
             BlockLoaderWarnings warnings = new BlockLoaderWarnings(DriverContext.WarningsMode.COLLECT, source());
-            return new Fuse(f, new BlockLoaderFunctionConfig.Named("LENGTH", warnings));
+            return new FusedExpression(f, new BlockLoaderFunctionConfig.Named("LENGTH", warnings));
         }
         return null;
     }

@@ -19,6 +19,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
  * transforming loaded values into blocks.
  */
 public interface BlockLoaderFunctionConfig {
+    /**
+     * Name used in descriptions.
+     */
+    String name();
+
     record Named(String name, Warnings warnings) implements BlockLoaderFunctionConfig {
         @Override
         public int hashCode() {

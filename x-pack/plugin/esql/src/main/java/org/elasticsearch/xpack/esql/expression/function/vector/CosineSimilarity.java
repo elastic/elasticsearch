@@ -40,6 +40,11 @@ public class CosineSimilarity extends VectorSimilarityFunction {
         public float calculateSimilarity(float[] leftVector, float[] rightVector) {
             return VectorUtil.cosine(leftVector, rightVector);
         }
+
+        @Override
+        public String toString() {
+            return "Cosine";
+        }
     };
 
     @FunctionInfo(

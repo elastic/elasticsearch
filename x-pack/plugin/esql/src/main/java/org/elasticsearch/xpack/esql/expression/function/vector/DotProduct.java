@@ -41,6 +41,11 @@ public class DotProduct extends VectorSimilarityFunction {
         public float calculateSimilarity(float[] leftVector, float[] rightVector) {
             return VectorUtil.dotProduct(leftVector, rightVector);
         }
+
+        @Override
+        public String toString() {
+            return "DotProduct";
+        }
     };
 
     @FunctionInfo(

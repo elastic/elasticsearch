@@ -3199,6 +3199,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
+        @Override
+        public String name() {
+            return similarityFunction.toString();
+        }
+
         public byte[] vectorAsBytes() {
             assert vectorAsBytes != null : "vectorAsBytes is null, call forByteVector() first";
             return vectorAsBytes;

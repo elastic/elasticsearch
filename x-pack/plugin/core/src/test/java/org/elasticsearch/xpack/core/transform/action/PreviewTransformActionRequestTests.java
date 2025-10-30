@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,6 +17,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
@@ -36,7 +39,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {
-        return Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        return Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false);
     }
 
     @Override
@@ -46,7 +49,11 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
 
     @Override
     protected Request createTestInstance() {
-        TransformConfig config = new TransformConfig(
+        return new Request(randomTransformConfig(), randomTimeValue(), randomBoolean());
+    }
+
+    private static TransformConfig randomTransformConfig() {
+        return new TransformConfig(
             "transform-preview",
             randomSourceConfig(),
             new DestConfig("unused-transform-preview-index", null, null),
@@ -62,12 +69,31 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             null,
             null
         );
-        return new Request(config, randomTimeValue());
+    }
+
+    @Override
+    protected Request createXContextTestInstance(XContentType xContentType) {
+        return new Request(randomTransformConfig(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false);
     }
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        return randomBoolean()
+            ? new Request(
+                randomValueOtherThan(instance.getConfig(), PreviewTransformActionRequestTests::randomTransformConfig),
+                instance.ackTimeout(),
+                instance.previewAsIndexRequest()
+            )
+            : new Request(instance.getConfig(), instance.ackTimeout(), instance.previewAsIndexRequest() == false);
+    }
+
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        if (version.supports(Request.PREVIEW_AS_INDEX_REQUEST)) {
+            return instance;
+        } else {
+            return new Request(instance.getConfig(), instance.ackTimeout(), false);
+        }
     }
 
     public void testParsingOverwritesIdField() throws IOException {
@@ -125,13 +151,13 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
 
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry())
+                    .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
                 json.streamInput()
             )
         ) {
 
-            Request request = Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+            Request request = Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false);
             assertThat(request.getConfig().getId(), is(equalTo(expectedTransformId)));
             assertThat(request.getConfig().getDestination().getIndex(), is(equalTo(expectedDestIndex)));
             assertThat(request.getConfig().getDestination().getPipeline(), is(equalTo(expectedDestPipeline)));

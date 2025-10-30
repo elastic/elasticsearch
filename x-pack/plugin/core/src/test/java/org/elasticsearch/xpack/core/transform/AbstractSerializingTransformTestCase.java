@@ -8,17 +8,14 @@
 package org.elasticsearch.xpack.core.transform;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -30,14 +27,12 @@ import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConf
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractSerializingTransformTestCase<T extends ToXContent & Writeable> extends AbstractXContentSerializingTestCase<
-    T> {
+public abstract class AbstractSerializingTransformTestCase<T extends ToXContent & Writeable> extends AbstractBWCSerializationTestCase<T> {
 
     protected static Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
         Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true")
@@ -111,22 +106,9 @@ public abstract class AbstractSerializingTransformTestCase<T extends ToXContent 
         return namedXContentRegistry;
     }
 
-    protected <X extends Writeable, Y extends Writeable> Y writeAndReadBWCObject(
-        X original,
-        NamedWriteableRegistry registry,
-        Writeable.Writer<X> writer,
-        Writeable.Reader<Y> reader,
-        TransportVersion version
-    ) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(version);
-            original.writeTo(output);
-
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setTransportVersion(version);
-                return reader.read(in);
-            }
-        }
+    @Override
+    protected T mutateInstanceForVersion(T instance, TransportVersion version) {
+        return instance;
     }
 
 }

@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.hamcrest.Matcher;
@@ -35,6 +36,11 @@ import static org.junit.Assert.assertNull;
 public class TestBlock implements BlockLoader.Block {
     public static BlockLoader.BlockFactory factory() {
         return new BlockLoader.BlockFactory() {
+            @Override
+            public void adjustBreaker(long delta) throws CircuitBreakingException {
+                // Intentionally NOOP
+            }
+
             @Override
             public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
                 return booleans(expectedCount);
@@ -371,6 +377,15 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.Block constantInt(int value, int count) {
+                BlockLoader.IntBuilder builder = ints(count);
+                for (int i = 0; i < count; i++) {
+                    builder.appendInt(value);
+                }
+                return builder.build();
+            }
+
+            @Override
             public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(
                 SortedDocValues ordinals,
                 int expectedCount,
@@ -505,6 +520,11 @@ public class TestBlock implements BlockLoader.Block {
     @Override
     public void close() {
         // TODO assert that we close the test blocks
+    }
+
+    @Override
+    public String toString() {
+        return "TestBlock" + values;
     }
 
     private abstract static class Builder implements BlockLoader.Builder {

@@ -24,14 +24,14 @@ import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogr
 import java.io.IOException;
 import java.util.Map;
 
-class ExponentialHistogramValueCountAggregator extends NumericMetricsAggregator.SingleValue {
+public final class ExponentialHistogramValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ExponentialHistogramValuesSource.ExponentialHistogram valuesSource;
 
     // a count per bucket
     private LongArray counts;
 
-    ExponentialHistogramValueCountAggregator(
+    public ExponentialHistogramValueCountAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         AggregationContext aggregationContext,

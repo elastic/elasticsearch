@@ -489,36 +489,28 @@ public class TopTests extends AbstractAggregationTestCase {
             var limitTypedData = limitCaseSupplier.get().forceLiteral();
             var limit = (int) limitTypedData.getValue();
             TestCaseSupplier.TypedData outputFieldTypedData;
-            List<?> expected;
             if (outputFieldSupplied) {
                 outputFieldTypedData = outputFieldSupplier.get();
                 assertThat(outputFieldTypedData.multiRowData(), hasSize(equalTo(fieldTypedData.multiRowData().size())));
-                Comparator<Map.Entry<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>> comparator = Map.Entry.<
-                    Comparable<? super Comparable<?>>,
-                    Comparable<? super Comparable<?>>>comparingByKey().thenComparing(Map.Entry::getValue);
-                if (isAscending == false) {
-                    comparator = comparator.reversed();
-                }
-                expected = IntStream.range(0, fieldTypedData.multiRowData().size())
-                    .mapToObj(
-                        i -> Map.<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>entry(
-                            (Comparable<? super Comparable<?>>) fieldTypedData.multiRowData().get(i),
-                            (Comparable<? super Comparable<?>>) outputFieldTypedData.multiRowData().get(i)
-                        )
-                    )
-                    .sorted(comparator)
-                    .map(Map.Entry::getValue)
-                    .limit(limit)
-                    .toList();
             } else {
-                outputFieldTypedData = null;
-                expected = fieldTypedData.multiRowData()
-                    .stream()
-                    .map(v -> (Comparable<? super Comparable<?>>) v)
-                    .sorted(isAscending ? Comparator.naturalOrder() : Comparator.reverseOrder())
-                    .limit(limit)
-                    .toList();
+                outputFieldTypedData = fieldTypedData;
             }
+            var comparator = Map.Entry.<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>comparingByKey()
+                .thenComparing(Map.Entry::getValue);
+            if (isAscending == false) {
+                comparator = comparator.reversed();
+            }
+            List<?> expected = IntStream.range(0, fieldTypedData.multiRowData().size())
+                .mapToObj(
+                    i -> Map.<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>entry(
+                        (Comparable<? super Comparable<?>>) fieldTypedData.multiRowData().get(i),
+                        (Comparable<? super Comparable<?>>) outputFieldTypedData.multiRowData().get(i)
+                    )
+                )
+                .sorted(comparator)
+                .map(Map.Entry::getValue)
+                .limit(limit)
+                .toList();
 
             String baseName;
             if (limit != 1) {

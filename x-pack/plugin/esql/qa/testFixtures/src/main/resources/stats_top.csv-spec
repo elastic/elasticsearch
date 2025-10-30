@@ -313,7 +313,7 @@ top_salaries:integer
 ;
 
 
-youngestEmployees
+outputFieldDesc
 required_capability: agg_top_with_output_field
 FROM employees
 | STATS youngest_employees = TOP(birth_date, 3, "desc"),
@@ -324,7 +324,7 @@ youngest_employees:date                                                        |
 [1965-01-03T00:00:00.000Z, 1964-10-18T00:00:00.000Z, 1964-06-11T00:00:00.000Z] | [37702, 25976, 45656]
 ;
 
-youngestEmployeesByGender
+outputFieldDescGrouping
 required_capability: agg_top_with_output_field
 FROM employees
 | STATS youngest_employees = TOP(birth_date, 3, "desc"),
@@ -340,7 +340,7 @@ M              | [1965-01-03T00:00:00.000Z, 1964-06-11T00:00:00.000Z, 1964-04-18
 null           | [1963-06-07T00:00:00.000Z, 1963-06-01T00:00:00.000Z, 1961-05-02T00:00:00.000Z] | [48735, 45797, 61358]
 ;
 
-oldestEmployees
+outputFieldAsc
 required_capability: agg_top_with_output_field
 FROM employees
 | STATS oldest_employees = TOP(birth_date, 3, "asc"),
@@ -351,7 +351,7 @@ oldest_employees:date                                                          |
 [1952-02-27T00:00:00.000Z, 1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z] | [71165, 66174, 54518]
 ;
 
-oldestEmployeesByGender
+outputFieldAscGrouping
 required_capability: agg_top_with_output_field
 FROM employees
 | STATS oldest_employees = TOP(birth_date, 3, "asc"),
@@ -367,7 +367,7 @@ M              | [1952-02-27T00:00:00.000Z, 1952-07-08T00:00:00.000Z, 1952-11-13
 null           | [1953-01-23T00:00:00.000Z, 1953-11-07T00:00:00.000Z, 1954-06-19T00:00:00.000Z] | [73717, 31120, 56760]
 ;
 
-oldestEmployeesDuplicated
+outputFieldAscSameAsField
 required_capability: agg_top_with_output_field
 FROM employees
 | STATS oldest_employees = TOP(birth_date, 3, "asc"),
@@ -378,7 +378,7 @@ oldest_employees:date                                                          |
 [1952-02-27T00:00:00.000Z, 1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z] | [1952-02-27T00:00:00.000Z, 1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z]
 ;
 
-empNoByHireDateByBirthYear
+outputFieldOrderGrouping
 required_capability: agg_top_with_output_field
 
 FROM employees

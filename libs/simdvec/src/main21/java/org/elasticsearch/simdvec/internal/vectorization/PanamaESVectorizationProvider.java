@@ -36,7 +36,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     @Override
     public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(IndexInput input, byte queryBits, byte indexBits, int dimension, int dataLength)
         throws IOException {
-        // TODO: Extend to other bit configurations as needed
+        // TODO: Extend to other bit configurations as needed (2 and 4 bit index vectors)
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
             && input instanceof MemorySegmentAccessInput msai
             && queryBits == 4

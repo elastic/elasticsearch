@@ -14,12 +14,20 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * Aggregator state for a single {@code long} and a single {@code long}.
- * This class is generated. Edit {@code X-2State.java.st} instead.
+ * This class is not generated yet, but will be eventually by something like {@code X-2State.java.st}.
  */
 final class AllLongLongState implements AggregatorState {
+    // the timestamp
     private long v1;
+
+    // the value
     private long v2;
+
+    // whether we've seen a first/last timestamp
     private boolean seen;
+
+    // because we might observe a first/last timestamp without observing a value (e.g.: value was null)
+    private boolean v2Seen;
 
     AllLongLongState(long v1, long v2) {
         this.v1 = v1;
@@ -50,13 +58,22 @@ final class AllLongLongState implements AggregatorState {
         this.seen = seen;
     }
 
+    boolean v2Seen() {
+        return v2Seen;
+    }
+
+    void v2Seen(boolean v2Seen) {
+        this.v2Seen = v2Seen;
+    }
+
     /** Extracts an intermediate view of the contents of this state.  */
     @Override
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-        assert blocks.length >= offset + 3;
+        assert blocks.length >= offset + 4;
         blocks[offset + 0] = driverContext.blockFactory().newConstantLongBlockWith(v1, 1);
         blocks[offset + 1] = driverContext.blockFactory().newConstantLongBlockWith(v2, 1);
         blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
+        blocks[offset + 3] = driverContext.blockFactory().newConstantBooleanBlockWith(v2Seen, 1);
     }
 
     @Override

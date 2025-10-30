@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstBytesRefByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstDoubleByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstFloatByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstIntByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstLongByTimestampAggregatorFunctionSupplier;
+// NOTE: Only the long type is supported for now.
+// import org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampAggregatorFunctionSupplier;
+// import org.elasticsearch.compute.aggregation.AllFirstDoubleByTimestampAggregatorFunctionSupplier;
+// import org.elasticsearch.compute.aggregation.AllFirstFloatByTimestampAggregatorFunctionSupplier;
+// import org.elasticsearch.compute.aggregation.AllFirstIntByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -37,6 +38,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * This class only supports the long type for now, but that'll change after templating kicks in.
+ */
 public class AllFirst extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "AllFirst", AllFirst::readFrom);
 
@@ -45,16 +49,17 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
     // TODO: support all types of values
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        returnType = { "long", "integer", "double", "keyword" },
-        description = "Calculates the earliest value of a field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.3.0") },
-        examples = @Example(file = "stats_first", tag = "first")
+        preview = true,
+        returnType = { "long"/*, "integer", "double", "keyword" */},
+        description = "Calculates the earliest value of a field, and can operate on null values.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
+        examples = @Example(file = "all_first", tag = "all_first")
     )
     public AllFirst(
         Source source,
         @Param(
             name = "value",
-            type = { "long", "integer", "double", "keyword", "text" },
+            type = { "long"/*, "integer", "double", "keyword", "text" */ },
             description = "Values to return"
         ) Expression field,
         @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort
@@ -140,17 +145,17 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new FirstLongByTimestampAggregatorFunctionSupplier();
-            case INTEGER -> new FirstIntByTimestampAggregatorFunctionSupplier();
-            case DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();
-            case FLOAT -> new FirstFloatByTimestampAggregatorFunctionSupplier();
-            case KEYWORD, TEXT -> new FirstBytesRefByTimestampAggregatorFunctionSupplier();
+            case LONG -> new AllFirstLongByTimestampAggregatorFunctionSupplier();
+            // case INTEGER -> new AllFirstIntByTimestampAggregatorFunctionSupplier();
+            // case DOUBLE -> new AllFirstDoubleByTimestampAggregatorFunctionSupplier();
+            // case FLOAT -> new AllFirstFloatByTimestampAggregatorFunctionSupplier();
+            // case KEYWORD, TEXT -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
 
     @Override
     public String toString() {
-        return "first(" + field() + ", " + sort + ")";
+        return "all_first(" + field() + ", " + sort + ")";
     }
 }

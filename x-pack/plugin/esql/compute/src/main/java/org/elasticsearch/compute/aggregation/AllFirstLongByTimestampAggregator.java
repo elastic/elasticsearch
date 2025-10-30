@@ -8,12 +8,9 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -22,66 +19,99 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
  * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
+ * This class is not generated yet, but will be eventually by something like `X-ValueByTimestampAggregator.java.st`.
  */
-@Aggregator(
-    {
-        @IntermediateState(name = "timestamps", type = "LONG"),
-        @IntermediateState(name = "values", type = "LONG"),
-        @IntermediateState(name = "seen", type = "BOOLEAN") }
-)
-@GroupingAggregator(
-    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
-)
+@Aggregator({
+    @IntermediateState(name = "timestamps", type = "LONG"),
+    @IntermediateState(name = "values", type = "LONG"),
+    @IntermediateState(name = "seen", type = "BOOLEAN"),
+    @IntermediateState(name = "hasValue", type = "BOOLEAN")
+})
+@GroupingAggregator({
+    @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
+    @IntermediateState(name = "values", type = "LONG_BLOCK"),
+    @IntermediateState(name = "hasValues", type = "BOOLEAN_BLOCK")
+})
 public class AllFirstLongByTimestampAggregator {
     public static String describe() {
         return "first_long_by_timestamp";
     }
 
-    public static LongLongState initSingle(DriverContext driverContext) {
-        return new LongLongState(0, 0);
+    public static AllLongLongState initSingle(DriverContext driverContext) {
+        return new AllLongLongState(0, 0);
     }
 
-    public static void first(LongLongState current, long value, long timestamp) {
+    private static void first(AllLongLongState current, long timestamp, long value, boolean v2Seen) {
+        current.seen(true);
         current.v1(timestamp);
-        current.v2(value);
+        current.v2(v2Seen ? value : 0);
+        current.v2Seen(v2Seen);
     }
 
-    public static void combine(LongLongState current, long value, long timestamp) {
-        if (timestamp < current.v1()) {
-            current.v1(timestamp);
-            current.v2(value);
+    public static void combine(AllLongLongState current, @Position int position, LongBlock value, LongBlock timestamp) {
+
+        if (current.seen() == false) {
+            // we never observed a value before so we'll take this right in, no questions asked
+            first(current, timestamp.getLong(position), value.getLong(position), value.isNull(position) == false);
+            return;
         }
-    }
 
-    public static void combineIntermediate(LongLongState current, long timestamp, long value, boolean seen) {
-        if (seen) {
-            if (current.seen()) {
-                combine(current, value, timestamp);
+        long ts = timestamp.getLong(position);
+        if (ts < current.v1()) {
+            // timestamp and seen flag are updated in all cases
+            current.v1(ts);
+            current.seen(true);
+            if (value.isNull(position) == false) {
+                // non-null value
+                long earlierValue = value.getLong(position);
+                current.v2(earlierValue);
+                current.v2Seen(true);
             } else {
-                first(current, value, timestamp);
-                current.seen(true);
+                // null value
+                current.v2Seen(false);
             }
         }
     }
 
-    public static Block evaluateFinal(LongLongState current, DriverContext ctx) {
-        return ctx.blockFactory().newConstantLongBlockWith(current.v2(), 1);
+    public static void combineIntermediate(AllLongLongState current, long timestamp, long value, boolean seen, boolean v2Seen) {
+        if (seen) {
+            if (current.seen()) {
+                 if (timestamp < current.v1()) {
+                     // an earlier timestamp has been observed in the reporting shard so we must update internal state
+                     current.v1(timestamp);
+                     current.v2(value);
+                     current.v2Seen(v2Seen);
+                 }
+            } else {
+                current.v1(timestamp);
+                current.v2(value);
+                current.seen(true);
+                current.v2Seen(v2Seen);
+            }
+        }
+    }
+
+    public static Block evaluateFinal(AllLongLongState current, DriverContext ctx) {
+        if (current.v2Seen()) {
+            return ctx.blockFactory().newConstantLongBlockWith(current.v2(), 1);
+        } else {
+            return ctx.blockFactory().newConstantNullBlock(1);
+        }
     }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }
 
-    public static void combine(GroupingState current, int groupId, long value, long timestamp) {
-        current.collectValue(groupId, timestamp, value);
+    public static void combine(GroupingState current, int groupId, @Position int position, LongBlock value, LongBlock timestamp) {
+        boolean hasValue = value.isNull(position) == false;
+        current.collectValue(groupId, timestamp.getLong(position), value.getLong(position), hasValue);
     }
 
     public static void combineIntermediate(
@@ -89,15 +119,17 @@ public class AllFirstLongByTimestampAggregator {
         int groupId,
         LongBlock timestamps, // stylecheck
         LongBlock values,
+        BooleanBlock hasValues,
         int otherPosition
-    ) {
+    )   {
         // TODO seen should probably be part of the intermediate representation
         int valueCount = values.getValueCount(otherPosition);
         if (valueCount > 0) {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
             int firstIndex = values.getFirstValueIndex(otherPosition);
+            boolean hasValueFlag = hasValues.getBoolean(otherPosition);
             for (int i = 0; i < valueCount; i++) {
-                current.collectValue(groupId, timestamp, values.getLong(firstIndex + i));
+                current.collectValue(groupId, timestamp, values.getLong(firstIndex + i), hasValueFlag);
             }
         }
     }
@@ -110,6 +142,7 @@ public class AllFirstLongByTimestampAggregator {
         private final BigArrays bigArrays;
         private LongArray timestamps;
         private LongArray values;
+        private ByteArray hasValues;
         private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
@@ -117,10 +150,14 @@ public class AllFirstLongByTimestampAggregator {
             this.bigArrays = bigArrays;
             boolean success = false;
             LongArray timestamps = null;
+            ByteArray hasValues = null;
             try {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
                 this.values = bigArrays.newLongArray(1, false);
+                hasValues = bigArrays.newByteArray(1, false);
+                this.hasValues = hasValues;
+
                 /*
                  * Enable group id tracking because we use has hasValue in the
                  * collection itself to detect the when a value first arrives.
@@ -129,12 +166,12 @@ public class AllFirstLongByTimestampAggregator {
                 success = true;
             } finally {
                 if (success == false) {
-                    Releasables.close(timestamps, values, super::close);
+                    Releasables.close(timestamps, values, hasValues, super::close);
                 }
             }
         }
 
-        void collectValue(int groupId, long timestamp, long value) {
+        void collectValue(int groupId, long timestamp, long value, boolean hasVal) {
             boolean updated = false;
             if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
@@ -150,6 +187,9 @@ public class AllFirstLongByTimestampAggregator {
             if (updated) {
                 values = bigArrays.grow(values, groupId + 1);
                 values.set(groupId, value);
+
+                hasValues = bigArrays.grow(hasValues, groupId + 1);
+                hasValues.set(groupId, (byte) (hasVal ? 1 : 0));
             }
             maxGroupId = Math.max(maxGroupId, groupId);
             trackGroupId(groupId);
@@ -157,27 +197,32 @@ public class AllFirstLongByTimestampAggregator {
 
         @Override
         public void close() {
-            Releasables.close(timestamps, values, super::close);
+            Releasables.close(timestamps, values, hasValues, super::close);
         }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+            // creates 3 intermediate state blocks (timestamps, values, hasValue)
             try (
                 var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                var valuesBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())
+                var valuesBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+                var hasValuesBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
-                    if (group < timestamps.size() && hasValue(group)) {
+                    if (group < timestamps.size() && hasValues.get(group) == 1) {
                         timestampsBuilder.appendLong(timestamps.get(group));
                         valuesBuilder.appendLong(values.get(group));
+                        hasValuesBuilder.appendBoolean(true);
                     } else {
                         timestampsBuilder.appendNull();
                         valuesBuilder.appendNull();
+                        hasValuesBuilder.appendBoolean(false);
                     }
                 }
                 blocks[offset] = timestampsBuilder.build();
                 blocks[offset + 1] = valuesBuilder.build();
+                blocks[offset + 2] = hasValuesBuilder.build();
             }
         }
 
@@ -185,7 +230,7 @@ public class AllFirstLongByTimestampAggregator {
             try (var builder = evalContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
-                    if (group < timestamps.size() && hasValue(group)) {
+                    if (group < timestamps.size() && hasValues.get(group) == 1) {
                         builder.appendLong(values.get(group));
                     } else {
                         builder.appendNull();

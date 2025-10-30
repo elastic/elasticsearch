@@ -438,20 +438,23 @@ public class AggregatorImplementer {
             if (masked) {
                 builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
             }
-            for (Argument a : aggParams) {
-                builder.addStatement("int $LValueCount = $L.getValueCount(p)", a.name(), a.blockName());
-                builder.beginControlFlow("if ($LValueCount == 0)", a.name());
-                builder.addStatement("continue");
-                builder.endControlFlow();
+
+            // TBD - affects 2 geo classes
+            if (hasOnlyBlockArguments == false) {
+                for (Argument a : aggParams) {
+                    builder.addStatement("int $LValueCount = $L.getValueCount(p)", a.name(), a.blockName());
+                    builder.beginControlFlow("if ($LValueCount == 0)", a.name());
+                    builder.addStatement("continue");
+                    builder.endControlFlow();
+                }
             }
 
             if (aggParams.getFirst() instanceof BlockArgument) {
-                if (aggParams.size() > 1) {
-                    throw new IllegalArgumentException("array mode not supported for multiple args");
-                }
+                String params = aggParams.stream().map(Argument::blockName).collect(joining(", "));
+
                 warningsBlock(
                     builder,
-                    () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, aggParams.getFirst().blockName())
+                    () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, params)
                 );
             } else {
                 if (first == null && aggState.hasSeen()) {

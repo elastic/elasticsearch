@@ -297,10 +297,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
                 randomBoolean()
             ),
-            new ES93HnswBinaryQuantizedVectorsFormat(
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
-                randomBoolean()
-            ),
             new ES813Int8FlatVectorFormat(),
             new ES813Int8FlatVectorFormat(),
             new ES814HnswScalarQuantizedVectorsFormat()

@@ -55,10 +55,10 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     );
 
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
-        bitVectorFormat.getName(),
-        bitVectorFormat,
         defaultVectorFormat.getName(),
         defaultVectorFormat,
+        bitVectorFormat.getName(),
+        bitVectorFormat,
         bfloat16VectorFormat.getName(),
         bfloat16VectorFormat
     );

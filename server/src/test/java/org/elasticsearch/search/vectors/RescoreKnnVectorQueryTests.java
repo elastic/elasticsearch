@@ -44,7 +44,6 @@ import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -291,15 +290,15 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 randomBoolean()
             ),
             new ES93BinaryQuantizedVectorsFormat(
-                randomFrom(ES93GenericFlatVectorsFormat.ElementType.STANDARD, ES93GenericFlatVectorsFormat.ElementType.BFLOAT16),
+                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
                 randomBoolean()
             ),
             new ES93HnswBinaryQuantizedVectorsFormat(
-                randomFrom(ES93GenericFlatVectorsFormat.ElementType.STANDARD, ES93GenericFlatVectorsFormat.ElementType.BFLOAT16),
+                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
                 randomBoolean()
             ),
             new ES93HnswBinaryQuantizedVectorsFormat(
-                randomFrom(ES93GenericFlatVectorsFormat.ElementType.STANDARD, ES93GenericFlatVectorsFormat.ElementType.BFLOAT16),
+                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
                 randomBoolean()
             ),
             new ES813Int8FlatVectorFormat(),

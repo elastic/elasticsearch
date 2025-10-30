@@ -55,7 +55,6 @@ import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -2014,11 +2013,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            return switch (elementType) {
-                case BIT -> new ES93HnswVectorsFormat(m, efConstruction, ES93GenericFlatVectorsFormat.ElementType.BIT);
-                case BYTE, FLOAT -> new ES93HnswVectorsFormat(m, efConstruction, ES93GenericFlatVectorsFormat.ElementType.STANDARD);
-                case BFLOAT16 -> new ES93HnswVectorsFormat(m, efConstruction, ES93GenericFlatVectorsFormat.ElementType.BFLOAT16);
-            };
+            return new ES93HnswVectorsFormat(m, efConstruction, elementType);
         }
 
         @Override
@@ -2092,21 +2087,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            return switch (elementType) {
-                case FLOAT -> new ES93HnswBinaryQuantizedVectorsFormat(
-                    m,
-                    efConstruction,
-                    ES93GenericFlatVectorsFormat.ElementType.STANDARD,
-                    onDiskRescore
-                );
-                case BFLOAT16 -> new ES93HnswBinaryQuantizedVectorsFormat(
-                    m,
-                    efConstruction,
-                    ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
-                    onDiskRescore
-                );
-                case BYTE, BIT -> throw new AssertionError();
-            };
+            assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
+            return new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, elementType, onDiskRescore);
         }
 
         @Override
@@ -2171,11 +2153,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            return switch (elementType) {
-                case FLOAT -> new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD, false);
-                case BFLOAT16 -> new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16, false);
-                case BYTE, BIT -> throw new AssertionError();
-            };
+            assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
+            return new ES93BinaryQuantizedVectorsFormat(elementType, false);
         }
 
         @Override

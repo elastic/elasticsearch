@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -35,6 +33,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.EMPTY_AUTH_RESPONSE;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.cancelAuthorizationTask;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForTask;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -77,25 +77,8 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
             .build();
     }
 
-    @Override
-    public Settings indexSettings() {
-        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(3, 10)).build();
-    }
-
     public void testCancellingAuthorizationTaskRestartsIt() throws Exception {
-        var pollerTask = waitForTask(internalCluster().getNodeNames(), AUTH_TASK_ACTION);
-
-        assertBusy(() -> {
-            var cancelTaskResponse = admin().cluster()
-                .prepareCancelTasks(internalCluster().getNodeNames())
-                .setActions(AUTH_TASK_ACTION)
-                .get();
-            assertThat(cancelTaskResponse.getTasks().size(), is(1));
-            assertThat(cancelTaskResponse.getTasks().get(0).action(), is(AUTH_TASK_ACTION));
-        });
-
-        var newPollerTask = waitForTask(internalCluster().getNodeNames(), AUTH_TASK_ACTION);
-        assertThat(newPollerTask.taskId(), is(not(pollerTask.taskId())));
+        cancelAuthorizationTask(admin());
     }
 
     public void testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown() throws Exception {
@@ -107,7 +90,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
 
         var nodeNameMapping = getNodeNames(internalCluster().getNodeNames());
 
-        var pollerTask = waitForTask(internalCluster().getNodeNames(), AUTH_TASK_ACTION);
+        var pollerTask = waitForTask(AUTH_TASK_ACTION, admin());
 
         var endpoints = getAllEndpoints();
         assertTrue(
@@ -121,7 +104,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
         assertTrue("expected the node to shutdown properly", internalCluster().stopNode(nodeNameMapping.get(pollerTask.node())));
 
         assertBusy(() -> {
-            var relocatedPollerTask = waitForTask(internalCluster().getNodeNames(), AUTH_TASK_ACTION);
+            var relocatedPollerTask = waitForTask(AUTH_TASK_ACTION, admin());
             assertThat(relocatedPollerTask.node(), not(is(pollerTask.node())));
         });
 
@@ -143,18 +126,6 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
             assertThat(rainbowSprinklesEndpoint.getTaskType(), is(TaskType.CHAT_COMPLETION));
         });
 
-    }
-
-    private TaskInfo waitForTask(String[] nodes, String taskAction) throws Exception {
-        var taskRef = new AtomicReference<TaskInfo>();
-        assertBusy(() -> {
-            var response = admin().cluster().prepareListTasks(nodes).get();
-            var authPollerTask = response.getTasks().stream().filter(task -> task.action().equals(taskAction)).findFirst();
-            assertTrue(authPollerTask.isPresent());
-            taskRef.set(authPollerTask.get());
-        });
-
-        return taskRef.get();
     }
 
     private record NodeNameMapping(Map<String, String> nodeNamesMap) {

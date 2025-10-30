@@ -128,6 +128,47 @@ public class AuthorizationPollerTests extends ESTestCase {
         );
     }
 
+    public void testSendsAuthorizationRequest_ButDoesNotStoreAnyModels_WhenTheirInferenceIdAlreadyExists() {
+        var mockRegistry = mock(ModelRegistry.class);
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of(InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2, "id2"));
+
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
+        doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                InternalPreconfiguredEndpoints.DEFAULT_ELSER_2_MODEL_ID,
+                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
+                            )
+                        )
+                    )
+                )
+            );
+            return Void.TYPE;
+        }).when(mockAuthHandler).getAuthorization(any(), any());
+
+        var mockClient = mock(Client.class);
+        when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
+
+        var poller = new AuthorizationPoller(
+            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
+            createWithEmptySettings(taskQueue.getThreadPool()),
+            mockAuthHandler,
+            mock(Sender.class),
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+            mockRegistry,
+            mockClient,
+            null
+        );
+
+        poller.sendAuthorizationRequest();
+        verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
+    }
+
     public void testDoesNotAttemptToStoreModelIds_ThatDoNotExistInThePreconfiguredMapping() {
         var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
@@ -166,10 +207,9 @@ public class AuthorizationPollerTests extends ESTestCase {
             null
         );
 
-        var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
 
         poller.sendAuthorizationRequest();
-        verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
+        verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
     public void testDoesNotAttemptToStoreModelIds_ThatHaveATaskTypeThatTheEISIntegration_DoesNotSupport() {
@@ -210,10 +250,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             null
         );
 
-        var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
-
         poller.sendAuthorizationRequest();
-        verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
+        verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
     public void testSendsTwoAuthorizationRequests() throws InterruptedException {

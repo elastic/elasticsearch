@@ -20,6 +20,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller.TASK_NAME;
 
+/**
+ * Empty parameters for the authorization persistent task.
+ */
 public class AuthorizationTaskParams implements PersistentTaskParams {
     public static final AuthorizationTaskParams INSTANCE = new AuthorizationTaskParams();
 

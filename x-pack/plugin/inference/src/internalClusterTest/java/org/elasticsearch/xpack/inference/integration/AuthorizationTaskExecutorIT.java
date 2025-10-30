@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -22,6 +26,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -31,14 +36,17 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
+    public static final String AUTH_TASK_ACTION = AuthorizationPoller.TASK_NAME + "[c]";
 
     public static final String EMPTY_AUTH_RESPONSE = """
         {
@@ -115,6 +123,8 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     private void assertNoAuthorizedEisEndpoints() throws Exception {
+        waitForTask(AUTH_TASK_ACTION, admin());
+
         assertBusy(() -> {
             var newPoller = authorizationTaskExecutor.getCurrentPollerTask();
             assertNotNull(newPoller);
@@ -123,6 +133,20 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         var eisEndpoints = getEisEndpoints();
         assertThat(eisEndpoints, empty());
+    }
+
+    public static TaskInfo waitForTask(String taskAction, AdminClient adminClient) throws Exception {
+        var taskRef = new AtomicReference<TaskInfo>();
+        var builder = new ListTasksRequestBuilder(adminClient.cluster());
+
+        assertBusy(() -> {
+            var response = builder.get();
+            var authPollerTask = response.getTasks().stream().filter(task -> task.action().equals(taskAction)).findFirst();
+            assertTrue(authPollerTask.isPresent());
+            taskRef.set(authPollerTask.get());
+        });
+
+        return taskRef.get();
     }
 
     private List<UnparsedModel> getEisEndpoints() {
@@ -134,18 +158,28 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     private void restartPollingTaskAndWaitForAuthResponse() throws Exception {
-        var taskListener = new PlainActionFuture<Void>();
+        cancelAuthorizationTask(admin());
 
-        authorizationTaskExecutor.abortTask(TimeValue.THIRTY_SECONDS, taskListener);
-        // Ensure that the listener doesn't return a failure
-        assertNull(taskListener.actionGet(TimeValue.THIRTY_SECONDS));
-
-        // wait for the new task to be recreated
+        // wait for the new task to be recreated and an authorization response to be processed
         assertBusy(() -> {
             var newPoller = authorizationTaskExecutor.getCurrentPollerTask();
             assertNotNull(newPoller);
             newPoller.waitForAuthorizationToComplete(TimeValue.THIRTY_SECONDS);
         });
+    }
+
+    public static void cancelAuthorizationTask(AdminClient adminClient) throws Exception {
+        var pollerTask = waitForTask(AUTH_TASK_ACTION, adminClient);
+        var builder = new CancelTasksRequestBuilder(adminClient.cluster());
+
+        assertBusy(() -> {
+            var cancelTaskResponse = builder.setActions(AUTH_TASK_ACTION).get();
+            assertThat(cancelTaskResponse.getTasks().size(), is(1));
+            assertThat(cancelTaskResponse.getTasks().get(0).action(), is(AUTH_TASK_ACTION));
+        });
+
+        var newPollerTask = waitForTask(AUTH_TASK_ACTION, adminClient);
+        assertThat(newPollerTask.taskId(), is(not(pollerTask.taskId())));
     }
 
     public void testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized() throws Exception {

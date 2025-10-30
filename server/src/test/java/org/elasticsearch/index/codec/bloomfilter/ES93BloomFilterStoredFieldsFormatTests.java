@@ -14,8 +14,8 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.TextField;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -90,24 +90,15 @@ public class ES93BloomFilterStoredFieldsFormatTests extends BaseStoredFieldsForm
             // We don't use the RandomIndexWriter because we want to control the settings so we get
             // deterministic test runs
             try (IndexWriter writer = new IndexWriter(directory, conf)) {
-                FieldType customType = new FieldType(TextField.TYPE_STORED);
-                customType.setTokenized(false);
-                Field hostField = newField("host", "", customType);
-                var fieldType = new FieldType();
-                fieldType.setStored(true);
-                fieldType.setTokenized(false);
-                Field idField = newField(random(), IdFieldMapper.NAME, getBytesRefFromString(""), fieldType);
-
                 List<BytesRef> indexedIds = new ArrayList<>();
                 var docCount = atLeast(50);
                 for (int i = 0; i < docCount; i++) {
                     Document doc = new Document();
-                    doc.add(idField);
                     var id = getBytesRefFromString(UUIDs.randomBase64UUID());
                     indexedIds.add(id);
-                    idField.setBytesValue(id);
-                    doc.add(hostField);
-                    hostField.setStringValue("host-" + i);
+                    doc.add(new StringField(IdFieldMapper.NAME, id, Field.Store.YES));
+                    doc.add(new StringField("host", "host-" + i, Field.Store.YES));
+                    doc.add(new LongField("counter", i, Field.Store.YES));
                     writer.addDocument(doc);
                 }
 
@@ -139,6 +130,7 @@ public class ES93BloomFilterStoredFieldsFormatTests extends BaseStoredFieldsForm
                         // The _id field is not actually stored, just used to build the bloom filter
                         assertThat(document.get(IdFieldMapper.NAME), nullValue());
                         assertThat(document.get("host"), not(nullValue()));
+                        assertThat(document.get("counter"), not(nullValue()));
                     }
                 }
             }

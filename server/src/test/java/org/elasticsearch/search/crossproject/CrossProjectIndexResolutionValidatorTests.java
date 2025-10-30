@@ -24,6 +24,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
@@ -133,6 +134,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     }
 
     public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailable() {
+        final var exception = new ElasticsearchSecurityException("authorization errors while resolving [logs]");
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
@@ -140,7 +142,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
                         ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                        new ElasticsearchSecurityException("authorization errors while resolving [logs]")
+                        exception
                     ),
                     Set.of("P1:logs")
                 )
@@ -166,8 +168,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
         var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
         assertNotNull(e);
-        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(e.getMessage(), containsString("user cannot access [logs]"));
+        assertThat(e, is(exception));
     }
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInOriginProject() {
@@ -317,6 +318,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             )
         );
 
+        final var exception = new ElasticsearchException("action is unauthorized for indices [logs]");
         var remote = Map.of(
             "P1",
             new ResolvedIndexExpressions(
@@ -326,7 +328,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
                             ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchException("logs")
+                            exception
                         ),
                         Set.of()
                     )
@@ -341,8 +343,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             remote
         );
         assertNotNull(e);
-        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(e.getMessage(), containsString("user cannot access [P1:logs]"));
+        assertThat(e, is(exception));
     }
 
     public void testFlatExpressionWithStrictAllowNoIndicesMatchingInOriginProject() {

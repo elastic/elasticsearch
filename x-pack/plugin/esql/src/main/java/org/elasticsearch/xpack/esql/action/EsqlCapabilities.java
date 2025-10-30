@@ -1549,6 +1549,11 @@ public class EsqlCapabilities {
         FIX_FILTER_ORDINALS,
 
         /**
+         * "time_zone" parameter in request body and in {@code SET "time_zone"="x"}
+         */
+        GLOBAL_TIMEZONE_PARAMETER(Build.current().isSnapshot()),
+
+        /**
          * Optional options argument for DATE_PARSE
          */
         DATE_PARSE_OPTIONS,
@@ -1613,6 +1618,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/137019.
          */
         FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
+
+        /**
+         * Chunk function.
+         */
+        CHUNK_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Support for vector similarity functtions pushdown

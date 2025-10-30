@@ -48,6 +48,12 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
         "there was an error fetching the searchable snapshot shared cache state from this node"
     );
 
+    private static final Decision NO_UNKNOWN_NODE = Decision.single(
+        Decision.Type.NO,
+        NAME,
+        "this node is unknown to the searchable snapshot shared cache state"
+    );
+
     private final FrozenCacheInfoService frozenCacheService;
 
     public HasFrozenCacheAllocationDecider(FrozenCacheInfoService frozenCacheService) {
@@ -74,7 +80,8 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
         return canAllocateToNode(indexMetadata, node);
     }
 
-    private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
+    // Package private for tests
+    Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
         if (indexMetadata.isPartialSearchableSnapshot() == false) {
             return Decision.ALWAYS;
         }
@@ -83,7 +90,8 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
             case HAS_CACHE -> HAS_FROZEN_CACHE;
             case NO_CACHE -> NO_FROZEN_CACHE;
             case FAILED -> UNKNOWN_FROZEN_CACHE;
-            default -> STILL_FETCHING;
+            case FETCHING -> STILL_FETCHING;
+            case UNKNOWN -> NO_UNKNOWN_NODE;
         };
     }
 

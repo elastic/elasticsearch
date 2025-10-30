@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -27,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.junit.BeforeClass;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -45,22 +49,28 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         // Load Time Series mappings for these tests
         mappingK8s = loadMapping("k8s-mappings.json");
         EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
-        IndexResolution getIndexResult = IndexResolution.valid(k8sIndex);
+
+        IndexResolution indexResolution = IndexResolution.valid(k8sIndex);
+
+        Map<IndexPattern, IndexResolution> resolutions = new HashMap<>();
+        resolutions.put(new IndexPattern(Source.EMPTY, indexResolution.get().name()), indexResolution);
+
         k8sAnalyzer = new Analyzer(
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                resolutions,
                 defaultLookupResolution(),
                 enrichResolution,
-                emptyInferenceResolution()
+                emptyInferenceResolution(),
+                TransportVersion.minimumCompatible()
             ),
             TEST_VERIFIER
         );
     }
 
     protected LogicalPlan planK8s(String query) {
-        LogicalPlan analyzed = k8sAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        LogicalPlan analyzed = k8sAnalyzer.analyze(parser.createStatement(query));
         LogicalPlan optimized = logicalOptimizer.optimize(analyzed);
         return optimized;
     }

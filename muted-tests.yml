@@ -504,6 +504,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/137378
+- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
+  method: testSearchableSnapshotAction
+  issue: https://github.com/elastic/elasticsearch/issues/137167
 
 # Examples:
 #

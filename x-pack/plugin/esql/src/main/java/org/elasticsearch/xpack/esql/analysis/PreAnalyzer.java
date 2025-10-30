@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -98,7 +99,7 @@ public class PreAnalyzer {
             if (fn.name().equalsIgnoreCase("to_aggregate_metric_double")) {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
-            if (List.of("to_date_range", "to_string").contains(fn.name().toLowerCase())) {
+            if (List.of("to_date_range", "to_string").contains(fn.name().toLowerCase(Locale.ROOT))) {
                 useDateRangeWhenNotSupported.set(true);
             }
         }));

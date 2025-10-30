@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
@@ -68,8 +66,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
      * Creates a scoring listener that uses the resolved chunking config for proper chunking behavior.
      */
     private ActionListener<InferenceAction.Response> createScoringListener(
-        RankFeatureDoc[] featureDocs, 
-        ActionListener<float[]> scoreListener, 
+        RankFeatureDoc[] featureDocs,
+        ActionListener<float[]> scoreListener,
         ChunkScorerConfig resolvedConfig
     ) {
         return scoreListener.delegateFailureAndWrap((l, r) -> {
@@ -149,11 +147,15 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 l.onFailure(new IllegalArgumentException("Failed to resolve chunking settings for chunk_rescorer"));
                 return;
             }
-            
+
             // Update the chunkScorerConfig with resolved settings for use in shard operations
             // This ensures shards receive the correct chunking settings from the inference endpoint
             // Create the scoring listener with the resolved config
-            ActionListener<InferenceAction.Response> inferenceListener = createScoringListener(featureDocs, scoreListener, resolvedChunkScorerConfig);
+            ActionListener<InferenceAction.Response> inferenceListener = createScoringListener(
+                featureDocs,
+                scoreListener,
+                resolvedChunkScorerConfig
+            );
 
             // Short circuit on empty results after request validation
             if (featureDocs.length == 0) {
@@ -312,12 +314,12 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 );
             }
         }
-        
+
         // If chunk_rescorer.inference_id was explicitly specified but no settings found, return null to trigger error
         if (chunkScorerConfig.inferenceId() != null) {
             return null;
         }
-        
+
         // Otherwise, keep current config (with defaults)
         return chunkScorerConfig;
     }

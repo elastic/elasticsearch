@@ -355,6 +355,10 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle subqueries",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
             );
+            assumeFalse(
+                "CSV tests cannot currently handle CHUNK function",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.CHUNK_FUNCTION.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(

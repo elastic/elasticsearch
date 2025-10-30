@@ -101,6 +101,7 @@ public final class ExponentialHistogramBackedHistogramAggregator extends Abstrac
         };
     }
 
+    @FunctionalInterface
     private interface BucketCenterConsumer {
         void accept(double bucketCenter, long count) throws IOException;
     }

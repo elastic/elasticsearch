@@ -64,7 +64,6 @@ toc:
         - file: index-settings/path.md
   - file: index-lifecycle-actions/index.md
     children:
-        - file: index-lifecycle-actions/index.md
         - file: index-lifecycle-actions/ilm-allocate.md
         - file: index-lifecycle-actions/ilm-delete.md
         - file: index-lifecycle-actions/ilm-forcemerge.md

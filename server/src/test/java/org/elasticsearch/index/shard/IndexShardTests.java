@@ -208,6 +208,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -3415,6 +3417,14 @@ public class IndexShardTests extends IndexShardTestCase {
             });
             closeShards(differentIndex);
 
+            // check that an error from the mapper service is handled correctly
+            final PlainActionFuture<Boolean> badMapperFuture = new PlainActionFuture<>();
+            final IndexShard badMapper = spy(targetShard);
+            doThrow(IllegalArgumentException.class).when(badMapper).mapperService();
+            final BiConsumer<MappingMetadata, ActionListener<Void>> noopConsumer = (mapping, listener) -> listener.onResponse(null);
+            badMapper.recoverFromLocalShards(noopConsumer, List.of(sourceShard), badMapperFuture);
+            assertThrows(IndexShardRecoveryException.class, badMapperFuture::actionGet);
+
             final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
             targetShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(sourceShard), future);
             assertTrue(future.actionGet());
@@ -4558,7 +4568,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSupplyTombstoneDoc() throws Exception {
         IndexShard shard = newStartedShard();
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
-        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(shard.indexSettings.seqNoIndexOptions(), id);
+        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(shard.indexSettings.seqNoIndexOptions(), randomBoolean(), id);
         assertThat(deleteTombstone.docs(), hasSize(1));
         LuceneDocument deleteDoc = deleteTombstone.docs().get(0);
         assertThat(

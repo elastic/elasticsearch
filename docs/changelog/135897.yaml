@@ -1,5 +1,0 @@
-pr: 135897
-summary: Apply source excludes early when retrieving the `_inference_fields`
-area: Search
-type: bug
-issues: []

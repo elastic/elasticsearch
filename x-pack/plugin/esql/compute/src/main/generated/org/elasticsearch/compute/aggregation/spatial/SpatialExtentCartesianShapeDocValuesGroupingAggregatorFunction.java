@@ -91,17 +91,17 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        // This type does not support vectors because all values are multi-valued
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        // This type does not support vectors because all values are multi-valued
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        // This type does not support vectors because all values are multi-valued
       }
 
       @Override
@@ -126,10 +126,6 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
         SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
       }
     }
-  }
-
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector valuesVector) {
-    // This type does not support vectors because all values are multi-valued
   }
 
   @Override
@@ -189,10 +185,6 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector valuesVector) {
-    // This type does not support vectors because all values are multi-valued
-  }
-
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
@@ -241,10 +233,6 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
       int groupId = groups.getInt(groupPosition);
       SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
     }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, IntVector valuesVector) {
-    // This type does not support vectors because all values are multi-valued
   }
 
   @Override

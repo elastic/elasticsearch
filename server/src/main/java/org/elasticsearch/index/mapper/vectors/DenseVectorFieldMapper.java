@@ -58,7 +58,6 @@ import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVecto
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -74,6 +73,8 @@ import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -2286,6 +2287,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.isSyntheticSource = isSyntheticSource;
         }
 
+        public VectorSimilarity similarity() {
+            return similarity;
+        }
+
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -2685,11 +2690,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (indexed) {
-                return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims, this);
+                return new DenseVectorBlockLoader(name(), dims, this);
             }
 
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new BlockDocValuesReader.DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated, element.elementType());
+                return new DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated, element.elementType());
             }
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.DenseVectorBlockLoader(
@@ -2890,7 +2895,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // if plugins provided alternative KnnVectorsFormat for this indexOptions, use it instead of standard
             KnnVectorsFormat extraKnnFormat = null;
             for (VectorsFormatProvider vectorsFormatProvider : extraVectorsFormatProviders) {
-                extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(indexSettings, indexOptions);
+                extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(indexSettings, indexOptions, fieldType().similarity());
                 if (extraKnnFormat != null) {
                     break;
                 }

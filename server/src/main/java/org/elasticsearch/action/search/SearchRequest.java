@@ -163,11 +163,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         return true;
     }
 
-    @Override
-    public boolean allowsCrossProject() {
-        return true;
-    }
-
     /**
      * Creates a new sub-search request starting from the original search request that is provided.
      * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.

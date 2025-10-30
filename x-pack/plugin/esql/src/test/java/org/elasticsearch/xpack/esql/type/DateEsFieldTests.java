@@ -28,7 +28,7 @@ public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
     }
 
     @Override
-    protected DateEsField mutate(DateEsField instance) {
+    protected DateEsField mutateInstance(DateEsField instance) {
         String name = instance.getName();
         Map<String, EsField> properties = instance.getProperties();
         boolean aggregatable = instance.isAggregatable();

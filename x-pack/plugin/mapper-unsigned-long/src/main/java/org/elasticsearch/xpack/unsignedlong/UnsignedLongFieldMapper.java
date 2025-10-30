@@ -27,7 +27,6 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -50,6 +49,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
@@ -383,7 +383,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+                return new LongsBlockLoader(name());
             }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
@@ -491,7 +491,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                boolean indexed = indexType.hasPoints();
                 return (cache, breakerService) -> {
                     final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
                         name(),
@@ -500,9 +499,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
                         },
-                        indexed
+                        indexType
                     ).build(cache, breakerService);
-                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new, indexed);
+                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new, indexType);
                 };
             }
 

@@ -65,6 +65,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests.randomSamplingMethod;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,7 +110,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
             rolloverResponse.getOldIndex(),
             downsampleTargetIndex,
             TIMEOUT,
-            new DownsampleConfig(DateHistogramInterval.HOUR)
+            new DownsampleConfig(DateHistogramInterval.HOUR, randomSamplingMethod())
         );
         final AcknowledgedResponse downsampleResponse = indicesAdmin().execute(DownsampleAction.INSTANCE, downsampleRequest).actionGet();
 

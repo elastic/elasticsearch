@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -138,7 +137,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
             // simulate a valid field_caps response so we can parse and correctly analyze de query
-            listener.onResponse(new EsqlResolveFieldsResponse(fieldCapabilitiesResponse, TransportVersion.current()));
+            listener.onResponse(new EsqlResolveFieldsResponse(fieldCapabilitiesResponse));
             return null;
         }).when(qlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
@@ -148,12 +147,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
             // simulate a valid field_caps response so we can parse and correctly analyze de query
-            listener.onResponse(
-                new EsqlResolveFieldsResponse(
-                    new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of()),
-                    TransportVersion.current()
-                )
-            );
+            listener.onResponse(new EsqlResolveFieldsResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of())));
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 

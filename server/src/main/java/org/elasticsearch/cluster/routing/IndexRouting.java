@@ -363,10 +363,9 @@ public abstract class IndexRouting {
                 if (routing == null) {
                     throw new IllegalStateException("Routing should be set by the coordinator");
                 }
-                return indexShard(indexRequest);
+                return hashToShardId(TimeSeriesRoutingHashFieldMapper.decode(indexRequest.routing()));
             } else if (addIdWithRoutingHash) {
-                // TODO: is this correct?
-                return hashToShardId(effectiveRoutingToHash(indexRequest.id()));
+                return hashToShardId(idToHash(indexRequest.id()));
             } else {
                 checkNoRouting(indexRequest.routing());
                 return indexShard(indexRequest);

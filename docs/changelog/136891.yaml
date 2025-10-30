@@ -1,0 +1,6 @@
+pr: 136891
+summary: Fixing bug when handling 1d literal vectors
+area: ES|QL
+type: bug
+issues:
+ - 136364

@@ -1,0 +1,6 @@
+pr: 136827
+summary: Fix columns ordering when pruning an INLINE STATS
+area: ES|QL
+type: bug
+issues:
+ - 136797

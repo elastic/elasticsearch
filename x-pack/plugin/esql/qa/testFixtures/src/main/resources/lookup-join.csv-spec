@@ -247,11 +247,12 @@ FROM employees
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | WHERE emp_no > 10090 AND emp_no < 10096
+| EVAL country = MV_SORT(country)
 | SORT emp_no, country
 | KEEP emp_no, language_code, language_name, country
 ;
 
-emp_no:integer | language_code:integer | language_name:keyword | country:text
+emp_no:integer | language_code:integer | language_name:keyword | country:keyword
     10091      | 1                     | English               | Canada
     10091      | 1                     | null                  | United Kingdom
     10091      | 1                     | English               | United States of America
@@ -272,11 +273,12 @@ FROM employees
 | LIMIT 5
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL country = MV_SORT(country)
 | KEEP emp_no, language_code, language_name, country
 ;
 
 ignoreOrder:true
-emp_no:integer | language_code:integer | language_name:keyword | country:text
+emp_no:integer | language_code:integer | language_name:keyword | country:keyword
 10001          | 1                     | English               | Canada
 10001          | 1                     | English               | null
 10001          | 1                     | null                  | United Kingdom
@@ -324,7 +326,7 @@ ROW language_code = 2
 
 ignoreOrder:true
 language_code:integer | country:text       | language_name:keyword
-2                     | [Austria, Germany] | German
+2                     | [Germany, Austria] | German
 2                     | Switzerland        | German
 2                     | null               | German
 ;
@@ -1890,6 +1892,24 @@ ROW somefield = 0, type = "Production"
 
 type:keyword | language_code:integer | language_name:keyword
 Production   | 3                     | Spanish
+;
+
+lookupJoinOnSameFieldTwiceValues
+required_capability: join_lookup_v12
+required_capability: attribute_equals_respects_name_id
+
+ROW a = 1, b = 2
+| EVAL language_code = a
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS language_name_a
+| EVAL language_code = b
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS language_name_b
+| STATS values(language_name_a), values(language_name_b)
+;
+
+values(language_name_a):keyword | values(language_name_b):keyword
+English                         | French
 ;
 
 ###############################################
@@ -5643,4 +5663,47 @@ from sample_data,languages_mixed_numerics,apps
 @timestamp:datetime|client_ip:ip|event_duration:l| language_code:i | language_code_double:d | language_code_float:d  |language_code_half_float:d|language_code_integer:i| language_code_long:l |language_code_scaled_float:d|language_code_short:i|       message:keyword       |     name:keyword      |    version:version    | language_name:keyword
 null           |null           |null           |null           |32767.0               |32767.0               |32768.0                 |32767                |32767               |32767.0                   |32767              |null                 |null           |null           |null
 null           |null           |null           |null           |128.0                 |128.0                 |128.0                   |128                  |128                 |128.0                     |128                |null                 |null           |null           |null
+;
+
+
+lookupJoinWithSemanticFilterDeduplication
+required_capability: join_lookup_v12
+required_capability: lookup_join_semantic_filter_dedup
+
+from languages
+| lookup join languages_lookup on language_name 
+| where NOT language_code <= 50 OR language_name == "English"
+| where language_code > 50 
+| where language_name == "English"
+;
+
+language_name:keyword | language_code:integer 
+;
+
+
+// https://github.com/elastic/elasticsearch/issues/136599
+lookupJoinWithSemanticFilterDeduplicationComplex
+required_capability: join_lookup_v12
+required_capability: lookup_join_semantic_filter_dedup
+
+from languages_lookup_non_unique_ke* 
+| enrich languages_policy on language_name 
+| sort country DESC, language_code ASC NULLS LAST, language_name NULLS FIRST 
+| limit 14081 
+| keep `language_name`, `country`, *, `country.keyword` 
+| mv_expand country.keyword 
+| grok language_name "%{WORD:YEcxuCOHsGzb} %{WORD:country.keyword}"
+| rename country.keyword as other1
+| rename language_code as other2 
+| lookup join multi_column_joinable_lookup on other1, other2 
+| where  NOT id_int <= 50 OR  NOT false AND  NOT other2 == 50 
+| where false AND  NOT true OR id_int > 50 AND true 
+| where  NOT false AND other2 == 50
+;
+
+warning:Line 13:24: evaluation of [other2 == 50] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 13:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword |id_int:integer | ip_addr:ip |is_active_bool:boolean | name_str:keyword
+
 ;

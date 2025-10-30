@@ -1,0 +1,5 @@
+pr: 136104
+summary: Add support for Full Text Functions and Lucene pushable conditions on fields from the Lookup Index for Lookup Join
+area: ES|QL
+type: enhancement
+issues: [ ]

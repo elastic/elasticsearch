@@ -19,5 +19,8 @@
 :::{include} ../types/date_parse.md
 :::
 
+:::{include} ../functionNamedParams/date_parse.md
+:::
+
 :::{include} ../examples/date_parse.md
 :::

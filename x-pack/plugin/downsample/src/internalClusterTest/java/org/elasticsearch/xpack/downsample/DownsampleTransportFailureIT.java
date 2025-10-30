@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.downsample.DownsamplingIntegTestCase.randomSamplingMethod;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class DownsampleTransportFailureIT extends ESIntegTestCase {
@@ -271,7 +272,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
             WAIT_TIMEOUT,
-            new DownsampleConfig(DateHistogramInterval.MINUTE)
+            new DownsampleConfig(DateHistogramInterval.MINUTE, randomSamplingMethod())
         );
 
         // WHEN nothing happens
@@ -299,7 +300,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
             WAIT_TIMEOUT,
-            new DownsampleConfig(DateHistogramInterval.HOUR)
+            new DownsampleConfig(DateHistogramInterval.HOUR, randomSamplingMethod())
         );
 
         // WHEN (disruption)

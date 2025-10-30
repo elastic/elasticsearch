@@ -108,6 +108,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     private final ThreadPool threadPool = threadPool();
     private final Directory lookupIndexDirectory = newDirectory();
     private final List<Releasable> releasables = new ArrayList<>();
+    private final boolean applyRightFilterAsJoinOnFilter;
     private int numberOfJoinColumns; // we only allow 1 or 2 columns due to simpleInput() implementation
     private EsqlBinaryComparison.BinaryComparisonOperation operation;
 
@@ -129,6 +130,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     public LookupFromIndexOperatorTests(EsqlBinaryComparison.BinaryComparisonOperation operation) {
         super();
         this.operation = operation;
+        this.applyRightFilterAsJoinOnFilter = randomBoolean();
     }
 
     @Before
@@ -248,6 +250,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             matchFields.add(new MatchConfig(matchField, i, inputDataType));
         }
         Expression joinOnExpression = null;
+        FragmentExec rightPlanWithOptionalPreJoinFilter = buildLessThanFilter(LESS_THAN_VALUE);
         if (operation != null) {
             List<Expression> conditions = new ArrayList<>();
             for (int i = 0; i < numberOfJoinColumns; i++) {
@@ -265,6 +268,13 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
                 );
                 conditions.add(operation.buildNewInstance(Source.EMPTY, left, right));
             }
+            if (applyRightFilterAsJoinOnFilter) {
+                if (rightPlanWithOptionalPreJoinFilter instanceof FragmentExec fragmentExec
+                    && fragmentExec.fragment() instanceof Filter filterPlan) {
+                    conditions.add(filterPlan.condition());
+                    rightPlanWithOptionalPreJoinFilter = null;
+                }
+            }
             joinOnExpression = Predicates.combineAnd(conditions);
         }
 
@@ -278,7 +288,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             lookupIndex,
             loadFields,
             Source.EMPTY,
-            buildLessThanFilter(LESS_THAN_VALUE),
+            rightPlanWithOptionalPreJoinFilter,
             joinOnExpression
         );
     }
@@ -321,25 +331,41 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             // match_field=match<i>_left (index first, then suffix)
             sb.append("input_type=LONG match_field=match").append(i).append(suffix).append(" inputChannel=").append(i).append(" ");
         }
-        // Accept either the legacy physical plan rendering (FilterExec/EsQueryExec) or the new FragmentExec rendering
-        sb.append("right_pre_join_plan=(?:");
-        // Legacy pattern
-        sb.append("FilterExec\\[lint\\{f}#\\d+ < ")
-            .append(LESS_THAN_VALUE)
-            .append(
-                "\\[INTEGER]]\\n\\\\_EsQueryExec\\[test], indexMode\\[lookup],\\s*(?:query\\[\\]|\\[\\])?,?\\s*"
-                    + "limit\\[\\],?\\s*sort\\[(?:\\[\\])?\\]\\s*estimatedRowSize\\[null\\]\\s*queryBuilderAndTags \\[(?:\\[\\]\\])\\]"
-            );
-        sb.append("|");
-        // New FragmentExec pattern - match the actual output format
-        sb.append("FragmentExec\\[filter=null, estimatedRowSize=\\d+, reducer=\\[\\], fragment=\\[<>\\n")
-            .append("Filter\\[lint\\{f}#\\d+ < ")
-            .append(LESS_THAN_VALUE)
-            .append("\\[INTEGER]]\\n")
-            .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[\\]<>\\]\\]");
-        sb.append(")");
+
+        if (applyRightFilterAsJoinOnFilter && operation != null) {
+            // When applyRightFilterAsJoinOnFilter is true, right_pre_join_plan should be null
+            sb.append("right_pre_join_plan=null");
+        } else {
+            // Accept either the legacy physical plan rendering (FilterExec/EsQueryExec) or the new FragmentExec rendering
+            sb.append("right_pre_join_plan=(?:");
+            // Legacy pattern
+            sb.append("FilterExec\\[lint\\{f}#\\d+ < ")
+                .append(LESS_THAN_VALUE)
+                .append(
+                    "\\[INTEGER]]\\n\\\\_EsQueryExec\\[test], indexMode\\[lookup],\\s*(?:query\\[\\]|\\[\\])?,?\\s*"
+                        + "limit\\[\\],?\\s*sort\\[(?:\\[\\])?\\]\\s*estimatedRowSize\\[null\\]\\s*queryBuilderAndTags \\[(?:\\[\\]\\])\\]"
+                );
+            sb.append("|");
+            // New FragmentExec pattern - match the actual output format
+            sb.append("FragmentExec\\[filter=null, estimatedRowSize=\\d+, reducer=\\[\\], fragment=\\[<>\\n")
+                .append("Filter\\[lint\\{f}#\\d+ < ")
+                .append(LESS_THAN_VALUE)
+                .append("\\[INTEGER]]\\n")
+                .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[\\]<>\\]\\]");
+            sb.append(")");
+        }
+
         // Accept join_on_expression=null or a valid join predicate
-        sb.append(" join_on_expression=(null|match\\d+left [=!<>]+ match\\d+right( AND match\\d+left [=!<>]+ match\\d+right)*|)\\]");
+        if (applyRightFilterAsJoinOnFilter && operation != null) {
+            // When applyRightFilterAsJoinOnFilter is true and operation is not null, the join expression includes the filter condition
+            sb.append(
+                " join_on_expression=(match\\d+left [=!<>]+ match\\d+right( "
+                    + "AND match\\d+left [=!<>]+ match\\d+right)* AND lint\\{f}#\\d+ < "
+            ).append(LESS_THAN_VALUE).append("\\[INTEGER]|)\\]");
+        } else {
+            // Standard pattern for other cases
+            sb.append(" join_on_expression=(null|match\\d+left [=!<>]+ match\\d+right( AND match\\d+left [=!<>]+ match\\d+right)*|)\\]");
+        }
         return matchesPattern(sb.toString());
     }
 

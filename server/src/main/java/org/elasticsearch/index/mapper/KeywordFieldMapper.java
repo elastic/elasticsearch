@@ -47,6 +47,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -191,6 +193,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
 
         private final Parameter<String> normalizer;
+        private final Parameter<Boolean> normalizerSkipStoreOriginalValue;
 
         private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
             "split_queries_on_whitespace",
@@ -278,6 +281,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 m -> toType(m).normalizerName,
                 null
             ).acceptsNull();
+            this.normalizerSkipStoreOriginalValue = Parameter.boolParam(
+                "normalizer_skip_store_original_value",
+                false,
+                m -> ((KeywordFieldMapper) m).isNormalizerSkipStoreOriginalValue(),
+                () -> "lowercase".equals(normalizer.getValue())
+                    && indexAnalyzers.getNormalizer(normalizer.getValue()).analyzer() instanceof LowercaseNormalizer
+            );
+
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
@@ -407,6 +418,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 hasNorms,
                 similarity,
                 normalizer,
+                normalizerSkipStoreOriginalValue,
                 splitQueriesOnWhitespace,
                 script,
                 onScriptError,
@@ -801,7 +813,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
-                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+                return new BytesRefsFromOrdsBlockLoader(name());
             }
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
@@ -1110,6 +1122,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final String indexOptions;
     private final FieldType fieldType;
     private final String normalizerName;
+    private final boolean normalizerSkipStoreOriginalValue;
     private final boolean splitQueriesOnWhitespace;
     private final Script script;
     private final ScriptCompiler scriptCompiler;
@@ -1140,6 +1153,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.normalizerName = builder.normalizer.getValue();
+        this.normalizerSkipStoreOriginalValue = builder.normalizerSkipStoreOriginalValue.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
         this.script = builder.script.get();
         this.indexAnalyzers = builder.indexAnalyzers;
@@ -1162,6 +1176,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public String getOffsetFieldName() {
         return offsetsFieldName;
+    }
+
+    public boolean isNormalizerSkipStoreOriginalValue() {
+        return normalizerSkipStoreOriginalValue;
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
@@ -1343,9 +1361,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        if (hasNormalizer()) {
-            // NOTE: no matter if we have doc values or not we use fallback synthetic source
-            // to store the original value whose doc values would be altered by the normalizer
+        if (hasNormalizer() && normalizerSkipStoreOriginalValue == false) {
+            // NOTE: we use fallback synthetic source to store the original value since the doc values would be altered by the normalizer
             return SyntheticSourceSupport.FALLBACK;
         }
 

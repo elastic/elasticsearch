@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Pattern Text"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/pattern-text.html

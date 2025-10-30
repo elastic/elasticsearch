@@ -98,8 +98,8 @@ Response:
   }
 }
 ```
-%  TESTRESPONSE[s/\.\.\.//]
-%  TESTRESPONSE[s/: (0\.)?[0-9]+/: $body.$_path/]
+% TESTRESPONSE[s/\.\.\.//]
+% TESTRESPONSE[s/: (0\.)?[0-9]+/: $body.$_path/]
 
 When querying an index of all crimes from all police forces, what these results show is that the British Transport Police force stand out as a force dealing with a disproportionately large number of bicycle thefts. Ordinarily, bicycle thefts represent only 1% of crimes (66799/5064554) but for the British Transport Police, who handle crime on railways and stations, 7% of crimes (3640/47347) is a bike theft. This is a significant seven-fold increase in frequency and so this anomaly was highlighted as the top crime type.
 
@@ -182,9 +182,9 @@ Response:
   }
 }
 ```
-%  TESTRESPONSE[s/\.\.\.//]
-%  TESTRESPONSE[s/: (0\.)?[0-9]+/: $body.$_path/]
-%  TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
+% TESTRESPONSE[s/\.\.\.//]
+% TESTRESPONSE[s/: (0\.)?[0-9]+/: $body.$_path/]
+% TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 
 Now we have anomaly detection for each of the police forces using a single request.
 

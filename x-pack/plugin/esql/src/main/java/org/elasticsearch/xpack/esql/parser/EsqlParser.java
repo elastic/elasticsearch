@@ -116,6 +116,11 @@ public class EsqlParser {
     }
 
     // testing utility
+    public EsqlStatement createQuery(String query) {
+        return createQuery(query, new QueryParams());
+    }
+
+    // testing utility
     public EsqlStatement createQuery(String query, QueryParams params) {
         return createQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
     }

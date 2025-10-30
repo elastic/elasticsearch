@@ -1385,7 +1385,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         IngestDocument ingestDocument,
         Metadata originalDocumentMetadata
     ) {
-        if (samplingService != null && samplingService.atLeastOneSampleConfigured()) {
+        if (samplingService != null && samplingService.atLeastOneSampleConfigured(projectMetadata)) {
             /*
              * We need both the original document and the fully updated document for sampling, so we make a copy of the original
              * before overwriting it here. We can discard it after sampling.

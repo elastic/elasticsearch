@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
@@ -150,7 +151,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            return new BytesRefsFromOrdsBlockLoader(name());
         }
     }
 

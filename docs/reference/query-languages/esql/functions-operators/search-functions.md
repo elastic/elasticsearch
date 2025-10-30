@@ -20,6 +20,7 @@ including [KNN](dense-vector-functions.md#esql-knn), please refer to
 the [Dense vector functions](dense-vector-functions.md) documentation.
 :::
 
+Use these functions for [full-text search](docs-content://solutions/search/full-text.md) 
 and [semantic search](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md).
 
 Full text functions can be used to
@@ -50,6 +51,9 @@ for information on the limitations of full text search.
 :::
 
 :::{include} ../_snippets/functions/layout/qstr.md
+:::
+
+:::{include} ../_snippets/functions/layout/score.md
 :::
 
 % TERM is currently a hidden feature

@@ -94,9 +94,9 @@ GET latency/_search
   }
 }
 ```
-%  TEST[setup:latency]
-%  TEST[s/_search/_search?filter_path=aggregations/]
-%  TEST[s/"timeUnit": 1000/"timeUnit": 10/]
+% TEST[setup:latency]
+% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/"timeUnit": 1000/"timeUnit": 10/]
 
 ## Boxplot values are (usually) approximate [search-aggregations-metrics-boxplot-aggregation-approximation]
 

@@ -276,7 +276,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -363,7 +363,7 @@ For example:
     }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 ::::{warning}
 When using advanced rules, a query can bypass the configuration field `tables`. This will happen if the query specifies a table that doesn’t appear in the configuration. This can also happen if the configuration specifies `*` to fetch all tables while the advanced sync rule requests for only a subset of tables.

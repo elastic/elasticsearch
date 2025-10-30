@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Keyword"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/keyword.html
@@ -279,9 +282,9 @@ Will become:
 ```console-result
 {
   "kwd": ["NA", "bar", "foo"]
-}
+  }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 ## Constant keyword field type [constant-keyword-field-type]
 

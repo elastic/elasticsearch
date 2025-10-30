@@ -17,7 +17,6 @@ import org.elasticsearch.compute.aggregation.FirstLongByTimestampAggregatorFunct
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class FirstOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class FirstOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FirstOverTime",
@@ -58,12 +58,12 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     )
     public FirstOverTime(
         Source source,
-        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double" }) Expression field
+        @Param(
+            name = "field",
+            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double" }
+        ) Expression field,
+        Expression timestamp
     ) {
-        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
-    }
-
-    public FirstOverTime(Source source, Expression field, Expression timestamp) {
         this(source, field, Literal.TRUE, timestamp);
     }
 
@@ -152,7 +152,8 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         return "first_over_time(" + field() + ")";
     }
 
-    Expression timestamp() {
+    @Override
+    public Expression timestamp() {
         return timestamp;
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 
 public class QualifierTests extends AbstractStatementParserTests {
     public void testQualifiersAreDisabledInReleaseBuilds() {
@@ -57,7 +58,7 @@ public class QualifierTests extends AbstractStatementParserTests {
         UnresolvedRelation relation = as(join.right(), UnresolvedRelation.class);
 
         UnresolvedAttribute filterExpr = as(filter.condition(), UnresolvedAttribute.class);
-        assertEquals(new UnresolvedAttribute(Source.EMPTY, "qualified", "field", null), filterExpr);
+        assertEqualsIgnoringIds(new UnresolvedAttribute(Source.EMPTY, "qualified", "field", null), filterExpr);
         assertEquals("Unknown column [[qualified].[field]]", filterExpr.unresolvedMessage());
 
         String referenceQuery = "ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x | WHERE qualified.field";
@@ -894,7 +895,7 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         LogicalPlan referencePlan = statement(referenceQuery).transformExpressionsDown(Expression.class, normalizeExpressions);
 
-        assertEquals(referencePlan, planWithStrippedQualifiers);
+        assertEqualsIgnoringIds(referencePlan, planWithStrippedQualifiers);
     }
 
     private static int countAttribute(Expression expr, String qualifier, String name) {
@@ -912,6 +913,6 @@ public class QualifierTests extends AbstractStatementParserTests {
     private void assertStatementsEqual(String query1, String query2) {
         LogicalPlan plan1 = statement(query1);
         LogicalPlan plan2 = statement(query2);
-        assertEquals(plan1, plan2);
+        assertEqualsIgnoringIds(plan1, plan2);
     }
 }

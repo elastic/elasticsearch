@@ -42,11 +42,11 @@ class ESRestTestFeatureService implements TestFeatureService {
      */
     private static final Pattern VERSION_FEATURE_PATTERN = Pattern.compile("gte_v(\\d+\\.\\d+\\.\\d+)");
 
-    private final Collection<Version> nodeVersions;
+    private final ESRestTestCase.VersionFeaturesPredicate versionFeaturesPredicate;
     private final Collection<Set<String>> nodeFeatures;
 
-    ESRestTestFeatureService(Set<Version> nodeVersions, Collection<Set<String>> nodeFeatures) {
-        this.nodeVersions = nodeVersions;
+    ESRestTestFeatureService(ESRestTestCase.VersionFeaturesPredicate versionFeaturesPredicate, Collection<Set<String>> nodeFeatures) {
+        this.versionFeaturesPredicate = versionFeaturesPredicate;
         this.nodeFeatures = nodeFeatures;
     }
 
@@ -55,8 +55,8 @@ class ESRestTestFeatureService implements TestFeatureService {
     }
 
     @Override
-    public boolean clusterHasFeature(String featureId, boolean any) {
-        if (checkCollection(nodeFeatures, s -> s.contains(featureId), any)) {
+    public boolean clusterHasFeature(String featureId, boolean canMatchAnyNode) {
+        if (checkCollection(nodeFeatures, s -> s.contains(featureId), canMatchAnyNode)) {
             return true;
         }
         if (MetadataHolder.FEATURE_NAMES.contains(featureId)) {
@@ -88,7 +88,7 @@ class ESRestTestFeatureService implements TestFeatureService {
                 );
             }
 
-            return checkCollection(nodeVersions, v -> v.onOrAfter(extractedVersion), any);
+            return versionFeaturesPredicate.test(extractedVersion, canMatchAnyNode);
         }
 
         if (hasFeatureMetadata()) {

@@ -1643,6 +1643,8 @@ public class Security extends Plugin
         settingsList.add(ApiKeyService.CACHE_MAX_KEYS_SETTING);
         settingsList.add(ApiKeyService.CACHE_TTL_SETTING);
         settingsList.add(ApiKeyService.DOC_CACHE_TTL_SETTING);
+        settingsList.add(ApiKeyService.CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING);
+        settingsList.add(ApiKeyService.CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_MAX_APPLICATIONS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_TTL_SETTING);
         settingsList.add(OPERATOR_PRIVILEGES_ENABLED);

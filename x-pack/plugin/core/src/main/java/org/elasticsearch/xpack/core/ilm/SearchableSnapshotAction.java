@@ -78,7 +78,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
         indexName,
         state) -> state.forceMergeCloneIndexName() != null ? state.forceMergeCloneIndexName() : indexName;
 
-    private static final Settings CLONE_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+    /** The cloned index should have 0 replicas, so we also need to remove the auto_expand_replicas setting if present. */
+    private static final Settings CLONE_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, (String) null)
+        .build();
     private static final Function<IndexMetadata, Settings> CLONE_SETTINGS_SUPPLIER = indexMetadata -> CLONE_SETTINGS;
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(

@@ -76,7 +76,7 @@ dependencies {
   api "net.minidev:accessors-smart:2.5.2"
   api "net.minidev:json-smart:2.5.2"
   api "org.codehaus.woodstox:stax2-api:4.2.2"
-  api "org.ow2.asm:asm:9.8"
+  api "org.ow2.asm:asm:9.9"
 
   runtimeOnly "com.google.code.gson:gson:2.11.0"
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"

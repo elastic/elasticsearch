@@ -22,8 +22,8 @@ package org.elasticsearch.index.codec.vectors.es816;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
@@ -35,6 +35,8 @@ import static org.elasticsearch.index.codec.vectors.BQVectorUtils.isUnitVector;
  * href="https://arxiv.org/abs/2405.12497">RaBitQ</a>.
  */
 public class BinaryQuantizer {
+
+    public static final byte B_QUERY = 4;
     private final int discretizedDimensions;
 
     private final VectorSimilarityFunction similarityFunction;
@@ -181,7 +183,7 @@ public class BinaryQuantizer {
             );
         }
 
-        if (this.discretizedDimensions != (queryDestination.length * 8) / BQSpaceUtils.B_QUERY) {
+        if (this.discretizedDimensions != (queryDestination.length * 8) / B_QUERY) {
             throw new IllegalArgumentException(
                 "vector and quantized vector destination must be compatible dimensions: "
                     + vector.length
@@ -191,7 +193,7 @@ public class BinaryQuantizer {
                     + "!= ("
                     + queryDestination.length
                     + " * 8) / "
-                    + BQSpaceUtils.B_QUERY
+                    + B_QUERY
             );
         }
 
@@ -218,14 +220,14 @@ public class BinaryQuantizer {
         float lower = range[0];
         float upper = range[1];
         // Δ := (𝑣𝑟 − 𝑣𝑙)/(2𝐵𝑞 − 1)
-        float width = (upper - lower) / ((1 << BQSpaceUtils.B_QUERY) - 1);
+        float width = (upper - lower) / ((1 << B_QUERY) - 1);
 
         QuantResult quantResult = quantize(vector, lower, width);
-        byte[] byteQuery = quantResult.result();
+        int[] byteQuery = quantResult.result();
 
         // q¯ = Δ · q¯𝑢 + 𝑣𝑙 · 1𝐷
         // q¯ is an approximation of q′ (scalar quantized approximation)
-        BQSpaceUtils.transposeHalfByte(byteQuery, queryDestination);
+        ESVectorUtil.transposeHalfByte(byteQuery, queryDestination);
         QueryFactors factors = new QueryFactors(quantResult.quantizedSum, distToC, lower, width, normVmC, vDotC);
         final float[] indexCorrections;
         if (similarityFunction == EUCLIDEAN) {
@@ -299,11 +301,11 @@ public class BinaryQuantizer {
         return corrections;
     }
 
-    private record QuantResult(byte[] result, int quantizedSum) {}
+    private record QuantResult(int[] result, int quantizedSum) {}
 
     private static QuantResult quantize(float[] vector, float lower, float width) {
         // FIXME: speed up with panama? and/or use existing scalar quantization utils in Lucene?
-        byte[] result = new byte[vector.length];
+        int[] result = new int[vector.length];
         float oneOverWidth = 1.0f / width;
         int sumQ = 0;
         for (int i = 0; i < vector.length; i++) {
@@ -323,7 +325,7 @@ public class BinaryQuantizer {
         assert similarityFunction != COSINE || isUnitVector(centroid);
         assert this.discretizedDimensions == BQVectorUtils.discretize(vector.length, 64);
 
-        if (this.discretizedDimensions != (destination.length * 8) / BQSpaceUtils.B_QUERY) {
+        if (this.discretizedDimensions != (destination.length * 8) / B_QUERY) {
             throw new IllegalArgumentException(
                 "vector and quantized vector destination must be compatible dimensions: "
                     + vector.length
@@ -333,7 +335,7 @@ public class BinaryQuantizer {
                     + "!= ("
                     + destination.length
                     + " * 8) / "
-                    + BQSpaceUtils.B_QUERY
+                    + B_QUERY
             );
         }
 
@@ -359,14 +361,14 @@ public class BinaryQuantizer {
         float lower = range[0];
         float upper = range[1];
         // Δ := (𝑣𝑟 − 𝑣𝑙)/(2𝐵𝑞 − 1)
-        float width = (upper - lower) / ((1 << BQSpaceUtils.B_QUERY) - 1);
+        float width = (upper - lower) / ((1 << B_QUERY) - 1);
 
         QuantResult quantResult = quantize(vmC, lower, width);
-        byte[] byteQuery = quantResult.result();
+        int[] byteQuery = quantResult.result();
 
         // q¯ = Δ · q¯𝑢 + 𝑣𝑙 · 1𝐷
         // q¯ is an approximation of q′ (scalar quantized approximation)
-        BQSpaceUtils.transposeHalfByte(byteQuery, destination);
+        ESVectorUtil.transposeHalfByte(byteQuery, destination);
 
         QueryFactors factors;
         if (similarityFunction != EUCLIDEAN) {

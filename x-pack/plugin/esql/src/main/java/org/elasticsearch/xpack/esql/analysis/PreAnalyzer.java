@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This class is part of the planner.  Acts somewhat like a linker, to find the indices and enrich policies referenced by the query.
@@ -24,14 +26,13 @@ import java.util.List;
 public class PreAnalyzer {
 
     public record PreAnalysis(
-        IndexMode indexMode,
-        IndexPattern indexPattern,
+        Map<IndexPattern, IndexMode> indexes,
         List<Enrich> enriches,
         List<IndexPattern> lookupIndices,
-        boolean supportsAggregateMetricDouble,
-        boolean supportsDenseVector
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of(), false, false);
+        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false);
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -43,17 +44,19 @@ public class PreAnalyzer {
     }
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
-        Holder<IndexMode> indexMode = new Holder<>();
-        Holder<IndexPattern> indexPattern = new Holder<>();
+        Map<IndexPattern, IndexMode> indexes = new HashMap<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
             if (p.indexMode() == IndexMode.LOOKUP) {
                 lookupIndices.add(p.indexPattern());
-            } else if (indexMode.get() == null || indexMode.get() == p.indexMode()) {
-                indexMode.set(p.indexMode());
-                indexPattern.set(p.indexPattern());
+            } else if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
+                indexes.put(p.indexPattern(), p.indexMode());
             } else {
-                throw new IllegalStateException("index mode is already set");
+                IndexMode m1 = p.indexMode();
+                IndexMode m2 = indexes.get(p.indexPattern());
+                throw new IllegalStateException(
+                    "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
+                );
             }
         });
 
@@ -61,16 +64,24 @@ public class PreAnalyzer {
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
         /*
-         * Enable aggregate_metric_double and dense_vector when we see certain function
-         * or the TS command. This allows us to release these when not all nodes understand
+         * Enable aggregate_metric_double and dense_vector when we see certain functions
+         * or the TS command. This allowed us to release these when not all nodes understand
          * these types. These functions are only supported on newer nodes, so we use them
          * as a signal that the query is only for nodes that support these types.
          *
-         * This work around is temporary until we flow the minimum transport version
-         * back through a cross cluster search field caps call.
+         * This was a workaround that was required to enable these in 9.2.0. These days
+         * we enable these field types if all nodes in all clusters support them. But this
+         * work around persists to support force-enabling them on queries that might touch
+         * nodes that don't have 9.2.1 or 9.3.0. If all nodes in the cluster have 9.2.1 or 9.3.0
+         * this code doesn't do anything.
          */
-        Holder<Boolean> supportsAggregateMetricDouble = new Holder<>(false);
-        Holder<Boolean> supportsDenseVector = new Holder<>(false);
+        Holder<Boolean> useAggregateMetricDoubleWhenNotSupported = new Holder<>(false);
+        Holder<Boolean> useDenseVectorWhenNotSupported = new Holder<>(false);
+        indexes.forEach((ip, mode) -> {
+            if (mode == IndexMode.TIME_SERIES) {
+                useAggregateMetricDoubleWhenNotSupported.set(true);
+            }
+        });
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
             if (fn.name().equalsIgnoreCase("knn")
                 || fn.name().equalsIgnoreCase("to_dense_vector")
@@ -80,10 +91,10 @@ public class PreAnalyzer {
                 || fn.name().equalsIgnoreCase("v_l2_norm")
                 || fn.name().equalsIgnoreCase("v_dot_product")
                 || fn.name().equalsIgnoreCase("v_magnitude")) {
-                supportsDenseVector.set(true);
+                useDenseVectorWhenNotSupported.set(true);
             }
             if (fn.name().equalsIgnoreCase("to_aggregate_metric_double")) {
-                supportsAggregateMetricDouble.set(true);
+                useAggregateMetricDoubleWhenNotSupported.set(true);
             }
         }));
 
@@ -91,12 +102,11 @@ public class PreAnalyzer {
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
         return new PreAnalysis(
-            indexMode.get(),
-            indexPattern.get(),
+            indexes,
             unresolvedEnriches,
             lookupIndices,
-            indexMode.get() == IndexMode.TIME_SERIES || supportsAggregateMetricDouble.get(),
-            supportsDenseVector.get()
+            useAggregateMetricDoubleWhenNotSupported.get(),
+            useDenseVectorWhenNotSupported.get()
         );
     }
 }

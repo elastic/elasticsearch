@@ -109,7 +109,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
-        var format = vectorsFormatProvider.getKnnVectorsFormat(null, null);
+        var format = vectorsFormatProvider.getKnnVectorsFormat(null, null, null);
         assertNull(format);
     }
 
@@ -136,7 +136,11 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
-        var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
+        );
         assertNull(format);
     }
 
@@ -151,7 +155,11 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
-        var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
+        );
         assertNotNull(format);
     }
 
@@ -166,7 +174,14 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomFlatIndexOptions();
 
-        var ex = expectThrows(IllegalArgumentException.class, () -> vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions));
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> vectorsFormatProvider.getKnnVectorsFormat(
+                settings,
+                indexOptions,
+                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
+            )
+        );
         assertThat(ex.getMessage(), startsWith("[index.vectors.indexing.use_gpu] doesn't support [index_options.type] of"));
     }
 
@@ -181,7 +196,14 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
-        var ex = expectThrows(IllegalArgumentException.class, () -> vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions));
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> vectorsFormatProvider.getKnnVectorsFormat(
+                settings,
+                indexOptions,
+                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
+            )
+        );
         assertThat(
             ex.getMessage(),
             equalTo("[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node.")
@@ -200,7 +222,14 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
-        var ex = expectThrows(IllegalArgumentException.class, () -> vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions));
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> vectorsFormatProvider.getKnnVectorsFormat(
+                settings,
+                indexOptions,
+                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
+            )
+        );
         assertThat(
             ex.getMessage(),
             equalTo("[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node.")
@@ -218,7 +247,11 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
-        var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
+        );
         assertNotNull(format);
     }
 
@@ -233,7 +266,11 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
-        var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
+        );
         assertNull(format);
     }
 
@@ -248,7 +285,11 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomFlatIndexOptions();
 
-        var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
+        );
         assertNull(format);
     }
 
@@ -263,7 +304,11 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         IndexSettings settings = getIndexSettings();
         final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
-        var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
+        var format = vectorsFormatProvider.getKnnVectorsFormat(
+            settings,
+            indexOptions,
+            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
+        );
         assertNull(format);
     }
 

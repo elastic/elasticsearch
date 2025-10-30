@@ -75,7 +75,7 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseBFloat16K
 
     @Override
     public void setUp() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(true, random().nextBoolean());
+        format = new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16, random().nextBoolean());
         super.setUp();
     }
 
@@ -196,7 +196,7 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseBFloat16K
         var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
         var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
 
-        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(true, false);
+        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16, false);
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
     }
 

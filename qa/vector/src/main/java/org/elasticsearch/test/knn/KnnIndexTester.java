@@ -35,6 +35,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.logging.Level;
@@ -117,7 +118,14 @@ public class KnnIndexTester {
     static Codec createCodec(CmdLineArgs args) {
         final KnnVectorsFormat format;
         if (args.indexType() == IndexType.IVF) {
-            format = new ES920DiskBBQVectorsFormat(args.ivfClusterSize(), ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
+            ESNextDiskBBQVectorsFormat.QuantEncoding encoding = args.quantizeBits() == 1
+                ? ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY
+                : ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
+            format = new ESNextDiskBBQVectorsFormat(
+                encoding,
+                args.ivfClusterSize(),
+                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+            );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
             if (args.quantizeBits() == 32) {
                 format = new ES92GpuHnswVectorsFormat();

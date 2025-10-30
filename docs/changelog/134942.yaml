@@ -1,5 +1,0 @@
-pr: 134942
-summary: Add telemetry support for Lookup Join On Expression
-area: ES|QL
-type: enhancement
-issues: []

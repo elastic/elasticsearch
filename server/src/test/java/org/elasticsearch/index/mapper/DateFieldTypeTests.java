@@ -520,7 +520,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS,
             CoreValuesSourceType.DATE,
             DateNanosDocValuesField::new,
-            false
+            IndexType.NONE
         );
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);

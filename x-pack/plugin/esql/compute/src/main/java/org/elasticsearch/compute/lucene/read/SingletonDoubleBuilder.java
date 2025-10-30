@@ -10,8 +10,8 @@ package org.elasticsearch.compute.lucene.read;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 /**
  * Like {@link org.elasticsearch.compute.data.DoubleBlockBuilder} but optimized for collecting dense single valued values.

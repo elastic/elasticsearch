@@ -1,5 +1,0 @@
-pr: 135446
-summary: Fix projection generation when pruning left join
-area: ES|QL
-type: bug
-issues: []

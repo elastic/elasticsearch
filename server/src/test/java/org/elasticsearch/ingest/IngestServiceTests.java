@@ -3357,7 +3357,7 @@ public class IngestServiceTests extends ESTestCase {
             Predicates.never(),
             samplingService
         );
-        when(samplingService.atLeastOneSampleConfigured()).thenReturn(true);
+        when(samplingService.atLeastOneSampleConfigured(any())).thenReturn(true);
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
         var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

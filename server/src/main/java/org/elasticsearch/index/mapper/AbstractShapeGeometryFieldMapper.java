@@ -12,6 +12,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 

@@ -21,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -42,6 +43,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -712,6 +714,118 @@ public class IndexRoutingTests extends ESTestCase {
         // Verify that the request id gets updated to contain the routing hash.
         routing.postProcess(req);
         assertEquals(expectedShard, routing.getShard(req.id(), null));
+    }
+
+    public void testRerouteToTargetLogsdb() throws IOException {
+        int shards = between(2, 500);
+        IndexMetadata startingMetadata = IndexMetadata.builder("test")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+                    .build()
+            )
+            .numberOfShards(shards)
+            .numberOfReplicas(0)
+            .setRoutingNumShards(shards)
+            .build();
+
+        IndexRouting routing = IndexRouting.fromIndexMetadata(startingMetadata);
+        IndexRouting splitRouting = getSplitRouting(startingMetadata);
+
+        int iters = randomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            IndexRequest req = new IndexRequest();
+            routing.preProcess(req);
+            assertNull(req.id());
+
+            // Verify that routing uses the field name and value in the routing path.
+            String value = randomAlphaOfLength(20);
+            int expectedShard = expectedShard(routing, List.of("foo", value), shards);
+            req.source(Map.of("foo", value, "bar", "B"));
+            assertEquals(expectedShard, routing.indexShard(req));
+
+            validateReroute(routing, req, expectedShard, splitRouting, shards);
+        }
+    }
+
+    public void testRerouteToTargetTsid() throws IOException {
+        int shards = between(2, 500);
+        IndexMetadata startingMetadata = IndexMetadata.builder("test")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "top")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            )
+            .numberOfShards(shards)
+            .numberOfReplicas(0)
+            .setRoutingNumShards(shards)
+            .build();
+        IndexRouting routing = IndexRouting.fromIndexMetadata(startingMetadata);
+        IndexRouting splitRouting = getSplitRouting(startingMetadata);
+
+        int iters = randomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            IndexRequest req = new IndexRequest();
+            routing.preProcess(req);
+            assertNull(req.id());
+
+            // Verify that routing uses the field name and value in the routing path.
+            String value = randomAlphaOfLength(20);
+            int expectedShard = expectedShard(routing, List.of("top", value), shards);
+            req.source(Map.of("top", value, "bar", "B"));
+            assertEquals(expectedShard, routing.indexShard(req));
+
+            validateReroute(routing, req, expectedShard, splitRouting, shards);
+        }
+    }
+
+    public void testRerouteToTargetTsidBeforeWrittenToRouting() throws IOException {
+        int shards = between(2, 500);
+        IndexMetadata startingMetadata = IndexMetadata.builder("test")
+            .settings(
+                settings(IndexVersion.fromId(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID.id() - 1)).put(
+                    IndexMetadata.INDEX_ROUTING_PATH.getKey(),
+                    "top"
+                ).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            )
+            .numberOfShards(shards)
+            .numberOfReplicas(0)
+            .setRoutingNumShards(shards)
+            .build();
+        IndexRouting routing = IndexRouting.fromIndexMetadata(startingMetadata);
+        IndexRouting splitRouting = getSplitRouting(startingMetadata);
+
+        int iters = randomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            IndexRequest req = new IndexRequest();
+            routing.preProcess(req);
+            assertNull(req.id());
+
+            // Verify that routing uses the field name and value in the routing path.
+            String value = randomAlphaOfLength(20);
+            int expectedShard = expectedShard(routing, List.of("top", value), shards);
+            req.source(Map.of("top", value, "bar", "B"));
+            assertEquals(expectedShard, routing.indexShard(req));
+
+            validateReroute(routing, req, expectedShard, splitRouting, shards);
+        }
+    }
+
+    private static void validateReroute(IndexRouting routing, IndexRequest req, int expectedShard, IndexRouting splitRouting, int shards) {
+        routing.postProcess(req);
+        assertEquals(expectedShard, routing.rerouteToTarget(req));
+        assertThat(splitRouting.rerouteToTarget(req), either(equalTo(expectedShard)).or(equalTo(expectedShard + shards)));
+    }
+
+    private static IndexRouting getSplitRouting(IndexMetadata startingMetadata) {
+        IndexReshardingMetadata reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(startingMetadata.getNumberOfShards(), 2);
+        return IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder(startingMetadata)
+                .reshardingMetadata(reshardingMetadata)
+                .reshardAddShards(reshardingMetadata.shardCountAfter())
+                .setRoutingNumShards(reshardingMetadata.shardCountAfter())
+                .settingsVersion(startingMetadata.getSettingsVersion() + 1)
+                .build()
+        );
     }
 
     public void testCollectSearchShardsUnpartitionedWithResharding() throws IOException {

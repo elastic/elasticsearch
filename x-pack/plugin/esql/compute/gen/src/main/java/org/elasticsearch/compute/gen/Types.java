@@ -242,7 +242,7 @@ public class Types {
         throw new IllegalArgumentException("unknown vector fixed builder type for [" + elementType + "]");
     }
 
-    static TypeName elementType(TypeName t) {
+    public static TypeName elementType(TypeName t) {
         if (t.equals(BOOLEAN_BLOCK) || t.equals(BOOLEAN_VECTOR) || t.equals(BOOLEAN_BLOCK_BUILDER)) {
             return TypeName.BOOLEAN;
         }

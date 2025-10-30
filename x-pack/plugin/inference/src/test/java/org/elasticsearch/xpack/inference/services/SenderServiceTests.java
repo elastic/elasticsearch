@@ -24,8 +24,10 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.junit.After;
@@ -43,6 +45,8 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -186,6 +190,101 @@ public class SenderServiceTests extends ESTestCase {
 
             listener.actionGet(TIMEOUT);
             assertEquals(providedTimeout, capturedTimeout.get());
+        }
+    }
+
+    public void testReturnsValidationException_WhenQueryIsNullForRerankTaskType() throws IOException {
+        var sender = createMockSender();
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var testService = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = mock(Model.class);
+            when(model.getTaskType()).thenReturn(TaskType.RERANK);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            testService.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, null, listener);
+            var exception = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
+
+            assertThat(exception.getMessage(), containsString("Rerank task type requires a non-null query field"));
+        }
+    }
+
+    public void testInferSucceeds_WhenQueryIsDefinedForRerankTaskType() throws IOException {
+        var sender = createMockSender();
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var queryString = "a query";
+        var testInput = "test input";
+        var doInferCalled = new AtomicReference<>(false);
+
+        var testService = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            protected void doInfer(
+                Model model,
+                InferenceInputs inputs,
+                Map<String, Object> taskSettings,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                var queryDocs = inputs.castTo(QueryAndDocsInputs.class);
+                assertThat(queryDocs.getQuery(), is(queryString));
+                assertThat(queryDocs.getChunks(), is(List.of(testInput)));
+                doInferCalled.set(true);
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+
+        try (testService) {
+            var model = mock(Model.class);
+            when(model.getTaskType()).thenReturn(TaskType.RERANK);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            testService.infer(model, queryString, null, null, List.of(testInput), false, Map.of(), null, null, listener);
+            assertNotNull(listener.actionGet(TIMEOUT));
+            assertTrue(doInferCalled.get());
+        }
+    }
+
+    public void testInferSucceeds_WhenQueryIsNotDefinedForCompletionTaskType() throws IOException {
+        var sender = createMockSender();
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var testInput = "test input";
+        var doInferCalled = new AtomicReference<>(false);
+
+        var testService = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            protected void doInfer(
+                Model model,
+                InferenceInputs inputs,
+                Map<String, Object> taskSettings,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                var castedInput = inputs.castTo(ChatCompletionInput.class);
+                assertThat(castedInput.getInputs(), is(List.of(testInput)));
+                doInferCalled.set(true);
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+
+        try (testService) {
+            var model = mock(Model.class);
+            when(model.getTaskType()).thenReturn(TaskType.COMPLETION);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            testService.infer(model, null, null, null, List.of(testInput), false, Map.of(), null, null, listener);
+            assertNotNull(listener.actionGet(TIMEOUT));
+            assertTrue(doInferCalled.get());
         }
     }
 

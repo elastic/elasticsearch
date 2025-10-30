@@ -51,6 +51,7 @@ import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -925,7 +926,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     IndexNumericFieldData.NumericType.LONG,
                     IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
                     null,
-                    true
+                    IndexType.points(true, true)
                 );
                 assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(longFieldData, reader));
 
@@ -934,7 +935,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     IndexNumericFieldData.NumericType.INT,
                     IndexNumericFieldData.NumericType.INT.getValuesSourceType(),
                     null,
-                    true
+                    IndexType.points(true, true)
                 );
                 assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(integerFieldData, reader));
 
@@ -943,7 +944,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     IndexNumericFieldData.NumericType.SHORT,
                     IndexNumericFieldData.NumericType.SHORT.getValuesSourceType(),
                     null,
-                    true
+                    IndexType.points(true, true)
                 );
                 assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(shortFieldData, reader));
 
@@ -952,7 +953,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     IndexNumericFieldData.NumericType.LONG,
                     IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
                     null,
-                    false
+                    IndexType.points(false, true)
                 );
                 assertEquals(-1, DefaultSearchContext.getFieldCardinality(noIndexFieldata, reader));
             }

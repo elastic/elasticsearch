@@ -240,6 +240,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BreakerSettings.CIRCUIT_BREAKER_TYPE,
         ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
         ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
+        ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING,
         EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
         EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
         FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,

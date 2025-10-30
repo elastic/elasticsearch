@@ -69,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests.randomSamplingMethod;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -251,7 +252,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 sourceIndex,
                 targetIndex,
                 TimeValue.ONE_HOUR,
-                new DownsampleConfig(new DateHistogramInterval("5m"))
+                new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod())
             ),
             clusterState,
             listener
@@ -260,7 +261,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         verifyIndexFinalisation();
     }
 
-    public void testDownsamplingForceMergeWithShortCircuitAfterCreation() {
+    public void testDownsamplingWithShortCircuitAfterCreation() {
         var projectMetadata = ProjectMetadata.builder(projectId)
             .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
             .put(createTargetIndexMetadata(targetIndex, primaryShards, replicaShards))
@@ -281,7 +282,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 sourceIndex,
                 targetIndex,
                 TimeValue.ONE_HOUR,
-                new DownsampleConfig(new DateHistogramInterval("5m"))
+                new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod())
             ),
             clusterState,
             listener
@@ -323,7 +324,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 sourceIndex,
                 targetIndex,
                 TimeValue.ONE_HOUR,
-                new DownsampleConfig(new DateHistogramInterval("5m"))
+                new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod())
             ),
             clusterState,
             listener

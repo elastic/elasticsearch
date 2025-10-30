@@ -51,7 +51,7 @@ public class Enrich extends UnaryPlan
         PostOptimizationVerificationAware.CoordinatorOnly,
         PostAnalysisVerificationAware,
         TelemetryAware,
-        CardinalityPreserving,
+        Streaming,
         SortAgnostic,
         ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

@@ -219,12 +219,10 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            // TODO revert this when we have proper versioned type resolutions
-            // containsString(
-            // "line 3:13: [KNN] function cannot operate on [lookup_vector], supplied by an index [test_lookup] in non-STANDARD "
-            // + "mode [lookup]"
-            // )
-            containsString("line 3:13: Cannot use field [lookup_vector] with unsupported type [dense_vector]")
+            containsString(
+                "line 3:13: [KNN] function cannot operate on [lookup_vector], supplied by an index [test_lookup] in non-STANDARD "
+                    + "mode [lookup]"
+            )
         );
     }
 

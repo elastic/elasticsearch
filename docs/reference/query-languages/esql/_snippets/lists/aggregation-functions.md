@@ -17,4 +17,5 @@
 * [`SUM`](../../functions-operators/aggregation-functions.md#esql-sum)
 * [`TOP`](../../functions-operators/aggregation-functions.md#esql-top)
 * [`VALUES`](../../functions-operators/aggregation-functions.md#esql-values) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`VARIANCE`](../../functions-operators/aggregation-functions.md#esql-variance)
 * [`WEIGHTED_AVG`](../../functions-operators/aggregation-functions.md#esql-weighted_avg)

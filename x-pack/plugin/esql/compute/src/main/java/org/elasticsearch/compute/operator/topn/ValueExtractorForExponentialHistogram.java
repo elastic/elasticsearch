@@ -9,18 +9,17 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
-import org.elasticsearch.compute.data.ExponentialHistogramBlockAccessor;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 public class ValueExtractorForExponentialHistogram implements ValueExtractor {
     private final ExponentialHistogramBlock block;
-    private final ExponentialHistogramBlockAccessor accessor;
+
+    private final BytesRef scratch = new BytesRef();
     private final ReusableTopNEncoderOutput reusableOutput = new ReusableTopNEncoderOutput();
 
     ValueExtractorForExponentialHistogram(TopNEncoder encoder, ExponentialHistogramBlock block) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE;
         this.block = block;
-        this.accessor = new ExponentialHistogramBlockAccessor(block);
     }
 
     @Override
@@ -33,7 +32,7 @@ public class ValueExtractorForExponentialHistogram implements ValueExtractor {
             TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(1, values);
             int valueIndex = block.getFirstValueIndex(position);
             reusableOutput.target = values;
-            accessor.serializeValue(valueIndex, reusableOutput);
+            block.serializeExponentialHistogram(valueIndex, reusableOutput, scratch);
         }
     }
 

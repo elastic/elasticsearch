@@ -13,10 +13,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
-public class ExponentialHistogramBlockBuilder implements Block.Builder {
+public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoader.ExponentialHistogramBuilder {
 
     private final DoubleBlock.Builder minimaBuilder;
     private final DoubleBlock.Builder maximaBuilder;
@@ -63,6 +64,36 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
         }
     }
 
+    @Override
+    public BlockLoader.DoubleBuilder minima() {
+        return minimaBuilder;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder maxima() {
+        return maximaBuilder;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder sums() {
+        return sumsBuilder;
+    }
+
+    @Override
+    public BlockLoader.LongBuilder valueCounts() {
+        return valueCountsBuilder;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder zeroThresholds() {
+        return zeroThresholdsBuilder;
+    }
+
+    @Override
+    public BlockLoader.BytesRefBuilder encodedHistograms() {
+        return encodedHistogramsBuilder;
+    }
+
     public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
         assert histogram != null;
         // TODO: fix performance and correctness before using in production code
@@ -105,7 +136,7 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
     /**
      * Decodes and appends a value serialized with
-     *  {@link ExponentialHistogramBlockAccessor#serializeValue(int, ExponentialHistogramBlock.SerializedOutput)}.
+     *  {@link ExponentialHistogramBlock#serializeExponentialHistogram(int, ExponentialHistogramBlock.SerializedOutput, BytesRef)}.
      *
      * @param input the input to deserialize from
      */

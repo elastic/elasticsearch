@@ -337,7 +337,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(
             e.getCause().getMessage(),
-            containsString(" centroids must be in increasing order, " + "got [2.0] but previous value was [3.0]")
+            containsString(" [centroids] values must be in increasing order, " + "got [2.0] but previous value was [3.0]")
         );
     }
 
@@ -385,7 +385,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "tdigest").field("ignore_malformed", "true"))
         ).documentMapper();
 
-        var randomString = randomAlphaOfLength(10);
+        String randomString = randomAlphaOfLength(10);
         CheckedConsumer<XContentBuilder, IOException> arrayValue = b -> {
             b.startArray("field");
             {
@@ -396,7 +396,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
             b.endArray();
         };
 
-        var expected = JsonXContent.contentBuilder().startObject();
+        XContentBuilder expected = JsonXContent.contentBuilder().startObject();
         // First value comes from synthetic field loader and so is formatted in a specific format (e.g. values always come first).
         // Other values are stored as is as part of ignore_malformed logic for synthetic source.
         {
@@ -408,7 +408,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         }
         expected.endObject();
 
-        var syntheticSource = syntheticSource(mapper, arrayValue);
+        String syntheticSource = syntheticSource(mapper, arrayValue);
         assertEquals(Strings.toString(expected), syntheticSource);
     }
 

@@ -156,6 +156,7 @@ public class TDigestFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
+            // NOCOMMIT - This needs to be changed to a custom values source type
             return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                 @Override
@@ -454,7 +455,7 @@ public class TDigestFieldMapper extends FieldMapper {
             b.startObject();
 
             value.reset(binaryValue);
-            b.startArray("values");
+            b.startArray("centroids");
             while (value.next()) {
                 b.value(value.value());
             }

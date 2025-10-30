@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -53,7 +55,11 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public ChunkScorerConfig(StreamInput in) throws IOException {
         this.size = in.readOptionalVInt();
         this.inferenceText = in.readString();
-        this.inferenceId = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_19_0)) {
+            this.inferenceId = in.readOptionalString();
+        } else {
+            this.inferenceId = null;
+        }
         Map<String, Object> chunkingSettingsMap = in.readGenericMap();
         this.chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
     }
@@ -77,7 +83,9 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(size);
         out.writeString(inferenceText);
-        out.writeString(inferenceId);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_19_0)) {
+            out.writeOptionalString(inferenceId);
+        }
         out.writeGenericMap(chunkingSettings.asMap());
     }
 

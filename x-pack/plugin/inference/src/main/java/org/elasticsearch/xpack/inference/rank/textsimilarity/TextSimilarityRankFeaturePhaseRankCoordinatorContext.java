@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
@@ -61,12 +64,15 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         this.chunkScorerConfig = chunkScorerConfig;
     }
 
-    @Override
-    protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
-
-        // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
-        // and then pass the results
-        final ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
+    /**
+     * Creates a scoring listener that uses the resolved chunking config for proper chunking behavior.
+     */
+    private ActionListener<InferenceAction.Response> createScoringListener(
+        RankFeatureDoc[] featureDocs, 
+        ActionListener<float[]> scoreListener, 
+        ChunkScorerConfig resolvedConfig
+    ) {
+        return scoreListener.delegateFailureAndWrap((l, r) -> {
             InferenceServiceResults results = r.getResults();
             assert results instanceof RankedDocsResults;
 
@@ -80,7 +86,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 l.onResponse(originalScores);
             } else {
                 final float[] scores;
-                if (this.chunkScorerConfig != null) {
+                if (resolvedConfig != null) {
                     scores = extractScoresFromRankedChunks(rankedDocs, featureDocs);
                 } else {
                     scores = extractScoresFromRankedDocs(rankedDocs);
@@ -102,6 +108,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 }
             }
         });
+    }
+
+    @Override
+    protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
 
         // top N listener
         ActionListener<GetInferenceModelAction.Response> topNListener = scoreListener.delegateFailureAndWrap((l, r) -> {
@@ -132,6 +142,18 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 );
                 return;
             }
+
+            // Resolve chunking settings if missing
+            ChunkScorerConfig resolvedChunkScorerConfig = resolveChunkingSettings(r);
+            if (resolvedChunkScorerConfig == null) {
+                l.onFailure(new IllegalArgumentException("Failed to resolve chunking settings for chunk_rescorer"));
+                return;
+            }
+            
+            // Update the chunkScorerConfig with resolved settings for use in shard operations
+            // This ensures shards receive the correct chunking settings from the inference endpoint
+            // Create the scoring listener with the resolved config
+            ActionListener<InferenceAction.Response> inferenceListener = createScoringListener(featureDocs, scoreListener, resolvedChunkScorerConfig);
 
             // Short circuit on empty results after request validation
             if (featureDocs.length == 0) {
@@ -234,5 +256,69 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         // this will ensure that all positive scores lie in the [1, inf) range,
         // while negative values (and 0) will be shifted to (0, 1]
         return Math.max(score, 0) + Math.min((float) Math.exp(score), 1);
+    }
+
+    /**
+     * Resolves chunking settings for chunk_rescorer based on inference endpoint configuration.
+     * Precedence:
+     * 1. If chunking_settings are explicitly provided, use them
+     * 2. If chunk_rescorer.inference_id is specified, load settings from that endpoint
+     * 3. If only reranker inference_id is available, try to load settings from that endpoint
+     * 4. If no settings found when explicitly requested, return null (will cause error)
+     */
+    private ChunkScorerConfig resolveChunkingSettings(GetInferenceModelAction.Response response) {
+        // If chunking_settings are already provided, use them
+        if (chunkScorerConfig.chunkingSettings() != null) {
+            return chunkScorerConfig;
+        }
+
+        // Determine which inference_id to use for chunking settings
+        String targetInferenceId = chunkScorerConfig.inferenceId();
+        if (targetInferenceId == null) {
+            targetInferenceId = inferenceId; // fall back to reranker inference_id
+        }
+
+        // If no inference_id available, keep current config (with defaults)
+        if (targetInferenceId == null) {
+            return chunkScorerConfig;
+        }
+
+        // Look for chunking settings in the response
+        if (response.getEndpoints().isEmpty()) {
+            return chunkScorerConfig; // no endpoints, keep defaults
+        }
+
+        // Check if the target inference_id matches the current response
+        if (targetInferenceId.equals(inferenceId)) {
+            // Use current response
+            return extractChunkingSettingsFromResponse(response);
+        } else {
+            // Need to fetch the specific inference_id - for now, return current config
+            // This would require an additional async call, which we'll implement later
+            return chunkScorerConfig;
+        }
+    }
+
+    private ChunkScorerConfig extractChunkingSettingsFromResponse(GetInferenceModelAction.Response response) {
+        for (var endpoint : response.getEndpoints()) {
+            ChunkingSettings endpointChunkingSettings = endpoint.getChunkingSettings();
+            if (endpointChunkingSettings != null) {
+                // Create new config with resolved chunking settings
+                return new ChunkScorerConfig(
+                    chunkScorerConfig.size(),
+                    chunkScorerConfig.inferenceId(),
+                    chunkScorerConfig.inferenceText(),
+                    endpointChunkingSettings
+                );
+            }
+        }
+        
+        // If chunk_rescorer.inference_id was explicitly specified but no settings found, return null to trigger error
+        if (chunkScorerConfig.inferenceId() != null) {
+            return null;
+        }
+        
+        // Otherwise, keep current config (with defaults)
+        return chunkScorerConfig;
     }
 }

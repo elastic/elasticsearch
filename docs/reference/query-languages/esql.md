@@ -4,7 +4,7 @@ applies_to:
   serverless:
 navigation_title: "{{esql}}"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-language.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-language.htmlsvsvsv
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql.html
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-getting-started.html
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-using.html

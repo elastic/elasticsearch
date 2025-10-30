@@ -147,8 +147,10 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
      * Whether the aggregate function has a window different than NO_WINDOW.
      */
     public boolean hasWindow() {
-        boolean zero = window instanceof Literal lit && lit.value() instanceof Duration duration && duration.isZero();
-        return zero == false;
+        if (window instanceof Literal lit && lit.value() instanceof Duration duration) {
+            return duration.isZero() == false;
+        }
+        return true;
     }
 
     /**

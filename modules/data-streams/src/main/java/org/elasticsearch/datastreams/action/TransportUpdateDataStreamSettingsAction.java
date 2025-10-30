@@ -28,18 +28,21 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,6 +70,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
     private final SystemIndices systemIndices;
     private final ProjectResolver projectResolver;
     private final SettingsFilter settingsFilter;
+    private final IndicesService indicesService;
 
     @Inject
     public TransportUpdateDataStreamSettingsAction(
@@ -79,7 +83,8 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         MetadataUpdateSettingsService updateSettingsService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
-        SettingsFilter settingsFilter
+        SettingsFilter settingsFilter,
+        IndicesService indicesService
     ) {
         super(
             UpdateDataStreamSettingsAction.NAME,
@@ -97,6 +102,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
         this.settingsFilter = settingsFilter;
+        this.indicesService = indicesService;
     }
 
     @Override
@@ -231,7 +237,22 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         List<String> appliedToDataStreamOnly = new ArrayList<>();
         List<String> appliedToDataStreamAndWriteIndexOnly = new ArrayList<>();
         List<String> appliedToDataStreamAndBackingIndices = new ArrayList<>();
-        Settings effectiveSettings = dataStream.getEffectiveSettings(projectResolver.getProjectMetadata(clusterService.state()));
+        final CompressedXContent effectiveMappings;
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        try {
+            effectiveMappings = dataStream.getEffectiveMappings(projectMetadata, indicesService);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        Settings effectiveSettings = dataStream.getEffectiveSettings(
+            projectMetadata,
+            settings -> metadataDataStreamsService.addSettingsFromIndexSettingProviders(
+                dataStream.getName(),
+                effectiveMappings,
+                projectMetadata,
+                settings
+            )
+        );
         for (String settingName : requestSettings.keySet()) {
             if (APPLY_TO_WRITE_INDEX.contains(settingName)) {
                 settingsToApplyToWriteIndex.put(settingName, effectiveSettings.get(settingName));

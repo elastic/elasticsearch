@@ -514,12 +514,12 @@ public class MetadataDataStreamsService {
         return dataStream.copy().setSettings(mergedDataStreamSettings).build();
     }
 
-    private Settings addSettingsFromIndexSettingProviders(
+    public Settings addSettingsFromIndexSettingProviders(
         String dataStreamName,
         CompressedXContent effectiveMappings,
         ProjectMetadata projectMetadata,
         Settings settings
-    ) throws IOException {
+    ) {
         Settings.Builder additionalSettings = Settings.builder();
         IndexMode indexMode = projectMetadata.dataStreams().get(dataStreamName).getIndexMode();
         Set<String> overrulingSettings = new HashSet<>();
@@ -572,7 +572,14 @@ public class MetadataDataStreamsService {
             dataStream.getWriteIndex(),
             indicesService
         );
-        MetadataIndexTemplateService.validateTemplate(dataStream.getEffectiveSettings(projectMetadata), effectiveMappings, indicesService);
+        MetadataIndexTemplateService.validateTemplate(
+            dataStream.getEffectiveSettings(
+                projectMetadata,
+                settings -> addSettingsFromIndexSettingProviders(dataStreamName, effectiveMappings, projectMetadata, settings)
+            ),
+            effectiveMappings,
+            indicesService
+        );
         return dataStream.copy().setMappings(mappingsOverrides).build();
     }
 

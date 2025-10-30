@@ -32,10 +32,12 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
@@ -80,6 +83,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final IndexSettingProviders indexSettingProviders;
     private final Client client;
+    private final MetadataDataStreamsService metadataDataStreamsService;
+    private final IndicesService indicesService;
 
     /**
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
@@ -99,7 +104,9 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         DataStreamGlobalRetentionSettings globalRetentionSettings,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         IndexSettingProviders indexSettingProviders,
-        Client client
+        Client client,
+        MetadataDataStreamsService metadataDataStreamsService,
+        IndicesService indicesService
     ) {
         super(
             GetDataStreamAction.NAME,
@@ -116,6 +123,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.indexSettingProviders = indexSettingProviders;
         this.client = new OriginSettingClient(client, "stack");
+        this.metadataDataStreamsService = metadataDataStreamsService;
+        this.indicesService = indicesService;
 
         transportService.registerRequestHandler(
             actionName,
@@ -159,7 +168,9 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                             globalRetentionSettings,
                             dataStreamFailureStoreSettings,
                             indexSettingProviders,
-                            maxTimestamps
+                            maxTimestamps,
+                            metadataDataStreamsService,
+                            indicesService
                         )
                     );
                 }
@@ -180,7 +191,9 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     globalRetentionSettings,
                     dataStreamFailureStoreSettings,
                     indexSettingProviders,
-                    null
+                    null,
+                    metadataDataStreamsService,
+                    indicesService
                 )
             );
         }
@@ -230,7 +243,9 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         DataStreamGlobalRetentionSettings globalRetentionSettings,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         IndexSettingProviders indexSettingProviders,
-        @Nullable Map<String, Long> maxTimestamps
+        @Nullable Map<String, Long> maxTimestamps,
+        MetadataDataStreamsService metadataDataStreamsService,
+        IndicesService indicesService
     ) {
         List<DataStream> dataStreams = getDataStreams(state.metadata(), indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
@@ -265,7 +280,21 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
                 if (indexTemplate != null) {
-                    Settings settings = dataStream.getEffectiveSettings(state.metadata());
+                    final CompressedXContent effectiveMappings;
+                    try {
+                        effectiveMappings = dataStream.getEffectiveMappings(state.metadata(), indicesService);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    Settings settings = dataStream.getEffectiveSettings(
+                        state.metadata(),
+                        settings1 -> metadataDataStreamsService.addSettingsFromIndexSettingProviders(
+                            dataStream.getName(),
+                            effectiveMappings,
+                            state.metadata(),
+                            settings1
+                        )
+                    );
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
                     if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
                         try {

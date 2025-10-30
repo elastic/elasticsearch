@@ -20,10 +20,13 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +41,8 @@ public class TransportGetDataStreamSettingsAction extends TransportLocalProjectM
     GetDataStreamSettingsAction.Response> {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SettingsFilter settingsFilter;
+    private final MetadataDataStreamsService metadataDataStreamsService;
+    private final IndicesService indicesService;
 
     @Inject
     public TransportGetDataStreamSettingsAction(
@@ -47,7 +52,9 @@ public class TransportGetDataStreamSettingsAction extends TransportLocalProjectM
         SettingsFilter settingsFilter,
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MetadataDataStreamsService metadataDataStreamsService,
+        IndicesService indicesService
     ) {
         super(
             GetSettingsAction.NAME,
@@ -59,6 +66,8 @@ public class TransportGetDataStreamSettingsAction extends TransportLocalProjectM
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settingsFilter = settingsFilter;
+        this.metadataDataStreamsService = metadataDataStreamsService;
+        this.indicesService = indicesService;
     }
 
     @Override
@@ -83,7 +92,19 @@ public class TransportGetDataStreamSettingsAction extends TransportLocalProjectM
         for (String dataStreamName : dataStreamNames) {
             DataStream dataStream = dataStreamMap.get(dataStreamName);
             Settings settings = settingsFilter.filter(dataStream.getSettings());
-            Settings effectiveSettings = settingsFilter.filter(dataStream.getEffectiveSettings(project.metadata()));
+            final CompressedXContent effectiveMappings;
+            effectiveMappings = dataStream.getEffectiveMappings(project.metadata(), indicesService);
+            Settings effectiveSettings = settingsFilter.filter(
+                dataStream.getEffectiveSettings(
+                    project.metadata(),
+                    settings1 -> metadataDataStreamsService.addSettingsFromIndexSettingProviders(
+                        dataStream.getName(),
+                        effectiveMappings,
+                        project.metadata(),
+                        settings1
+                    )
+                )
+            );
             responseList.add(new GetDataStreamSettingsAction.DataStreamSettingsResponse(dataStreamName, settings, effectiveSettings));
         }
         listener.onResponse(new GetDataStreamSettingsAction.Response(responseList));

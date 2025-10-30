@@ -654,7 +654,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 .index(rolloverResult.rolloverIndexName())
                 .getSettings();
             Set<String> rolledOverIndexSettingNames = rolledOverIndexSettings.keySet();
-            for (String settingName : dataStream.getEffectiveSettings(clusterState.metadata().getProject(projectId)).keySet()) {
+            for (String settingName : dataStream.getEffectiveSettings(clusterState.metadata().getProject(projectId), settings -> settings)
+                .keySet()) {
                 assertTrue(rolledOverIndexSettingNames.contains(settingName));
             }
             String newIndexName = rolloverResult.rolloverIndexName();

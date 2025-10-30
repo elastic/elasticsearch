@@ -2467,7 +2467,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         // No matching template, so we expect an IllegalArgumentException
         DataStream dataStream = createTestInstance();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveSettings(projectMetadataBuilder.build()));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> dataStream.getEffectiveSettings(projectMetadataBuilder.build(), settings -> settings)
+        );
     }
 
     public void testGetEffectiveSettingsTemplateSettingsOnly() {
@@ -2482,7 +2485,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .build();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
-        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(templateSettings));
+        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build(), settings -> settings), equalTo(templateSettings));
     }
 
     public void testGetEffectiveSettingsComponentTemplateSettingsOnly() {
@@ -2502,7 +2505,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
             .componentTemplates(Map.of("component-template-1", componentTemplate1));
-        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(componentSettings));
+        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build(), settings -> settings), equalTo(componentSettings));
     }
 
     public void testGetEffectiveSettingsDataStreamSettingsOnly() {
@@ -2518,7 +2521,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .build();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
-        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(dataStreamSettings));
+        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build(), settings -> settings), equalTo(dataStreamSettings));
     }
 
     public void testGetEffectiveSettings() {
@@ -2565,7 +2568,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .put("index.setting4", "templateValue")
             .put("index.setting5", "componentTemplateValue")
             .build();
-        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(mergedSettings));
+        assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build(), settings -> settings), equalTo(mergedSettings));
     }
 
     public void testGetEffectiveIndexTemplateNoMatchingTemplate() {

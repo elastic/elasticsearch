@@ -446,10 +446,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return getMatchingIndexTemplate(projectMetadata).mergeSettings(settings).mergeMappings(mappings);
     }
 
-    public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {
+    public Settings getEffectiveSettings(ProjectMetadata projectMetadata, Function<Settings, Settings> addImplicitSettings) {
         ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
         Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
-        return templateSettings.merge(settings);
+        return addImplicitSettings.apply(templateSettings.merge(settings));
     }
 
     /**

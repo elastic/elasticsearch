@@ -52,8 +52,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntSupplier;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests.TestES819TSDBDocValuesFormatVersion0;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TsdbDocValueBwcTests extends ESTestCase {
 

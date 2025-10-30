@@ -538,6 +538,15 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).setStrategy(strategy);
     }
 
+    protected void setNodeRepositoryFailureStrategy(
+        String node,
+        boolean failReads,
+        boolean failWrites,
+        Map<OperationPurpose, String> filePatternPerPurposeToFail
+    ) {
+        setNodeRepositoryFailureStrategy(node, failReads, failWrites, filePatternPerPurposeToFail, Long.MAX_VALUE);
+    }
+
     /**
      * Modifies the object store strategy on the given node to throw IOExceptions on reads and/or writes, depending on the parameters.
      * The filePatternPerPurposeToFail map can be used to specify regex patterns for blob names per OperationPurpose that should fail.
@@ -547,13 +556,18 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         String node,
         boolean failReads,
         boolean failWrites,
-        Map<OperationPurpose, String> filePatternPerPurposeToFail
+        Map<OperationPurpose, String> filePatternPerPurposeToFail,
+        long maxNumberOfFailures
     ) {
         setNodeRepositoryStrategy(node, new StatelessMockRepositoryStrategy() {
+            private final AtomicLong failureCounter = new AtomicLong();
+
             private void failIfNeeded(OperationPurpose purpose, String blobName) throws IOException {
                 String filePattern = filePatternPerPurposeToFail.get(purpose);
                 if (filePattern != null && blobName.matches(filePattern)) {
-                    throw new IOException("Random IOException");
+                    if (failureCounter.incrementAndGet() <= maxNumberOfFailures) {
+                        throw new IOException("Random IOException");
+                    }
                 }
             }
 
@@ -867,6 +881,17 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         @Nullable Supplier<String> docIdSupplier,
         @Nullable Supplier<Map<String, ?>> sourceSupplier
     ) {
+        return indexDocs(indexName, numDocs, bulkRequestOperator, docIdSupplier, sourceSupplier, true);
+    }
+
+    protected static <T> BulkResponse indexDocs(
+        String indexName,
+        int numDocs,
+        UnaryOperator<BulkRequestBuilder> bulkRequestOperator,
+        @Nullable Supplier<String> docIdSupplier,
+        @Nullable Supplier<Map<String, ?>> sourceSupplier,
+        boolean assertNoFailures
+    ) {
         final var client = client();
         var bulkRequest = client.prepareBulk();
         for (int i = 0; i < numDocs; i++) {
@@ -883,7 +908,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             bulkRequest.add(indexRequest.setSource(source));
         }
         var bulkResponse = bulkRequestOperator.apply(bulkRequest).get();
-        assertNoFailures(bulkResponse);
+        if (assertNoFailures) {
+            assertNoFailures(bulkResponse);
+        }
         return bulkResponse;
     }
 

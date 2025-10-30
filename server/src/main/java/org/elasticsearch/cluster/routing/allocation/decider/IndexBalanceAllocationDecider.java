@@ -66,7 +66,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         }
 
         if (isStateless == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Decider does not currently support stateful.");
+            return Decision.single(Decision.Type.YES, NAME, "Decider is disabled.");
         }
 
         Index index = shardRouting.index();

@@ -173,6 +173,13 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         /**
+         * Returns whether values are potentially ignored, either by an explicitly configured ignore_above or by the default value.
+         */
+        public boolean valuesPotentiallyIgnored() {
+            return get() != Integer.MAX_VALUE;
+        }
+
+        /**
          * Returns whether the given string will be ignored.
          */
         public boolean isIgnored(final String s) {

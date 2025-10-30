@@ -297,7 +297,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             String parentFieldName = searchExecutionContext.parentPath(name());
             var parent = searchExecutionContext.lookup().fieldType(parentFieldName);
 
-            if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.ignoreAbove().isSet()) {
+            if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
+                && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
                 final String parentFallbackFieldName = keywordParent.syntheticSourceFallbackFieldName();
                 if (parent.isStored()) {
                     return storedFieldFetcher(parentFieldName, parentFallbackFieldName);
@@ -325,7 +326,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             final SearchExecutionContext searchExecutionContext,
             final KeywordFieldMapper.KeywordFieldType keywordDelegate
         ) {
-            if (keywordDelegate.ignoreAbove().isSet()) {
+            if (keywordDelegate.ignoreAbove().valuesPotentiallyIgnored()) {
                 // because we don't know whether the delegate field will be ignored during parsing, we must also check the current field
                 String fieldName = name();
                 String fallbackName = syntheticSourceFallbackFieldName();

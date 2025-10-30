@@ -363,9 +363,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.CanMatchIT
   method: testAliasFilters
   issue: https://github.com/elastic/elasticsearch/issues/134512
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testDenseVectorImplicitCastingKnnQueryParams
-  issue: https://github.com/elastic/elasticsearch/issues/134639
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/120148
@@ -459,9 +456,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/200_dense_vector_docvalue_fields/Enable docvalue_fields parameter for dense_vector fields}
   issue: https://github.com/elastic/elasticsearch/issues/136443
-- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
-  method: testILMDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/136585
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testManyConcat
   issue: https://github.com/elastic/elasticsearch/issues/136728
@@ -504,12 +498,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/error on rename timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/137259
-- class: org.elasticsearch.xpack.esql.plan.physical.ShowExecSerializationTests
-  method: testConcurrentSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/137338
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
+  method: testSimple
+  issue: https://github.com/elastic/elasticsearch/issues/137378
+- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
+  method: testSearchableSnapshotAction
+  issue: https://github.com/elastic/elasticsearch/issues/137167
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=indices.validate_query/20_query_string/validate_query with query_string parameters}
+  issue: https://github.com/elastic/elasticsearch/issues/137391
+- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
+  method: testILMDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/136585
 
 # Examples:
 #

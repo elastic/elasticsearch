@@ -156,10 +156,10 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
             TASK_NAME,
             new AuthorizationTaskParams(),
             TimeValue.THIRTY_SECONDS,
-            ActionListener.wrap(persistentTask -> logger.debug("Created authorization poller task"), e -> {
-                var t = e instanceof RemoteTransportException ? e.getCause() : e;
-                if (t instanceof ResourceAlreadyExistsException == false) {
-                    logger.error("Failed to create authorization poller task", e);
+            ActionListener.wrap(persistentTask -> logger.debug("Created authorization poller task"), exception -> {
+                var thrownException = exception instanceof RemoteTransportException ? exception.getCause() : exception;
+                if (thrownException instanceof ResourceAlreadyExistsException == false) {
+                    logger.error("Failed to create authorization poller task", exception);
                 }
             })
         );

@@ -94,6 +94,8 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), gatewayUrl)
+            // Ensure that the polling logic only occurs once so we can deterministically control when an authorization response is
+            // received
             .put(ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED.getKey(), false)
             .build();
     }
@@ -107,7 +109,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertNoAuthorizedEisEndpoints();
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
-        waitForNewAuthorizationResponse();
+        restartPollingTaskAndWaitForAuthResponse();
 
         assertChatCompletionEndpointExists();
     }
@@ -131,7 +133,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();
     }
 
-    private void waitForNewAuthorizationResponse() throws Exception {
+    private void restartPollingTaskAndWaitForAuthResponse() throws Exception {
         var taskListener = new PlainActionFuture<Void>();
 
         authorizationTaskExecutor.abortTask(TimeValue.THIRTY_SECONDS, taskListener);
@@ -150,13 +152,13 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertNoAuthorizedEisEndpoints();
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
-        waitForNewAuthorizationResponse();
+        restartPollingTaskAndWaitForAuthResponse();
 
         assertChatCompletionEndpointExists();
 
         // Simulate that the model is no longer authorized
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
-        waitForNewAuthorizationResponse();
+        restartPollingTaskAndWaitForAuthResponse();
 
         assertChatCompletionEndpointExists();
     }
@@ -179,13 +181,13 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertNoAuthorizedEisEndpoints();
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
-        waitForNewAuthorizationResponse();
+        restartPollingTaskAndWaitForAuthResponse();
 
         assertChatCompletionEndpointExists();
 
         // Simulate that the model is no longer authorized
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
-        waitForNewAuthorizationResponse();
+        restartPollingTaskAndWaitForAuthResponse();
 
         assertChatCompletionEndpointExists();
 
@@ -202,7 +204,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
             """;
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(authorizedTextEmbeddingResponse));
-        waitForNewAuthorizationResponse();
+        restartPollingTaskAndWaitForAuthResponse();
 
         var eisEndpoints = getEisEndpoints().stream().collect(Collectors.toMap(UnparsedModel::inferenceEntityId, Function.identity()));
         assertThat(eisEndpoints.size(), is(2));
@@ -223,6 +225,6 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
         // Abort the task and ensure it is restarted
-        waitForNewAuthorizationResponse();
+        restartPollingTaskAndWaitForAuthResponse();
     }
 }

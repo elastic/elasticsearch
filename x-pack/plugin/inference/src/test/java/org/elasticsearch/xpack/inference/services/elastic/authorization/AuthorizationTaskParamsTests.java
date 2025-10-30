@@ -32,6 +32,7 @@ public class AuthorizationTaskParamsTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected AuthorizationTaskParams mutateInstance(AuthorizationTaskParams instance) throws IOException {
+        // need to return null here because the instances will always be identical
         return null;
     }
 }

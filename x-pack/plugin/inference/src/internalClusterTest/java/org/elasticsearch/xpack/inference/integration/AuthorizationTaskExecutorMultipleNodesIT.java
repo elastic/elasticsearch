@@ -12,10 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
@@ -42,11 +40,11 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * These tests ensure that when a node is shutdown that is running an AuthorizationTaskExecutor,
- * the task is properly relocated to another node.
+ * These tests handle testing task relocation and cancellation.
+ * If the task is running on a node that is shutdown, it should be relocated to another node.
+ * If the task is cancelled it should be restarted automatically.
  */
-@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
-public class AuthorizationTaskExecutorRelocationIT extends ESIntegTestCase {
+public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
 
     private static final String AUTH_TASK_ACTION = AuthorizationPoller.TASK_NAME + "[c]";
     private static final MockWebServer webServer = new MockWebServer();
@@ -66,7 +64,7 @@ public class AuthorizationTaskExecutorRelocationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ReindexPlugin.class, LocalStateInferencePlugin.class);
+        return List.of(LocalStateInferencePlugin.class);
     }
 
     @Override
@@ -84,13 +82,28 @@ public class AuthorizationTaskExecutorRelocationIT extends ESIntegTestCase {
         return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(3, 10)).build();
     }
 
+    public void testCancellingAuthorizationTaskRestartsIt() throws Exception {
+        var pollerTask = waitForTask(internalCluster().getNodeNames(), AUTH_TASK_ACTION);
+
+        assertBusy(() -> {
+            var cancelTaskResponse = admin().cluster()
+                .prepareCancelTasks(internalCluster().getNodeNames())
+                .setActions(AUTH_TASK_ACTION)
+                .get();
+            assertThat(cancelTaskResponse.getTasks().size(), is(1));
+            assertThat(cancelTaskResponse.getTasks().get(0).action(), is(AUTH_TASK_ACTION));
+        });
+
+        var newPollerTask = waitForTask(internalCluster().getNodeNames(), AUTH_TASK_ACTION);
+        assertThat(newPollerTask.taskId(), is(not(pollerTask.taskId())));
+    }
+
     public void testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown() throws Exception {
         // Ensure we have multiple master and data nodes so we have somewhere to place the inference indices and so that we can safely
-        // shut down the node that is running the authorization task. If there is only one master we'll get an error that we can't shut
-        // down the only eligible master node
+        // shut down the node that is running the authorization task. If there is only one master and it is running the task,
+        // we'll get an error that we can't shut down the only eligible master node
         internalCluster().startMasterOnlyNodes(2);
         internalCluster().ensureAtLeastNumDataNodes(2);
-        awaitMasterNode();
 
         var nodeNameMapping = getNodeNames(internalCluster().getNodeNames());
 
@@ -105,8 +118,7 @@ public class AuthorizationTaskExecutorRelocationIT extends ESIntegTestCase {
         // queue a response that authorizes one model
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
 
-        assertTrue(internalCluster().stopNode(nodeNameMapping.get(pollerTask.node())));
-        awaitMasterNode();
+        assertTrue("expected the node to shutdown properly", internalCluster().stopNode(nodeNameMapping.get(pollerTask.node())));
 
         assertBusy(() -> {
             var relocatedPollerTask = waitForTask(internalCluster().getNodeNames(), AUTH_TASK_ACTION);
@@ -181,7 +193,7 @@ public class AuthorizationTaskExecutorRelocationIT extends ESIntegTestCase {
                     internalCluster().masterClient().execute(GetInferenceModelAction.INSTANCE, getAllEndpointsRequest).actionGet()
                 );
             } catch (Exception e) {
-                // We probably got a shards failed exception because the indices aren't ready yet, we'll just try again
+                // We probably got an all shards failed exception because the indices aren't ready yet, we'll just try again
                 logger.warn("Failed to retrieve endpoints", e);
                 fail("Failed to retrieve endpoints");
             }

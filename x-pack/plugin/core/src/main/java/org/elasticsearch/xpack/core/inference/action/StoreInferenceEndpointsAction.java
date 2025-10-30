@@ -20,6 +20,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Internal action to store inference endpoints and return the results of the store operation. This should only be used internally and not
+ * exposed via a REST API.
+ * For the exposed REST API action see {@link PutInferenceModelAction}.
+ */
 public class StoreInferenceEndpointsAction extends ActionType<StoreInferenceEndpointsAction.Response> {
 
     public static final StoreInferenceEndpointsAction INSTANCE = new StoreInferenceEndpointsAction();

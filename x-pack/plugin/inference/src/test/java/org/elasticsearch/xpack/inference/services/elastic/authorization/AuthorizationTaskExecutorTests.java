@@ -129,9 +129,9 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         );
         executor.init();
 
-        var listener1 = new PlainActionFuture<Void>();
-        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener1);
-        listener1.actionGet(TimeValue.THIRTY_SECONDS);
+        var listener = new PlainActionFuture<Void>();
+        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener);
+        listener.actionGet(TimeValue.THIRTY_SECONDS);
         verify(persistentTasksService, never()).sendClusterStartRequest(
             eq(AuthorizationPoller.TASK_NAME),
             eq(AuthorizationPoller.TASK_NAME),
@@ -156,9 +156,9 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         );
         executor.init();
 
-        var listener1 = new PlainActionFuture<Void>();
-        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener1);
-        listener1.actionGet(TimeValue.THIRTY_SECONDS);
+        var listener = new PlainActionFuture<Void>();
+        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener);
+        listener.actionGet(TimeValue.THIRTY_SECONDS);
         verify(persistentTasksService, never()).sendClusterStartRequest(
             eq(AuthorizationPoller.TASK_NAME),
             eq(AuthorizationPoller.TASK_NAME),

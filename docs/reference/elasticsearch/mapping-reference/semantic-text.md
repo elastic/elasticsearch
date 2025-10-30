@@ -449,7 +449,7 @@ serverless: ga
 
 By default, the embeddings generated for `semantic_text` fields are stored internally and **not included in `_source`** when retrieving documents.
 
-To include the full inference fields, including their embeddings, in `_source`, set the `_source.exclude_vectors` option to `false`.
+To include the full {{infer}} fields, including their embeddings, in `_source`, set the `_source.exclude_vectors` option to `false`.
 This works with the
 [Get](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get),
 [Search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search),
@@ -468,11 +468,12 @@ POST my-index/_search
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 The embeddings will appear under `_inference_fields` in `_source`.
 
 **Use cases**
+
 Including embeddings in `_source` is useful when you want to:
 
 * Reindex documents into another index **with the same `inference_id`** without re-running inference.
@@ -495,7 +496,7 @@ POST _reindex
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 1. Sends the source documents with their stored embeddings to the destination index.
 
@@ -505,7 +506,7 @@ the documents will **fail the reindex task**.
 Matching `inference_id` values are required to reuse the existing embeddings.
 ::::
 
-This allows documents to be re-indexed without triggering inference again, **as long as the target `semantic_text` field uses the same `inference_id` as the source**.
+This allows documents to be re-indexed without triggering {{infer}} again, **as long as the target `semantic_text` field uses the same `inference_id` as the source**.
 
 ::::{note}
 **For versions prior to 9.2.0**
@@ -514,7 +515,7 @@ Older versions do not support the `exclude_vectors` option to retrieve the embed
 To return the `_inference_fields`, use the `fields` option in a search request instead:
 
 ```console
-POST test-index/_search
+POST my-index/_search
 {
   "query": {
     "match": {
@@ -526,7 +527,7 @@ POST test-index/_search
   ]
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 This returns the chunked embeddings used for semantic search under `_inference_fields` in `_source`.
 Note that the `fields` option is **not** available for the Reindex API.
@@ -534,11 +535,29 @@ Note that the `fields` option is **not** available for the Reindex API.
 
 ### Example: Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
 
+::::{applies-switch}
+:::{applies-item} { "stack": "preview 9.0" }
+Content for 9.0 version
+:::
+:::{applies-item} { "stack": "ga 9.1" }
+Content for 9.1 version
+:::
+::::
+
+::::{applies-switch}
+:::{applies-item} stack: preview 9.0
+Other content for 9.0 version
+:::
+:::{applies-item} stack: ga 9.1
+Other content for 9.1 version
+:::
+::::
+
 If you want to verify that your embeddings look correct, you can view the
-inference data that `semantic_text` typically hides using `fields`.
+{{infer}} data that `semantic_text` typically hides using `fields`.
 
 ```console
-POST test-index/_search
+POST my-index/_search
 {
   "query": {
     "match": {
@@ -550,7 +569,7 @@ POST test-index/_search
   ]
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 This will return verbose chunked embeddings content that is used to perform
 semantic search for `semantic_text` fields.
@@ -608,8 +627,8 @@ semantic search for `semantic_text` fields.
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
-1. The inference endpoint used to generate embeddings.
+% TEST[skip:Requires {{infer}} endpoint]
+1. The {{infer}} endpoint used to generate embeddings.
 2. Lists details about the model used to generate embeddings, such as the service name and task type.
 3. The embeddings generated for this chunk.
 

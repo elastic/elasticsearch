@@ -22,7 +22,7 @@ public sealed interface ExponentialHistogramBlock extends Block permits Constant
      * or the same scratch instance is passed to another call to this method on any block.
      *
      * @param valueIndex the index of the histogram to get
-     * @param scratch the scratch to use as storage for the histogram
+     * @param scratch the scratch to use as storage for the returned histogram
      * @return the exponential histogram at the given index
      */
     ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch);

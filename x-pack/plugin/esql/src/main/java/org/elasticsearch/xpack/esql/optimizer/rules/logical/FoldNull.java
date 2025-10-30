@@ -6,6 +6,7 @@
  */
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
+
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;

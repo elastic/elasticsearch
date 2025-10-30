@@ -19,5 +19,19 @@ import org.elasticsearch.index.mapper.MappedFieldType;
  * transforming loaded values into blocks.
  */
 public interface BlockLoaderFunctionConfig {
-    record Named(String name, Warnings warnings) implements BlockLoaderFunctionConfig {}
+    record Named(String name, Warnings warnings) implements BlockLoaderFunctionConfig {
+        @Override
+        public int hashCode() {
+            return name.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Named named = (Named) o;
+            return name.equals(named.name);
+        }
+    }
 }

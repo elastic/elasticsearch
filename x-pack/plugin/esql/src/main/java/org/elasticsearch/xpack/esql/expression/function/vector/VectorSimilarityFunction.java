@@ -208,7 +208,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     }
 
     @Override
-    public Fuse tryFuse(SearchStats stats) {
+    public final Fuse tryFuse(SearchStats stats) {
         // Bail if we're not directly comparing a field with a literal.
         Literal literal;
         FieldAttribute field;
@@ -229,10 +229,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
 
         List<?> vectorList = (List<?>) literal.value();
         float[] vectorArray = new float[vectorList.size()];
-        int arrayHashCode = 0;
         for (int i = 0; i < vectorList.size(); i++) {
             vectorArray[i] = ((Number) vectorList.get(i)).floatValue();
-            arrayHashCode = 31 * arrayHashCode + Float.floatToIntBits(vectorArray[i]);
         }
 
         return new Fuse(field, new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vectorArray));

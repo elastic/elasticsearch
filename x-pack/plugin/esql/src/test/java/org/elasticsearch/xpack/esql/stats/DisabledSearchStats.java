@@ -25,7 +25,8 @@ public class DisabledSearchStats implements SearchStats {
 
     @Override
     public boolean hasDocValues(FieldName field) {
-        return true;
+        // Some geo tests assume doc values and the loader emulates it. Nothing else does.
+        return field.string().endsWith("location") || field.string().endsWith("centroid") || field.string().equals("subset");
     }
 
     @Override

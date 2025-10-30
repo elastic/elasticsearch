@@ -77,7 +77,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         assert node.node() != null;
         assert node.node().getRoles() != null && node.node().getRoles().isEmpty() == false;
         if (node.node().getRoles().contains(INDEX_ROLE) == false && node.node().getRoles().contains(SEARCH_ROLE) == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Node has neither index nor search roles, outside purview.");
+            return Decision.single(Decision.Type.YES, NAME, "Node has neither index nor search roles.");
         }
 
         if (node.node().getRoles().contains(INDEX_ROLE) && shardRouting.primary() == false) {

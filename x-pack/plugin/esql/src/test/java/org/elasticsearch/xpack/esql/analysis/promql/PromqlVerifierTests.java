@@ -28,9 +28,7 @@ public class PromqlVerifierTests extends ESTestCase {
                 TS test | PROMQL step 5m (
                   rate(network.bytes_in[5m])
                 )""", tsdb),
-            equalTo(
-                "2:3: only aggregations across timeseries are supported at this time (found [rate(network.bytes_in[5m])])"
-            )
+            equalTo("2:3: only aggregations across timeseries are supported at this time (found [rate(network.bytes_in[5m])])")
         );
     }
 

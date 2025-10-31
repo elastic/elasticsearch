@@ -8,12 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -22,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -33,15 +31,16 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
 
     private final LogicalPlan promqlPlan;
-    private final Expression start, end, step;
+    private final Instant start, end;
+    private final Duration step;
 
     // Instant query constructor - shortcut for a range constructor
-    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, Expression time) {
-        this(source, child, promqlPlan, time, time, Literal.timeDuration(source, Duration.ZERO));
+    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, Instant time) {
+        this(source, child, promqlPlan, time, time, null);
     }
 
     // Range query constructor
-    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, Expression start, Expression end, Expression step) {
+    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, Instant start, Instant end, Duration step) {
         super(source, child);
         this.promqlPlan = promqlPlan;
         this.start = start;
@@ -87,15 +86,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         return promqlPlan;
     }
 
-    public Expression start() {
+    public Instant start() {
         return start;
     }
 
-    public Expression end() {
+    public Instant end() {
         return end;
     }
 
-    public Expression step() {
+    public Duration step() {
         return step;
     }
 

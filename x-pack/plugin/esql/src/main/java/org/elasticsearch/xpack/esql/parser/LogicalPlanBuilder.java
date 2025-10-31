@@ -42,9 +42,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -53,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlParams;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -1219,52 +1218,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
         Source source = source(ctx);
-        Map<String, Expression> params = new HashMap<>();
-        String TIME = "time", START = "start", END = "end", STEP = "step";
-        Set<String> allowed = Set.of(TIME, START, END, STEP);
-
-        if (ctx.promqlParam().isEmpty()) {
-            throw new ParsingException(source(ctx), "Parameter [{}] or [{}] is required", STEP, TIME);
-        }
-
-        for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
-            var paramNameCtx = paramCtx.name;
-            String name = paramNameCtx.getText();
-            if (params.containsKey(name)) {
-                throw new ParsingException(source(paramNameCtx), "[{}] already specified", name);
-            }
-            if (allowed.contains(name) == false) {
-                String message = "Unknown parameter [{}]";
-                List<String> similar = StringUtils.findSimilar(name, allowed);
-                if (CollectionUtils.isEmpty(similar) == false) {
-                    message += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
-                }
-                throw new ParsingException(source(paramNameCtx), message, name);
-            }
-            String value = paramCtx.value.getText();
-            // TODO: validate and convert the value
-
-        }
-
-        // Validation logic for time parameters
-        Expression time = params.get(TIME);
-        Expression start = params.get(START);
-        Expression end = params.get(END);
-        Expression step = params.get(STEP);
-
-        if (time != null && (start != null || end != null || step != null)) {
-            throw new ParsingException(
-                source,
-                "Specify either [{}] for instant query or [{}}], [{}] or [{}}] for a range query",
-                TIME,
-                STEP,
-                START,
-                END
-            );
-        }
-        if ((start != null || end != null) && step == null) {
-            throw new ParsingException(source, "[{}}] is required alongside [{}}] or [{}}]", STEP, START, END);
-        }
+        PromqlParams params = PromqlParams.parse(ctx, source);
 
         // TODO: Perform type and value validation
         var queryCtx = ctx.promqlQueryPart();
@@ -1292,9 +1246,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
-        return plan -> time != null
-            ? new PromqlCommand(source, plan, promqlPlan, time)
-            : new PromqlCommand(source, plan, promqlPlan, start, end, step);
+        return plan -> params.time() != null
+            ? new PromqlCommand(source, plan, promqlPlan, params.time())
+            : new PromqlCommand(source, plan, promqlPlan, params.start(), params.end(), params.step());
+
     }
 
 }

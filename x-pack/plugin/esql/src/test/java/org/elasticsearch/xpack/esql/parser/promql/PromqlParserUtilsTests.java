@@ -24,7 +24,7 @@ import static java.time.Duration.ofSeconds;
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.containsString;
 
-public class ParsingUtilTests extends ESTestCase {
+public class PromqlParserUtilsTests extends ESTestCase {
 
     private Duration parseTimeValue(String value) {
         return PromqlParserUtils.parseDuration(new Source(0, 0, value), value);

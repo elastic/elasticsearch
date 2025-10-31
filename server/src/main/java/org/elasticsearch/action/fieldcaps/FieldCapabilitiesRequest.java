@@ -244,6 +244,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     }
 
     @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
     public boolean includeDataStreams() {
         return true;
     }

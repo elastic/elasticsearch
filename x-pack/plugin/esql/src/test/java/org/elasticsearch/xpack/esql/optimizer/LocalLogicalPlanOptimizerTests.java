@@ -36,7 +36,11 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -118,6 +122,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -1492,6 +1497,103 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(esRelation.output().contains(s1FieldAttr));
         assertTrue(esRelation.output().contains(r1FieldAttr));
         assertTrue(esRelation.output().contains(r2CosineFieldAttr));
+    }
+
+    public void testLengthInEval() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            FROM test
+            | EVAL l = LENGTH(last_name)
+            | KEEP l
+            """;
+        LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
+
+        var project = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(project.projections()), contains("l"));
+        var eval = as(project.child(), Eval.class);
+        FieldAttribute lAttr = as(as(eval.fields().getFirst(), Alias.class).child(), FieldAttribute.class);
+        var limit = as(eval.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        assertTrue(relation.output().contains(lAttr));
+    }
+
+    public void testLengthInWhere() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            FROM test
+            | WHERE LENGTH(last_name) > 1
+            """;
+        LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
+
+        var project = as(plan, EsqlProject.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        FieldAttribute lAttr = as(as(filter.condition(), GreaterThan.class).left(), FieldAttribute.class);
+        var relation = as(filter.child(), EsRelation.class);
+        assertTrue(relation.output().contains(lAttr));
+    }
+
+    public void testLengthInStats() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            FROM test
+            | STATS l = SUM(LENGTH(last_name))
+            """;
+        LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates(), hasSize(1));
+        as(as(agg.aggregates().getFirst(), Alias.class).child(), Sum.class);
+        var eval = as(agg.child(), Eval.class);
+        FieldAttribute lAttr = as(as(eval.fields().getFirst(), Alias.class).child(), FieldAttribute.class);
+        var relation = as(eval.child(), EsRelation.class);
+        assertTrue(relation.output().contains(lAttr));
+    }
+
+    public void testLengthInWhereAndEval() {
+        assumeFalse("fix me", true);
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            FROM test
+            | WHERE LENGTH(last_name) > 1
+            | EVAL l = LENGTH(last_name)
+            """;
+        LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
+
+        var project = as(plan, EsqlProject.class);
+        var limit = as(project.child(), Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var filter = as(eval.child(), Filter.class);
+        FieldAttribute lAttr = as(as(filter.condition(), GreaterThan.class).left(), FieldAttribute.class);
+        var relation = as(filter.child(), EsRelation.class);
+        assertTrue(relation.output().contains(lAttr));
+    }
+
+    public void testLengthInStatsTwice() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            FROM test
+            | STATS l = SUM(LENGTH(last_name)) + AVG(LENGTH(last_name))
+            """;
+        LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
+
+        var project = as(plan, Project.class);
+        var eval1 = as(project.child(), Eval.class);
+        var limit = as(eval1.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates(), hasSize(2));
+        var sum = as(as(agg.aggregates().getFirst(), Alias.class).child(), Sum.class);
+        var count = as(as(agg.aggregates().get(1), Alias.class).child(), Count.class);
+        var eval2 = as(agg.child(), Eval.class);
+        assertThat(eval2.fields(), hasSize(1));
+        Alias lAlias = as(eval2.fields().getFirst(), Alias.class);
+        FieldAttribute lAttr = as(lAlias.child(), FieldAttribute.class);
+        var relation = as(eval2.child(), EsRelation.class);
+        assertTrue(relation.output().contains(lAttr));
+
+        assertThat(as(sum.field(), ReferenceAttribute.class).id(), equalTo(lAlias.id()));
+        assertThat(as(count.field(), ReferenceAttribute.class).id(), equalTo(lAlias.id()));
     }
 
     private IsNotNull isNotNull(Expression field) {

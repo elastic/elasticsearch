@@ -330,7 +330,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right().foldable()) {
-            if (pushdownPredicates.isPushableFieldAttribute(left())) {
+            if (pushdownPredicates.isPushableAttribute(left())) {
                 return Translatable.YES;
             }
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {

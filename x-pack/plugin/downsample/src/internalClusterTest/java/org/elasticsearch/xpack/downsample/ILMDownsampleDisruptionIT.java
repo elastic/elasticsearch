@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -172,7 +171,7 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         ensureGreen(targetIndex);
         // We assert that ILM successfully completed the phase
         logger.info("Waiting for ILM to complete the phase for index [{}]", targetIndex);
-        ClusterServiceUtils.addTemporaryStateListener(clusterState -> {
+        awaitClusterState(clusterState -> {
             IndexMetadata indexMetadata = clusterState.metadata().getProject().index(targetIndex);
             return indexMetadata.getLifecycleExecutionState() != null
                 && Objects.equals(indexMetadata.getLifecycleExecutionState().step(), PhaseCompleteStep.NAME);

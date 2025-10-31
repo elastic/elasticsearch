@@ -2589,12 +2589,16 @@ public class VerifierTests extends ESTestCase {
 
     public void testFullTextFunctionsNullArgs() throws Exception {
         checkFullTextFunctionNullArgs("match(title, null)", "second");
+        checkFullTextFunctionAcceptsNullField("match(null, \"test\")");
         checkFullTextFunctionNullArgs("qstr(null)", "");
         checkFullTextFunctionNullArgs("kql(null)", "");
         checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
+        checkFullTextFunctionAcceptsNullField("match_phrase(null, \"test\")");
         checkFullTextFunctionNullArgs("knn(vector, null)", "second");
+        checkFullTextFunctionAcceptsNullField("knn(null, [0, 1, 2])");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
+            checkFullTextFunctionAcceptsNullField("multi_match(\"test\", null)");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
@@ -2607,6 +2611,10 @@ public class VerifierTests extends ESTestCase {
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
         );
+    }
+
+    private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
+        fullTextAnalyzer.analyze(parser.createStatement("from test | where " + functionInvocation));
     }
 
     public void testInsistNotOnTopOfFrom() {

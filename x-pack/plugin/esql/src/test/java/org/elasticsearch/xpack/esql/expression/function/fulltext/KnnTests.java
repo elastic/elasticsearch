@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
@@ -92,6 +93,24 @@ public class KnnTests extends AbstractFunctionTestCase {
                     ),
                     equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
                     BOOLEAN,
+                    equalTo(true)
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(NULL, DENSE_VECTOR),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(
+                            Literal.NULL,
+                            NULL,
+                            "text field"
+                        ),
+                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query")
+                    ),
+                    equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
+                    NULL,
                     equalTo(true)
                 )
             )

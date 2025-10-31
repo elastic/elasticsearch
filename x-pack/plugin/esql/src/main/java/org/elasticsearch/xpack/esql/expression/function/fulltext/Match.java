@@ -294,7 +294,8 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         DataType queryType = query().dataType();
 
         // Field and query types should match. If the query is a string, then it can match any field type.
-        if ((fieldType == queryType) || (queryType == KEYWORD)) {
+        // If the field is null, it will be folded to null.
+        if ((fieldType == queryType) || (queryType == KEYWORD) || fieldType == NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
 

@@ -66,7 +66,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         }
 
         if (isStateless == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Decider does not currently support stateful.");
+            return Decision.single(Decision.Type.YES, NAME, "Decider is disabled.");
         }
 
         Index index = shardRouting.index();
@@ -76,11 +76,11 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
         assert node.node() != null;
         if (node.node().getRoles().contains(INDEX_ROLE) == false && node.node().getRoles().contains(SEARCH_ROLE) == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Node has neither index nor search roles, outside purview.");
+            return Decision.single(Decision.Type.YES, NAME, "Node has neither index nor search roles.");
         }
 
         if (node.node().getRoles().contains(INDEX_ROLE) && shardRouting.primary() == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Decider allows replicas move to index nodes.");
+            return Decision.single(Decision.Type.YES, NAME, "An index node cannot own search shards. Decider inactive.");
         }
 
         if (node.node().getRoles().contains(SEARCH_ROLE) && shardRouting.primary()) {

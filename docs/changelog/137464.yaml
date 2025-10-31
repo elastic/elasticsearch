@@ -1,0 +1,5 @@
+pr: 137464
+summary: Add query parameter to CHUNK function to return scored chunks
+area: ES|QL
+type: enhancement
+issues: []

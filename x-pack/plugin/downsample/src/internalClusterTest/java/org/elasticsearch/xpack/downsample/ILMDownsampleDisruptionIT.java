@@ -25,7 +25,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -135,10 +136,6 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
     }
 
-    @TestIssueLogging(
-        value = "org.elasticsearch.cluster.service.MasterService:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/136585"
-    )
     public void testILMDownsampleRollingRestart() throws Exception {
         final InternalTestCluster cluster = internalCluster();
         cluster.startMasterOnlyNodes(1);
@@ -178,6 +175,13 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         startDownsampleTaskViaIlm(sourceIndex, targetIndex);
         assertBusy(() -> assertTargetIndex(cluster, targetIndex, indexedDocs, samplingMethod));
         ensureGreen(targetIndex);
+        // We wait for ILM to successfully complete the phase
+        logger.info("Waiting for ILM to complete the phase for index [{}]", targetIndex);
+        awaitClusterState(clusterState -> {
+            IndexMetadata indexMetadata = clusterState.metadata().getProject().index(targetIndex);
+            return indexMetadata.getLifecycleExecutionState() != null
+                && Objects.equals(indexMetadata.getLifecycleExecutionState().step(), PhaseCompleteStep.NAME);
+        });
     }
 
     private void startDownsampleTaskViaIlm(String sourceIndex, String targetIndex) throws Exception {

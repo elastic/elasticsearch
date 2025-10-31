@@ -454,7 +454,8 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                 }
             }
             PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
-            super.doResolvePolicies(new HashSet<>(clusters), unresolvedPolicies, esqlExecutionInfo, future);
+            // NOCOMMIT: We should pass in a sensible transport version in general and also test this with older ones.
+            super.doResolvePolicies(new HashSet<>(clusters), unresolvedPolicies, esqlExecutionInfo, TransportVersion.current(), future);
             return future.actionGet(30, TimeUnit.SECONDS);
         }
 

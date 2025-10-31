@@ -567,7 +567,12 @@ public class EsqlSession {
         })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
             .<PreAnalysisResult>andThen((l, r) -> {
-                enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l.map(r::withEnrichResolution));
+                enrichPolicyResolver.resolvePolicies(
+                    preAnalysis.enriches(),
+                    executionInfo,
+                    r.minimumTransportVersion(),
+                    l.map(r::withEnrichResolution)
+                );
             })
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));

@@ -1083,25 +1083,46 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * If the field used in the full text function is not present in any of the indices in the UnionAll branches,
+     * If the field used in the full text function is not present in one of the indices in the UnionAll branches,
      * the full text function cannot be pushed down.
      */
     public void testFullTextFunctionCannotBePushedDownPastUnionAll() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
+        var plan = planSubquery("""
             FROM test, (FROM languages)
             | WHERE match(language_name, "text")
-            """));
-        assertTrue(e.getMessage().startsWith("Found "));
-        final String header = "Found 2 problems\nline ";
-        // TODO improve the error message to indicate the field is missing from an index pattern under a subquery context
-        // FullTextFunction.checkCommandsBeforeExpression adds the first failure
-        // FullTextFunction.fieldVerifier adds the second failure
-        // resolveFork creates the reference attribute, provide a better source text for it
-        assertEquals(
-            "1:1: [MATCH] function cannot be used after FROM\n"
-                + "line 1:1: [MATCH] function cannot operate on [FROM test, (FROM languages)], which is not a field from an index mapping",
-            e.getMessage().substring(header.length())
-        );
+            """);
+
+        // Limit[1000[INTEGER],false,false]
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // First child: test index
+        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
+        Eval eval1 = as(child1.child(), Eval.class);
+        Filter filter1 = as(eval1.child(), Filter.class);
+        Expression condition = filter1.condition();
+        // The Match function on a field that doesn't exist in the table should fold to null[BOOLEAN]
+        // The condition is a Literal wrapping Literal.NULL
+        Literal nullBooleanCondition = as(condition, Literal.class);
+        assertEquals(Literal.NULL, nullBooleanCondition.value());
+
+        Limit childLimit1 = as(filter1.child(), Limit.class);
+        as(childLimit1.child(), EsRelation.class);
+
+        // Second child: languages subquery
+        EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
+        Eval eval2 = as(child2.child(), Eval.class);
+        Subquery subquery = as(eval2.child(), Subquery.class);
+        Limit childLimit2 = as(subquery.child(), Limit.class);
+
+        // Match exists in the second subquery
+        Filter filter2 = as(childLimit2.child(), Filter.class);
+        Match match = as(filter2.condition(), Match.class);
+        FieldAttribute languageName = as(match.field(), FieldAttribute.class);
+        assertEquals("language_name", languageName.name());
+
+        as(filter2.child(), EsRelation.class);
     }
 }

@@ -98,7 +98,6 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         // geohex_grid requires gold license
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .feature(FeatureFlag.SYNTHETIC_VECTORS);
 
     private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()

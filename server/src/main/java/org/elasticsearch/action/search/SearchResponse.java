@@ -609,13 +609,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         public Clusters(Map<String, Cluster> clusterInfoMap) {
+            this(clusterInfoMap, true);
+        }
+
+        public Clusters(Map<String, Cluster> clusterInfoMap, boolean ccsMinimizeRoundtrips) {
             assert clusterInfoMap.size() > 0 : "this constructor should not be called with an empty Cluster info map";
             this.total = clusterInfoMap.size();
-            this.clusterInfo = clusterInfoMap;
+            this.clusterInfo = ConcurrentCollections.newConcurrentMap();
+            this.clusterInfo.putAll(clusterInfoMap);
             this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
             this.skipped = getClusterStateCount(Cluster.Status.SKIPPED);
             // should only be called if "details" section of fromXContent is present (for ccsMinimizeRoundtrips)
-            this.ccsMinimizeRoundtrips = true;
+            this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
         }
 
         @Override

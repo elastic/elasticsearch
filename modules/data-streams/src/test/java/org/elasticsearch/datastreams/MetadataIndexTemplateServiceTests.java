@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -44,6 +43,8 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTs
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.composeDataLifecycles;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomResettable;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomSamplingMethod;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -154,7 +155,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 true,
                 randomRetention(),
                 downsamplingRounds,
-                randomSamplingMethod(downsamplingRounds)
+                randomResettable(() -> randomSamplingMethod(downsamplingRounds.get()))
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
@@ -167,11 +168,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
         // Enabled is always true unless it's explicitly set to false
         {
+            List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds = randomRounds();
             DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.createDataLifecycleTemplate(
                 false,
                 randomPositiveTimeValue(),
-                randomRounds(),
-                DataStreamLifecycleFixtures.randomSamplingMethod()
+                downsamplingRounds,
+                randomSamplingMethod(downsamplingRounds)
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DATA_DEFAULT);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
@@ -299,19 +301,5 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             case 1 -> ResettableValue.create(randomRounds());
             default -> throw new IllegalStateException("Unknown randomisation path");
         };
-    }
-
-    private static ResettableValue<DownsampleConfig.SamplingMethod> randomSamplingMethod(
-        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> rounds
-    ) {
-        if (rounds.get() == null) {
-            return randomBoolean() ? ResettableValue.undefined() : ResettableValue.reset();
-        } else {
-            return randomBoolean() ? ResettableValue.create(DataStreamLifecycleFixtures.randomSamplingMethod()) : ResettableValue.reset();
-        }
-    }
-
-    private static DownsampleConfig.SamplingMethod randomSamplingMethod(List<DataStreamLifecycle.DownsamplingRound> rounds) {
-        return rounds == null ? null : DataStreamLifecycleFixtures.randomSamplingMethod();
     }
 }

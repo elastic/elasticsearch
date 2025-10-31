@@ -145,15 +145,18 @@ public class DataStreamLifecycleFixtures {
     }
 
     static DataStreamLifecycle.Template randomDataLifecycleTemplate() {
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling = randomResettable(
+            DataStreamLifecycleFixtures::randomDownsamplingRounds
+        );
         return DataStreamLifecycle.createDataLifecycleTemplate(
             frequently(),
             randomResettable(ESTestCase::randomTimeValue),
-            randomResettable(DataStreamLifecycleFixtures::randomDownsamplingRounds),
-            randomResettable(DataStreamLifecycleFixtures::randomSamplingMethod)
+            downsampling,
+            randomResettable(() -> randomSamplingMethod(downsampling.get()))
         );
     }
 
-    private static <T> ResettableValue<T> randomResettable(Supplier<T> supplier) {
+    public static <T> ResettableValue<T> randomResettable(Supplier<T> supplier) {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> ResettableValue.undefined();
             case 1 -> ResettableValue.reset();
@@ -184,8 +187,12 @@ public class DataStreamLifecycleFixtures {
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
     }
 
-    public static DownsampleConfig.SamplingMethod randomSamplingMethod() {
-        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+    /**
+     * In order to produce valid data stream lifecycle configurations, the sampling method can be defined only when
+     * the downsampling rounds are also defined.
+     */
+    public static DownsampleConfig.SamplingMethod randomSamplingMethod(List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds) {
+        if (downsamplingRounds == null || between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
             return null;
         } else {
             return randomFrom(DownsampleConfig.SamplingMethod.values());

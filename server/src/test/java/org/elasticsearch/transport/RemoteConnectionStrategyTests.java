@@ -30,6 +30,8 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Set;
+
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS;
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
@@ -265,7 +267,12 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                             : RemoteConnectionStrategy.RECONNECTION_ATTEMPT_FAILURES_COUNTER_NAME;
                         final var measurements = metricRecorder.getMeasurements(InstrumentType.LONG_COUNTER, counterName);
                         assertThat(measurements, hasSize(1));
-                        assertThat(measurements.getFirst().getLong(), equalTo(1L));
+                        final var measurement = measurements.getFirst();
+                        assertThat(measurement.getLong(), equalTo(1L));
+                        final var attributes = measurement.attributes();
+                        assertThat(attributes.keySet(), equalTo(Set.of("linked_project_id", "linked_project_alias")));
+                        assertThat(attributes.get("linked_project_id"), equalTo(linkedProjectId.toString()));
+                        assertThat(attributes.get("linked_project_alias"), equalTo(alias));
                     }
                 }
             }

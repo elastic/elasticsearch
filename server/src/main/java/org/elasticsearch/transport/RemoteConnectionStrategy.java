@@ -32,6 +32,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -247,7 +248,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         } else {
             logger.warn(msgSupplier, e);
             final var counter = isInitialAttempt ? initialConnectionAttemptFailures : reconnectAttemptFailures;
-            counter.increment();
+            counter.incrementBy(1, Map.of("linked_project_id", linkedProjectId.toString(), "linked_project_alias", clusterAlias));
         }
     }
 

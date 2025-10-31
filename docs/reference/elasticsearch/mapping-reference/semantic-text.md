@@ -539,7 +539,7 @@ If you want to verify that your embeddings look correct, you can view the
 {{infer}} data that `semantic_text` typically hides using `fields`.
 
 ::::{applies-switch}
-:::{applies-item} { "stack": ["ga 9.0", "ga 9.1"] }
+:::{applies-item} { "stack": "ga 9.0, ga 9.1" }
 
 ```console
 POST my-index/_search

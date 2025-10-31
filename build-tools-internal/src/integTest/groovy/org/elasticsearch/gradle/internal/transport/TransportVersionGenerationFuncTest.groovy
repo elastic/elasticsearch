@@ -518,7 +518,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         given:
         file("myserver/build.gradle") << """
             tasks.named('generateTransportVersion') {
-                currentUpperBoundName = "9.1"
+                currentUpperBoundName = '9.1'
             }
         """
 

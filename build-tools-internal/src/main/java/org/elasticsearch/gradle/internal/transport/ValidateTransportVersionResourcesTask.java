@@ -84,7 +84,7 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
         Map<Integer, List<IdAndDefinition>> idsByBase = resources.getIdsByBase();
         Map<String, TransportVersionUpperBound> upperBounds = resources.getUpperBounds();
         TransportVersionUpperBound currentUpperBound = upperBounds.get(getCurrentUpperBoundName().get());
-        boolean onReleaseBranch = resources.checkIfDefinitelyOnReleaseBranch(upperBounds, getCurrentUpperBoundName().get());
+        boolean onReleaseBranch = resources.checkIfDefinitelyOnReleaseBranch(upperBounds.values(), getCurrentUpperBoundName().get());
         boolean validateModifications = onReleaseBranch == false || getCI().get();
 
         for (var definition : referableDefinitions.values()) {

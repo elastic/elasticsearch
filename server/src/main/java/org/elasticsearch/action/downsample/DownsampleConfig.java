@@ -104,17 +104,6 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     /**
      * Create a new {@link DownsampleConfig} using the given configuration parameters.
      * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
-     * @deprecated please use {@link DownsampleConfig#DownsampleConfig(DateHistogramInterval, SamplingMethod)}, this method is being kept
-     * until the sampling method is completely integrated with ILM and DLM.
-     */
-    @Deprecated
-    public DownsampleConfig(final DateHistogramInterval fixedInterval) {
-        this(fixedInterval, null);
-    }
-
-    /**
-     * Create a new {@link DownsampleConfig} using the given configuration parameters.
-     * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
      * @param samplingMethod the method used to downsample metrics, when null it default to {@link SamplingMethod#AGGREGATE}.
      */
     public DownsampleConfig(final DateHistogramInterval fixedInterval, @Nullable SamplingMethod samplingMethod) {

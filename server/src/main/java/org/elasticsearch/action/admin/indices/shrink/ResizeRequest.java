@@ -19,7 +19,9 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -59,7 +61,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     private CreateIndexRequest targetIndexRequest;
     private String sourceIndex;
-    private ResizeType type = ResizeType.SHRINK;
+    private ResizeType type;
     private Boolean copySettings = true;
     private ByteSizeValue maxPrimaryShardSize;
 
@@ -74,14 +76,11 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         }
     }
 
-    ResizeRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
-    }
-
-    public ResizeRequest(String targetIndex, String sourceIndex) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public ResizeRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, ResizeType resizeType, String sourceIndex, String targetIndex) {
+        super(masterNodeTimeout, ackTimeout);
         this.targetIndexRequest = new CreateIndexRequest(targetIndex);
         this.sourceIndex = sourceIndex;
+        this.type = resizeType;
     }
 
     @Override
@@ -262,5 +261,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     @Override
     public int hashCode() {
         return Objects.hash(targetIndexRequest, sourceIndex, type, copySettings, maxPrimaryShardSize);
+    }
+
+    public void setTargetIndexSettings(Settings.Builder settings) {
+        targetIndexRequest.settings(settings);
     }
 }

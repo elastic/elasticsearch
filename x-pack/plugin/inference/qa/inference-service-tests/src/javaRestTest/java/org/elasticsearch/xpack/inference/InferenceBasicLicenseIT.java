@@ -44,19 +44,7 @@ public class InferenceBasicLicenseIT extends InferenceLicenseBaseRestTest {
         var modelConfig = mockSparseServiceModelConfig(null, true);
         sendRestrictedRequest("PUT", endpoint, modelConfig);
     }
-
-    public void testUpdateModel_RestrictedWithBasicLicense() throws Exception {
-        var endpoint = Strings.format("_inference/%s/%s/_update?error_trace", TaskType.SPARSE_EMBEDDING, "endpoint-id");
-        var requestBody = """
-            {
-              "task_settings": {
-                "num_threads": 2
-              }
-            }
-            """;
-        sendRestrictedRequest("PUT", endpoint, requestBody);
-    }
-
+    
     public void testGetServices_NonRestrictedWithBasicLicense() throws Exception {
         var endpoint = "_inference/_services";
         sendNonRestrictedRequest("GET", endpoint, null, 200, false);

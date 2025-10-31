@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,14 +32,10 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
-import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
-import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -52,7 +50,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -173,18 +173,14 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         startDownsampleTaskViaIlm(sourceIndex, targetIndex);
         assertBusy(() -> assertTargetIndex(cluster, targetIndex, indexedDocs));
         ensureGreen(targetIndex);
-        // We assert that ILM to successfully completed the phase
-        assertBusy(() -> {
-            ExplainLifecycleResponse explainLifecycleResponse = safeGet(
-                client().execute(
-                    ExplainLifecycleAction.INSTANCE,
-                    new ExplainLifecycleRequest(TimeValue.THIRTY_SECONDS).indices(targetIndex)
-                )
-            );
-            IndexLifecycleExplainResponse ilmExplain = explainLifecycleResponse.getIndexResponses().get(targetIndex);
-            assertThat(ilmExplain, notNullValue());
-            assertThat(ilmExplain.getStep(), equalTo(PhaseCompleteStep.NAME));
-        }, 60, TimeUnit.SECONDS);
+        // We assert that ILM successfully completed the phase
+        logger.info("Waiting for ILM to complete the phase for index [{}]", targetIndex);
+        ClusterServiceUtils.addTemporaryStateListener(clusterState -> {
+            IndexMetadata indexMetadata = getIndexMetadataByIndexName(clusterState, targetIndex);
+            // We expect a single project available in this cluster
+            return indexMetadata.getLifecycleExecutionState() != null
+                && Objects.equals(indexMetadata.getLifecycleExecutionState().step(), PhaseCompleteStep.NAME);
+        });
     }
 
     private void startDownsampleTaskViaIlm(String sourceIndex, String targetIndex) throws Exception {
@@ -232,5 +228,20 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
                 assertTrue(targetIndexSearch.getHits().getHits().length > 0);
             }
         );
+    }
+
+    /**
+     * We assume the index exists and its index name is unique.
+     * @return the index metadata found in any project that contains an index with this name.
+     */
+    private IndexMetadata getIndexMetadataByIndexName(ClusterState clusterState, String indexName) {
+        AtomicReference<IndexMetadata> indexMetadata = new AtomicReference<>();
+        clusterState.forEachProject(projectState -> {
+            if (projectState.metadata().hasIndex(indexName)) {
+                indexMetadata.set(projectState.metadata().index(indexName));
+            }
+        });
+        assertThat(indexMetadata.get(), notNullValue());
+        return indexMetadata.get();
     }
 }

@@ -547,7 +547,7 @@ If you want to verify that your embeddings look correct, you can view the
 {{infer}} data that `semantic_text` typically hides using `fields`.
 
 ::::{applies-switch}
-:::{applies-item} { "stack": "ga 9.0, ga 9.1" }
+:::{applies-item} { "stack": "ga 9.1" }
 
 ```console
 POST my-index/_search
@@ -629,23 +629,23 @@ semantic search for `semantic_text` fields.
 :::{applies-item} { "stack": "ga 9.2" }
 
 ```console
-POST my-index/_search
+POST test-index/_search
 {
-  "_source": { "exclude_vectors": false },
+  "_source": {
+    "exclude_vectors": false
+  },
   "query": {
     "match": {
       "my_semantic_field": "Which country is Paris in?"
     }
-  },
-  "fields": ["_inference_fields"]
+  }
 }
 ```
+% TEST[skip:Requires {{infer}} endpoint]
+
 
 This will return verbose chunked embeddings content that is used to perform
 semantic search for `semantic_text` fields.
-
-
-% TEST[skip:Requires {{infer}} endpoint]
 
 ```console-response
 {

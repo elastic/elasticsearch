@@ -240,7 +240,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Used in error messages.
      */
     protected String getExpectedFieldTypesString() {
-        return String.join(", ", getFieldDataTypes().stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).toList());
+        return expectedTypesAsString(getFieldDataTypes());
     }
 
     /**
@@ -248,6 +248,10 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Used in error messages.
      */
     protected String getExpectedQueryTypesString() {
-        return String.join(", ", getQueryDataTypes().stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).toList());
+        return expectedTypesAsString(getQueryDataTypes());
+    }
+
+    static String expectedTypesAsString(Set<DataType> FieldDataTypes) {
+        return String.join(", ", FieldDataTypes.stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).toList());
     }
 }

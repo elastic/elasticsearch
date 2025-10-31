@@ -57,6 +57,7 @@ public class TransportClusterSearchShardsAction extends TransportLocalClusterSta
      * we no longer need to support calling this action remotely.
      */
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportClusterSearchShardsAction(
         TransportService transportService,

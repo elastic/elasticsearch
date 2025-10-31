@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -19,12 +20,15 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorBinaryOperator.BinaryOp;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.set.VectorBinarySet;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -205,35 +209,52 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     }
 
     @Override
+    public LogicalPlan visitArithmeticUnary(PromqlBaseParser.ArithmeticUnaryContext ctx) {
+        Source source = source(ctx);
+        LogicalPlan unary = wrapLiteral(ctx.expression());
+
+        // unary operators do not make sense outside numeric data
+        if (unary instanceof LiteralSelector literalSelector) {
+            Literal literal = literalSelector.literal();
+            Object value = literal.value();
+            DataType dataType = literal.dataType();
+            if (dataType.isNumeric() == false || value instanceof Number == false) {
+                throw new ParsingException(
+                    source,
+                    "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
+                    dataType.typeName()
+                );
+            }
+            // optimize negation in case of literals
+            if (ctx.operator.getType() == MINUS) {
+                Number negatedValue = Arithmetics.negate((Number) value);
+                unary = new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
+            }
+        }
+        // forbid range selectors
+        else if (isRangeVector(unary)) {
+            throw new ParsingException(
+                source,
+                "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
+                unary.nodeName()
+            );
+        }
+
+        // For non-literals (vectors), rewrite as 0 - expression
+        if (ctx.operator.getType() == MINUS) {
+            LiteralSelector zero = new LiteralSelector(source, Literal.integer(source, 0));
+            return new VectorBinaryArithmetic(source, zero, unary, VectorMatch.NONE, ArithmeticOp.SUB);
+        }
+
+        return unary;
+    }
+
+    @Override
     public LogicalPlan visitArithmeticBinary(PromqlBaseParser.ArithmeticBinaryContext ctx) {
         Source source = source(ctx);
         LogicalPlan le = wrapLiteral(ctx.left);
         LogicalPlan re = wrapLiteral(ctx.right);
 
-        // SCALAR DETECTION: Check if both operands are pure scalar literals
-        if (le instanceof LiteralSelector leftSel && re instanceof LiteralSelector rightSel) {
-            Literal leftLiteral = leftSel.literal();
-            Literal rightLiteral = rightSel.literal();
-
-            // Extract values
-            Object leftValue = leftLiteral.value();
-            Object rightValue = rightLiteral.value();
-
-            // Convert token type to operation enum
-            ArithmeticOperation operation = ArithmeticOperation.fromTokenType(source(ctx.op), ctx.op.getType());
-
-            // Evaluate using centralized utility
-            Object result = PromqlArithmeticUtils.evaluate(source, leftValue, rightValue, operation);
-
-            // Determine result data type
-            DataType resultType = determineResultType(result);
-
-            // Wrap folded result in LiteralSelector
-            Literal resultLiteral = new Literal(source, result, resultType);
-            return new LiteralSelector(source, resultLiteral);
-        }
-
-        // VECTOR ARITHMETIC: At least one operand is not a scalar literal
         boolean bool = ctx.BOOL() != null;
         int opType = ctx.op.getType();
         String opText = ctx.op.getText();
@@ -262,6 +283,33 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 case OR:
                     throw new ParsingException(source, "Set operator [{}] not allowed in binary scalar expression", opText);
             }
+        }
+
+        BinaryOp binaryOperator = binaryOp(ctx.op);
+
+        // Handle scalar folding once validation passes
+        if (le instanceof LiteralSelector leftSel && re instanceof LiteralSelector rightSel) {
+            Literal leftLiteral = leftSel.literal();
+            Literal rightLiteral = rightSel.literal();
+
+            // Extract values
+            Object leftValue = leftLiteral.value();
+            Object rightValue = rightLiteral.value();
+
+            //  arithmetics
+            if (binaryOperator instanceof ArithmeticOp arithmeticOp) {
+                Object result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, arithmeticOp);
+                DataType resultType = determineResultType(result);
+                return new LiteralSelector(source, new Literal(source, result, resultType));
+            }
+
+            // comparisons
+            if (binaryOperator instanceof ComparisonOp compOp) {
+                int result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, compOp) ? 1 : 0;
+                return new LiteralSelector(source, new Literal(source, result, DataType.INTEGER));
+            }
+
+            // Set operations fall through to vector handling
         }
 
         VectorMatch modifier = VectorMatch.NONE;
@@ -306,28 +354,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             modifier = new VectorMatch(filter, new LinkedHashSet<>(filterList), joining, new LinkedHashSet<>(groupingList));
         }
 
-        VectorBinaryOperator.BinaryOp binaryOperator = switch (opType) {
-            case CARET -> VectorBinaryArithmetic.ArithmeticOp.POW;
-            case ASTERISK -> VectorBinaryArithmetic.ArithmeticOp.MUL;
-            case PERCENT -> VectorBinaryArithmetic.ArithmeticOp.MOD;
-            case SLASH -> VectorBinaryArithmetic.ArithmeticOp.DIV;
-            case MINUS -> VectorBinaryArithmetic.ArithmeticOp.SUB;
-            case PLUS -> VectorBinaryArithmetic.ArithmeticOp.ADD;
-            case EQ -> VectorBinaryComparison.ComparisonOp.EQ;
-            case NEQ -> VectorBinaryComparison.ComparisonOp.NEQ;
-            case LT -> VectorBinaryComparison.ComparisonOp.LT;
-            case LTE -> VectorBinaryComparison.ComparisonOp.LTE;
-            case GT -> VectorBinaryComparison.ComparisonOp.GT;
-            case GTE -> VectorBinaryComparison.ComparisonOp.GTE;
-            case AND -> VectorBinarySet.SetOp.INTERSECT;
-            case UNLESS -> VectorBinarySet.SetOp.SUBTRACT;
-            case OR -> VectorBinarySet.SetOp.UNION;
-            default -> throw new ParsingException(source(ctx.op), "Unknown arithmetic {}", opText);
-        };
-
         return switch (binaryOperator) {
-            case VectorBinaryArithmetic.ArithmeticOp arithmeticOp -> new VectorBinaryArithmetic(source, le, re, modifier, arithmeticOp);
-            case VectorBinaryComparison.ComparisonOp comparisonOp -> new VectorBinaryComparison(
+            case ArithmeticOp arithmeticOp -> new VectorBinaryArithmetic(source, le, re, modifier, arithmeticOp);
+            case ComparisonOp comparisonOp -> new VectorBinaryComparison(
                 source,
                 le,
                 re,
@@ -337,6 +366,28 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             );
             case VectorBinarySet.SetOp setOp -> new VectorBinarySet(source, le, re, modifier, setOp);
             default -> throw new ParsingException(source(ctx.op), "Unknown arithmetic {}", opText);
+        };
+    }
+
+
+    private BinaryOp binaryOp(Token opType) {
+        return switch (opType.getType()) {
+            case CARET -> ArithmeticOp.POW;
+            case ASTERISK -> ArithmeticOp.MUL;
+            case PERCENT -> ArithmeticOp.MOD;
+            case SLASH -> ArithmeticOp.DIV;
+            case MINUS -> ArithmeticOp.SUB;
+            case PLUS -> ArithmeticOp.ADD;
+            case EQ -> ComparisonOp.EQ;
+            case NEQ -> ComparisonOp.NEQ;
+            case LT -> ComparisonOp.LT;
+            case LTE -> ComparisonOp.LTE;
+            case GT -> ComparisonOp.GT;
+            case GTE -> ComparisonOp.GTE;
+            case AND -> VectorBinarySet.SetOp.INTERSECT;
+            case UNLESS -> VectorBinarySet.SetOp.SUBTRACT;
+            case OR -> VectorBinarySet.SetOp.UNION;
+            default -> throw new ParsingException(source(opType), "Unknown arithmetic {}", opType.getText());
         };
     }
 
@@ -355,8 +406,13 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     }
 
     @Override
+    public Object visitParenthesized(PromqlBaseParser.ParenthesizedContext ctx) {
+        return visit(ctx.expression());
+    }
+
+    @Override
     @SuppressWarnings("rawtypes")
-    public Object visitFunction(PromqlBaseParser.FunctionContext ctx) {
+    public LogicalPlan visitFunction(PromqlBaseParser.FunctionContext ctx) {
         Source source = source(ctx);
         String name = ctx.IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
@@ -430,47 +486,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     }
 
     @Override
-    public LogicalPlan visitArithmeticUnary(PromqlBaseParser.ArithmeticUnaryContext ctx) {
-        Source source = source(ctx);
-        LogicalPlan unary = wrapLiteral(ctx.expression());
-
-        // unary operators do not make sense outside numeric data
-        if (unary instanceof LiteralSelector literalSelector) {
-            Literal literal = literalSelector.literal();
-            Object value = literal.value();
-            DataType dataType = literal.dataType();
-            if (dataType.isNumeric() == false || value instanceof Number == false) {
-                throw new ParsingException(
-                    source,
-                    "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
-                    dataType.typeName()
-                );
-            }
-            // optimize negation in case of literals
-            if (ctx.operator.getType() == MINUS) {
-                Number negatedValue = Arithmetics.negate((Number) value);
-                unary = new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
-            }
-        }
-        // forbid range selectors
-        else if (isRangeVector(unary)) {
-            throw new ParsingException(
-                source,
-                "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
-                unary.nodeName()
-            );
-        }
-
-        // For non-literals (vectors), rewrite as 0 - expression
-        if (ctx.operator.getType() == MINUS) {
-            LiteralSelector zero = new LiteralSelector(source, Literal.integer(source, 0));
-            return new VectorBinaryArithmetic(source, zero, unary, VectorMatch.NONE, VectorBinaryArithmetic.ArithmeticOp.SUB);
-        }
-
-        return unary;
-    }
-
-    @Override
     public Subquery visitSubquery(PromqlBaseParser.SubqueryContext ctx) {
         Source source = source(ctx);
         LogicalPlan plan = plan(ctx.expression());
@@ -483,6 +498,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Duration rangeEx = visitDuration(ctx.range);
         Duration resolution = visitSubqueryResolution(ctx.subqueryResolution());
 
+        if (resolution == null) {
+            resolution = Duration.ofMinutes(1);
+        }
         return new Subquery(source(ctx), plan, rangeEx, resolution, evaluation);
     }
 
@@ -518,9 +536,13 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             Object rightValue = unwrapLiteral(ctx.expression()).value();
 
             // Perform arithmetic using utility
-            ArithmeticOperation operation = ArithmeticOperation.fromTokenType(source(ctx.op), ctx.op.getType());
-            Object result = PromqlArithmeticUtils.evaluate(source(ctx), baseValue, rightValue, operation);
-
+            BinaryOp binaryOp = binaryOp(ctx.op);
+            Object result;
+            if (binaryOp instanceof ArithmeticOp operation) {
+                result = PromqlFoldingUtils.evaluate(source(ctx), baseValue, rightValue, operation);
+            } else {
+                throw new ParsingException(source(ctx), "Unsupported binary operator [{}] in time duration", binaryOp);
+            }
             // Result should be Duration
             if (result instanceof Duration duration) {
                 return duration;

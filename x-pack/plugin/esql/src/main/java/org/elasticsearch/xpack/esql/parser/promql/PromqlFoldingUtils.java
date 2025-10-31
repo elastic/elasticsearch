@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.Duration;
@@ -20,7 +22,7 @@ import java.time.Duration;
  * - Durations and numbers (converts to seconds, computes, converts back)
  * - Durations and durations (only for ADD/SUB)
  */
-public class PromqlArithmeticUtils {
+public class PromqlFoldingUtils {
 
     /**
      * Evaluate arithmetic operation between two scalar values at parse time.
@@ -31,7 +33,7 @@ public class PromqlArithmeticUtils {
      * @param operation The arithmetic operation
      * @return Result value (Number or Duration)
      */
-    public static Object evaluate(Source source, Object left, Object right, ArithmeticOperation operation) {
+    public static Object evaluate(Source source, Object left, Object right, ArithmeticOp operation) {
         // Dispatch to appropriate handler based on operand types
         if (left instanceof Duration leftDuration) {
             if (right instanceof Duration rightDuration) {
@@ -58,14 +60,14 @@ public class PromqlArithmeticUtils {
     /**
      * Duration op Duration (only ADD and SUB supported).
      */
-    private static Duration arithmetics(Source source, Duration left, Duration right, ArithmeticOperation op) {
+    private static Duration arithmetics(Source source, Duration left, Duration right, ArithmeticOp op) {
         Duration result = switch (op) {
             case ADD -> left.plus(right);
             case SUB -> left.minus(right);
             default -> throw new ParsingException(
                 source,
                 "Operation [{}] not supported between two durations",
-                op.symbol()
+                op
             );
         };
 
@@ -77,7 +79,7 @@ public class PromqlArithmeticUtils {
      * For ADD/SUB: Number interpreted as seconds (PromQL convention).
      * For MUL/DIV/MOD/POW: Number is a dimensionless scalar.
      */
-    private static Duration arithmetics(Source source, Duration duration, Number scalar, ArithmeticOperation op) {
+    private static Duration arithmetics(Source source, Duration duration, Number scalar, ArithmeticOp op) {
         long durationSeconds = duration.getSeconds();
         long scalarValue = scalar.longValue();
 
@@ -113,15 +115,15 @@ public class PromqlArithmeticUtils {
         return Duration.ofSeconds(resultSeconds);
     }
 
-    private static Duration arithmetics(Source source, Number scalar, Duration duration, ArithmeticOperation op) {
+    private static Duration arithmetics(Source source, Number scalar, Duration duration, ArithmeticOp op) {
         return switch (op) {
-            case ADD -> arithmetics(source, duration, scalar, ArithmeticOperation.ADD);
-            case SUB -> arithmetics(source, Duration.ofSeconds(scalar.longValue()), duration, ArithmeticOperation.SUB);
-            case MUL -> arithmetics(source, duration, scalar, ArithmeticOperation.MUL);
+            case ADD -> arithmetics(source, duration, scalar, ArithmeticOp.ADD);
+            case SUB -> arithmetics(source, Duration.ofSeconds(scalar.longValue()), duration, ArithmeticOp.SUB);
+            case MUL -> arithmetics(source, duration, scalar, ArithmeticOp.MUL);
             default -> throw new ParsingException(
                 source,
                 "Operation [{}] not supported with scalar on left and duration on right",
-                op.symbol()
+                op
             );
         };
     }
@@ -130,7 +132,7 @@ public class PromqlArithmeticUtils {
      * Number op Number (pure numeric operations).
      * Delegates to Arithmetics for consistent numeric handling.
      */
-    private static Number numericArithmetics(Source source, Number left, Number right, ArithmeticOperation op) {
+    private static Number numericArithmetics(Source source, Number left, Number right, ArithmeticOp op) {
         try {
             return switch (op) {
                 case ADD -> Arithmetics.add(left, right);
@@ -156,6 +158,37 @@ public class PromqlArithmeticUtils {
         } catch (ArithmeticException e) {
             throw new ParsingException(source, "Arithmetic error: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Evaluate comparison operation between two numbers at parse time.
+     *
+     * @param left Left operand (Number)
+     * @param right Right operand (Number)
+     * @param operation The comparison operation
+     * @return true if comparison holds, false otherwise
+     */
+    public static boolean evaluate(Source source, Object left, Object right, ComparisonOp operation) {
+        if (left instanceof Number ln && right instanceof Number rn) {
+            // Get double values once, reuse for comparison - avoids extra allocation
+            double l = ln.doubleValue();
+            double r = rn.doubleValue();
+
+            return switch (operation) {
+                case EQ -> l == r;
+                case NEQ -> l != r;
+                case GT -> l > r;
+                case GTE -> l >= r;
+                case LT -> l < r;
+                case LTE -> l <= r;
+            };
+        }
+        throw new ParsingException(
+            source,
+            "Cannot perform comparison between [{}] and [{}]",
+            left.getClass().getSimpleName(),
+            right.getClass().getSimpleName()
+        );
     }
 
     /**

@@ -9,34 +9,45 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp;
+import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.Duration;
 
-import static org.elasticsearch.xpack.esql.parser.promql.ArithmeticOperation.ADD;
-import static org.elasticsearch.xpack.esql.parser.promql.ArithmeticOperation.DIV;
-import static org.elasticsearch.xpack.esql.parser.promql.ArithmeticOperation.MOD;
-import static org.elasticsearch.xpack.esql.parser.promql.ArithmeticOperation.MUL;
-import static org.elasticsearch.xpack.esql.parser.promql.ArithmeticOperation.POW;
-import static org.elasticsearch.xpack.esql.parser.promql.ArithmeticOperation.SUB;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.ADD;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.DIV;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.MOD;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.MUL;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.POW;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.SUB;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp.EQ;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp.GT;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp.GTE;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp.LT;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp.LTE;
+import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp.NEQ;
 import static org.hamcrest.Matchers.containsString;
 
-public class PromqlArithmeticUtilsTests extends ESTestCase {
-
-    private static final Source SOURCE = new Source(0, 0, "test");
+public class PromqlFoldingUtilsTests extends ESTestCase {
 
     private static Duration sec(int seconds) {
         return Duration.ofSeconds(seconds);
     }
 
     // Utility method for compact one-liner tests
-    private void evaluate(Object left, ArithmeticOperation op, Object right, Object expected) {
-        Object result = PromqlArithmeticUtils.evaluate(SOURCE, left, right, op);
+    private void evaluate(Object left, ArithmeticOp op, Object right, Object expected) {
+        Object result = PromqlFoldingUtils.evaluate(Source.EMPTY, left, right, op);
         assertEquals(expected, result);
     }
 
-    private void error(Object left, ArithmeticOperation op, Object right, String errorMessage) {
-        ParsingException exception = expectThrows(ParsingException.class, () -> PromqlArithmeticUtils.evaluate(SOURCE, left, right, op));
+    // Utility method for compact one-liner tests
+    private boolean evaluate(Object left, ComparisonOp op, Object right) {
+        return PromqlFoldingUtils.evaluate(Source.EMPTY, left, right, op);
+    }
+
+    private void error(Object left, ArithmeticOp op, Object right, String errorMessage) {
+        ParsingException exception = expectThrows(ParsingException.class, () -> PromqlFoldingUtils.evaluate(Source.EMPTY, left, right, op));
         assertThat(exception.getErrorMessage(), containsString(errorMessage));
     }
 
@@ -141,5 +152,41 @@ public class PromqlArithmeticUtilsTests extends ESTestCase {
     public void testNegativeDuration() {
         evaluate(sec(30), SUB, sec(60), sec(-30));
         evaluate(sec(60), SUB, 90, sec(-30));
+    }
+
+    // Comparison tests
+    public void testComparisonEqual() {
+        assertTrue(evaluate(5, EQ, 5));
+        assertTrue(evaluate(2.5, EQ, 2.5));
+        assertFalse(evaluate(5, EQ, 3));
+    }
+
+    public void testComparisonNotEqual() {
+        assertTrue(evaluate(5, NEQ, 3));
+        assertFalse(evaluate(5, NEQ, 5));
+    }
+
+    public void testComparisonGreaterThan() {
+        assertTrue(evaluate(5, GT, 3));
+        assertFalse(evaluate(3, GT, 5));
+        assertFalse(evaluate(5, GT, 5));
+    }
+
+    public void testComparisonGreaterThanOrEqual() {
+        assertTrue(evaluate(5, GTE, 3));
+        assertTrue(evaluate(5, GTE, 5));
+        assertFalse(evaluate(3, GTE, 5));
+    }
+
+    public void testComparisonLessThan() {
+        assertTrue(evaluate(3, LT, 5));
+        assertFalse(evaluate(5, LT, 3));
+        assertFalse(evaluate(5, LT, 5));
+    }
+
+    public void testComparisonLessThanOrEqual() {
+        assertTrue(evaluate(3, LTE, 5));
+        assertTrue(evaluate(5, LTE, 5));
+        assertFalse(evaluate(5, LTE, 3));
     }
 }

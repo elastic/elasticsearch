@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
 import static org.hamcrest.Matchers.equalTo;
@@ -366,7 +368,13 @@ public abstract class AbstractMatchFullTextFunctionTests extends AbstractFunctio
     private static List<TestCaseSupplier> addNullFieldTestCases(List<TestCaseSupplier> suppliers) {
         List<TestCaseSupplier> nullFieldCases = new ArrayList<>();
 
+        Set<List<DataType>> uniqueSignatures = new HashSet<>();
         for (TestCaseSupplier supplier : suppliers) {
+            boolean firstTimeSeenSignature = uniqueSignatures.add(supplier.types());
+            // Add a single null field case per unique signature, similar to AbstractFunctionTestCase.anyNullIsNull
+            if (firstTimeSeenSignature == false) {
+                continue;
+            }
             // Create a new test case supplier with null as the first argument (field)
             List<DataType> types = new ArrayList<>(supplier.types());
             types.set(0, DataType.NULL);

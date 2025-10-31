@@ -169,7 +169,7 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         startDownsampleTaskViaIlm(sourceIndex, targetIndex);
         assertBusy(() -> assertTargetIndex(cluster, targetIndex, indexedDocs));
         ensureGreen(targetIndex);
-        // We assert that ILM successfully completed the phase
+        // We wait for ILM to successfully complete the phase
         logger.info("Waiting for ILM to complete the phase for index [{}]", targetIndex);
         awaitClusterState(clusterState -> {
             IndexMetadata indexMetadata = clusterState.metadata().getProject().index(targetIndex);

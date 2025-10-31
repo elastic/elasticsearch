@@ -44,8 +44,10 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.PrefilteringTestUtils;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InferenceResults;
@@ -242,6 +244,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         if (randomBoolean()) {
             builder.queryName(randomAlphaOfLength(4));
         }
+        if (randomBoolean()) {
+            PrefilteringTestUtils.setRandomTermQueryPrefilters(builder, KEYWORD_FIELD_NAME, TEXT_FIELD_NAME);
+        }
 
         return builder;
     }
@@ -258,7 +263,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         switch (inferenceResultType) {
             case NONE -> assertThat(nestedQuery.getChildQuery(), instanceOf(MatchNoDocsQuery.class));
             case SPARSE_EMBEDDING -> assertSparseEmbeddingLuceneQuery(nestedQuery.getChildQuery());
-            case TEXT_EMBEDDING -> assertTextEmbeddingLuceneQuery(nestedQuery.getChildQuery());
+            case TEXT_EMBEDDING -> assertTextEmbeddingLuceneQuery(queryBuilder, nestedQuery.getChildQuery(), context);
         }
     }
 
@@ -273,14 +278,22 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(innerBooleanQuery.clauses().size(), equalTo(0));
     }
 
-    private void assertTextEmbeddingLuceneQuery(Query query) {
+    private void assertTextEmbeddingLuceneQuery(SemanticQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
+        throws IOException {
         Query innerQuery = assertOuterBooleanQuery(query);
 
-        Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
-            case FLOAT -> KnnFloatVectorQuery.class;
-            case BYTE, BIT -> KnnByteVectorQuery.class;
-        };
-        assertThat(innerQuery, instanceOf(expectedKnnQueryClass));
+        switch (denseVectorElementType) {
+            case FLOAT: {
+                assertThat(innerQuery, instanceOf(KnnFloatVectorQuery.class));
+                PrefilteringTestUtils.assertQueryHasPrefilters(queryBuilder, innerQuery, context);
+                break;
+            }
+            case BYTE, BIT: {
+                assertThat(innerQuery, instanceOf(KnnByteVectorQuery.class));
+                PrefilteringTestUtils.assertQueryHasPrefilters(queryBuilder, innerQuery, context);
+                break;
+            }
+        }
     }
 
     private Query assertOuterBooleanQuery(Query query) {
@@ -424,6 +437,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 null,
                 Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)), inferenceResults)
             );
+            if (randomBoolean()) {
+                originalQuery.setPrefilters(randomList(1, 5, () -> RandomQueryBuilder.createQuery(random())));
+            }
             SemanticQueryBuilder bwcQuery = new SemanticQueryBuilder(
                 fieldName,
                 query,

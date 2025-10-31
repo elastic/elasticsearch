@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.Prefiltering;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -44,7 +45,10 @@ import java.util.Objects;
  * A query that uses a filters with a script associated with them to compute the
  * score.
  */
-public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder> {
+public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder>
+    implements
+        Prefiltering<FunctionScoreQueryBuilder> {
+
     public static final String NAME = "function_score";
 
     // For better readability of error message
@@ -73,6 +77,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     private Float minScore = null;
 
     private final FilterFunctionBuilder[] filterFunctionBuilders;
+
+    private final List<QueryBuilder> prefilters = new ArrayList<>();
 
     /**
      * Creates a function_score query without functions
@@ -144,6 +150,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         minScore = in.readOptionalFloat();
         boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);
         scoreMode = FunctionScoreQuery.ScoreMode.readFromStream(in);
+        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+            prefilters.addAll(in.readNamedWriteableCollectionAsList(QueryBuilder.class));
+        }
     }
 
     @Override
@@ -154,6 +163,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         out.writeOptionalFloat(minScore);
         out.writeOptionalWriteable(boostMode);
         scoreMode.writeTo(out);
+        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     /**
@@ -322,6 +334,17 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         return new FunctionScoreQuery(query, scoreMode, filterFunctions, boostMode, minScore, maxBoost);
     }
 
+    @Override
+    public FunctionScoreQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        this.prefilters.addAll(prefilters);
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return prefilters;
+    }
+
     /**
      * Function to be associated with an optional filter, meaning it will be executed only for the documents
      * that match the given filter.
@@ -405,6 +428,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        propagatePrefilters(List.of(query));
+
         QueryBuilder queryBuilder = this.query.rewrite(queryRewriteContext);
         if (queryBuilder instanceof MatchNoneQueryBuilder) {
             return queryBuilder;

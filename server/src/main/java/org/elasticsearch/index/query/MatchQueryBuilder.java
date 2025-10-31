@@ -29,13 +29,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Match query is a query that analyzes the text and constructs a query as the
  * result of the analysis.
  */
-public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
+public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> implements Prefiltering<MatchQueryBuilder> {
 
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -81,6 +83,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
+    private final List<QueryBuilder> prefilters = new ArrayList<>();
+
     /**
      * Constructs a new match query.
      */
@@ -118,6 +122,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             in.readOptionalFloat();
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
+        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+            prefilters.addAll(in.readNamedWriteableCollectionAsList(QueryBuilder.class));
+        }
     }
 
     @Override
@@ -140,6 +147,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             out.writeOptionalFloat(null);
         }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
+        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     /** Returns the field name used in this query. */
@@ -569,5 +579,16 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.zero();
+    }
+
+    @Override
+    public MatchQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        this.prefilters.addAll(prefilters);
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return prefilters;
     }
 }

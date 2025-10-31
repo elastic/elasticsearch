@@ -1004,7 +1004,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return fieldInfos.fieldInfo(getEmbeddingsFieldName(name())) != null;
         }
 
-        public QueryBuilder semanticQuery(InferenceResults inferenceResults, Integer requestSize, float boost, String queryName) {
+        public QueryBuilder semanticQuery(
+            InferenceResults inferenceResults,
+            Integer requestSize,
+            float boost,
+            String queryName,
+            List<QueryBuilder> filters
+        ) {
             String nestedFieldPath = getChunksFieldName(name());
             String inferenceResultsFieldName = getEmbeddingsFieldName(name());
             QueryBuilder childQueryBuilder;
@@ -1055,7 +1061,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             k = Math.max(k, DEFAULT_SIZE);
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null, null);
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null, null).addFilterQueries(
+                            filters
+                        );
                     }
                     default -> throw new IllegalStateException(
                         "Field ["

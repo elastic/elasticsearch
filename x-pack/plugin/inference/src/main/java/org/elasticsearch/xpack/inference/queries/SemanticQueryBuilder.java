@@ -24,6 +24,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.Prefiltering;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -62,7 +63,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
+public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> implements Prefiltering<SemanticQueryBuilder> {
     public static final String NAME = "semantic";
 
     public static final NodeFeature SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = new NodeFeature("semantic_query.multiple_inference_ids");
@@ -101,6 +102,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
     private final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier;
     private final Boolean lenient;
+    private final List<QueryBuilder> prefilters = new ArrayList<>();
 
     // ccsRequest is only used on the local cluster coordinator node to detect when:
     // - The request references a remote index
@@ -178,6 +180,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             this.ccsRequest = false;
         }
 
+        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+            this.prefilters.addAll(in.readNamedWriteableCollectionAsList(QueryBuilder.class));
+        }
+
         this.inferenceResultsMapSupplier = null;
     }
 
@@ -230,6 +236,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                     + "."
             );
         }
+
+        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     private SemanticQueryBuilder(
@@ -247,6 +257,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.inferenceResultsMapSupplier = inferenceResultsMapSupplier;
         this.lenient = other.lenient;
         this.ccsRequest = ccsRequest;
+        this.prefilters.addAll(other.prefilters);
     }
 
     @Override
@@ -493,7 +504,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
 
-            return semanticTextFieldType.semanticQuery(inferenceResults, searchExecutionContext.requestSize(), boost(), queryName());
+            return semanticTextFieldType.semanticQuery(
+                inferenceResults,
+                searchExecutionContext.requestSize(),
+                boost(),
+                queryName(),
+                prefilters
+            );
         } else if (lenient != null && lenient) {
             return new MatchNoneQueryBuilder();
         } else {
@@ -652,5 +669,16 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, query, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+    }
+
+    @Override
+    public SemanticQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        this.prefilters.addAll(prefilters);
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return prefilters;
     }
 }

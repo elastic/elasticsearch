@@ -20,8 +20,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * The BoostingQuery class can be used to effectively demote results that match a given query.
@@ -35,7 +38,7 @@ import java.util.Objects;
  * multiplied by the supplied "boost" parameter, so this should be less than 1 to achieve a
  * demoting effect
  */
-public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
+public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> implements Prefiltering<BoostingQueryBuilder> {
     public static final String NAME = "boosting";
 
     private static final ParseField POSITIVE_FIELD = new ParseField("positive");
@@ -47,6 +50,8 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     private final QueryBuilder negativeQuery;
 
     private float negativeBoost = -1;
+
+    private final List<QueryBuilder> prefilters = new ArrayList<>();
 
     /**
      * Create a new {@link BoostingQueryBuilder}
@@ -73,6 +78,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         positiveQuery = in.readNamedWriteable(QueryBuilder.class);
         negativeQuery = in.readNamedWriteable(QueryBuilder.class);
         negativeBoost = in.readFloat();
+        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+            prefilters.addAll(in.readNamedWriteableCollectionAsList(QueryBuilder.class));
+        }
     }
 
     @Override
@@ -80,6 +88,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         out.writeNamedWriteable(positiveQuery);
         out.writeNamedWriteable(negativeQuery);
         out.writeFloat(negativeBoost);
+        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     /**
@@ -209,6 +220,8 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        propagatePrefilters(List.of(positiveQuery));
+
         QueryBuilder positiveQuery = this.positiveQuery.rewrite(queryRewriteContext);
         if (positiveQuery instanceof MatchNoneQueryBuilder) {
             return positiveQuery;
@@ -232,5 +245,16 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.zero();
+    }
+
+    @Override
+    public BoostingQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        prefilters.addAll(prefilters);
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return Stream.concat(prefilters.stream(), List.of(positiveQuery).stream()).toList();
     }
 }

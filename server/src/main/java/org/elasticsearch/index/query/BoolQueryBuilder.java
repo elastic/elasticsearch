@@ -30,13 +30,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
 /**
  * A Query that matches documents matching boolean combinations of other queries.
  */
-public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
+public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> implements Prefiltering<BoolQueryBuilder> {
     public static final String NAME = "bool";
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
@@ -60,6 +61,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     private String minimumShouldMatch;
 
+    private final List<QueryBuilder> prefilters = new ArrayList<>();
+
     /**
      * Build an empty bool query.
      */
@@ -76,6 +79,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         filterClauses.addAll(readQueries(in));
         adjustPureNegative = in.readBoolean();
         minimumShouldMatch = in.readOptionalString();
+        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+            prefilters.addAll(in.readNamedWriteableCollectionAsList(QueryBuilder.class));
+        }
     }
 
     @Override
@@ -86,6 +92,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         writeQueries(out, filterClauses);
         out.writeBoolean(adjustPureNegative);
         out.writeOptionalString(minimumShouldMatch);
+        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     /**
@@ -353,6 +362,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         if (clauses == 0) {
             return new MatchAllQueryBuilder().boost(boost()).queryName(queryName());
         }
+
+        propagatePrefilters(Stream.concat(mustClauses.stream(), shouldClauses.stream()).toList());
+
         changed |= rewriteClauses(queryRewriteContext, mustClauses, newBuilder::must);
 
         try {
@@ -415,6 +427,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     ) throws IOException {
         boolean changed = false;
         for (QueryBuilder builder : builders) {
+
             QueryBuilder result = builder.rewrite(queryRewriteContext);
             if (result != builder) {
                 changed = true;
@@ -451,5 +464,16 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             copy.should(q);
         }
         return copy;
+    }
+
+    @Override
+    public BoolQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        this.prefilters.addAll(prefilters);
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return Stream.concat(prefilters.stream(), filterClauses.stream()).toList();
     }
 }

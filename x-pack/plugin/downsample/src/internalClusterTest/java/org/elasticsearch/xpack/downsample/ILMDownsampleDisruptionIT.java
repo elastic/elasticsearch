@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -47,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -164,6 +166,13 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         startDownsampleTaskViaIlm(sourceIndex, targetIndex);
         assertBusy(() -> assertTargetIndex(cluster, targetIndex, indexedDocs));
         ensureGreen(targetIndex);
+        // We wait for ILM to successfully complete the phase
+        logger.info("Waiting for ILM to complete the phase for index [{}]", targetIndex);
+        awaitClusterState(clusterState -> {
+            IndexMetadata indexMetadata = clusterState.metadata().getProject().index(targetIndex);
+            return indexMetadata.getLifecycleExecutionState() != null
+                && Objects.equals(indexMetadata.getLifecycleExecutionState().step(), PhaseCompleteStep.NAME);
+        });
     }
 
     private void startDownsampleTaskViaIlm(String sourceIndex, String targetIndex) throws Exception {

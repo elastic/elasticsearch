@@ -111,16 +111,15 @@ public class HistogramPercentile extends EsqlScalarFunction {
 
     @Evaluator
     static double process(ExponentialHistogram value, double percentile) {
-        double result = ExponentialHistogramQuantile.getQuantile(value, percentile / 100.0);
-        return result;
+        // TODO handle nans and out of bounds percentiles
+        return ExponentialHistogramQuantile.getQuantile(value, percentile / 100.0);
     }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(histogram);
         var percentileEvaluator = Cast.cast(source(), percentile.dataType(), DataType.DOUBLE, toEvaluator.apply(percentile));
-
-        return null;
+        return new HistogramPercentileEvaluator.Factory(source(), fieldEvaluator, percentileEvaluator);
     }
 
 

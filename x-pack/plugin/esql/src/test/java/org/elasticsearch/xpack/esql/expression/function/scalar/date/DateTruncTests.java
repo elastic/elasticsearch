@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.hamcrest.BaseMatcher;
 import org.hamcrest.Matchers;
 
 import java.time.Duration;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -98,7 +100,41 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             ///
             new DurationTestCaseData(Duration.ofHours(3), ts, "UTC", "2023-02-17T09:00:00Z"),
             new DurationTestCaseData(Duration.ofHours(3), ts, "-02:00", "2023-02-17T08:00:00Z"),
-            new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z")
+            new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "UTC", "2020-01-01T03:00:00Z"),
+            new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
+            new DurationTestCaseData(Duration.ofMinutes(3 * 60), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
+
+            // TODO: What to do with hours/minutes/seconds that are not divisors of a full day?
+            //new DurationTestCaseData(Duration.ofHours(5), "2020-01-01T05:30:00Z", "+01", "2020-01-01T05:00:00Z"),
+
+            ///
+            /// Daylight savings
+            ///
+            //- +1 -> +2 at 2025-03-30T02:00:00+01:00
+            new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T00:00:00+01:00", "Europe/Paris", "2025-03-30T00:00:00+01:00"),
+            new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T01:00:00+01:00", "Europe/Paris", "2025-03-30T00:00:00+01:00"),
+            new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T03:00:00+02:00", "Europe/Paris", "2025-03-30T03:00:00+02:00"),
+            new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T04:00:00+02:00", "Europe/Paris", "2025-03-30T03:00:00+02:00"),
+            // - +2 -> +1 at 2025-10-26T03:00:00+02:00
+            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T01:00:00+02:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
+            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:00:00+02:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
+            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:00:00+01:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
+            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T03:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
+            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T04:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
+            // Bigger intervals
+            new DurationTestCaseData(Duration.ofHours(12), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
+            new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
+            // TODO: What to do with hours over a day?
+            // new DurationTestCaseData(Duration.ofHours(48), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00")
+
+            ///
+            /// Partial hours timezones
+            ///
+            new DurationTestCaseData(Duration.ofMinutes(1), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T02:09:00+01:15"),
+            new DurationTestCaseData(Duration.ofMinutes(30), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T02:00:00+01:15"),
+            new DurationTestCaseData(Duration.ofHours(1), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T02:00:00+01:15"),
+        new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T00:00:00+01:15"),
+            new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T00:00:00+01:15")
         );
     }
 
@@ -121,9 +157,26 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             new PeriodTestCaseData(Period.ofYears(5), ts, "UTC", "2021-01-01T00:00:00.00Z"),
 
             ///
-            /// Timezones
+            /// Timezone with DST (-5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)
             ///
-            new PeriodTestCaseData(Period.ofMonths(3), "2023-01-01T00:00:00.00Z", "-01:00", "2022-10-01T01:00:00.00Z")
+            new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-09T00:00:00-05:00"),
+            new PeriodTestCaseData(Period.ofMonths(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-01T00:00:00-05:00"),
+            new PeriodTestCaseData(Period.ofYears(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-01-01T00:00:00-05:00"),
+            new PeriodTestCaseData(Period.ofDays(10), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-03T00:00:00-05:00"),
+            new PeriodTestCaseData(Period.ofDays(1), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00"),
+            new PeriodTestCaseData(Period.ofDays(7), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-10-27T00:00:00-04:00"),
+            new PeriodTestCaseData(Period.ofMonths(3), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-10-01T00:00:00-04:00"),
+
+            ///
+            /// Partial hours timezones
+            ///
+            new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T07:08:09-05:45", "-05:45", "2025-03-09T00:00:00-05:45"),
+            new PeriodTestCaseData(Period.ofMonths(1), "2025-03-09T07:08:09-05:45", "-05:45", "2025-03-01T00:00:00-05:45"),
+            new PeriodTestCaseData(Period.ofYears(1), "2025-03-09T07:08:09-05:45", "-05:45", "2025-01-01T00:00:00-05:45"),
+            new PeriodTestCaseData(Period.ofDays(10), "2025-03-09T07:08:09-05:45", "-05:45", "2025-03-03T00:00:00-05:45"),
+            new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T07:08:09-05:45", "-05:45", "2025-03-09T00:00:00-05:45"),
+            new PeriodTestCaseData(Period.ofDays(7), "2025-03-09T07:08:09-05:45", "-05:45", "2025-03-03T00:00:00-05:45"),
+            new PeriodTestCaseData(Period.ofMonths(3), "2025-03-09T07:08:09-05:45", "-05:45", "2025-01-01T00:00:00-05:45")
         );
     }
 
@@ -139,7 +192,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     ),
                     Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATETIME,
-                    equalTo(data.expectedDateAsMillis())
+                    new DateMillisMatcher(data.expectedDate()) // equalTo(data.expectedDateAsMillis())
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             ),
             new TestCaseSupplier(
@@ -152,7 +205,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     ),
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATE_NANOS,
-                    equalTo(toNanos(data.expectedDate()))
+                    new DateNanosMatcher(data.expectedDate()) // equalTo(toNanos(data.expectedDate()))
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             )
         );
@@ -170,7 +223,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     ),
                     Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATETIME,
-                    equalTo(data.expectedDateAsMillis())
+                    new DateMillisMatcher(data.expectedDate()) // equalTo(data.expectedDateAsMillis())
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             ),
             new TestCaseSupplier(
@@ -183,7 +236,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     ),
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATE_NANOS,
-                    equalTo(toNanos(data.expectedDate()))
+                    new DateNanosMatcher(data.expectedDate()) // equalTo(toNanos(data.expectedDate()))
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             )
         );
@@ -229,5 +282,61 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         return new DateTrunc(source, args.get(0), args.get(1), configuration);
+    }
+
+    public static class DateMillisMatcher extends BaseMatcher<Long> {
+        private final long timeMillis;
+
+        public DateMillisMatcher(String date) {
+            this.timeMillis = toMillis(date);
+        }
+
+        @Override
+        public boolean matches(Object item) {
+            return item instanceof Long && timeMillis == (Long) item;
+        }
+
+        @Override
+        public void describeMismatch(Object item, org.hamcrest.Description description) {
+            description.appendText("was ");
+            if (item instanceof Long l) {
+                description.appendValue(DEFAULT_DATE_TIME_FORMATTER.formatMillis(l));
+            } else {
+                description.appendValue(item);
+            }
+        }
+
+        @Override
+        public void describeTo(org.hamcrest.Description description) {
+            description.appendText(DEFAULT_DATE_TIME_FORMATTER.formatMillis(timeMillis));
+        }
+    }
+
+    public static class DateNanosMatcher extends BaseMatcher<Long> {
+        private final long timeNanos;
+
+        public DateNanosMatcher(String date) {
+            this.timeNanos = toNanos(date);
+        }
+
+        @Override
+        public boolean matches(Object item) {
+            return item instanceof Long && timeNanos == (Long) item;
+        }
+
+        @Override
+        public void describeMismatch(Object item, org.hamcrest.Description description) {
+            description.appendText("was ");
+            if (item instanceof Long l) {
+                description.appendValue(DEFAULT_DATE_TIME_FORMATTER.formatNanos(l));
+            } else {
+                description.appendValue(item);
+            }
+        }
+
+        @Override
+        public void describeTo(org.hamcrest.Description description) {
+            description.appendText(DEFAULT_DATE_TIME_FORMATTER.formatNanos(timeNanos));
+        }
     }
 }

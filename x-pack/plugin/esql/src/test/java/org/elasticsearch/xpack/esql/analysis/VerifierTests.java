@@ -1413,8 +1413,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchInsideEval() throws Exception {
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE and STATS commands"
-                + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+            "1:36: [:] operator is only supported in WHERE and STATS commands or in EVAL within score(.) function"
                 + "\n"
                 + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = title:\"fox\" ")
@@ -1582,8 +1581,7 @@ public class VerifierTests extends ESTestCase {
                     + functionName
                     + "] "
                     + functionType
-                    + " is only supported in WHERE and STATS commands"
-                    + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+                    + " is only supported in WHERE and STATS commands or in EVAL within score(.) function"
             )
         );
         assertThat(
@@ -1603,8 +1601,7 @@ public class VerifierTests extends ESTestCase {
                         + functionName
                         + "] "
                         + functionType
-                        + " is only supported in WHERE and STATS commands"
-                        + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+                        + " is only supported in WHERE and STATS commands or in EVAL within score(.) function"
                 )
             );
         }
@@ -3272,6 +3269,43 @@ public class VerifierTests extends ESTestCase {
             | KEEP emp_no, languages, language_name
             """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
         assertThat(errorMessage, containsString("5:3: [MATCH] function cannot be used after test, (FROM test_mixed_types"));
+    }
+
+    public void testChunkFunctionInvalidInputs() {
+        if (EsqlCapabilities.Cap.CHUNK_FUNCTION.isEnabled()) {
+            assertThat(
+                error(
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": null, \"chunk_size\": 20})",
+                    fullTextAnalyzer,
+                    ParsingException.class
+                ),
+                equalTo("1:39: Invalid named parameter [\"num_chunks\":null], NULL is not supported")
+            );
+            assertThat(
+                error(
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": 3, \"chunk_size\": null})",
+                    fullTextAnalyzer,
+                    ParsingException.class
+                ),
+                equalTo("1:39: Invalid named parameter [\"chunk_size\":null], NULL is not supported")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":\"foo\"})", fullTextAnalyzer),
+                equalTo("1:27: Invalid option [num_chunks] in [CHUNK(body, {\"num_chunks\":\"foo\"})], cannot cast [foo] to [integer]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":\"foo\"})", fullTextAnalyzer),
+                equalTo("1:27: Invalid option [chunk_size] in [CHUNK(body, {\"chunk_size\":\"foo\"})], cannot cast [foo] to [integer]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":-1})", fullTextAnalyzer),
+                equalTo("1:27: [num_chunks] cannot be negative, found [-1]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":-1})", fullTextAnalyzer),
+                equalTo("1:27: [chunk_size] cannot be negative, found [-1]")
+            );
+        }
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

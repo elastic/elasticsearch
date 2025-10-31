@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.matchers.DateMillisMatcher;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.matchers.DateNanosMatcher;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Matchers;
@@ -62,10 +64,6 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         public long inputDateAsMillis() {
             return Instant.parse(inputDate).toEpochMilli();
         }
-
-        public long expectedDateAsMillis() {
-            return Instant.parse(expectedDate).toEpochMilli();
-        }
     }
 
     public record DurationTestCaseData(Duration duration, String inputDate, @Nullable String zoneIdString, String expectedDate) {
@@ -75,10 +73,6 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
 
         public long inputDateAsMillis() {
             return Instant.parse(inputDate).toEpochMilli();
-        }
-
-        public long expectedDateAsMillis() {
-            return Instant.parse(expectedDate).toEpochMilli();
         }
     }
 
@@ -192,7 +186,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     ),
                     Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATETIME,
-                    new DateMillisMatcher(data.expectedDate()) // equalTo(data.expectedDateAsMillis())
+                    new DateMillisMatcher(data.expectedDate())
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             ),
             new TestCaseSupplier(
@@ -205,7 +199,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     ),
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATE_NANOS,
-                    new DateNanosMatcher(data.expectedDate()) // equalTo(toNanos(data.expectedDate()))
+                    new DateNanosMatcher(data.expectedDate())
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             )
         );
@@ -223,7 +217,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     ),
                     Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATETIME,
-                    new DateMillisMatcher(data.expectedDate()) // equalTo(data.expectedDateAsMillis())
+                    new DateMillisMatcher(data.expectedDate())
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             ),
             new TestCaseSupplier(
@@ -236,7 +230,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     ),
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATE_NANOS,
-                    new DateNanosMatcher(data.expectedDate()) // equalTo(toNanos(data.expectedDate()))
+                    new DateNanosMatcher(data.expectedDate())
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             )
         );
@@ -275,68 +269,8 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         return Instant.parse(timestamp).toEpochMilli();
     }
 
-    private static long toNanos(String timestamp) {
-        return DateUtils.toLong(Instant.parse(timestamp));
-    }
-
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         return new DateTrunc(source, args.get(0), args.get(1), configuration);
-    }
-
-    public static class DateMillisMatcher extends BaseMatcher<Long> {
-        private final long timeMillis;
-
-        public DateMillisMatcher(String date) {
-            this.timeMillis = toMillis(date);
-        }
-
-        @Override
-        public boolean matches(Object item) {
-            return item instanceof Long && timeMillis == (Long) item;
-        }
-
-        @Override
-        public void describeMismatch(Object item, org.hamcrest.Description description) {
-            description.appendText("was ");
-            if (item instanceof Long l) {
-                description.appendValue(DEFAULT_DATE_TIME_FORMATTER.formatMillis(l));
-            } else {
-                description.appendValue(item);
-            }
-        }
-
-        @Override
-        public void describeTo(org.hamcrest.Description description) {
-            description.appendText(DEFAULT_DATE_TIME_FORMATTER.formatMillis(timeMillis));
-        }
-    }
-
-    public static class DateNanosMatcher extends BaseMatcher<Long> {
-        private final long timeNanos;
-
-        public DateNanosMatcher(String date) {
-            this.timeNanos = toNanos(date);
-        }
-
-        @Override
-        public boolean matches(Object item) {
-            return item instanceof Long && timeNanos == (Long) item;
-        }
-
-        @Override
-        public void describeMismatch(Object item, org.hamcrest.Description description) {
-            description.appendText("was ");
-            if (item instanceof Long l) {
-                description.appendValue(DEFAULT_DATE_TIME_FORMATTER.formatNanos(l));
-            } else {
-                description.appendValue(item);
-            }
-        }
-
-        @Override
-        public void describeTo(org.hamcrest.Description description) {
-            description.appendText(DEFAULT_DATE_TIME_FORMATTER.formatNanos(timeNanos));
-        }
     }
 }

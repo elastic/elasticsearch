@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.matchers.DateMillisMatcher;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.matchers.DateNanosMatcher;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -137,7 +139,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                             ),
                             Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                             DataType.DATETIME,
-                            equalTo(data.expectedDateAsMillis())
+                            new DateMillisMatcher(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     ),
                     new TestCaseSupplier(
@@ -154,7 +156,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                             ),
                             Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                             DataType.DATE_NANOS,
-                            equalTo(DateUtils.toLong(Instant.parse(data.expectedDate())))
+                            new DateNanosMatcher(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     )
                 )
@@ -174,7 +176,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                             ),
                             Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                             DataType.DATETIME,
-                            equalTo(data.expectedDateAsMillis())
+                            new DateMillisMatcher(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     ),
                     new TestCaseSupplier(
@@ -191,7 +193,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                             ),
                             Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                             DataType.DATE_NANOS,
-                            equalTo(DateUtils.toLong(Instant.parse(data.expectedDate())))
+                            new DateNanosMatcher(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     )
                 )

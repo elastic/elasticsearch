@@ -446,12 +446,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return getMatchingIndexTemplate(projectMetadata).mergeSettings(settings).mergeMappings(mappings);
     }
 
-    public Settings getEffectiveSettings(ProjectMetadata projectMetadata, Function<Settings, Settings> addImplicitSettings) {
-        ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
-        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
-        return addImplicitSettings.apply(templateSettings.merge(settings));
-    }
-
     /**
      * Returns the mappings that would be used to create the write index if this data stream were rolled over right now. This includes
      * the mapping overrides on this data stream, the mapping from the matching composable template, and the mappings from all component

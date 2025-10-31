@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -32,38 +31,41 @@ public record IndexShardCount(int count) {
      * @return Returns an {@link IndexShardCount} containing the shard count for the index
      * @throws IOException Thrown if the {@link IndexMetadata} object cannot be parsed correctly
      */
-    public static IndexShardCount fromIndexMetaData(XContentParser parser) throws IOException {
-        if (parser.currentToken() == null) { // fresh parser? move to the first token
-            parser.nextToken();
-        }
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
-            parser.nextToken();
-        }
+    public static IndexShardCount fromIndexMetadata(XContentParser parser) throws IOException {
+        parser.nextToken(); // fresh parser so move to the first token
+        parser.nextToken(); // on a start object move to next token
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         String currentFieldName;
         XContentParser.Token token = parser.nextToken();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
-        IndexShardCount indexShardCount = new IndexShardCount(-1);
-        // Skip over everything except the settings object we care about, or any unexpected tokens
+        IndexShardCount indexShardCount = null;
+        // Skip over everything except the index.number_of_shards setting, or any unexpected tokens
         while ((currentFieldName = parser.nextFieldName()) != null) {
             token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 if (currentFieldName.equals(KEY_SETTINGS)) {
-                    Settings settings = Settings.fromXContent(parser);
-                    indexShardCount = new IndexShardCount(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1));
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        String fieldName = parser.currentName();
+                        parser.nextToken();
+                        if (SETTING_NUMBER_OF_SHARDS.equals(fieldName)) {
+                            indexShardCount = new IndexShardCount(parser.intValue());
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
                 } else {
-                    // Iterate through the object, but we don't care for it's contents
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                // Iterate through the array, but we don't care for it's contents
                 parser.skipChildren();
             } else if (token.isValue() == false) {
                 throw new IllegalArgumentException("Unexpected token " + token);
             }
         }
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        return indexShardCount;
+
+        // indexShardCount is null if corruption when parsing
+        return indexShardCount != null ? indexShardCount : new IndexShardCount(-1);
     }
 }

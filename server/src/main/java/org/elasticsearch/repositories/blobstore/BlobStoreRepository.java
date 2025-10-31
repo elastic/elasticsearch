@@ -404,7 +404,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final ChecksumBlobStoreFormat<IndexShardCount> INDEX_SHARD_COUNT_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
         METADATA_NAME_FORMAT,
-        (repoName, parser) -> IndexShardCount.fromIndexMetaData(parser),
+        (repoName, parser) -> IndexShardCount.fromIndexMetadata(parser),
         (ignored) -> {
             assert false;
             throw new UnsupportedOperationException();
@@ -1345,7 +1345,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } catch (Exception ex) {
                     logger.warn(() -> format("[%s] [%s] failed to read shard count for index", indexMetaGeneration, indexId.getName()), ex);
                     // Definitely indicates something fairly badly wrong with the repo, but not immediately fatal here: we might get the
-                    // shard count from a subsequent indexMetaGeneration, or we might just not process these shards. If we skip these shards
+                    // shard count from another metadata blob, or we might just not process these shards. If we skip these shards
                     // then the repository will technically enter an invalid state (these shards' index-XXX blobs will refer to snapshots
                     // that no longer exist) and may contain dangling blobs too. A subsequent delete that hits this index may repair
                     // the state if the metadata read error is transient, but if not then the stale indices cleanup will eventually

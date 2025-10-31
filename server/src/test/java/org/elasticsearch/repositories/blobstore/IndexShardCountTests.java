@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -56,7 +57,7 @@ public class IndexShardCountTests extends ESTestCase {
         builder.endObject();
         XContentParser parser = createParser(builder);
 
-        IndexShardCount count = IndexShardCount.fromIndexMetaData(parser);
+        IndexShardCount count = IndexShardCount.fromIndexMetadata(parser);
         assertEquals(numberOfShards, count.count());
     }
 
@@ -75,7 +76,7 @@ public class IndexShardCountTests extends ESTestCase {
         Map<String, Object> indexMetadataMap = XContentHelper.convertToMap(BytesReference.bytes(builder), true, XContentType.JSON).v2();
         removeEventIngestedField(indexMetadataMap);
 
-        IndexShardCount count = IndexShardCount.fromIndexMetaData(parser);
+        IndexShardCount count = IndexShardCount.fromIndexMetadata(parser);
         assertEquals(numberOfShards, count.count());
     }
 
@@ -91,7 +92,7 @@ public class IndexShardCountTests extends ESTestCase {
             .endObject();
         XContentParser parser = createParser(builder);
 
-        IndexShardCount count = IndexShardCount.fromIndexMetaData(parser);
+        IndexShardCount count = IndexShardCount.fromIndexMetadata(parser);
         assertEquals(-1, count.count());
     }
 
@@ -104,7 +105,7 @@ public class IndexShardCountTests extends ESTestCase {
             IndexVersion.getMinimumCompatibleIndexVersion(1_000_000)
         );
         XContentParser parser = createParser(indexMetadataBuilder);
-        IndexShardCount count = IndexShardCount.fromIndexMetaData(parser);
+        IndexShardCount count = IndexShardCount.fromIndexMetadata(parser);
         assertEquals(numberOfShards, count.count());
     }
 
@@ -144,7 +145,7 @@ public class IndexShardCountTests extends ESTestCase {
         IndexReshardingMetadata reshardingMetadata = randomBoolean() ? randomIndexReshardingMetadata(numberOfShards) : null;
 
         return IndexMetadata.builder("foo")
-            .settings(indexSettings(numberOfShards, numberOfReplicas).put("index.version.created", 1))
+            .settings(randomSettings(numberOfShards, numberOfReplicas))
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -179,6 +180,11 @@ public class IndexShardCountTests extends ESTestCase {
             )
             .reshardingMetadata(reshardingMetadata)
             .build();
+    }
+
+    private Settings.Builder randomSettings(int numberOfShards, int numberOfReplicas) {
+        return indexSettings(numberOfShards, numberOfReplicas).put("index.version.created", 1)
+            .putList("index.query.default_field", "title", "description", "tags");
     }
 
     private void removeEventIngestedField(Map<String, Object> indexMetadataMap) {

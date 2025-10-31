@@ -80,6 +80,7 @@ import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
+import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -112,7 +113,11 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
 
     public static TestConfiguration createTestConfiguration() {
         return new TestConfiguration.Builder(
-            new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION)) {
+            new CommonConfig(
+                TaskType.TEXT_EMBEDDING,
+                TaskType.SPARSE_EMBEDDING,
+                EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK)
+            ) {
 
                 @Override
                 protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {

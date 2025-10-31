@@ -1026,7 +1026,7 @@ public final class TextFieldMapper extends FieldMapper {
          * A delegate by definition must have doc_values or be stored so most of the time it can be used for loading.
          */
         public boolean canUseSyntheticSourceDelegateForLoading() {
-            return syntheticSourceDelegate.isPresent() && syntheticSourceDelegate.get().ignoreAbove().isSet() == false;
+            return syntheticSourceDelegate.isPresent() && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored() == false;
         }
 
         /**
@@ -1034,7 +1034,7 @@ public final class TextFieldMapper extends FieldMapper {
          */
         public boolean canUseSyntheticSourceDelegateForQuerying() {
             return syntheticSourceDelegate.isPresent()
-                && syntheticSourceDelegate.get().ignoreAbove().isSet() == false
+                && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored() == false
                 && syntheticSourceDelegate.get().isSearchable();
         }
 
@@ -1748,7 +1748,8 @@ public final class TextFieldMapper extends FieldMapper {
          */
         private static boolean keywordFieldSupportsSyntheticSource(final KeywordFieldMapper keyword) {
             // the field must be stored in some way, whether that be via store or doc values
-            return keyword.hasNormalizer() == false && (keyword.fieldType().hasDocValues()) || keyword.fieldType().isStored();
+            return (keyword.hasNormalizer() == false || keyword.isNormalizerSkipStoreOriginalValue())
+                && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored());
         }
     }
 }

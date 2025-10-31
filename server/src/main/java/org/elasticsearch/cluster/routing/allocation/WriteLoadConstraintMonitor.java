@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -78,13 +79,15 @@ public class WriteLoadConstraintMonitor {
 
         final int numberOfNodes = clusterInfo.getNodeUsageStatsForThreadPools().size();
         final Set<String> writeNodeIdsExceedingQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
-        AtomicBoolean haveWriteNodesBelowQueueLatencyThreshold = new AtomicBoolean(false);
+        final var haveWriteNodesBelowQueueLatencyThreshold = new AtomicBoolean(false);
+        final var totalIngestionNodes = new AtomicInteger(0);
         clusterInfo.getNodeUsageStatsForThreadPools().forEach((nodeId, usageStats) -> {
             if (state.getNodes().get(nodeId).getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
                 // Search nodes are not expected to have write load hot-spots and are not considered for shard relocation.
                 // TODO (ES-13314): consider stateful data tiers
                 return;
             }
+            totalIngestionNodes.incrementAndGet();
             final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = usageStats.threadPoolUsageStatsMap()
                 .get(ThreadPool.Names.WRITE);
             assert writeThreadPoolStats != null : "Write thread pool is not publishing usage stats for node [" + nodeId + "]";
@@ -118,11 +121,11 @@ public class WriteLoadConstraintMonitor {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     """
-                        Nodes [{}] are hot-spotting, of {} total cluster nodes. Reroute for hot-spotting {}. \
+                        Nodes [{}] are hot-spotting, of {} total ingest nodes. Reroute for hot-spotting {}. \
                         Previously hot-spotting nodes are [{}]. The write thread pool queue latency threshold is [{}]. Triggering reroute.
                         """,
                     nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold),
-                    state.nodes().size(),
+                    totalIngestionNodes.get(),
                     lastRerouteTimeMillis == 0
                         ? "has never previously been called"
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",

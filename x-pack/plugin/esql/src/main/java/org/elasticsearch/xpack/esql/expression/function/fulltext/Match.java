@@ -321,16 +321,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         return ALLOWED_OPTIONS;
     }
 
-    @Override
-    protected String getExpectedFieldTypesString() {
-        return "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version";
-    }
-
-    @Override
-    protected String getExpectedQueryTypesString() {
-        return "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version";
-    }
-
     private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
         if (options() == null) {
             return Map.of(LENIENT_FIELD.getPreferredName(), true);

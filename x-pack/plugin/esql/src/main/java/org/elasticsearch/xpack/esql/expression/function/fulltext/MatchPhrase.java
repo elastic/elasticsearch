@@ -181,16 +181,6 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         return ALLOWED_OPTIONS;
     }
 
-    @Override
-    protected String getExpectedFieldTypesString() {
-        return "keyword, text";
-    }
-
-    @Override
-    protected String getExpectedQueryTypesString() {
-        return "keyword";
-    }
-
     private Map<String, Object> matchPhraseQueryOptions() throws InvalidArgumentException {
         if (options() == null) {
             return Map.of();

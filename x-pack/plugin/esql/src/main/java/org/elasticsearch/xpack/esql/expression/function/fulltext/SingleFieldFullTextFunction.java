@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -87,11 +88,6 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Resolves and validates the field parameter type.
      */
     protected TypeResolution resolveField() {
-        // Check for null first to ensure proper error message ordering
-        TypeResolution nullCheck = isNotNull(field, sourceText(), TypeResolutions.ParamOrdinal.FIRST);
-        if (nullCheck.unresolved()) {
-            return nullCheck;
-        }
         return isType(
             field,
             getFieldDataTypes()::contains,
@@ -241,11 +237,15 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Returns a human-readable string listing the expected field types.
      * Used in error messages.
      */
-    protected abstract String getExpectedFieldTypesString();
+    protected String getExpectedFieldTypesString() {
+        return String.join(", ", getFieldDataTypes().stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).toList());
+    }
 
     /**
      * Returns a human-readable string listing the expected query types.
      * Used in error messages.
      */
-    protected abstract String getExpectedQueryTypesString();
+    protected String getExpectedQueryTypesString() {
+        return String.join(", ", getQueryDataTypes().stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).toList());
+    }
 }

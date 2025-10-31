@@ -84,38 +84,46 @@ public class IndexResolver {
     }
 
     /**
-     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
+     * Like {@link #resolveAsMergedMapping(String, Set, QueryBuilder, boolean, boolean, boolean, ActionListener)},
+     * but uses a pre-determined minimum transport version.
      */
-    public void resolveAsMergedMapping(
-        String indexWildcard,
+    public void resolveAsMergedMappingForVersion(
+        String indexPattern,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        TransportVersion minimumVersion,
         ActionListener<IndexResolution> listener
     ) {
-        ActionListener<Versioned<IndexResolution>> ignoreVersion = listener.delegateFailureAndWrap(
+        ActionListener<Versioned<IndexResolution>> versionIgnoringListener = listener.delegateFailureAndWrap(
             (l, versionedResolution) -> l.onResponse(versionedResolution.inner())
         );
 
-        resolveAsMergedMappingAndRetrieveMinimumVersion(
-            indexWildcard,
+        resolveAsMergedMapping(
+            indexPattern,
             fieldNames,
             requestFilter,
             includeAllDimensions,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
-            ignoreVersion
+            minimumVersion,
+            versionIgnoringListener
         );
     }
 
     /**
-     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping. Also retrieves the minimum transport
-     * version available in the cluster (and remotes).
+     * Perform a field caps request to resolve a pattern to one mapping (potentially compound, meaning it spans multiple indices).
+     * The field caps response contains the minimum transport version of all clusters that apply to the pattern,
+     * and it is used to deal with previously unsupported data types during resolution.
+     * <p>
+     * The retrieved minimum version is passed on to the listener.
+     * <p>
+     * If a field's type is not supported on the minimum version, it will be {@link DataType#UNSUPPORTED}.
      */
-    public void resolveAsMergedMappingAndRetrieveMinimumVersion(
-        String indexWildcard,
+    public void resolveAsMergedMapping(
+        String indexPattern,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
@@ -123,19 +131,41 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
+        resolveAsMergedMapping(
+            indexPattern,
+            fieldNames,
+            requestFilter,
+            includeAllDimensions,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported,
+            null,
+            listener
+        );
+    }
+
+    private void resolveAsMergedMapping(
+        String indexPattern,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        boolean includeAllDimensions,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
+        @Nullable TransportVersion minimumVersion,
+        ActionListener<Versioned<IndexResolution>> listener
+    ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
-            createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
+            createFieldCapsRequest(indexPattern, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> {
                 FieldsInfo info = new FieldsInfo(
                     response.caps(),
-                    response.caps().minTransportVersion(),
+                    minimumVersion == null ? response.caps().minTransportVersion() : minimumVersion,
                     Build.current().isSnapshot(),
                     useAggregateMetricDoubleWhenNotSupported,
                     useDenseVectorWhenNotSupported
                 );
                 LOGGER.debug("minimum transport version {} {}", response.caps().minTransportVersion(), info.effectiveMinTransportVersion());
-                l.onResponse(new Versioned<>(mergedMappings(indexWildcard, info), info.effectiveMinTransportVersion()));
+                l.onResponse(new Versioned<>(mergedMappings(indexPattern, info), info.effectiveMinTransportVersion()));
             })
         );
     }

@@ -651,7 +651,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo("aggregate_metric_double");
             }
             case DENSE_VECTOR -> {
-                logger.error("ADFDAFAF " + minVersion());
                 if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
                     || minVersion().supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
                     yield equalTo("unsupported");

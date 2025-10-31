@@ -447,7 +447,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(
+                        indexResolver.resolveAsMergedMappingForVersion(
                             indexName,
                             IndexResolver.ALL_FIELDS,
                             null,
@@ -455,6 +455,10 @@ public class EnrichPolicyResolver {
                             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
                             false,
                             false,
+                            // We construct the mapping with the coordinator's transport version, so it doesn't contain types that the
+                            // coordinator may not know. We do not build for the minimum transport version of the query, though;
+                            // we let the coordinator deal with that, so it may have to strip down this mapping further.
+                            channel.getVersion(),
                             refs.acquire(indexResult -> {
                                 if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
                                     EsIndex esIndex = indexResult.get();

@@ -610,7 +610,7 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        indexResolver.resolveAsMergedMapping(
+        indexResolver.resolveAsMergedMappingForVersion(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
@@ -618,6 +618,7 @@ public class EsqlSession {
             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
             false,
             false,
+            result.minimumTransportVersion(),
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
@@ -851,7 +852,7 @@ public class EsqlSession {
                 result.withIndices(indexPattern, IndexResolution.valid(new EsIndex(indexPattern.indexPattern(), Map.of(), Map.of())))
             );
         } else {
-            indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(
+            indexResolver.resolveAsMergedMapping(
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 // Maybe if no indices are returned, retry without index mode and provide a clearer error message.

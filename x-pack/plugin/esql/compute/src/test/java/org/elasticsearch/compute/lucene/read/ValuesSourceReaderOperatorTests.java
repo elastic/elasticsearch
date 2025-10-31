@@ -1310,16 +1310,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             if (forcedRowByRow) {
                 assertMap(
                     readers,
-                    matchesMap().entry(
-                        "text_with_delegate:row_stride:Delegating[to=kwd, impl=BlockDocValuesReader.SingletonOrdinals]",
-                        segmentCount
-                    )
+                    matchesMap().entry("text_with_delegate:row_stride:Delegating[to=kwd, impl=BytesRefsFromOrds.Singleton]", segmentCount)
                 );
             } else {
                 assertMap(
                     readers,
                     matchesMap().entry(
-                        "text_with_delegate:column_at_a_time:Delegating[to=kwd, impl=BlockDocValuesReader.SingletonOrdinals]",
+                        "text_with_delegate:column_at_a_time:Delegating[to=kwd, impl=BytesRefsFromOrds.Singleton]",
                         lessThanOrEqualTo(pageCount)
                     )
                 );
@@ -1331,7 +1328,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 assertMap(
                     readers,
                     matchesMap().entry(
-                        "mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=BlockDocValuesReader.Ordinals]",
+                        "mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=BytesRefsFromOrds.SortedSet]",
                         equalTo(segmentCount)
                     )
                 );
@@ -1339,7 +1336,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 assertMap(
                     readers,
                     matchesMap().entry(
-                        "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=BlockDocValuesReader.Ordinals]",
+                        "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=BytesRefsFromOrds.SortedSet]",
                         lessThanOrEqualTo(pageCount)
                     )
                 );
@@ -1377,12 +1374,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             if (forcedRowByRow) {
                 assertMap(
                     readers,
-                    matchesMap().entry(name + ":row_stride:BlockDocValuesReader.Singleton" + type, lessThanOrEqualTo(segmentCount))
+                    matchesMap().entry(name + ":row_stride:" + singleName(type), lessThanOrEqualTo(segmentCount))
                 );
             } else {
                 assertMap(
                     readers,
-                    matchesMap().entry(name + ":column_at_a_time:BlockDocValuesReader.Singleton" + type, lessThanOrEqualTo(pageCount))
+                    matchesMap().entry(name + ":column_at_a_time:" + singleName(type), lessThanOrEqualTo(pageCount))
                 );
             }
         }
@@ -1396,21 +1393,26 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Map<?, ?> readers
         ) {
             if (forcedRowByRow) {
-                Integer singletons = (Integer) readers.remove(name + ":row_stride:BlockDocValuesReader.Singleton" + type);
+                Integer singletons = (Integer) readers.remove(name + ":row_stride:" + singleName(type));
                 if (singletons != null) {
                     segmentCount -= singletons;
                 }
-                assertMap(readers, matchesMap().entry(name + ":row_stride:BlockDocValuesReader." + type, segmentCount));
+                assertMap(readers, matchesMap().entry(name + ":row_stride:" + multiName(type), segmentCount));
             } else {
-                Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:BlockDocValuesReader.Singleton" + type);
+                Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:" + singleName(type));
                 if (singletons != null) {
                     pageCount -= singletons;
                 }
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":column_at_a_time:BlockDocValuesReader." + type, lessThanOrEqualTo(pageCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + multiName(type), lessThanOrEqualTo(pageCount)));
             }
+        }
+
+        static String singleName(String type) {
+            return type.equals("Ordinals") ? "BytesRefsFromOrds.Singleton" : "BlockDocValuesReader.Singleton" + type;
+        }
+
+        static String multiName(String type) {
+            return type.equals("Ordinals") ? "BytesRefsFromOrds.SortedSet" : "BlockDocValuesReader." + type;
         }
 
         static void id(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {

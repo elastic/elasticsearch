@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -210,7 +209,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         assert k() != null : "Knn function must have a k value set before translation";
-        var fieldAttribute = Match.fieldAsFieldAttribute(field());
+        var fieldAttribute = fieldAsFieldAttribute(field());
 
         Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
@@ -255,7 +254,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     protected QueryBuilder evaluatorQueryBuilder() {
         // Either we couldn't push down due to non-pushable filters, or because it's part of a disjuncion.
         // Uses a nearest neighbors exact query instead of an approximate one
-        var fieldAttribute = Match.fieldAsFieldAttribute(field());
+        var fieldAttribute = fieldAsFieldAttribute(field());
         Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
         Map<String, Object> opts = queryOptions();

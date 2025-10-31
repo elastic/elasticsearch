@@ -160,7 +160,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
     }
 
     /**
-     * Returns the field as a FieldAttribute for use in query translation.
+     * Returns the field as a FieldAttribute for use in query translation
      */
     protected FieldAttribute fieldAsFieldAttribute() {
         return fieldAsFieldAttribute(field);
@@ -168,6 +168,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     @Override
     public boolean foldable() {
+        // The function is foldable if the field is guaranteed to be null, due to the field not being present in the mapping
         return Expressions.isGuaranteedNull(field());
     }
 
@@ -179,6 +180,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     @Override
     public Nullability nullable() {
+        // The function is nullable if the field is guaranteed to be null, due to the field not being present in the mapping
         return Expressions.isGuaranteedNull(field()) ? Nullability.TRUE : Nullability.FALSE;
     }
 

@@ -342,9 +342,9 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         Map<String, Float> fieldsWithBoost = new HashMap<>();
         for (Expression field : fields) {
-            var fieldAttribute = Match.fieldAsFieldAttribute(field);
+            var fieldAttribute = fieldAsFieldAttribute(field);
             Check.notNull(fieldAttribute, "MultiMatch must have field attributes as arguments #2 to #N-1.");
-            String fieldName = Match.getNameFromFieldAttribute(fieldAttribute);
+            String fieldName = getNameFromFieldAttribute(fieldAttribute);
             fieldsWithBoost.put(fieldName, 1.0f);
         }
         return new MultiMatchQuery(source(), Foldables.queryAsString(query(), sourceText()), fieldsWithBoost, getOptions());
@@ -462,7 +462,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             super.postAnalysisPlanVerification().accept(plan, failures);
             plan.forEachExpression(MultiMatch.class, mm -> {
                 for (Expression field : fields) {
-                    if (Match.fieldAsFieldAttribute(field) == null) {
+                    if (fieldAsFieldAttribute(field) == null) {
                         failures.add(
                             Failure.fail(
                                 field,

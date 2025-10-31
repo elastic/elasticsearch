@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -456,7 +455,7 @@ public class JobManager {
                 ));
             }
         } else {
-            logger.debug("[{}] No process update required for job update: {}", jobUpdate.getJobId(), jobUpdate.toString());
+            logger.debug(() -> format("[%s] No process update required for job update: %s", jobUpdate.getJobId(), jobUpdate.toString()));
             auditJobUpdatedIfNotInternal(request);
         }
 
@@ -620,18 +619,18 @@ public class JobManager {
     }
 
     public void updateProcessOnCalendarChanged(List<String> calendarJobIds, ActionListener<Boolean> updateListener) {
+        // Respond immediately to prevent API timeouts
+        updateListener.onResponse(Boolean.TRUE);
+
         ClusterState clusterState = clusterService.state();
         Set<String> openJobIds = openJobIds(clusterState);
 
-        logger.info("Updating process for calendar change: {} calendar job IDs, {} open jobs", calendarJobIds.size(), openJobIds.size());
+        logger.debug("Updating process for calendar change: {} calendar job IDs, {} open jobs", calendarJobIds.size(), openJobIds.size());
 
         if (openJobIds.isEmpty()) {
-            updateListener.onResponse(Boolean.TRUE);
             return;
         }
 
-        // Respond immediately to prevent API timeouts
-        updateListener.onResponse(Boolean.TRUE);
         // Continue with background processing
         processCalendarUpdatesAsync(calendarJobIds, openJobIds);
     }
@@ -639,8 +638,8 @@ public class JobManager {
     private void processCalendarUpdatesAsync(List<String> calendarJobIds, Set<String> openJobIds) {
         boolean appliesToAllJobs = calendarJobIds.stream().anyMatch(Metadata.ALL::equals);
         if (appliesToAllJobs) {
-            logger.info("Calendar change applies to all jobs - starting background update for {} jobs", openJobIds.size());
-            submitJobEventUpdateAsync(openJobIds);
+            logger.debug("Calendar change applies to all jobs - starting background update for {} jobs", openJobIds.size());
+            submitJobCalendarEventUpdateAsync(openJobIds);
             return;
         }
         // calendarJobIds may be a group or job
@@ -648,17 +647,17 @@ public class JobManager {
         jobConfigProvider.expandGroupIds(calendarJobIds, ActionListener.wrap(expandedIds -> {
             expandedIds.addAll(calendarJobIds);
             openJobIds.retainAll(expandedIds);
-            logger.info("Calendar change expanded to {} jobs - starting background update", openJobIds.size());
-            submitJobEventUpdateAsync(openJobIds);
+            logger.debug("Calendar change expanded to {} jobs - starting background update", openJobIds.size());
+            submitJobCalendarEventUpdateAsync(openJobIds);
         }, e -> logger.error("Failed to expand calendar job groups for background update", e)));
     }
 
-    private void submitJobEventUpdateAsync(Collection<String> jobIds) {
+    private void submitJobCalendarEventUpdateAsync(Set<String> jobIds) {
         if (jobIds.isEmpty()) {
             return;
         }
 
-        logger.info("Starting background calendar event updates for [{}] jobs", jobIds.size());
+        logger.debug("Starting background calendar event updates for [{}] jobs", jobIds.size());
         AtomicInteger succeeded = new AtomicInteger();
         AtomicInteger failed = new AtomicInteger();
         AtomicInteger skipped = new AtomicInteger();
@@ -666,7 +665,7 @@ public class JobManager {
 
         ActionListener<Boolean> backgroundListener = ActionListener.wrap(success -> {
             long duration = System.currentTimeMillis() - startTime;
-            logger.info(
+            logger.debug(
                 "Background calendar updates completed in [{}ms]: {} succeeded, {} failed, {} skipped",
                 duration,
                 succeeded.get(),
@@ -687,12 +686,12 @@ public class JobManager {
 
         // Execute on utility thread pool to avoid blocking transport threads
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            submitJobEventUpdateSync(jobIds, backgroundListener, succeeded, failed, skipped);
+            submitJobCalendarEventUpdateSync(jobIds, backgroundListener, succeeded, failed, skipped);
         });
     }
 
-    private void submitJobEventUpdateSync(
-        Collection<String> jobIds,
+    private void submitJobCalendarEventUpdateSync(
+        Set<String> jobIds,
         ActionListener<Boolean> updateListener,
         AtomicInteger succeeded,
         AtomicInteger failed,
@@ -726,7 +725,14 @@ public class JobManager {
 
     private boolean isExpectedFailure(Exception e) {
         // Job deleted, closed, etc. - not real errors
-        return ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException || e.getMessage().contains("is not open");
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (cause instanceof ResourceNotFoundException) {
+            return true;
+        }
+        // Check for the specific error message format from TransportJobTaskAction
+        // Message format: "Cannot perform requested action because job [jobId] is not open"
+        String message = e.getMessage();
+        return message != null && message.contains("Cannot perform requested action because job [") && message.contains("] is not open");
     }
 
     public void revertSnapshot(

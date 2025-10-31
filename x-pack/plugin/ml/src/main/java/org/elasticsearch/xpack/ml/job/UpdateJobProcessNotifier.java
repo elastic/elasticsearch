@@ -100,11 +100,13 @@ public class UpdateJobProcessNotifier {
         try {
             orderedJobUpdates.drainTo(updates);
             if (updates.isEmpty() == false) {
-                logger.info("Processing [{}] queued job updates", updates.size());
+                logger.debug("Draining [{}] queued job updates from queue", updates.size());
                 long startTime = System.currentTimeMillis();
                 executeProcessUpdates(new VolatileCursorIterator<>(updates));
                 long duration = System.currentTimeMillis() - startTime;
-                logger.info("Processed [{}] job updates in [{}ms]", updates.size(), duration);
+                // Note: This duration only measures queue draining and request submission initiation,
+                // not the actual completion of all updates, which happens asynchronously on response threads.
+                logger.debug("Completed draining and submitting [{}] job update requests in [{}ms]", updates.size(), duration);
             }
         } catch (Exception e) {
             logger.error("Error while processing next job update", e);

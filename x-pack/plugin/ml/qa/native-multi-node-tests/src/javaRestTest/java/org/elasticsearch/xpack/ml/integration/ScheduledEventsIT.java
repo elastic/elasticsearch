@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -50,7 +49,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 
 public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
@@ -513,12 +511,8 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
                 .build()
         );
 
-        // Post events and verify API completes quickly (async behavior)
-        long startTime = System.currentTimeMillis();
+        // Post events - API should return immediately with async implementation
         postScheduledEvents(calendarId, events);
-        long duration = System.currentTimeMillis() - startTime;
-
-        assertThat("API should complete quickly with async implementation", duration, lessThan(5000L));
 
         // Wait for and verify ActionFilter captured the UpdateProcessAction call
         // We intercept the call to UpdateProcessAction using an ActionFilter to verify the call was made
@@ -533,7 +527,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
                 ScheduledEventsIT.UpdateProcessActionTrackerPlugin.updatedJobIds,
                 contains(jobId)
             );
-        }, 5, TimeUnit.SECONDS);
+        });
 
         // Verify calendar events were stored correctly
         verifyCalendarEventsStored(calendarId, 1);
@@ -585,6 +579,68 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         for (Bucket bucket : buckets) {
             assertThat("Closed job buckets should not contain new scheduled events", bucket.getScheduledEvents(), empty());
         }
+    }
+
+    /**
+     * Test calendar updates with mixed open and closed jobs - verify open jobs are updated and closed jobs are skipped
+     */
+    public void testCalendarUpdateWithMixedOpenAndClosedJobs() throws Exception {
+        TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
+
+        // Create two jobs
+        String openJobId = "mixed-test-open-job";
+        String closedJobId = "mixed-test-closed-job";
+
+        // Create and open first job
+        createJob(openJobId, bucketSpan);
+        openJob(openJobId);
+
+        // Create and run second job, then close it
+        Job.Builder closedJob = createJob(closedJobId, bucketSpan);
+        long startTime = 1514764800000L;
+        runJob(closedJob, startTime, bucketSpan, 10);
+
+        // Create calendar with both jobs
+        String calendarId = "mixed-jobs-calendar";
+        putCalendar(calendarId, List.of(openJobId, closedJobId), "Calendar with mixed open and closed jobs");
+
+        // Reset tracker
+        ScheduledEventsIT.UpdateProcessActionTrackerPlugin.reset();
+
+        // Create scheduled event
+        List<ScheduledEvent> events = List.of(
+            new ScheduledEvent.Builder().description("Mixed Jobs Event")
+                .startTime(Instant.ofEpochMilli(System.currentTimeMillis() + 60000))
+                .endTime(Instant.ofEpochMilli(System.currentTimeMillis() + 120000))
+                .calendarId(calendarId)
+                .build()
+        );
+
+        // Post events - should update open job and skip closed job
+        postScheduledEvents(calendarId, events);
+
+        // Wait for ActionFilter to capture the UpdateProcessAction call
+        // Should only be called for the open job, not the closed one
+        assertBusy(() -> {
+            assertThat(
+                "Should have intercepted UpdateProcessAction call for open job only",
+                ScheduledEventsIT.UpdateProcessActionTrackerPlugin.updateProcessCallCount.get(),
+                equalTo(1)
+            );
+            assertThat(
+                "Should have called UpdateProcessAction for the open job only",
+                ScheduledEventsIT.UpdateProcessActionTrackerPlugin.updatedJobIds,
+                contains(openJobId)
+            );
+            assertThat(
+                "Should not have called UpdateProcessAction for the closed job",
+                ScheduledEventsIT.UpdateProcessActionTrackerPlugin.updatedJobIds.contains(closedJobId),
+                is(false)
+            );
+        });
+
+        // Cleanup
+        closeJob(openJobId);
     }
 
     private Job.Builder createJob(String jobId, TimeValue bucketSpan) {

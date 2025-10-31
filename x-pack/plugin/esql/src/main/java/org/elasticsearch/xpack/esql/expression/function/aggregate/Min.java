@@ -91,11 +91,11 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
                 "version" }
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Min(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Min(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Min(StreamInput in) throws IOException {
@@ -109,17 +109,17 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     protected NodeInfo<Min> info() {
-        return NodeInfo.create(this, Min::new, field(), filter());
+        return NodeInfo.create(this, Min::new, field(), filter(), window());
     }
 
     @Override
     public Min replaceChildren(List<Expression> newChildren) {
-        return new Min(source(), newChildren.get(0), newChildren.get(1));
+        return new Min(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public Min withFilter(Expression filter) {
-        return new Min(source(), field(), filter);
+        return new Min(source(), field(), filter, window());
     }
 
     @Override
@@ -163,7 +163,8 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
             return new Min(
                 source(),
                 FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MIN),
-                filter()
+                filter(),
+                window()
             );
         }
         return field().foldable() ? new MvMin(source(), field()) : null;

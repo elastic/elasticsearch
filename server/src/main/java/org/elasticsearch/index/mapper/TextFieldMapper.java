@@ -238,7 +238,7 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceContext {
+    public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Boolean> store;
         private final Parameter<Boolean> norms;
@@ -301,7 +301,7 @@ public final class TextFieldMapper extends FieldMapper {
             boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
+            super(name, indexCreatedVersion, isWithinMultiField);
 
             this.indexMode = indexMode;
             this.analyzers = new TextParams.Analyzers(
@@ -409,7 +409,7 @@ public final class TextFieldMapper extends FieldMapper {
                     index.getValue(),
                     store.getValue(),
                     tsi,
-                    isSyntheticSourceEnabled(),
+                    context.isSourceSynthetic(),
                     isWithinMultiField(),
                     SyntheticSourceHelper.syntheticSourceDelegate(fieldType.stored(), multiFields),
                     meta.getValue(),

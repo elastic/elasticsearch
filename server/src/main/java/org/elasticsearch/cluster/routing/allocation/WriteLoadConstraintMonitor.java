@@ -82,8 +82,9 @@ public class WriteLoadConstraintMonitor {
         final var haveWriteNodesBelowQueueLatencyThreshold = new AtomicBoolean(false);
         final var totalIngestionNodes = new AtomicInteger(0);
         clusterInfo.getNodeUsageStatsForThreadPools().forEach((nodeId, usageStats) -> {
-            if (state.getNodes().get(nodeId).getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
-                // Search nodes are not expected to have write load hot-spots and are not considered for shard relocation.
+            final var nodeRoles = state.getNodes().get(nodeId).getRoles();
+            if (nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) || nodeRoles.contains(DiscoveryNodeRole.ML_ROLE)) {
+                // Search & ML nodes are not expected to have write load hot-spots and are not considered for shard relocation.
                 // TODO (ES-13314): consider stateful data tiers
                 return;
             }

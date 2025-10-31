@@ -342,7 +342,8 @@ public class ClusterStateCreationUtils {
         String indexName,
         int numberOfPrimaries,
         int numberOfIndexNodes,
-        int numberOfSearchNodes
+        int numberOfSearchNodes,
+        int numberOfMLNodes
     ) {
         ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
@@ -354,6 +355,10 @@ public class ClusterStateCreationUtils {
         }
         for (int i = 0; i < numberOfSearchNodes; i++) {
             final DiscoveryNode node = DiscoveryNodeUtils.builder("search_" + i).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build();
+            discoBuilder = discoBuilder.add(node);
+        }
+        for (int i = 0; i < numberOfMLNodes; i++) {
+            final DiscoveryNode node = DiscoveryNodeUtils.builder("ml_" + i).roles(Set.of(DiscoveryNodeRole.ML_ROLE)).build();
             discoBuilder = discoBuilder.add(node);
         }
         discoBuilder.localNodeId(randomFrom(indexNodeIds));

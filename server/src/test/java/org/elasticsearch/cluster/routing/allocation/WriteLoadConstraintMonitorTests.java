@@ -173,6 +173,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final TestState testState = createTestStateWithNumberOfNodesAndHotSpots(
             numberOfIndexNodes,
             randomIntBetween(1, 5), // Search nodes should not be considered to address write load hot-spots.
+            randomIntBetween(1, 5), // ML nodes should not be considered to address write load hot-spots.
             numberOfIndexNodes
         );
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
@@ -331,12 +332,18 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     private TestState createRandomTestStateThatWillTriggerReroute() {
         int numberOfNodes = randomIntBetween(3, 10);
         int numberOfHotSpottingNodes = numberOfNodes - 2; // Leave at least 2 non-hot-spotting nodes.
-        return createTestStateWithNumberOfNodesAndHotSpots(numberOfNodes, randomIntBetween(0, 5), numberOfHotSpottingNodes);
+        return createTestStateWithNumberOfNodesAndHotSpots(
+            numberOfNodes,
+            randomIntBetween(0, 5), // search nodes
+            randomIntBetween(0, 2), // ML nodes
+            numberOfHotSpottingNodes
+        );
     }
 
     private TestState createTestStateWithNumberOfNodesAndHotSpots(
         int numberOfIndexNodes,
         int numberOfSearchNodes,
+        int numberOfMLNodes,
         int numberOfHotSpottingNodes
     ) {
         assert numberOfHotSpottingNodes <= numberOfIndexNodes;
@@ -350,8 +357,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final ClusterState state = ClusterStateCreationUtils.buildServerlessRoleNodes(
             randomIdentifier(), // index name
             randomIntBetween(1, numberOfIndexNodes),  // num shard primaries
-            numberOfIndexNodes, // number of index role nodes
-            numberOfSearchNodes // number of search role nodes
+            numberOfIndexNodes,
+            numberOfSearchNodes,
+            numberOfMLNodes
         );
 
         final RerouteService rerouteService = mock(RerouteService.class);
@@ -429,8 +437,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final AtomicInteger hotSpottingNodes = new AtomicInteger(numberOfNodesHotSpotting);
         return ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(state.nodes().stream().collect(Collectors.toMap(DiscoveryNode::getId, node -> {
-                if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
-                    // Search nodes are skipped for write load hot-spots.
+                if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE) || node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
+                    // Search & ML nodes are skipped for write load hot-spots.
                     return new NodeUsageStatsForThreadPools(node.getId(), ZERO_USAGE_THREAD_POOL_USAGE_MAP);
                 }
                 if (hotSpottingNodes.getAndDecrement() > 0) {

@@ -344,7 +344,12 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         Map<Node, List<Tuple<Deployment, Integer>>> nodeToModel = new HashMap<>();
+        Set<Deployment> zeroAllocationsDeployments = new HashSet<>();
         for (Deployment m : assignments.keySet()) {
+            if (assignments.get(m).isEmpty()) {
+                zeroAllocationsDeployments.add(m);
+                continue;
+            }
             for (Node n : assignments.get(m).keySet()) {
                 List<Tuple<Deployment, Integer>> allocationsPerModel = nodeToModel.containsKey(n) ? nodeToModel.get(n) : new ArrayList<>();
                 allocationsPerModel.add(Tuple.tuple(m, assignments.get(m).get(n)));
@@ -381,6 +386,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             if (i < nodes.size() - 1) {
                 msg.append('\n');
             }
+        }
+        if (zeroAllocationsDeployments.isEmpty() == false) {
+            msg.append('\n');
+            msg.append("Deployments with zero allocations: ");
+            msg.append(zeroAllocationsDeployments.stream().map(Deployment::deploymentId).collect(Collectors.joining(", ", "[", "]")));
         }
         return msg.toString();
     }

@@ -102,10 +102,12 @@ public class AssignmentPlanner {
             }
         }
 
-        logger.debug(() -> "Best plan =\n" + bestPlan.prettyPrint());
-        logger.debug(() -> prettyPrintOverallStats(bestPlan));
-
-        return bestPlan.withZeroAllocationDeployments(deploymentsWithZeroAllocations);
+        bestPlan = bestPlan.withZeroAllocationDeployments(deploymentsWithZeroAllocations);
+        if (logger.isDebugEnabled()) {
+            logger.debug("Best plan =\n{}", bestPlan.prettyPrint());
+            logger.debug("{}", prettyPrintOverallStats(bestPlan));
+        }
+        return bestPlan;
     }
 
     /**

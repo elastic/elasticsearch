@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -27,16 +26,12 @@ public class PromqlArithmeticUtils {
      * Evaluate arithmetic operation between two scalar values at parse time.
      *
      * @param source Source location for error messages
-     * @param left Left operand (Number, Duration, or TimeValue)
-     * @param right Right operand (Number, Duration, or TimeValue)
+     * @param left Left operand (Number or Duration)
+     * @param right Right operand (Number or Duration)
      * @param operation The arithmetic operation
      * @return Result value (Number or Duration)
      */
     public static Object evaluate(Source source, Object left, Object right, ArithmeticOperation operation) {
-        // Normalize TimeValue to Duration for consistent handling
-        left = normalizeToStandardType(left);
-        right = normalizeToStandardType(right);
-
         // Dispatch to appropriate handler based on operand types
         if (left instanceof Duration leftDuration) {
             if (right instanceof Duration rightDuration) {
@@ -58,16 +53,6 @@ public class PromqlArithmeticUtils {
             left.getClass().getSimpleName(),
             right.getClass().getSimpleName()
         );
-    }
-
-    /**
-     * Normalize TimeValue to Duration for consistent internal handling.
-     */
-    private static Object normalizeToStandardType(Object value) {
-        if (value instanceof TimeValue tv) {
-            return Duration.ofSeconds(tv.getSeconds());
-        }
-        return value;
     }
 
     /**
@@ -180,19 +165,5 @@ public class PromqlArithmeticUtils {
         if (duration.isNegative() || duration.isZero()) {
             throw new ParsingException(source, "Duration must be positive, got [{}]", duration);
         }
-    }
-
-    /**
-     * Convert Duration to TimeValue for parser output.
-     */
-    public static TimeValue durationToTimeValue(Duration duration) {
-        return TimeValue.timeValueSeconds(duration.getSeconds());
-    }
-
-    /**
-     * Convert TimeValue to Duration for internal operations.
-     */
-    public static Duration timeValueToDuration(TimeValue timeValue) {
-        return Duration.ofSeconds(timeValue.getSeconds());
     }
 }

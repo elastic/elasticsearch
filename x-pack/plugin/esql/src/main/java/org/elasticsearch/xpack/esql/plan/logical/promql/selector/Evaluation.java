@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
-import org.elasticsearch.core.TimeValue;
-
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 
@@ -20,19 +19,19 @@ import java.util.Objects;
  * &lt;implicit&gt; offset &lt;optional_offset&gt; @ &lt;optional_at&gt;
  */
 public class Evaluation {
-    public static final Evaluation NONE = new Evaluation(TimeValue.ZERO, false, null);
+    public static final Evaluation NONE = new Evaluation(Duration.ZERO, false, null);
 
-    private final TimeValue offset;
+    private final Duration offset;
     private final boolean offsetNegative;
     private final Instant at;
 
-    public Evaluation(TimeValue offset, boolean offsetNegative, Instant at) {
+    public Evaluation(Duration offset, boolean offsetNegative, Instant at) {
         this.offset = offset;
         this.offsetNegative = offsetNegative;
         this.at = at;
     }
 
-    public TimeValue offset() {
+    public Duration offset() {
         return offset;
     }
 
@@ -64,7 +63,7 @@ public class Evaluation {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (offset != null && offset.equals(TimeValue.ZERO) == false) {
+        if (offset != null && offset.isZero() == false) {
             sb.append("offset ");
             if (offsetNegative) {
                 sb.append("-");

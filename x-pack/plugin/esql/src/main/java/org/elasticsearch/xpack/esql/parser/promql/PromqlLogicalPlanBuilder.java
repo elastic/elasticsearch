@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -108,11 +107,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         return switch (result) {
             case LogicalPlan plan -> plan;
             case Literal literal -> new LiteralSelector(source, literal);
-            case TimeValue tv -> {
-                // Convert TimeValue to Duration for TIME_DURATION datatype
-                Duration duration = PromqlArithmeticUtils.timeValueToDuration(tv);
-                yield new LiteralSelector(source, new Literal(source, duration, DataType.TIME_DURATION));
-            }
+            case Duration duration -> new LiteralSelector(source, new Literal(source, duration, DataType.TIME_DURATION));
             case Expression expr -> throw new ParsingException(
                 source,
                 "Expected a plan or literal, got expression [{}]",
@@ -196,9 +191,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         var durationCtx = ctx.duration();
         Expression rangeEx = null;
         if (durationCtx != null) {
-            TimeValue range = visitDuration(durationCtx);
-            // TODO: TimeValue might not be needed after all
-            rangeEx = new Literal(source(ctx.duration()), Duration.ofSeconds(range.getSeconds()), DataType.TIME_DURATION);
+            Duration range = visitDuration(durationCtx);
+            rangeEx = new Literal(source(ctx.duration()), range, DataType.TIME_DURATION);
         }
 
         final LabelMatchers matchers = new LabelMatchers(labels);
@@ -486,8 +480,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
 
         Evaluation evaluation = visitEvaluation(ctx.evaluation());
-        TimeValue rangeEx = visitDuration(ctx.range);
-        TimeValue resolution = visitSubqueryResolution(ctx.subqueryResolution());
+        Duration rangeEx = visitDuration(ctx.range);
+        Duration resolution = visitSubqueryResolution(ctx.subqueryResolution());
 
         return new Subquery(source(ctx), plan, rangeEx, resolution, evaluation);
     }
@@ -495,7 +489,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     /**
      * Parse subquery resolution, reusing the same expression folding logic used for duration arithmetic.
      */
-    public TimeValue visitSubqueryResolution(PromqlBaseParser.SubqueryResolutionContext ctx) {
+    public Duration visitSubqueryResolution(PromqlBaseParser.SubqueryResolutionContext ctx) {
         if (ctx == null) {
             return null;
         }
@@ -514,25 +508,22 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             // Parse the base time value (e.g., ":5m" -> "5m")
             String timeString = timeCtx.getText().substring(1).trim();
             Source timeSource = source(timeCtx);
-            TimeValue baseValue = PromqlParserUtils.parseTimeValue(timeSource, timeString);
+            Duration baseValue = PromqlParserUtils.parseDuration(timeSource, timeString);
 
             if (ctx.op == null || ctx.expression() == null) {
                 return baseValue;
             }
-
-            // Convert TimeValue to Duration for arithmetic
-            Duration leftDuration = PromqlArithmeticUtils.timeValueToDuration(baseValue);
 
             // Evaluate right expression
             Object rightValue = unwrapLiteral(ctx.expression()).value();
 
             // Perform arithmetic using utility
             ArithmeticOperation operation = ArithmeticOperation.fromTokenType(source(ctx.op), ctx.op.getType());
-            Object result = PromqlArithmeticUtils.evaluate(source(ctx), leftDuration, rightValue, operation);
+            Object result = PromqlArithmeticUtils.evaluate(source(ctx), baseValue, rightValue, operation);
 
-            // Convert result back to TimeValue
+            // Result should be Duration
             if (result instanceof Duration duration) {
-                return PromqlArithmeticUtils.durationToTimeValue(duration);
+                return duration;
             }
 
             throw new ParsingException(source(ctx), "Expected duration result, got [{}]",

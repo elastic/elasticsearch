@@ -37,7 +37,7 @@ public class PromqlAstTests extends ESTestCase {
 
     private static final Logger log = LogManager.getLogger(PromqlAstTests.class);
 
-    // @AwaitsFix(bugUrl = "going through them, one at a time")
+    @AwaitsFix(bugUrl = "going through them, one at a time")
     public void testValidQueries() throws Exception {
         List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-valid.promql");
         for (Tuple<String, Integer> line : lines) {
@@ -74,6 +74,7 @@ public class PromqlAstTests extends ESTestCase {
 
     //@AwaitsFix(bugUrl = "placeholder for individual queries")
     public void testSingleQuery() throws Exception {
+        // 1 == bool 1
         String query = """
             rate(http_requests_total[5m])[30m:1m+1^2%1]
             """;

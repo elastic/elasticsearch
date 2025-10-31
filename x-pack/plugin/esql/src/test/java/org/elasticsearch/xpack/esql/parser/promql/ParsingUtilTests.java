@@ -7,27 +7,27 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.function.Function;
 
+import static java.time.Duration.ofDays;
+import static java.time.Duration.ofHours;
+import static java.time.Duration.ofMillis;
+import static java.time.Duration.ofMinutes;
+import static java.time.Duration.ofSeconds;
 import static java.util.Arrays.asList;
-import static org.elasticsearch.core.TimeValue.timeValueDays;
-import static org.elasticsearch.core.TimeValue.timeValueHours;
-import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.core.TimeValue.timeValueMinutes;
-import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.containsString;
 
 public class ParsingUtilTests extends ESTestCase {
 
-    private TimeValue parseTimeValue(String value) {
-        return PromqlParserUtils.parseTimeValue(new Source(0, 0, value), value);
+    private Duration parseTimeValue(String value) {
+        return PromqlParserUtils.parseDuration(new Source(0, 0, value), value);
     }
 
     private void invalidTimeValue(String value, String errorMessage) {
@@ -36,58 +36,56 @@ public class ParsingUtilTests extends ESTestCase {
     }
 
     public void testTimeValuePerUnit() throws Exception {
-        assertEquals(timeValueDays(365), parseTimeValue("1y"));
-        assertEquals(timeValueDays(7), parseTimeValue("1w"));
-        assertEquals(timeValueDays(1), parseTimeValue("1d"));
-        assertEquals(timeValueHours(1), parseTimeValue("1h"));
-        assertEquals(timeValueMinutes(1), parseTimeValue("1m"));
-        assertEquals(timeValueSeconds(1), parseTimeValue("1s"));
-        assertEquals(timeValueMillis(1), parseTimeValue("1ms"));
+        assertEquals(ofDays(365), parseTimeValue("1y"));
+        assertEquals(ofDays(7), parseTimeValue("1w"));
+        assertEquals(ofDays(1), parseTimeValue("1d"));
+        assertEquals(ofHours(1), parseTimeValue("1h"));
+        assertEquals(ofMinutes(1), parseTimeValue("1m"));
+        assertEquals(ofSeconds(1), parseTimeValue("1s"));
+        assertEquals(ofMillis(1), parseTimeValue("1ms"));
     }
 
     public void testTimeValueCombined() throws Exception {
-        assertEquals(new TimeValue(timeValueDays(365).millis() + timeValueDays(2 * 7).millis()), parseTimeValue("1y2w"));
-        assertEquals(new TimeValue(timeValueDays(365).millis() + timeValueDays(3).millis()), parseTimeValue("1y3d"));
-        assertEquals(new TimeValue(timeValueDays(365).millis() + timeValueHours(4).millis()), parseTimeValue("1y4h"));
-        assertEquals(new TimeValue(timeValueDays(365).millis() + timeValueMinutes(5).millis()), parseTimeValue("1y5m"));
-        assertEquals(new TimeValue(timeValueDays(365).millis() + timeValueSeconds(6).millis()), parseTimeValue("1y6s"));
-        assertEquals(new TimeValue(timeValueDays(365).millis() + timeValueMillis(7).millis()), parseTimeValue("1y7ms"));
+        assertEquals(ofDays(365).plus(ofDays(14)), parseTimeValue("1y2w"));
+        assertEquals(ofDays(365).plus(ofDays(3)), parseTimeValue("1y3d"));
+        assertEquals(ofDays(365).plus(ofHours(4)), parseTimeValue("1y4h"));
+        assertEquals(ofDays(365).plus(ofMinutes(5)), parseTimeValue("1y5m"));
+        assertEquals(ofDays(365).plus(ofSeconds(6)), parseTimeValue("1y6s"));
+        assertEquals(ofDays(365).plus(ofMillis(7)), parseTimeValue("1y7ms"));
 
         assertEquals(
-            new TimeValue(timeValueDays(365).millis() + timeValueDays(2 * 7).millis() + timeValueDays(3).millis()),
+            ofDays(365).plus(ofDays(14)).plus(ofDays(3)),
             parseTimeValue("1y2w3d")
         );
 
         assertEquals(
-            new TimeValue(timeValueDays(365).millis() + timeValueDays(3).millis() + timeValueHours(4).millis()),
+            ofDays(365).plus(ofDays(3)).plus(ofHours(4)),
             parseTimeValue("1y3d4h")
         );
 
         assertEquals(
-            new TimeValue(timeValueDays(365).millis() + timeValueMinutes(5).millis() + timeValueSeconds(6).millis()),
+            ofDays(365).plus(ofMinutes(5)).plus(ofSeconds(6)),
             parseTimeValue("1y5m6s")
         );
 
         assertEquals(
-            new TimeValue(
-                timeValueDays(365).millis() + timeValueDays(7).millis() + timeValueDays(1).millis() + timeValueHours(1).millis()
-                    + timeValueMinutes(1).millis() + timeValueSeconds(1).millis() + timeValueMillis(1).millis()
-            ),
+            ofDays(365).plus(ofDays(7)).plus(ofDays(1)).plus(ofHours(1))
+                .plus(ofMinutes(1)).plus(ofSeconds(1)).plus(ofMillis(1)),
             parseTimeValue("1y1w1d1h1m1s1ms")
         );
 
     }
 
     public void testTimeValueRandomCombination() throws Exception {
-        // lambdas generating time value for each time unit (identified by its list index)
-        List<Tuple<String, Function<Integer, TimeValue>>> generators = asList(
-            new Tuple<>("y", n -> timeValueDays(365 * n)),
-            new Tuple<>("w", n -> timeValueDays(7 * n)),
-            new Tuple<>("d", TimeValue::timeValueDays),
-            new Tuple<>("h", TimeValue::timeValueHours),
-            new Tuple<>("m", TimeValue::timeValueMinutes),
-            new Tuple<>("s", TimeValue::timeValueSeconds),
-            new Tuple<>("ms", TimeValue::timeValueMillis)
+        // lambdas generating duration for each time unit (identified by its list index)
+        List<Tuple<String, Function<Integer, Duration>>> generators = asList(
+            new Tuple<>("y", n -> ofDays(365 * n)),
+            new Tuple<>("w", n -> ofDays(7 * n)),
+            new Tuple<>("d", Duration::ofDays),
+            new Tuple<>("h", Duration::ofHours),
+            new Tuple<>("m", Duration::ofMinutes),
+            new Tuple<>("s", Duration::ofSeconds),
+            new Tuple<>("ms", Duration::ofMillis)
         );
         // iterate using a random step through list pick a random number of units from the list by iterating with a random step
         int maximum = generators.size() - 1;
@@ -97,14 +95,14 @@ public class ParsingUtilTests extends ESTestCase {
         for (int position = -1; position < maximum;) {
             int step = randomIntBetween(1, maximum - position);
             position += step;
-            Tuple<String, Function<Integer, TimeValue>> tuple = generators.get(position);
+            Tuple<String, Function<Integer, Duration>> tuple = generators.get(position);
             int number = randomInt(128);
             timeString.append(number);
             timeString.append(tuple.v1());
-            millis += tuple.v2().apply(number).millis();
+            millis += tuple.v2().apply(number).toMillis();
         }
 
-        assertEquals(new TimeValue(millis), parseTimeValue(timeString.toString()));
+        assertEquals(ofMillis(millis), parseTimeValue(timeString.toString()));
     }
 
     public void testTimeValueErrorNoNumber() throws Exception {

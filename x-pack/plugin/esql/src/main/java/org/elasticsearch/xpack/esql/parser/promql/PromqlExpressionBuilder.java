@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.HexLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListContext;
@@ -34,7 +32,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
@@ -99,7 +96,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             return Evaluation.NONE;
         }
 
-        TimeValue offset = null;
+        Duration offset = null;
         boolean negativeOffset = false;
         Instant at = null;
 
@@ -111,16 +108,10 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             } else if (atCtx.AT_END() != null) {
                 at = end;
             } else {
-                TimeValue timeValue = visitTimeValue(atCtx.timeValue());
+                Duration timeValue = visitTimeValue(atCtx.timeValue());
                 // the value can have a floating point
-                long seconds = timeValue.seconds();
-                double secondFrac = timeValue.secondsFrac(); // convert to nanoseconds
-                long nanos = 0;
-
-                if (secondFrac >= Long.MAX_VALUE / 1_000_000 || secondFrac <= Long.MIN_VALUE / 1_000_000) {
-                    throw new ParsingException(source, "Decimal value [{}] is too large/precise", secondFrac);
-                }
-                nanos = (long) (secondFrac * 1_000_000_000);
+                long seconds = timeValue.getSeconds();
+                int nanos = timeValue.getNano();
 
                 if (atCtx.MINUS() != null) {
                     if (seconds == Long.MIN_VALUE) {
@@ -141,17 +132,17 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     }
 
     @Override
-    public TimeValue visitDuration(DurationContext ctx) {
+    public Duration visitDuration(DurationContext ctx) {
         if (ctx == null) {
             return null;
         }
         Object o = visit(ctx.expression());
 
         return switch (o) {
-            case TimeValue tv -> tv;
+            case Duration duration -> duration;
             case Literal l -> throw new ParsingException(
                 source(ctx),
-                "Expected literals to be already converted to timevalue, got [{}]",
+                "Expected literals to be already converted to duration, got [{}]",
                 l.value()
             );
             case LogicalPlan plan -> {
@@ -162,7 +153,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
                     // Handle Duration
                     if (value instanceof Duration duration) {
-                        yield PromqlArithmeticUtils.durationToTimeValue(duration);
+                        yield duration;
                     }
 
                     // Handle numeric scalars interpreted as seconds
@@ -171,7 +162,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                         if (seconds <= 0) {
                             throw new ParsingException(source(ctx), "Duration must be positive, got [{}]s", seconds);
                         }
-                        yield TimeValue.timeValueSeconds(seconds);
+                        yield Duration.ofSeconds(seconds);
                     }
 
                     throw new ParsingException(
@@ -191,11 +182,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 // Fallback for Expression (shouldn't happen with new logic)
                 if (e.foldable()) {
                     Object folded = e.fold(FoldContext.small());
-                    if (folded instanceof TimeValue timeValue) {
-                        yield timeValue;
-                    }
                     if (folded instanceof Duration duration) {
-                        yield PromqlArithmeticUtils.durationToTimeValue(duration);
+                        yield duration;
                     }
                 }
                 // otherwise bail out
@@ -206,7 +194,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     }
 
     @Override
-    public TimeValue visitTimeValue(TimeValueContext ctx) {
+    public Duration visitTimeValue(TimeValueContext ctx) {
         if (ctx.number() != null) {
             var literal = typedParsing(this, ctx.number(), Literal.class);
             Number number = (Number) literal.value();
@@ -224,7 +212,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 }
             }
 
-            return new TimeValue(number.longValue(), TimeUnit.SECONDS);
+            return Duration.ofSeconds(number.longValue());
         }
         String timeString = null;
         Source source;
@@ -317,11 +305,11 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         return new Literal(source, string(ctx.STRING()), DataType.KEYWORD);
     }
 
-    private static TimeValue parseTimeValue(Source source, String text) {
-        TimeValue timeValue = PromqlParserUtils.parseTimeValue(source, text);
-        if (timeValue.duration() == 0) {
+    private static Duration parseTimeValue(Source source, String text) {
+        Duration duration = PromqlParserUtils.parseDuration(source, text);
+        if (duration.isZero()) {
             throw new ParsingException(source, "Invalid time duration [{}], zero value specified", text);
         }
-        return timeValue;
+        return duration;
     }
 }

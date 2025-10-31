@@ -140,7 +140,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
             if (s.labelMatchers().nameLabel().matcher().isRegex()) {
                 failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
             }
-            if (s.evaluation() != null && s.evaluation().offset() != null && s.evaluation().offset() != TimeValue.ZERO) {
+            if (s.evaluation() != null && s.evaluation().offset() != null && s.evaluation().offset().isZero() == false) {
                 failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
             }
         });

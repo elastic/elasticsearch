@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -39,7 +39,7 @@ public class PromqlParserUtils {
 
     private PromqlParserUtils() {}
 
-    public static TimeValue parseTimeValue(Source source, String string) {
+    public static Duration parseDuration(Source source, String string) {
         char[] chars = string.toCharArray();
 
         long millis = 0;
@@ -109,7 +109,7 @@ public class PromqlParserUtils {
             millis += number * msMultiplier;
         }
 
-        return new TimeValue(millis);
+        return Duration.ofMillis(millis);
     }
 
     static String unquote(Source source) {

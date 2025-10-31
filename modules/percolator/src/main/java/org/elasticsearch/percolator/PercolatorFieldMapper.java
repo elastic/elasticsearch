@@ -433,20 +433,24 @@ public class PercolatorFieldMapper extends FieldMapper {
             // make sure that we don't expand dots in field names while parsing, otherwise queries will
             // fail parsing due to unsupported inner objects
             context.path().setWithinLeafObject(true);
-            return parseTopLevelQuery(parser, queryName -> {
-                if (queryName.equals("has_child")) {
-                    throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
-                } else if (queryName.equals("has_parent")) {
-                    throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
-                } else if (queryName.equals(KnnVectorQueryBuilder.NAME)) {
-                    throw new IllegalArgumentException("the [knn] query is unsupported inside a percolator query");
-                }
-            });
+            return getQueryBuilder(parser);
         } catch (IOException e) {
             throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
         } finally {
             context.path().setWithinLeafObject(false);
         }
+    }
+
+    static QueryBuilder getQueryBuilder(XContentParser parser) throws IOException {
+        return parseTopLevelQuery(parser, queryName -> {
+            if (queryName.equals("has_child")) {
+                throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
+            } else if (queryName.equals("has_parent")) {
+                throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
+            } else if (queryName.equals(KnnVectorQueryBuilder.NAME)) {
+                throw new IllegalArgumentException("the [knn] query is unsupported inside a percolator query");
+            }
+        });
     }
 
     static void createQueryBuilderField(

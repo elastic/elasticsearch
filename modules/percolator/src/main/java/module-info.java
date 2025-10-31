@@ -16,4 +16,5 @@ module org.elasticsearch.percolator {
     requires org.apache.lucene.memory;
     requires org.apache.lucene.queries;
     requires org.apache.lucene.sandbox;
+    requires org.elasticsearch.logging;
 }

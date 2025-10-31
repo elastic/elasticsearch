@@ -629,7 +629,7 @@ semantic search for `semantic_text` fields.
 :::{applies-item} { "stack": "ga 9.2" }
 
 ```console
-POST test-index/_search
+POST my-index/_search
 {
   "_source": { "exclude_vectors": false },
   "query": {

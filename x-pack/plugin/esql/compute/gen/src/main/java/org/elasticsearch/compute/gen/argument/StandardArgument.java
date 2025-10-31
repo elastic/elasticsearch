@@ -17,7 +17,6 @@ import javax.lang.model.element.Modifier;
 
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
@@ -93,8 +92,8 @@ public record StandardArgument(TypeName type, String name) implements Argument {
 
     @Override
     public void createScratch(MethodSpec.Builder builder) {
-        if (isBytesRef()) {
-            builder.addStatement("$T $LScratch = new $T()", BYTES_REF, name, BYTES_REF);
+        if (scratchType() != null) {
+            builder.addStatement("$T $LScratch = new $T()", scratchType(), name, scratchType());
         }
     }
 
@@ -123,7 +122,7 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     @Override
     public void read(MethodSpec.Builder builder, boolean blockStyle) {
         String params = blockStyle ? paramName(true) + ".getFirstValueIndex(p)" : "p";
-        if (isBytesRef()) {
+        if (scratchType() != null) {
             params += ", " + scratchName();
         }
         builder.addStatement("$T $L = $L.$L($L)", type, name, paramName(blockStyle), getMethod(type), params);

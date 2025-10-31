@@ -602,6 +602,14 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         IndexMetadata sourceIndexMetadata,
         String downsampleIndexName
     ) {
+        // When an index is already downsampled with a method, we require all later downsampling rounds to use the same method.
+        // This is necessary to preserve the relation of the downsampled index to the raw data. For example, if an index is already
+        // downsampled and downsampled it again to 1 hour; we know that a document represents either the aggregated raw data of an hour
+        // or the last value of the raw data within this hour. If we mix the methods, we cannot derive any meaning from them.
+        // Furthermore, data stream lifecycle is configured on the data stream level and not on the individual index level, meaning that
+        // when a user changes downsampling method, some indices would not be able to be downsampled anymore.
+        // For this reason, when we encounter an already downsampled index, we use the source downsampling method which might be different
+        // from the requested one.
         var sourceIndexSamplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(sourceIndexMetadata);
         String sourceIndex = sourceIndexMetadata.getIndex().getName();
         DownsampleAction.Request request = new DownsampleAction.Request(

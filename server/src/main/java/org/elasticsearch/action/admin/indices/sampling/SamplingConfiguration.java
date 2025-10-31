@@ -171,17 +171,30 @@ public record SamplingConfiguration(
     ) {
         this.rate = rate;
         this.maxSamples = maxSamples == null ? DEFAULT_MAX_SAMPLES : maxSamples;
-        this.maxSize = maxSize == null
-            ? ByteSizeValue.ofBytes(
-                Math.max(
-                    (long) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize()),
-                    DEFAULT_MAX_SIZE_FLOOR.getBytes()
-                )
-            )
-            : maxSize;
+        this.maxSize = maxSize == null ? calculateDefaultMaxSize() : maxSize;
         this.timeToLive = timeToLive == null ? TimeValue.timeValueDays(DEFAULT_TIME_TO_LIVE_DAYS) : timeToLive;
         this.condition = condition;
         this.creationTime = creationTime == null ? Instant.now().toEpochMilli() : creationTime;
+    }
+
+    /**
+     * Calculates the default max size as a percentage of the configured heap size,
+     * with a minimum floor value.
+     *
+     * @return The default max size value
+     */
+    private static ByteSizeValue calculateDefaultMaxSize() {
+        long heapBasedSize = (long) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize());
+        return ByteSizeValue.ofBytes(Math.max(heapBasedSize, DEFAULT_MAX_SIZE_FLOOR.getBytes()));
+    }
+
+    /**
+     * Calculates the maximum allowed max size as a percentage of the configured heap size.
+     *
+     * @return The maximum allowed max size value
+     */
+    private static ByteSizeValue calculateMaxAllowedSize() {
+        return ByteSizeValue.ofBytes((long) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize()));
     }
 
     // Convenience constructor without creationTime
@@ -276,9 +289,7 @@ public record SamplingConfiguration(
             if (maxSize.compareTo(ByteSizeValue.ZERO) <= 0) {
                 throw new IllegalArgumentException(INVALID_MAX_SIZE_MIN_MESSAGE);
             }
-            ByteSizeValue maxLimit = ByteSizeValue.ofBytes(
-                (long) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize())
-            );
+            ByteSizeValue maxLimit = calculateMaxAllowedSize();
             if (maxSize.compareTo(maxLimit) > 0) {
                 throw new IllegalArgumentException(INVALID_MAX_SIZE_MAX_MESSAGE);
             }

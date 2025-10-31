@@ -29,18 +29,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
   issue: https://github.com/elastic/elasticsearch/issues/112642
-- class: org.elasticsearch.packaging.test.WindowsServiceTests
-  method: test30StartStop
-  issue: https://github.com/elastic/elasticsearch/issues/113160
-- class: org.elasticsearch.packaging.test.WindowsServiceTests
-  method: test33JavaChanged
-  issue: https://github.com/elastic/elasticsearch/issues/113177
-- class: org.elasticsearch.packaging.test.WindowsServiceTests
-  method: test80JavaOptsInEnvVar
-  issue: https://github.com/elastic/elasticsearch/issues/113219
-- class: org.elasticsearch.packaging.test.WindowsServiceTests
-  method: test81JavaOptsInJvmOptions
-  issue: https://github.com/elastic/elasticsearch/issues/113313
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113

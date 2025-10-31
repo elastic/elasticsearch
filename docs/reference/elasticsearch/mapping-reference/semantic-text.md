@@ -543,11 +543,13 @@ Note that the `fields` option is **not** available for the Reindex API.
 
 ### Example: Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
 
-If you want to verify that your embeddings look correct, you can view the
-{{infer}} data that `semantic_text` typically hides using `fields`.
+To verify that your embeddings look correct, you can retrieve the {{infer}} data that `semantic_text` normally hides from search results.
+The recommended method for retrieving this data differs between versions [9.0–9.1](#retrieve-embeddings-9.0-9.1) and [9.2](#retrieve-embeddings-9.2).
 
-::::{applies-switch}
-:::{applies-item} { "stack": "ga 9.1" }
+#### Retrieve embeddings for versions 9.0-9.1 [retrieve-embeddings-9.0-9.1]
+```{applies_to}
+stack: ga 9.1
+```
 
 ```console
 POST my-index/_search
@@ -625,8 +627,7 @@ semantic search for `semantic_text` fields.
 2. Lists details about the model used to generate embeddings, such as the service name and task type.
 3. The embeddings generated for this chunk.
 
-:::
-:::{applies-item} { "stack": "ga 9.2" }
+#### Retrieve embeddings for version 9.2 [retrieve-embeddings-9.2]
 
 ```console
 POST test-index/_search
@@ -708,10 +709,6 @@ semantic search for `semantic_text` fields.
 1. The {{infer}} endpoint used to generate embeddings.
 2. Lists details about the model used to generate embeddings, such as the service name and task type.
 3. The embeddings generated for this chunk.
-
-:::
-::::
-
 
 ## Customizing `semantic_text` indexing [custom-indexing]
 

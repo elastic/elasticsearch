@@ -247,7 +247,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 String parentField = searchExecutionContext.parentPath(name());
                 var parent = searchExecutionContext.lookup().fieldType(parentField);
 
-                if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.ignoreAbove().isSet()) {
+                if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
                     if (parent.isStored()) {
                         return storedFieldFetcher(parentField, keywordParent.originalName());
                     } else if (parent.hasDocValues()) {
@@ -268,7 +268,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 var kwd = textFieldType.syntheticSourceDelegate();
 
                 if (kwd != null) {
-                    if (kwd.ignoreAbove().isSet()) {
+                    if (kwd.ignoreAbove().valuesPotentiallyIgnored()) {
                         if (kwd.isStored()) {
                             return storedFieldFetcher(kwd.name(), kwd.originalName());
                         } else if (kwd.hasDocValues()) {

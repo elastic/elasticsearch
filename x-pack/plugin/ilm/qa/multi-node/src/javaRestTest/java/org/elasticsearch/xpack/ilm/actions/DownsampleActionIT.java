@@ -647,7 +647,6 @@ public class DownsampleActionIT extends IlmESRestTestCase {
 
         // update the policy to now contain the downsample action in cold, whilst not existing in warm anymore (this will have our already
         // downsampled index attempt to go through the downsample action again when in cold)
-        // Sometimes the sampling method might be different; this step should not fail considering that the index is already downsampled.
         Request updatePolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
         updatePolicyRequest.setJsonEntity(String.format(Locale.ROOT, """
             {

@@ -499,9 +499,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             writeIndex.getName()
         );
         return indicesService.withTempIndexService(projectMetadata.index(writeIndex), indexService -> {
-            CompressedXContent mergedMapping = indexService.mapperService()
-                .merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE)
-                .mappingSource();
+            MapperService mapperService = indexService.mapperService();
+            if (mapperService == null) {
+                return CompressedXContent.fromJSON("{}");
+            }
+            CompressedXContent mergedMapping = mapperService.merge(
+                MapperService.SINGLE_MAPPING_NAME,
+                mappings,
+                MapperService.MergeReason.INDEX_TEMPLATE
+            ).mappingSource();
             /*
              * If the merged mapping contains the old "_doc" type placeholder, we remove it to make things more straightforward for the
              * client:

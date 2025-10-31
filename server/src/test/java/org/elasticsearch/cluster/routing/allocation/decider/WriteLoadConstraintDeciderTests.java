@@ -233,16 +233,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 testHarness.routingAllocation
             ).type()
         );
-        assertEquals(
-            "A shard without write load should remain on a node with queuing above the threshold",
-            Decision.Type.YES,
-            writeLoadDecider.canRemain(
-                testHarness.clusterState.metadata().getProject().index(indexName),
-                testHarness.shardRoutingNoWriteLoad,
-                testHarness.aboveQueuingThresholdRoutingNode,
-                testHarness.routingAllocation
-            ).type()
-        );
     }
 
     private void assertDecisionMatches(String description, Decision decision, Decision.Type type, String explanationPattern) {

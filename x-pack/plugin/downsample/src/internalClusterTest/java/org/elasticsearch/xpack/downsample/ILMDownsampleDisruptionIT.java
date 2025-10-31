@@ -176,8 +176,7 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         // We assert that ILM successfully completed the phase
         logger.info("Waiting for ILM to complete the phase for index [{}]", targetIndex);
         ClusterServiceUtils.addTemporaryStateListener(clusterState -> {
-            IndexMetadata indexMetadata = getIndexMetadataByIndexName(clusterState, targetIndex);
-            // We expect a single project available in this cluster
+            IndexMetadata indexMetadata = clusterState.metadata().getProject().index(targetIndex);
             return indexMetadata.getLifecycleExecutionState() != null
                 && Objects.equals(indexMetadata.getLifecycleExecutionState().step(), PhaseCompleteStep.NAME);
         });
@@ -228,20 +227,5 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
                 assertTrue(targetIndexSearch.getHits().getHits().length > 0);
             }
         );
-    }
-
-    /**
-     * We assume the index exists and its index name is unique.
-     * @return the index metadata found in any project that contains an index with this name.
-     */
-    private IndexMetadata getIndexMetadataByIndexName(ClusterState clusterState, String indexName) {
-        AtomicReference<IndexMetadata> indexMetadata = new AtomicReference<>();
-        clusterState.forEachProject(projectState -> {
-            if (projectState.metadata().hasIndex(indexName)) {
-                indexMetadata.set(projectState.metadata().index(indexName));
-            }
-        });
-        assertThat(indexMetadata.get(), notNullValue());
-        return indexMetadata.get();
     }
 }

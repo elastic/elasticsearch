@@ -128,4 +128,12 @@ public record PromqlParams(Instant time, Instant start, Instant end, Duration st
         }
         return new PromqlParams(time, start, end, step);
     }
+
+    public boolean isInstantQuery() {
+        return time != null;
+    }
+
+    public boolean isRangeQuery() {
+        return step != null;
+    }
 }

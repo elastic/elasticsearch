@@ -1246,9 +1246,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
-        return plan -> params.time() != null
-            ? new PromqlCommand(source, plan, promqlPlan, params.time())
-            : new PromqlCommand(source, plan, promqlPlan, params.start(), params.end(), params.step());
+        return plan -> new PromqlCommand(source, plan, promqlPlan, params);
 
     }
 

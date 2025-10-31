@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
@@ -31,35 +32,27 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
 
     private final LogicalPlan promqlPlan;
-    private final Instant start, end;
-    private final Duration step;
-
-    // Instant query constructor - shortcut for a range constructor
-    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, Instant time) {
-        this(source, child, promqlPlan, time, time, null);
-    }
+    private final PromqlParams params;
 
     // Range query constructor
-    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, Instant start, Instant end, Duration step) {
+    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, PromqlParams params) {
         super(source, child);
         this.promqlPlan = promqlPlan;
-        this.start = start;
-        this.end = end;
-        this.step = step;
+        this.params = params;
     }
 
     @Override
     protected NodeInfo<PromqlCommand> info() {
-        return NodeInfo.create(this, PromqlCommand::new, child(), promqlPlan(), start(), end(), step());
+        return NodeInfo.create(this, PromqlCommand::new, child(), promqlPlan(), params());
     }
 
     @Override
     public PromqlCommand replaceChild(LogicalPlan newChild) {
-        return new PromqlCommand(source(), newChild, promqlPlan(), start(), end(), step());
+        return new PromqlCommand(source(), newChild, promqlPlan(), params());
     }
 
     public PromqlCommand withPromqlPlan(LogicalPlan newPromqlPlan) {
-        return new PromqlCommand(source(), child(), newPromqlPlan, start(), end(), step());
+        return new PromqlCommand(source(), child(), newPromqlPlan, params());
     }
 
     @Override
@@ -86,21 +79,37 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         return promqlPlan;
     }
 
+    public PromqlParams params() {
+        return params;
+    }
+
     public Instant start() {
-        return start;
+        return params().start();
     }
 
     public Instant end() {
-        return end;
+        return params().end();
+    }
+
+    public Instant time() {
+        return params().time();
     }
 
     public Duration step() {
-        return step;
+        return params().step();
+    }
+
+    public boolean isInstantQuery() {
+        return params().isInstantQuery();
+    }
+
+    public boolean isRangeQuery() {
+        return params().isRangeQuery();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), start, end, step, promqlPlan);
+        return Objects.hash(child(), params, promqlPlan);
     }
 
     @Override
@@ -118,11 +127,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     public String nodeString() {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
-        if (start == end) {
-            sb.append("time=").append(start);
-        } else {
-            sb.append("start=").append(start).append(", end=").append(end).append(", step=").append(step);
-        }
+        sb.append("params=");
+        sb.append(params.toString());
         sb.append(" promql=[<>\n");
         sb.append(promqlPlan.toString());
         sb.append("\n<>]]");

@@ -63,6 +63,12 @@ public class GoogleAiStudioCompletionServiceSettingsTests extends AbstractWireSe
 
     @Override
     protected GoogleAiStudioCompletionServiceSettings mutateInstance(GoogleAiStudioCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, GoogleAiStudioCompletionServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var modelId = randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8));
+            return new GoogleAiStudioCompletionServiceSettings(modelId, instance.rateLimitSettings());
+        } else {
+            var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
+            return new GoogleAiStudioCompletionServiceSettings(instance.modelId(), rateLimitSettings);
+        }
     }
 }

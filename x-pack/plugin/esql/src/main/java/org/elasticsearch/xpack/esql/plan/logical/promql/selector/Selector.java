@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 
 import java.io.IOException;
-import java.sql.Time;
 import java.util.List;
 import java.util.Objects;
 

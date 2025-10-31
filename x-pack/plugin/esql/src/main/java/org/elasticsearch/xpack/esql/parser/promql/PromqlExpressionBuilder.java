@@ -173,10 +173,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 }
 
                 // Non-literal LogicalPlan
-                throw new ParsingException(
-                    source(ctx),
-                    "Duration must be a constant expression"
-                );
+                throw new ParsingException(source(ctx), "Duration must be a constant expression");
             }
             case Expression e -> {
                 // Fallback for Expression (shouldn't happen with new logic)

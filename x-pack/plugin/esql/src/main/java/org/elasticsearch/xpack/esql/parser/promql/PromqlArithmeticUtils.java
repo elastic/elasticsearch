@@ -62,11 +62,7 @@ public class PromqlArithmeticUtils {
         Duration result = switch (op) {
             case ADD -> left.plus(right);
             case SUB -> left.minus(right);
-            default -> throw new ParsingException(
-                source,
-                "Operation [{}] not supported between two durations",
-                op.symbol()
-            );
+            default -> throw new ParsingException(source, "Operation [{}] not supported between two durations", op.symbol());
         };
 
         return result;

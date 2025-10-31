@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -32,7 +30,7 @@ import static org.hamcrest.Matchers.not;
  * Test for checking the overall grammar by throwing a number of valid queries at the parser to see whether any exception is raised.
  * In time, the queries themselves get to be checked against the actual execution model and eventually against the expected results.
  */
-//@TestLogging(reason = "debug", value = "org.elasticsearch.xpack.esql.parser.promql:TRACE")
+// @TestLogging(reason = "debug", value = "org.elasticsearch.xpack.esql.parser.promql:TRACE")
 public class PromqlAstTests extends ESTestCase {
 
     private static final Logger log = LogManager.getLogger(PromqlAstTests.class);
@@ -72,7 +70,7 @@ public class PromqlAstTests extends ESTestCase {
         }
     }
 
-    //@AwaitsFix(bugUrl = "placeholder for individual queries")
+    // @AwaitsFix(bugUrl = "placeholder for individual queries")
     public void testSingleQuery() throws Exception {
         // 1 == bool 1
         String query = """

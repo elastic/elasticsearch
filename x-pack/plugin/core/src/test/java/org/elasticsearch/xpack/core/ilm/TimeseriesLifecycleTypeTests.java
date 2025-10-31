@@ -813,7 +813,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             "repo",
             randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, 100), // the ESTestCase utility can produce zeroes, which we can't have here
-            TimeValue.timeValueDays(10)
+            TimeValue.timeValueDays(10),
+            null
         );
 
         // first test case: there's a replicate_for, but it isn't on the first searchable_snapshot action

@@ -501,12 +501,15 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
-  method: testSimple
-  issue: https://github.com/elastic/elasticsearch/issues/137378
 - class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
   method: testSearchableSnapshotAction
   issue: https://github.com/elastic/elasticsearch/issues/137167
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=indices.validate_query/20_query_string/validate_query with query_string parameters}
+  issue: https://github.com/elastic/elasticsearch/issues/137391
+- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
+  method: testILMDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/136585
 
 # Examples:
 #

@@ -482,8 +482,10 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 assertThat(nested.getName(), equalTo("nested2"));
                 assertThat(nested.getDocCount(), is(27L));
 
-                ReverseNested reverseNested = nested.getAggregations().get("incorrect");
-                assertThat(reverseNested.getDocCount(), is(0L));
+                Nested incorrect = response.getAggregations().get("incorrect");
+                assertThat(incorrect, notNullValue());
+                assertThat(incorrect.getName(), equalTo("incorrect"));
+                assertThat(incorrect.getDocCount(), is(0L));
             }
         );
 

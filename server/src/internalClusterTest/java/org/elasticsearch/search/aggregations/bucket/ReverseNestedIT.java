@@ -474,7 +474,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("idx2").setQuery(matchAllQuery())
                 .addAggregation(nested("nested2", "nested1.nested2"))
-                .addAggregation(nested("incorrect", "nested1.nested3")),
+                .addAggregation(nested("incorrect", "nested1.incorrect")),
             response -> {
 
                 Nested nested = response.getAggregations().get("nested2");

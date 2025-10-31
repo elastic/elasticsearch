@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
@@ -547,28 +548,24 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        EsqlCCSUtils.initCrossClusterState(
-            indicesExpressionGrouper,
-            verifier.licenseState(),
-            preAnalysis.indexes().keySet(),
-            executionInfo
-        );
-
-        SubscribableListener.<PreAnalysisResult>newForked(
-            // The main index pattern dictates on which nodes the query can be executed, so we use the minimum transport version from this
-            // field
-            // caps request.
-            l -> preAnalyzeMainIndices(preAnalysis.indexes().entrySet().iterator(), preAnalysis, executionInfo, result, requestFilter, l)
-        ).andThenApply(r -> {
-            if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
-                && executionInfo.isCrossClusterSearch()
-                && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
-                LOGGER.debug("No more clusters to search, ending analysis stage");
-                throw new NoClustersToSearchException();
-            }
-            return r;
-        })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
+        SubscribableListener.<PreAnalysisResult>newForked(l -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
+            .andThenApply(r -> {
+                if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
+                    && executionInfo.isCrossClusterSearch()
+                    && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
+                    LOGGER.debug("No more clusters to search, ending analysis stage");
+                    throw new NoClustersToSearchException();
+                }
+                return r;
+            })
+            .<PreAnalysisResult>andThen(
+                (l, r) -> forAll(
+                    preAnalysis.lookupIndices().iterator(),
+                    r,
+                    (lookupIndex, innerR, innerL) -> preAnalyzeLookupIndex(lookupIndex, innerR, executionInfo, innerL),
+                    l
+                )
+            )
             .<PreAnalysisResult>andThen((l, r) -> {
                 enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l.map(r::withEnrichResolution));
             })
@@ -590,13 +587,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        if (lookupIndices.hasNext()) {
-            preAnalyzeLookupIndex(lookupIndices.next(), preAnalysisResult, executionInfo, listener.delegateFailureAndWrap((l, r) -> {
-                preAnalyzeLookupIndices(lookupIndices, r, executionInfo, l);
-            }));
-        } else {
-            listener.onResponse(preAnalysisResult);
-        }
+        forAll(lookupIndices, preAnalysisResult, (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, r, executionInfo, l), listener);
     }
 
     private void preAnalyzeLookupIndex(
@@ -808,29 +799,26 @@ public class EsqlSession {
      * indices.
      */
     private void preAnalyzeMainIndices(
-        Iterator<Map.Entry<IndexPattern, IndexMode>> indexPatterns,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        if (indexPatterns.hasNext()) {
-            var index = indexPatterns.next();
-            preAnalyzeMainIndices(
-                index.getKey(),
-                index.getValue(),
-                preAnalysis,
-                executionInfo,
-                result,
-                requestFilter,
-                listener.delegateFailureAndWrap((l, r) -> {
-                    preAnalyzeMainIndices(indexPatterns, preAnalysis, executionInfo, r, requestFilter, l);
-                })
-            );
-        } else {
-            listener.onResponse(result);
-        }
+        EsqlCCSUtils.initCrossClusterState(
+            indicesExpressionGrouper,
+            verifier.licenseState(),
+            preAnalysis.indexes().keySet(),
+            executionInfo
+        );
+        // The main index pattern dictates on which nodes the query can be executed,
+        // so we use the minimum transport version from this field caps request.
+        forAll(
+            preAnalysis.indexes().entrySet().iterator(),
+            result,
+            (entry, r, l) -> preAnalyzeMainIndices(entry.getKey(), entry.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
+            listener
+        );
     }
 
     private void preAnalyzeMainIndices(
@@ -995,6 +983,19 @@ public class EsqlSession {
         );
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;
+    }
+
+    private static <T> void forAll(
+        Iterator<T> iterator,
+        PreAnalysisResult result,
+        TriConsumer<T, PreAnalysisResult, ActionListener<PreAnalysisResult>> consumer,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        if (iterator.hasNext()) {
+            consumer.apply(iterator.next(), result, listener.delegateFailureAndWrap((l, r) -> forAll(iterator, r, consumer, l)));
+        } else {
+            listener.onResponse(result);
+        }
     }
 
     public record PreAnalysisResult(

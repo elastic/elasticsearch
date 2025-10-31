@@ -712,7 +712,7 @@ The list of allowed hosts must be configured on any node that will coordinate th
 
 :::{applies-item} { "serverless": }
 
-When running reindex in Elastic Cloud Serverless, only remote hosts in Elastic Cloud (either Hosted or Serverless) are allowed.
+When running reindex in Elastic Cloud Serverless, only remote hosts in Elastic Cloud Hosted or Elastic Cloud Serverless are allowed.
 
 :::
 

@@ -676,7 +676,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
                         ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        // TODO MP maybe it can be auth error too?
                         null
                     ),
                     expression.remoteExpressions()

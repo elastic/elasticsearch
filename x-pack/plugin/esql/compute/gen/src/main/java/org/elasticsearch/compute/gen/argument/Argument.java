@@ -95,14 +95,7 @@ public interface Argument {
     }
 
     default ClassName scratchType() {
-        TypeName type = type();
-        if (BYTES_REF.equals(type)) {
-            return Types.BYTES_REF;
-        }
-        if (EXPONENTIAL_HISTOGRAM.equals(type)) {
-            return Types.EXPONENTIAL_HISTOGRAM_SCRATCH;
-        }
-        return null;
+        return Types.scratchType(type().toString());
     }
 
     default String scratchName() {
@@ -210,7 +203,7 @@ public interface Argument {
      */
     default void read(MethodSpec.Builder builder, String accessor, String firstParam) {
         String params = firstParam;
-        if (isBytesRef()) {
+        if (scratchType() != null) {
             params += ", " + scratchName();
         }
         builder.addStatement("$T $L = $L.$L($L)", type(), valueName(), accessor, getMethod(type()), params);

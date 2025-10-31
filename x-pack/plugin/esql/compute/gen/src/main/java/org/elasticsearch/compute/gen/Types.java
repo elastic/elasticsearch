@@ -141,21 +141,27 @@ public class Types {
     public static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     public static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
-    private record TypeDef(TypeName type, String alias, ClassName block, ClassName vector) {
+    private record TypeDef(TypeName type, String alias, ClassName block, ClassName vector, ClassName scratch) {
 
-        public static TypeDef of(TypeName type, String alias, String block, String vector) {
-            return new TypeDef(type, alias, ClassName.get(DATA_PACKAGE, block), vector == null ? null: ClassName.get(DATA_PACKAGE, vector));
+        public static TypeDef of(TypeName type, String alias, String block, String vector, ClassName scratch) {
+            return new TypeDef(
+                type,
+                alias,
+                ClassName.get(DATA_PACKAGE, block),
+                vector == null ? null: ClassName.get(DATA_PACKAGE, vector),
+                scratch
+            );
         }
     }
 
     private static final Map<String, TypeDef> TYPES = Stream.of(
-        TypeDef.of(TypeName.BOOLEAN, "BOOLEAN", "BooleanBlock", "BooleanVector"),
-        TypeDef.of(TypeName.INT, "INT", "IntBlock", "IntVector"),
-        TypeDef.of(TypeName.LONG, "LONG", "LongBlock", "LongVector"),
-        TypeDef.of(TypeName.FLOAT, "FLOAT", "FloatBlock", "FloatVector"),
-        TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector"),
-        TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector"),
-        TypeDef.of(EXPONENTIAL_HISTOGRAM, "EXPONENTIAL_HISTOGRAM", "ExponentialHistogramBlock", null)
+        TypeDef.of(TypeName.BOOLEAN, "BOOLEAN", "BooleanBlock", "BooleanVector", null),
+        TypeDef.of(TypeName.INT, "INT", "IntBlock", "IntVector", null),
+        TypeDef.of(TypeName.LONG, "LONG", "LongBlock", "LongVector", null),
+        TypeDef.of(TypeName.FLOAT, "FLOAT", "FloatBlock", "FloatVector", null),
+        TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector", null),
+        TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector", BYTES_REF),
+        TypeDef.of(EXPONENTIAL_HISTOGRAM, "EXPONENTIAL_HISTOGRAM", "ExponentialHistogramBlock", null, EXPONENTIAL_HISTOGRAM_SCRATCH)
     )
         .flatMap(def -> Stream.of(def.type.toString(), def.type + "[]", def.alias).map(alias -> Map.entry(alias, def)))
         .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -186,6 +192,10 @@ public class Types {
 
     static ClassName vectorType(String elementType) {
         return findRequired(elementType, "vector").vector;
+    }
+
+    public static ClassName scratchType(String elementType) {
+        return findRequired(elementType, "block").scratch;
     }
 
     static ClassName builderType(TypeName resultType) {

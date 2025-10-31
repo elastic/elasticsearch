@@ -80,6 +80,7 @@ public class QueryRewriteContext {
     private QueryRewriteInterceptor queryRewriteInterceptor;
     private final Boolean ccsMinimizeRoundTrips;
     private final boolean isExplain;
+    private final boolean isProfile;
     private Long timeRangeFilterFromMillis;
     private boolean trackTimeRangeFilterFrom = true;
 
@@ -103,7 +104,8 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -127,6 +129,7 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
         this.ccsMinimizeRoundTrips = ccsMinimizeRoundTrips;
         this.isExplain = isExplain;
+        this.isProfile = isProfile;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -150,6 +153,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            false,
             false
         );
     }
@@ -175,6 +179,7 @@ public class QueryRewriteContext {
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
+            false,
             false
         );
     }
@@ -189,7 +194,8 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile
     ) {
         this(
             parserConfiguration,
@@ -211,7 +217,8 @@ public class QueryRewriteContext {
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
-            isExplain
+            isExplain,
+            isProfile
         );
     }
 
@@ -322,6 +329,10 @@ public class QueryRewriteContext {
 
     public boolean isExplain() {
         return this.isExplain;
+    }
+
+    public boolean isProfile() {
+        return this.isProfile;
     }
 
     public NamedWriteableRegistry getWriteableRegistry() {

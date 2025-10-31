@@ -102,10 +102,10 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
 
     public void testPartialResults() throws Exception {
         populateIndices();
-        EsqlQueryRequest request = new EsqlQueryRequest();
-        request.query("FROM ok*,fail*,*:ok*,*:fail* | KEEP id, fail_me | LIMIT 1000");
-        request.includeCCSMetadata(randomBoolean());
         {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("FROM ok*,fail*,*:ok*,*:fail* | KEEP id, fail_me | LIMIT 1000");
+            request.includeCCSMetadata(randomBoolean());
             request.allowPartialResults(false);
             Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
             error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
@@ -113,6 +113,9 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             assertThat(error, instanceOf(IllegalStateException.class));
             assertThat(error.getMessage(), containsString("Accessing failing field"));
         }
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM ok*,fail*,*:ok*,*:fail* | KEEP id, fail_me | LIMIT 1000");
+        request.includeCCSMetadata(randomBoolean());
         request.allowPartialResults(true);
         try (var resp = runQuery(request)) {
             assertTrue(resp.isPartial());
@@ -134,6 +137,8 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             for (String cluster : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)) {
                 assertClusterFailure(resp, cluster, "Accessing failing field");
             }
+        } catch (Exception e) {
+            throw new AssertionError("failed to execute query", e);
         }
     }
 

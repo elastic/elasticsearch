@@ -599,7 +599,7 @@ public class MetadataDataStreamsService {
             dataStream.getName(),
             effectiveMappings,
             projectMetadata,
-            (templateSettings.merge(dataStream.getSettings()))
+            templateSettings.merge(dataStream.getSettings())
         );
     }
 

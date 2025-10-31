@@ -37,6 +37,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -564,11 +565,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             return docId -> {
                 if (binaryDocValues.advanceExact(docId)) {
                     BytesRef qbSource = binaryDocValues.binaryValue();
-                    QueryBuilder queryBuilder;
-
-                    try {
-                        queryBuilder = readQueryBuilder(qbSource, registry, indexVersion);
-                    } catch (IllegalStateException e) {
+                    QueryBuilder queryBuilder = readQueryBuilder(qbSource, registry, indexVersion, () -> {
                         // query builder is written in an incompatible format, fall-back to reading it from source
                         if (context.isSourceEnabled() == false) {
                             throw new ElasticsearchException(
@@ -588,10 +585,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             source.internalSourceRef(),
                             source.sourceContentType()
                         );
-                        ParsedDocument document = context.parseDocument(sourceToParse);
-                        BytesRef binaryValue = document.rootDoc().getBinaryValue(queryBuilderFieldType.name());
-                        queryBuilder = readQueryBuilder(binaryValue, registry, indexVersion);
-                    }
+
+                        return context.parseDocument(sourceToParse).rootDoc().getBinaryValue(queryBuilderFieldType.name());
+                    });
 
                     queryBuilder = Rewriteable.rewrite(queryBuilder, context);
                     return queryBuilder.toQuery(context);
@@ -602,8 +598,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         };
     }
 
-    private static QueryBuilder readQueryBuilder(BytesRef bytesRef, NamedWriteableRegistry registry, IndexVersion indexVersion)
-        throws IOException {
+    private static QueryBuilder readQueryBuilder(
+        BytesRef bytesRef,
+        NamedWriteableRegistry registry,
+        IndexVersion indexVersion,
+        CheckedSupplier<BytesRef, IOException> fallbackSource
+    ) throws IOException {
         try (
             InputStream in = new ByteArrayInputStream(bytesRef.bytes, bytesRef.offset, bytesRef.length);
             StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, bytesRef.length), registry)
@@ -631,6 +631,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 input.setTransportVersion(transportVersion);
                 queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                 assert in.read() == -1;
+            } else if (fallbackSource != null) {
+                // incompatible transport version, try the fallback
+                queryBuilder = readQueryBuilder(fallbackSource.get(), registry, indexVersion, null);
             } else {
                 throw new IllegalStateException("Unable to read query builder. Unsupported transportVersion: " + transportVersion);
             }

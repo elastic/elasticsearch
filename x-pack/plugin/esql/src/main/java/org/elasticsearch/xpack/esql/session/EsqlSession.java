@@ -835,12 +835,9 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        // TODO: This is not yet index specific, but that will not matter as soon as #136804 is dealt with
         if (executionInfo.clusterAliases().isEmpty()) {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
-            listener.onResponse(
-                result.withIndices(indexPattern, IndexResolution.valid(new EsIndex(indexPattern.indexPattern(), Map.of(), Map.of())))
-            );
+            listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
             indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(
                 indexPattern.indexPattern(),

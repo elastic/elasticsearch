@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
-
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStart;
@@ -223,21 +221,26 @@ class AmazonBedrockUnifiedStreamingChatProcessor
                 if (downstream != null && onCompleteCalled.compareAndSet(false, true)) {
                     downstream.onError(e);
                 }
-                if (upstream != null) {
-                    upstream.cancel();
-                }
                 isDone.set(true);
+                return;
             }
-            if (!chunks.isEmpty() && downstream != null) {
-                downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
-            }
-            if (downstream != null && onCompleteCalled.compareAndSet(false, true)) {
-                downstream.onComplete();
+
+            if (!chunks.isEmpty() && downstream != null && demand.get() > 0 && !isDone.get()) {
+                long prev = demand.getAndUpdate(d -> {
+                    if (d == Long.MAX_VALUE) {
+                        return d;
+                    }
+                    return d > 0 ? d - 1 : d;
+                });
+
+                if (prev == Long.MAX_VALUE || prev > 0) {
+                    downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
+                }
+
             }
             if (upstream != null) {
-                upstream.cancel();
+                upstream.request(1);
             }
-            isDone.set(true);
     }
 
     @Override

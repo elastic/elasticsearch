@@ -1358,7 +1358,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should report long computation based on iteration count",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [10s] and [1000] iterations"
+                "Desired balance computation for [*] is still not converged after [10s] and [1000] iterations, "
+                    + "last convergence was [10s] ago"
             )
         );
 
@@ -1369,7 +1370,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should report long computation based on time",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [1m] and [59] iterations"
+                "Desired balance computation for [*] is still not converged after [1m] and [60] iterations, "
+                    + "last convergence was [1m] ago"
             )
         );
     }
@@ -1428,7 +1430,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
     public void testLoggingOfComputeCallsAndIterationsSinceConvergence() {
         final var clusterSettings = new ClusterSettings(
-            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(5L)).build(),
+            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1L)).build(),
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
         );
         final var timeInMillis = new AtomicLong(-1L);
@@ -1488,15 +1490,20 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 Level.INFO,
                 (data.totalComputeCalls > 1
                     ? Strings.format(
-                        singleComputeCallMsg + ", resumed computation [%d] times with [%d] iterations since the last resumption [%s] ago",
+                        singleComputeCallMsg + ", resumed computation [%d] times with [%d] iterations since the last convergence [%s] ago",
                         indexSequence.get(),
-                        data.timeSinceConverged,
+                        data.currentDuration,
                         data.totalIterations,
                         data.totalComputeCalls,
                         data.currentIterations,
-                        data.currentDuration
+                        data.timeSinceConverged
                     )
-                    : Strings.format(singleComputeCallMsg, indexSequence.get(), data.timeSinceConverged, data.totalIterations))
+                    : Strings.format(
+                        singleComputeCallMsg + ", last convergence was [%s] ago",
+                        indexSequence.get(),
+                        data.currentDuration,
+                        data.totalIterations,
+                        data.timeSinceConverged))
             );
         };
 
@@ -1514,7 +1521,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // Converges right away, verify the debug level convergence message.
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
-            getLogExpectation.apply(new LogExpectationData(true, "3ms", 2))
+            getLogExpectation.apply(new LogExpectationData(true, "3ms", 2, 0, 0, "2ms"))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.CONVERGED);
         final var lastConvergenceTimestampMillis = computer.getLastConvergedTimeMillis();
@@ -1525,7 +1532,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // This INFO is triggered from the interval since last convergence timestamp.
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 6),
-            getLogExpectation.apply(new LogExpectationData(false, "5ms", 4))
+            getLogExpectation.apply(new LogExpectationData(false, "5ms", 4, 0, 0, "4ms"))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT);
         assertLastConvergenceInfo.accept(new ExpectedLastConvergenceInfo(1, 6, lastConvergenceTimestampMillis));
@@ -1551,9 +1558,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // First INFO is triggered from interval since last converged, second is triggered from the inverval since the last INFO log.
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
-            getLogExpectation.apply(new LogExpectationData(false, "5ms", 4)),
-            getLogExpectation.apply(new LogExpectationData(false, "10ms", 9)),
-            getLogExpectation.apply(new LogExpectationData(true, "11ms", 10))
+            getLogExpectation.apply(new LogExpectationData(false, "5ms", 4, 0, 0, "4ms")),
+            getLogExpectation.apply(new LogExpectationData(false, "10ms", 9, 0, 0, "9ms")),
+            getLogExpectation.apply(new LogExpectationData(true, "11ms", 10, 0, 0, "10ms"))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.CONVERGED);
 
@@ -1561,6 +1568,17 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         final var index = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(TEST_INDEX).getIndex();
         final var expectedAssignmentsMap = Map.of(new ShardId(index, 0), new ShardAssignment(Set.of("node-0"), 1, 0, 0));
         assertDesiredAssignments(desiredBalance.get(), expectedAssignmentsMap);
+
+        clusterSettings.applySettings(Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(3L)).build());
+
+        // Verify that if some time elapses and then another computation starts then we do not count the idle time
+        timeInMillis.addAndGet(100L);
+        iterationCounter.set(0);
+        requiredIterations.set(2);
+        assertLoggerExpectationsFor(
+            getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 2),
+            new MockLog.UnseenEventExpectation("no log messages", DesiredBalanceComputer.class.getCanonicalName(), Level.INFO, "* still not converged after *")
+        );
     }
 
     @TestLogging(

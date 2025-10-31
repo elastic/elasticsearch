@@ -116,6 +116,12 @@ public record BlockArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
+    public void addContinueIfPositionHasNoValueBlock(MethodSpec.Builder builder) {
+        // nothing to do
+        // block params don't skip any positions as all values must be passed down to the aggregator
+    }
+
+    @Override
     public String closeInvocation() {
         return name;
     }

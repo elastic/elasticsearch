@@ -440,13 +440,8 @@ public class AggregatorImplementer {
             }
 
             // TBD - affects 2 geo classes
-            if (hasOnlyBlockArguments == false) {
-                for (Argument a : aggParams) {
-                    builder.addStatement("int $LValueCount = $L.getValueCount(p)", a.name(), a.blockName());
-                    builder.beginControlFlow("if ($LValueCount == 0)", a.name());
-                    builder.addStatement("continue");
-                    builder.endControlFlow();
-                }
+            for (Argument a : aggParams) {
+                a.addContinueIfPositionHasNoValueBlock(builder);
             }
 
             if (aggParams.getFirst() instanceof BlockArgument) {

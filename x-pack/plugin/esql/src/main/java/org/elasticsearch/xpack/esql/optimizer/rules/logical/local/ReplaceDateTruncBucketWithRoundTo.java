@@ -53,34 +53,34 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
-        return context.searchStats() != null ? plan.transformUp(Eval.class, eval -> substitute(eval, context)) : plan;
+        return context.searchStats() != null ? plan.transformUp(Eval.class, eval -> substitute(eval, context.searchStats())) : plan;
     }
 
-    private LogicalPlan substitute(Eval eval, LocalLogicalOptimizerContext context) {
+    private LogicalPlan substitute(Eval eval, SearchStats searchStats) {
         // check the filter in children plans
-        return eval.transformExpressionsOnly(Function.class, f -> substitute(f, eval, context));
+        return eval.transformExpressionsOnly(Function.class, f -> substitute(f, eval, searchStats));
     }
 
     /**
      * Perform the actual substitution with {@code SearchStats} and predicates in the query.
      */
-    private Expression substitute(Expression e, Eval eval, LocalLogicalOptimizerContext context) {
+    private Expression substitute(Expression e, Eval eval, SearchStats searchStats) {
         Expression roundTo = null;
         if (e instanceof DateTrunc dateTrunc) {
             roundTo = maybeSubstituteWithRoundTo(
                 dateTrunc.source(),
                 dateTrunc.field(),
                 dateTrunc.interval(),
-                context.searchStats(),
+                searchStats,
                 eval,
-                (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, context.configuration().zoneId(), minValue, maxValue)
+                (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, dateTrunc.zoneId(), minValue, maxValue)
             );
         } else if (e instanceof Bucket bucket) {
             roundTo = maybeSubstituteWithRoundTo(
                 bucket.source(),
                 bucket.field(),
                 bucket.buckets(),
-                context.searchStats(),
+                searchStats,
                 eval,
                 (interval, minValue, maxValue) -> bucket.getDateRounding(FoldContext.small(), minValue, maxValue)
             );

@@ -120,6 +120,10 @@ public class DateTrunc extends EsqlConfigurationFunction {
         return timestampField;
     }
 
+    public ZoneId zoneId() {
+        return configuration().zoneId();
+    }
+
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
@@ -252,7 +256,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
                 "Function [" + sourceText() + "] has invalid interval [" + interval.sourceText() + "]. " + e.getMessage()
             );
         }
-        return evaluator(dataType(), source(), fieldEvaluator, createRounding(foldedInterval, configuration().zoneId(), null, null));
+        return evaluator(dataType(), source(), fieldEvaluator, createRounding(foldedInterval, zoneId(), null, null));
     }
 
     public static ExpressionEvaluator.Factory evaluator(

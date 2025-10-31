@@ -49,7 +49,7 @@ public class FuseExpressionToFieldLoad extends OptimizerRules.ParameterizedOptim
             Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
             LogicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
                 if (e instanceof BlockLoaderExpression ble) {
-                    BlockLoaderExpression.FusedExpression fuse = ble.tryFuse(context.searchStats());
+                    BlockLoaderExpression.FusedBlockLoaderExpression fuse = ble.tryFuse(context.searchStats());
                     if (fuse != null) {
                         return replaceFieldsForFieldTransformations(e, addedAttrs, fuse);
                     }
@@ -85,7 +85,7 @@ public class FuseExpressionToFieldLoad extends OptimizerRules.ParameterizedOptim
     private static Expression replaceFieldsForFieldTransformations(
         Expression e,
         Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs,
-        BlockLoaderExpression.FusedExpression fuse
+        BlockLoaderExpression.FusedBlockLoaderExpression fuse
     ) {
         // Change the similarity function to a reference of a transformation on the field
         FunctionEsField functionEsField = new FunctionEsField(fuse.field().field(), e.dataType(), fuse.config());

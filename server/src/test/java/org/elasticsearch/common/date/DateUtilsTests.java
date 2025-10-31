@@ -19,9 +19,7 @@ public class DateUtilsTests extends ESTestCase {
 
     public void testConvertMillisToDateTime() {
         long millis = randomLong();
-        String expected = DateTimeFormatter.ISO_LOCAL_DATE_TIME
-            .withZone(ZoneId.of("UTC"))
-            .format(Instant.ofEpochMilli(millis));
+        String expected = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.of("UTC")).format(Instant.ofEpochMilli(millis));
         String actual = DateUtils.convertMillisToDateTime(millis);
         assertEquals(expected, actual);
     }
@@ -42,9 +40,7 @@ public class DateUtilsTests extends ESTestCase {
 
     public void testConvertMillisToDateTimeWithCurrentTime() {
         long millis = System.currentTimeMillis();
-        String expected = DateTimeFormatter.ISO_LOCAL_DATE_TIME
-            .withZone(ZoneId.of("UTC"))
-            .format(Instant.ofEpochMilli(millis));
+        String expected = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.of("UTC")).format(Instant.ofEpochMilli(millis));
         String actual = DateUtils.convertMillisToDateTime(millis);
         assertEquals(expected, actual);
     }

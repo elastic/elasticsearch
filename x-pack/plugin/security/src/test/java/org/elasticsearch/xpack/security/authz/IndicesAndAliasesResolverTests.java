@@ -113,6 +113,7 @@ import java.util.Set;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.NONE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -2985,7 +2986,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
-    public void testResolveAllWithRemotePrefix() {
+    public void testResolveAllWithLocalPrefix() {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
 
         var expression = randomBoolean() ? "local:_all" : "_origin:_all";
@@ -3010,6 +3011,33 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final var resolved = request.getResolvedIndexExpressions();
         assertThat(resolved, is(notNullValue()));
         assertThat(resolved.expressions(), contains(resolvedIndexExpression(expression, Set.of(expectedIndices), SUCCESS, Set.of())));
+    }
+
+    public void testResolveAllWithRemotePrefix() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+
+        var request = new SearchRequest().indices("P*:_all");
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("local"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"), createRandomProjectWithAlias("P3"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), is(empty()));
+        assertThat(resolvedIndices.getRemote(), contains("P1:_all", "P2:_all", "P3:_all"));
+
+        final var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, is(notNullValue()));
+        assertThat(
+            resolved.expressions(),
+            contains(resolvedIndexExpression("P*:_all", Set.of(), NONE, Set.of("P1:_all", "P2:_all", "P3:_all")))
+        );
     }
 
     public void testResolveIndexWithRemotePrefix() {

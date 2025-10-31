@@ -342,9 +342,13 @@ class IndicesAndAliasesResolver {
                 // Always parse selectors, but do so lazily so that we don't spend a lot of time splitting strings each resolution
                 isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()), (expr) -> {
                     var unprefixed = crossProjectModeDecider.resolvesCrossProject(replaceable)
-                        ? RemoteClusterAware.splitIndexName(expr)[1]
+                        ? CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                            expr,
+                            authorizedProjects.originProjectAlias(),
+                            authorizedProjects.allProjectAliases()
+                        ).localExpression()
                         : expr;
-                    return IndexNameExpressionResolver.splitSelectorExpression(unprefixed).v1();
+                    return unprefixed != null ? IndexNameExpressionResolver.splitSelectorExpression(unprefixed).v1() : null;
                 });
                 if (isAllIndices) {
                     // This parses the single all-indices expression for a second time in this conditional branch, but this is better than

@@ -42,7 +42,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
@@ -84,6 +83,7 @@ import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -243,7 +243,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 new RateLimitSettings(10_000),
                 true
             ),
-            ChunkingSettingsTests.createRandomChunkingSettings(),
+            createRandomChunkingSettings(),
             new DefaultSecretSettings(new SecureString("secret".toCharArray()))
         );
     }
@@ -300,17 +300,13 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    getServiceSettingsMap("model", "url"),
-                    createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap("secret")
-                ),
+                getRequestConfigMap(getServiceSettingsMap("model", "url"), getSecretSettingsMap("secret")),
                 modelVerificationActionListener
             );
         }
     }
 
-    public void testParseRequestConfig_Success_WithoutModelId() throws IOException {
+    public void testParseRequestConfig_WithoutModelId_Success() throws IOException {
         var url = "url";
         var secret = "secret";
 
@@ -335,27 +331,21 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    public void testParseRequestConfig_ThrowsException_WithoutUrl() throws IOException {
+    public void testParseRequestConfig_WithoutUrl_ThrowsException() throws IOException {
         var model = "model";
         var secret = "secret";
 
         try (var service = createService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
-                assertThat(m, instanceOf(OpenShiftAiChatCompletionModel.class));
-
-                var chatCompletionModel = (OpenShiftAiChatCompletionModel) m;
-
-                assertThat(chatCompletionModel.getServiceSettings().modelId(), is(model));
-                assertNull(chatCompletionModel.getServiceSettings().modelId());
-                assertThat(chatCompletionModel.getSecretSettings().apiKey().toString(), is("secret"));
-
-            }, exception -> {
-                assertThat(exception, instanceOf(ValidationException.class));
-                assertThat(
-                    exception.getMessage(),
-                    is("Validation Failed: 1: [service_settings] does not contain the required setting [url];")
-                );
-            });
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                m -> fail("Expected exception, but got model: " + m),
+                exception -> {
+                    assertThat(exception, instanceOf(ValidationException.class));
+                    assertThat(
+                        exception.getMessage(),
+                        is("Validation Failed: 1: [service_settings] does not contain the required setting [url];")
+                    );
+                }
+            );
 
             service.parseRequestConfig(
                 "id",
@@ -629,13 +619,21 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = OpenShiftAiEmbeddingsModelTests.createModel(getUrl(webServer), "api_key", "model");
+        var model = OpenShiftAiEmbeddingsModelTests.createModel(getUrl(webServer), "api_key", "model", 1234, false, 1536, null);
 
         testChunkedInfer(model);
     }
 
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
-        var model = OpenShiftAiEmbeddingsModelTests.createModel(getUrl(webServer), "api_key", "model");
+        var model = OpenShiftAiEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "api_key",
+            "model",
+            1234,
+            false,
+            1536,
+            createRandomChunkingSettings()
+        );
 
         testChunkedInfer(model);
     }

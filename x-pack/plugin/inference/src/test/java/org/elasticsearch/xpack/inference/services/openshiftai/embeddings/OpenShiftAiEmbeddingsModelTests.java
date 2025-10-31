@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.openshiftai.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -21,7 +22,7 @@ public class OpenShiftAiEmbeddingsModelTests extends ESTestCase {
     }
 
     public static OpenShiftAiEmbeddingsModel createModel(String url, String apiKey, @Nullable String modelId, int maxInputTokens) {
-        return createModel(url, apiKey, modelId, maxInputTokens, false, 1536);
+        return createModel(url, apiKey, modelId, maxInputTokens, false, 1536, null);
     }
 
     public static OpenShiftAiEmbeddingsModel createModel(
@@ -30,7 +31,8 @@ public class OpenShiftAiEmbeddingsModelTests extends ESTestCase {
         @Nullable String modelId,
         @Nullable Integer maxInputTokens,
         @Nullable Boolean dimensionsSetByUser,
-        @Nullable Integer dimensions
+        @Nullable Integer dimensions,
+        @Nullable ChunkingSettings chunkingSettings
     ) {
         return new OpenShiftAiEmbeddingsModel(
             "inferenceEntityId",
@@ -45,7 +47,7 @@ public class OpenShiftAiEmbeddingsModelTests extends ESTestCase {
                 null,
                 dimensionsSetByUser
             ),
-            null,
+            chunkingSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

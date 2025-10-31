@@ -109,7 +109,8 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
             modelId,
             dimensions,
             dimensionsSetByUser,
-            dimensions
+            dimensions,
+            null
         );
         return new OpenShiftAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),

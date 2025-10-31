@@ -545,3 +545,41 @@ ROW a = 1
 a:integer | year_hired:date
 1         | 1991-01-01T00:00:00.000Z
 ;
+
+dateTruncTimezonesTimeDuration
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "+10:00"\;
+ROW date=["2025-03-04T10:09:08.07Z"]::date
+| MV_EXPAND date
+| EVAL
+    _1second = DATE_TRUNC(1 second, date),
+    _1minute = DATE_TRUNC(1 minute, date),
+    _1hour = DATE_TRUNC(1 hour, date),
+    _3hours = DATE_TRUNC(3 hours, date),
+    _24hours = DATE_TRUNC(24 hours, date)
+| DROP date
+;
+
+_1second:date        | _1minute:date        | _1hour:date          | _3hours:date         | _24hours:date
+2025-03-04T10:09:08Z | 2025-03-04T10:09:00Z | 2025-03-04T10:00:00Z | 2025-03-04T08:00:00Z | 2025-03-03T14:00:00Z
+;
+
+dateTruncTimezonesDatePeriod
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "+10:00"\;
+ROW date=["2025-03-04T17:09:08.07Z"]::date
+| MV_EXPAND date
+| EVAL
+    _1day = DATE_TRUNC(1 day, date),
+    _7days = DATE_TRUNC(7 days, date),
+    _1month = DATE_TRUNC(1 month, date),
+    _3months = DATE_TRUNC(3 months, date),
+    _1year = DATE_TRUNC(1 year, date)
+| DROP date
+;
+
+_1day:date           | _7days:date          | _1month:date         | _3months:date        | _1year:date
+2025-03-04T14:00:00Z | 2025-03-02T14:00:00Z | 2025-02-28T14:00:00Z | 2024-12-31T14:00:00Z | 2024-12-31T14:00:00Z
+;

@@ -693,7 +693,11 @@ POST _reindex
 
 Be sure to use `https` when using an API key, or it will be sent in plain text. There are a [range of settings](#reindex-ssl) available to configure the behaviour of the `https` connection.
 
-### Whitelisting remote hosts [reindex-remote-whitelist]
+### Permitted remote hosts [reindex-remote-whitelist]
+
+::::{applies-switch}
+
+:::{applies-item} { "stack": }
 
 Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the `reindex.remote.whitelist` property.
 It can be set to a comma-delimited list of allowed remote `host` and `port` combinations.
@@ -703,6 +707,17 @@ Scheme is ignored, only the host and port are used. For example:
 reindex.remote.whitelist: [otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"]
 ```
 The list of allowed hosts must be configured on any node that will coordinate the reindex.
+
+:::
+
+:::{applies-item} { "serverless": }
+
+When running reindex in Elastic Cloud Serverless, only remote hosts in Elastic Cloud (either Hosted or Serverless) are allowed.
+
+:::
+
+::::
+
 
 ### Compatibility [reindex-remote-compatibility]
 

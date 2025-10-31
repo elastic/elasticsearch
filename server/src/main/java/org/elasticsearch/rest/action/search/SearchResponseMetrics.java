@@ -66,6 +66,12 @@ public class SearchResponseMetrics {
         );
 
         phaseNameToDurationHistogram = Map.of(
+            "can_match",
+            meterRegistry.registerLongHistogram(
+                String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "can_match"),
+                "The search phase can_match duration in milliseconds at the coordinator, expressed as a histogram",
+                "millis"
+            ),
             "dfs",
             meterRegistry.registerLongHistogram(
                 String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "dfs"),

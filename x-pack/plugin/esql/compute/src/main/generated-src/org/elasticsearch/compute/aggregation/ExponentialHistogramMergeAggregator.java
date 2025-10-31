@@ -18,14 +18,14 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 @Aggregator(
     {
-        @IntermediateState(name = "value", type = "exponential_histogram")
+        @IntermediateState(name = "value", type = "EXPONENTIAL_HISTOGRAM"),
     }
 )
 @GroupingAggregator
 public class ExponentialHistogramMergeAggregator {
 
-    public static ExponentialHistogramStates.SingleState initSingle(DriverContext context) {
-        return new ExponentialHistogramStates.SingleState(context.breaker());
+    public static ExponentialHistogramStates.SingleState initSingle(DriverContext driverContext) {
+        return new ExponentialHistogramStates.SingleState(driverContext.breaker());
     }
 
     public static void combine(ExponentialHistogramStates.SingleState state, ExponentialHistogram value) {
@@ -40,8 +40,8 @@ public class ExponentialHistogramMergeAggregator {
         return state.evaluateFinal(driverContext);
     }
 
-    public static ExponentialHistogramStates.GroupingState initGrouping(BigArrays bigArrays, DriverContext context) {
-        return new ExponentialHistogramStates.GroupingState(bigArrays, context.breaker());
+    public static ExponentialHistogramStates.GroupingState initGrouping(BigArrays bigArrays, DriverContext driverContext) {
+        return new ExponentialHistogramStates.GroupingState(bigArrays, driverContext.breaker());
     }
 
     public static void combine(ExponentialHistogramStates.GroupingState current, int groupId, ExponentialHistogram value) {

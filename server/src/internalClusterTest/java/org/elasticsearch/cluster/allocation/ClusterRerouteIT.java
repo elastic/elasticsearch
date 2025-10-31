@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.allocation;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -199,6 +200,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
     }
 
     public void testDelayWithALargeAmountOfShards() throws Exception {
+        assumeFalse("Windows can be too slow on handling larget amount of cluster state updates", Constants.WINDOWS);
         Settings commonSettings = Settings.builder()
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)

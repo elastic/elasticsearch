@@ -60,11 +60,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
-public class Knn extends SingleFieldFullTextFunction
-    implements
-        OptionalArgument,
-        VectorFunction,
-        PostOptimizationVerificationAware {
+public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
 
     private static final String[] ACCEPTED_FIELD_TYPES = { "dense_vector", "semantic_text" };
 
@@ -340,9 +336,7 @@ public class Knn extends SingleFieldFullTextFunction
         // ignore options when comparing two Knn functions
         if (o == null || getClass() != o.getClass()) return false;
         Knn knn = (Knn) o;
-        return super.equals(knn)
-            && Objects.equals(k(), knn.k())
-            && Objects.equals(filterExpressions(), knn.filterExpressions());
+        return super.equals(knn) && Objects.equals(k(), knn.k()) && Objects.equals(filterExpressions(), knn.filterExpressions());
     }
 
     @Override

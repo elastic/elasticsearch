@@ -96,6 +96,11 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @TaskAction
     public void run() throws IOException {
         TransportVersionResourcesService resources = getResourceService().get();
+        boolean onReleaseBranch = resources.checkIfDefinitelyOnReleaseBranch(resources.getUpperBounds(), getCurrentUpperBoundName().get());
+        if (onReleaseBranch) {
+            throw new IllegalArgumentException("Transport version generation cannot run on release branches");
+        }
+
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
         Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
         String targetDefinitionName = getTargetDefinitionName(resources, referencedNames, changedDefinitionNames);

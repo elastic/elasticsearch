@@ -259,6 +259,14 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return UPPER_BOUNDS_DIR.resolve(name + ".csv");
     }
 
+    boolean checkIfDefinitelyOnReleaseBranch(Map<String, TransportVersionUpperBound> upperBounds, String currentUpperBoundName) {
+        // only want to look at definitions <= the current upper bound.
+        // TODO: we should filter all of the upper bounds/definitions that are validated by this, not just in this method
+        TransportVersionUpperBound currentUpperBound = upperBounds.get(currentUpperBoundName);
+
+        return upperBounds.values().stream().anyMatch(u -> u.definitionId().complete() > currentUpperBound.definitionId().complete());
+    }
+
     private String getBaseRefName() {
         if (baseRefName.get() == null) {
             synchronized (baseRefName) {

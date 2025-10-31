@@ -1370,7 +1370,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         }
 
-        if (fieldType().ignoreAbove.isSet()) {
+        if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName) {
                 @Override
                 protected void writeValue(Object value, XContentBuilder b) throws IOException {

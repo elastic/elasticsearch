@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
@@ -1109,6 +1110,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .buildTemplate();
         String ct45d = "ct_45d";
         project = addComponentTemplate(service, project, ct45d, lifecycle45d);
+        DataStreamLifecycle.Template lifecycle60d = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(60))
+            .downsamplingRounds(
+                List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(7), new DateHistogramInterval("3h")))
+            )
+            .downsamplingMethod(DownsampleConfig.SamplingMethod.LAST_VALUE)
+            .buildTemplate();
+        String ct60d = "ct_60d";
+        project = addComponentTemplate(service, project, ct60d, lifecycle60d);
 
         DataStreamLifecycle.Template lifecycleNullRetention = DataStreamLifecycle.createDataLifecycleTemplate(
             true,
@@ -1118,6 +1128,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         String ctNullRetention = "ct_null_retention";
         project = addComponentTemplate(service, project, ctNullRetention, lifecycleNullRetention);
+
+        DataStreamLifecycle.Template lifecycleNullDownsampling = DataStreamLifecycle.createDataLifecycleTemplate(
+            true,
+            ResettableValue.undefined(),
+            ResettableValue.reset(),
+            ResettableValue.reset()
+        );
+        String ctNullDownsampling = "ct_null_downsampling";
+        project = addComponentTemplate(service, project, ctNullDownsampling, lifecycleNullDownsampling);
 
         String ctEmptyLifecycle = "ct_empty_lifecycle";
         project = addComponentTemplate(service, project, ctEmptyLifecycle, emptyLifecycle);
@@ -1220,6 +1239,72 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Result: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         assertLifecycleResolution(service, project, List.of(ct30d, ctDisabledLifecycle), lifecycle45d, lifecycle45d);
+
+        // Component A: "lifecycle": {
+        // "retention": "60d",
+        // "downsampling_method": "last_value",
+        // "downsampling": [{"after": "3d", "fixed_interval": "3h"}]
+        // }
+        // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Result: "lifecycle": {
+        // "retention": "45d",
+        // "downsampling": [{"after": "30d", "fixed_interval": "3h"}],
+        // "downsampling_method": "last_value"
+        // }
+        assertLifecycleResolution(
+            service,
+            project,
+            List.of(ct60d),
+            lifecycle45d,
+            DataStreamLifecycle.dataLifecycleBuilder()
+                .dataRetention(lifecycle45d.dataRetention())
+                .downsamplingMethod(lifecycle60d.downsamplingMethod())
+                .downsamplingRounds(lifecycle45d.downsamplingRounds())
+                .buildTemplate()
+        );
+
+        // Component A: "lifecycle": {
+        // "retention": "60d",
+        // "downsampling_method": "last_value",
+        // "downsampling": [{"after": "3d", "fixed_interval": "3h"}]
+        // }
+        // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Composable Z: "lifecycle": {"downsampling": null, "downsampling_method": null}
+        // Result: "lifecycle": {"retention": "45d"}
+        assertLifecycleResolution(
+            service,
+            project,
+            List.of(ct60d, ct45d),
+            lifecycleNullDownsampling,
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(lifecycle45d.dataRetention()).buildTemplate()
+        );
+
+        // Component A: "lifecycle": {
+        // "retention": "60d",
+        // "downsampling_method": "last_value",
+        // "downsampling": [{"after": "3d", "fixed_interval": "3h"}]
+        // }
+        // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Result: "lifecycle": {
+        // "retention": "45d",
+        // "downsampling": [{"after": "30d", "fixed_interval": "3h"}],
+        // "downsampling_method": "last_value"
+        // }
+        assertLifecycleResolution(
+            service,
+            project,
+            List.of(ct60d),
+            DataStreamLifecycle.createDataLifecycleTemplate(
+                true,
+                ResettableValue.undefined(),
+                ResettableValue.undefined(),
+                ResettableValue.reset()
+            ),
+            DataStreamLifecycle.dataLifecycleBuilder()
+                .dataRetention(lifecycle60d.dataRetention())
+                .downsamplingRounds(lifecycle60d.downsamplingRounds())
+                .buildTemplate()
+        );
     }
 
     public void testResolveFailureStore() throws Exception {

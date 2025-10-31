@@ -77,7 +77,7 @@ setup:
           non_inference_field: "non inference test"
         refresh: true
 ---
-"create endpoint fails when the inference_id is in use":
+"create endpoint fails when the inference_id is used by a semantic text field and is incompatible":
   - do:
       inference.delete:
         inference_id: dense-inference-id
@@ -102,6 +102,6 @@ setup:
           }
 
   - match: { error.reason: "Inference endpoint [dense-inference-id] could not be created because the inference_id
-                            is already being used in mappings for indices: [test-dense-index]. Please either use
-                            a different inference_id or update the index mappings and/or pipelines to refer to a
+                            is being used in mappings with incompatible settings for indices: [test-dense-index].
+                            Please either use a different inference_id or update the index mappings to refer to a
                             different inference_id." }

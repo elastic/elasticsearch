@@ -11,10 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -28,9 +25,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -38,7 +37,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -63,10 +61,10 @@ import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
-import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsForResource;
-import static org.elasticsearch.xpack.core.ml.utils.SemanticTextInfoExtractor.extractIndexesReferencingInferenceEndpoints;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.common.SemanticTextInfoExtractor.getModelSettingsForIndicesReferencingInferenceEndpoints;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.canMergeModelSettings;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
@@ -257,61 +255,40 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
     private void checkForExistingUsesOfInferenceId(Metadata metadata, Model model, ActionListener<Model> modelValidatingListener) {
         Set<String> inferenceEntityIdSet = Set.of(model.getInferenceEntityId());
-        Set<String> nonEmptyIndices = findNonEmptyIndices(extractIndexesReferencingInferenceEndpoints(metadata, inferenceEntityIdSet));
-        Set<String> pipelinesUsingInferenceId = pipelineIdsForResource(metadata, inferenceEntityIdSet);
+        Set<String> indicesWithIncompatibleMappings = findIndicesWithIncompatibleMappings(model, metadata, inferenceEntityIdSet);
 
-        if (nonEmptyIndices.isEmpty() && pipelinesUsingInferenceId.isEmpty()) {
+        if (indicesWithIncompatibleMappings.isEmpty()) {
             modelValidatingListener.onResponse(model);
         } else {
             modelValidatingListener.onFailure(
                 new ElasticsearchStatusException(
-                    buildErrorString(model.getInferenceEntityId(), nonEmptyIndices, pipelinesUsingInferenceId),
+                    buildErrorString(model.getInferenceEntityId(), indicesWithIncompatibleMappings),
                     RestStatus.BAD_REQUEST
                 )
             );
         }
     }
 
-    private HashSet<String> findNonEmptyIndices(Set<String> indicesUsingInferenceId) {
-        var nonEmptyIndices = new HashSet<String>();
-        if (indicesUsingInferenceId.isEmpty() == false) {
-            // Search for documents in the indices
-            for (String indexName : indicesUsingInferenceId) {
-                SearchRequest countRequest = new SearchRequest(indexName);
-                countRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-                countRequest.allowPartialSearchResults(true);
-                // We just need to know whether any documents exist at all
-                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true).trackTotalHitsUpTo(1);
-                countRequest.source(searchSourceBuilder);
-                SearchResponse searchResponse = client.search(countRequest).actionGet();
-                if (searchResponse.getHits().getTotalHits().value() > 0) {
-                    nonEmptyIndices.add(indexName);
+    private Set<String> findIndicesWithIncompatibleMappings(Model model, Metadata metadata, Set<String> inferenceEntityIdSet) {
+        var serviceSettingsMap = getModelSettingsForIndicesReferencingInferenceEndpoints(metadata, inferenceEntityIdSet);
+        var incompatibleIndices = new HashSet<String>();
+        if (serviceSettingsMap.isEmpty() == false) {
+            MinimalServiceSettings newSettings = new MinimalServiceSettings(model);
+            serviceSettingsMap.forEach((indexName, existingSettings) -> {
+                if (canMergeModelSettings(existingSettings, newSettings, new FieldMapper.Conflicts("")) == false) {
+                    incompatibleIndices.add(indexName);
                 }
-                searchResponse.decRef();
-            }
+            });
         }
-        return nonEmptyIndices;
+        return incompatibleIndices;
     }
 
-    private static String buildErrorString(String inferenceId, Set<String> nonEmptyIndices, Set<String> pipelinesUsingInferenceId) {
-        StringBuilder errorString = new StringBuilder();
-        errorString.append("Inference endpoint [")
-            .append(inferenceId)
-            .append("] could not be created because the inference_id is already ");
-        if (nonEmptyIndices.isEmpty() == false) {
-            errorString.append("being used in mappings for indices: ").append(nonEmptyIndices);
-        }
-        if (pipelinesUsingInferenceId.isEmpty() == false) {
-            if (nonEmptyIndices.isEmpty() == false) {
-                errorString.append(" and ");
-            }
-            errorString.append("referenced by pipelines: ").append(pipelinesUsingInferenceId);
-        }
-        errorString.append(
-            ". Please either use a different inference_id or update the index mappings "
-                + "and/or pipelines to refer to a different inference_id."
-        );
-        return errorString.toString();
+    private static String buildErrorString(String inferenceId, Set<String> indicesWithIncompatibleMappings) {
+        return "Inference endpoint ["
+            + inferenceId
+            + "] could not be created because the inference_id is being used in mappings with incompatible settings for indices: "
+            + indicesWithIncompatibleMappings
+            + ". Please either use a different inference_id or update the index mappings to refer to a different inference_id.";
     }
 
     private void startInferenceEndpoint(

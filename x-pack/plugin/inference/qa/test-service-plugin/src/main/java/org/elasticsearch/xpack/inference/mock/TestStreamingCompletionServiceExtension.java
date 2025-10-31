@@ -343,12 +343,15 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         public static TestServiceSettings fromMap(Map<String, Object> map) {
-            var modelId = map.remove("model").toString();
+            String modelId = (String) map.remove("model_id");
 
             if (modelId == null) {
-                ValidationException validationException = new ValidationException();
-                validationException.addValidationError("missing model id");
-                throw validationException;
+                modelId = (String) map.remove("model");
+                if (modelId == null) {
+                    ValidationException validationException = new ValidationException();
+                    validationException.addValidationError("missing model id");
+                    throw validationException;
+                }
             }
 
             return new TestServiceSettings(modelId);

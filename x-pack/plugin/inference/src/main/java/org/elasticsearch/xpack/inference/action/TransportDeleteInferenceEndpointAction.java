@@ -38,8 +38,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsForResource;
-import static org.elasticsearch.xpack.core.ml.utils.SemanticTextInfoExtractor.extractIndexesReferencingInferenceEndpoints;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.common.SemanticTextInfoExtractor.extractIndexesReferencingInferenceEndpoints;
 
 public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeAction<
     DeleteInferenceEndpointAction.Request,

@@ -455,7 +455,7 @@ public class JobManager {
                 ));
             }
         } else {
-            logger.debug(() -> format("[%s] No process update required for job update: %s", jobUpdate.getJobId(), jobUpdate.toString()));
+            logger.debug("[{}] No process update required for job update: {}", jobUpdate::getJobId, jobUpdate::toString);
             auditJobUpdatedIfNotInternal(request);
         }
 

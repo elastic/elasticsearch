@@ -9,44 +9,41 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link SampleIntAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link ExponentialHistogramMergeAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class SampleIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class ExponentialHistogramMergeGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("sample", ElementType.BYTES_REF)  );
+      new IntermediateStateDesc("value", ElementType.EXPONENTIAL_HISTOGRAM)  );
 
-  private final SampleIntAggregator.GroupingState state;
+  private final ExponentialHistogramStates.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  private final int limit;
-
-  public SampleIntGroupingAggregatorFunction(List<Integer> channels,
-      SampleIntAggregator.GroupingState state, DriverContext driverContext, int limit) {
+  public ExponentialHistogramMergeGroupingAggregatorFunction(List<Integer> channels,
+      ExponentialHistogramStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.limit = limit;
   }
 
-  public static SampleIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit) {
-    return new SampleIntGroupingAggregatorFunction(channels, SampleIntAggregator.initGrouping(driverContext.bigArrays(), limit), driverContext, limit);
+  public static ExponentialHistogramMergeGroupingAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new ExponentialHistogramMergeGroupingAggregatorFunction(channels, ExponentialHistogramMergeAggregator.initGrouping(driverContext.bigArrays(), driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -61,45 +58,22 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    IntBlock valueBlock = page.getBlock(channels.get(0));
-    IntVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valueBlock);
-        }
-
-        @Override
-        public void close() {
-        }
-      };
-    }
+    ExponentialHistogramBlock valueBlock = page.getBlock(channels.get(0));
+    maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valueVector);
+        addRawInput(positionOffset, groupIds, valueBlock);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valueVector);
+        addRawInput(positionOffset, groupIds, valueBlock);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valueVector);
+        addRawInput(positionOffset, groupIds, valueBlock);
       }
 
       @Override
@@ -108,7 +82,9 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
     };
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock valueBlock) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups,
+      ExponentialHistogramBlock valueBlock) {
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -124,25 +100,9 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          int valueValue = valueBlock.getInt(valueOffset);
-          SampleIntAggregator.combine(state, groupId, valueValue);
+          ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
+          ExponentialHistogramMergeAggregator.combine(state, groupId, valueValue);
         }
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector valueVector) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int valuesPosition = groupPosition + positionOffset;
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valueValue = valueVector.getInt(valuesPosition);
-        SampleIntAggregator.combine(state, groupId, valueValue);
       }
     }
   }
@@ -151,12 +111,12 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block sampleUncast = page.getBlock(channels.get(0));
-    if (sampleUncast.areAllValuesNull()) {
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef sampleScratch = new BytesRef();
+    ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -166,12 +126,14 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        SampleIntAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+        ExponentialHistogramMergeAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock valueBlock) {
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups,
+      ExponentialHistogramBlock valueBlock) {
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -187,25 +149,9 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          int valueValue = valueBlock.getInt(valueOffset);
-          SampleIntAggregator.combine(state, groupId, valueValue);
+          ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
+          ExponentialHistogramMergeAggregator.combine(state, groupId, valueValue);
         }
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector valueVector) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int valuesPosition = groupPosition + positionOffset;
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valueValue = valueVector.getInt(valuesPosition);
-        SampleIntAggregator.combine(state, groupId, valueValue);
       }
     }
   }
@@ -214,12 +160,12 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block sampleUncast = page.getBlock(channels.get(0));
-    if (sampleUncast.areAllValuesNull()) {
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef sampleScratch = new BytesRef();
+    ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -229,12 +175,14 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        SampleIntAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+        ExponentialHistogramMergeAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntBlock valueBlock) {
+  private void addRawInput(int positionOffset, IntVector groups,
+      ExponentialHistogramBlock valueBlock) {
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       if (valueBlock.isNull(valuesPosition)) {
@@ -244,18 +192,9 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
       int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
       int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-        int valueValue = valueBlock.getInt(valueOffset);
-        SampleIntAggregator.combine(state, groupId, valueValue);
+        ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
+        ExponentialHistogramMergeAggregator.combine(state, groupId, valueValue);
       }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, IntVector valueVector) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int valuesPosition = groupPosition + positionOffset;
-      int groupId = groups.getInt(groupPosition);
-      int valueValue = valueVector.getInt(valuesPosition);
-      SampleIntAggregator.combine(state, groupId, valueValue);
     }
   }
 
@@ -263,20 +202,21 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block sampleUncast = page.getBlock(channels.get(0));
-    if (sampleUncast.areAllValuesNull()) {
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef sampleScratch = new BytesRef();
+    ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      SampleIntAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+      ExponentialHistogramMergeAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
     }
   }
 
-  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock valueBlock) {
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds,
+      ExponentialHistogramBlock valueBlock) {
     if (valueBlock.mayHaveNulls()) {
       state.enableGroupIdTracking(seenGroupIds);
     }
@@ -295,7 +235,7 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = SampleIntAggregator.evaluateFinal(state, selected, ctx);
+    blocks[offset] = ExponentialHistogramMergeAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

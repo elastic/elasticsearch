@@ -231,6 +231,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        logger.debug(
+            "Starting downsampling [{}] with [{}] interval",
+            request.getSourceIndex(),
+            request.getDownsampleConfig().getFixedInterval()
+        );
         long startTime = nowSupplier.get();
         String sourceIndexName = request.getSourceIndex();
         IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(sourceIndexName);
@@ -1000,6 +1005,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         taskQueue.submitTask("create-downsample-index [" + downsampleIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                logger.debug("Creating downsample index [{}]", downsampleIndexName);
                 return metadataCreateIndexService.applyCreateIndexRequest(
                     currentState,
                     createIndexClusterStateUpdateRequest,
@@ -1060,6 +1066,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onResponse(final AcknowledgedResponse response) {
+            logger.debug("Preparing to refresh downsample index [{}]", downsampleIndexName);
             final RefreshRequest request = new RefreshRequest(downsampleIndexName);
             request.setParentTask(parentTask);
             client.admin()
@@ -1128,6 +1135,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
+                        logger.debug("Updating downsample index status for [{}]", downsampleIndexName);
                         final Metadata metadata = currentState.metadata();
                         final IndexMetadata downsampleIndex = metadata.index(metadata.index(downsampleIndexName).getIndex());
                         if (IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(downsampleIndex.getSettings()) == DownsampleTaskStatus.SUCCESS) {
@@ -1179,6 +1187,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onResponse(final AcknowledgedResponse response) {
+            logger.debug("Preparing to force merge downsample index [{}]", downsampleIndexName);
             ForceMergeRequest request = new ForceMergeRequest(downsampleIndexName);
             request.maxNumSegments(1);
             request.setParentTask(parentTask);
@@ -1218,12 +1227,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         @Override
         public void onResponse(final AcknowledgedResponse response) {
             recordSuccessMetrics(startTime);
+            logger.debug("Downsampling measured successfully");
             actionListener.onResponse(AcknowledgedResponse.TRUE);
         }
 
         @Override
         public void onFailure(Exception e) {
             recordSuccessMetrics(startTime);
+            logger.debug("Downsampling measured successfully", e);
             this.actionListener.onFailure(e);
         }
 

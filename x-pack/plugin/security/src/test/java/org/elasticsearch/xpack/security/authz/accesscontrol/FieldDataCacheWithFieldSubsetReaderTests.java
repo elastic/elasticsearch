@@ -120,7 +120,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(
             this.ir,
             new CharacterRunAutomaton(Automata.makeEmpty()),
-            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+            (s) -> false
         );
         global = sortedSetOrdinalsIndexFieldData.loadGlobal(ir);
         atomic = global.load(ir.leaves().get(0));
@@ -137,7 +138,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(
             this.ir,
             new CharacterRunAutomaton(Automata.makeEmpty()),
-            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+            (s) -> false
         );
         for (LeafReaderContext context : ir.leaves()) {
             LeafOrdinalsFieldData atomic = sortedSetOrdinalsIndexFieldData.load(context);
@@ -157,7 +159,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(
             this.ir,
             new CharacterRunAutomaton(Automata.makeEmpty()),
-            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+            (s) -> false
         );
         global = pagedBytesIndexFieldData.loadGlobal(ir);
         atomic = global.load(ir.leaves().get(0));
@@ -176,7 +179,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         DirectoryReader ir = FieldSubsetReader.wrap(
             this.ir,
             new CharacterRunAutomaton(Automata.makeEmpty()),
-            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+            (s) -> false
         );
         for (LeafReaderContext context : ir.leaves()) {
             LeafOrdinalsFieldData atomic = pagedBytesIndexFieldData.load(context);

@@ -134,7 +134,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Converts the query expression to an Object suitable for the Lucene query.
      * Handles common conversions for BytesRef, UNSIGNED_LONG, DATETIME, and DATE_NANOS.
      */
-    public Object queryAsObject() {
+    protected Object queryAsObject() {
         Object queryAsObject = Foldables.queryAsObject(query(), sourceText());
 
         // Convert BytesRef to string for string-based values

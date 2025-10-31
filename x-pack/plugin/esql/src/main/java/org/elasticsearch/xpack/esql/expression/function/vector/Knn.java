@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -55,17 +54,11 @@ import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
-import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
 public class Knn extends SingleFieldFullTextFunction
     implements
@@ -184,20 +177,6 @@ public class Knn extends SingleFieldFullTextFunction
 
     public List<Expression> filterExpressions() {
         return filterExpressions;
-    }
-
-    @Override
-    protected TypeResolution resolveQuery() {
-        TypeResolution result = isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector")
-            .and(isNotNull(query(), sourceText(), SECOND));
-        if (result.unresolved()) {
-            return result;
-        }
-        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
-        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
-            return result;
-        }
-        return TypeResolution.TYPE_RESOLVED;
     }
 
     public Knn replaceK(Integer k) {
@@ -361,9 +340,7 @@ public class Knn extends SingleFieldFullTextFunction
         // ignore options when comparing two Knn functions
         if (o == null || getClass() != o.getClass()) return false;
         Knn knn = (Knn) o;
-        return Objects.equals(field(), knn.field())
-            && Objects.equals(query(), knn.query())
-            && Objects.equals(queryBuilder(), knn.queryBuilder())
+        return super.equals(knn)
             && Objects.equals(k(), knn.k())
             && Objects.equals(filterExpressions(), knn.filterExpressions());
     }

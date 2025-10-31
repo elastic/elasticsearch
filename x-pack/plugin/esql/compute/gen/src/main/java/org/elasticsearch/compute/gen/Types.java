@@ -195,7 +195,11 @@ public class Types {
     }
 
     public static ClassName scratchType(String elementType) {
-        return findRequired(elementType, "block").scratch;
+        TypeDef typeDef = TYPES.get(elementType);
+        if (typeDef != null) {
+            return typeDef.scratch;
+        }
+        return null;
     }
 
     static ClassName builderType(TypeName resultType) {

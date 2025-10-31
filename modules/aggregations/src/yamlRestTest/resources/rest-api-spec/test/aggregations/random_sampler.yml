@@ -158,7 +158,9 @@ setup:
           {
             "query": {
               "function_score": {
-                "random_score": {}
+                "functions": {
+                    "random_score": {}
+                }
               }
             },
             "aggs": {
@@ -183,7 +185,9 @@ setup:
           {
             "query": {
               "function_score": {
-                "random_score": {}
+                "functions": {
+                  "random_score": {}
+                }
               }
             },
             "aggs": {

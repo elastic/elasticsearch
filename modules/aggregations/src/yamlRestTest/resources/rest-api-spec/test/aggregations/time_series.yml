@@ -161,10 +161,11 @@ setup:
         body:
           query:
             function_score:
-              field_value_factor:
-                field: "val"
-                factor: 0.1
-                missing: 1
+              functions:
+                field_value_factor:
+                  field: "val"
+                  factor: 0.1
+                  missing: 1
           size: 0
           min_score: 0.3
           aggs:

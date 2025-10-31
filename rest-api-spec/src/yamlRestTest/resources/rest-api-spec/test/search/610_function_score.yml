@@ -49,9 +49,11 @@
                   "text": "bar"
                 }
               },
-              "random_score": {
-                "seed": 10,
-                "field": "_seq_no"
+              "functions": {
+                "random_score": {
+                  "seed": 10,
+                  "field": "_seq_no"
+                }
               }
             }
 
@@ -70,9 +72,11 @@
                   "text": "bar"
                 }
               },
-              "random_score": {
-                "seed": 10,
-                "field": "uuid"
+              "functions": {
+                "random_score": {
+                  "seed": 10,
+                  "field": "_id"
+                }
               }
             }
 
@@ -132,8 +136,10 @@
                   "text": "bar"
                 }
               },
-              "random_score": {
-                "seed": 10
+              "functions": {
+                "random_score": {
+                  "seed": 10
+                }
               }
             }
   - length: { hits.hits: 2 }
@@ -172,11 +178,13 @@
               "query": {
                 "match_all": {}
               },
-              "field_value_factor": {
-                "field": "qty",
-                "factor": 1.2,
-                "missing": 1,
-                "modifier": "ln1p"
+              "functions": {
+                "field_value_factor": {
+                  "field": "qty",
+                  "factor": 1.2,
+                  "missing": 1,
+                  "modifier": "ln1p"
+                }
               }
             }
   - match: { status: 400 }

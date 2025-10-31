@@ -75,7 +75,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      *
      * @param in       reader to filter
      * @param filter   fields to filter.
-     * @param isMapped
+     * @param isMapped whether a field is mapped or not.
      */
     public static DirectoryReader wrap(
         DirectoryReader in,

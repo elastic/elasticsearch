@@ -421,9 +421,11 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
                 configurationMap.put(
                     MODEL_ID,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "Refer to the Nvidia models documentation for the list of available models."
+                            """
+                                The name of the model to use for the inference task. Refer to the \
+                                Nvidia models documentation for the list of available models."""
                     )
-                        .setLabel("Model")
+                        .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
                         .setUpdatable(false)

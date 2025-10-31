@@ -102,11 +102,7 @@ public class KnnTests extends AbstractFunctionTestCase {
                 List.of(NULL, DENSE_VECTOR),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(
-                            Literal.NULL,
-                            NULL,
-                            "text field"
-                        ),
+                        new TestCaseSupplier.TypedData(Literal.NULL, NULL, "text field"),
                         new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query")
                     ),
                     equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),

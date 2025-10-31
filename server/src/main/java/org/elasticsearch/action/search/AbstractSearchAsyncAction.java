@@ -163,7 +163,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
         this.mintransportVersion = clusterState.getMinTransportVersion();
-        this.discoveryNodes = () -> clusterState.nodes();
+        this.discoveryNodes = clusterState::nodes;
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
         // register the release of the query consumer to free up the circuit breaker memory
@@ -657,8 +657,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         Logger logger
     ) {
         SearchContextId original = originalPit.getSearchContextId(namedWriteableRegistry);
-        boolean idChanged = false;
-        // only create the following maps if we detect a change
+        // only create the following two collections if we detect an id change
         Map<ShardId, SearchContextIdForNode> updatedShardMap = null;
         Collection<SearchContextIdForNode> contextsToClose = null;
         logger.debug("checking search result shards to detect PIT node changes");
@@ -671,7 +670,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 String originalNode = originalShard.getNode();
                 if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
                     // the target node for this shard entry in the PIT has changed, we need to update it
-                    idChanged = true;
                     if (updatedShardMap == null) {
                         // initialize the map with entries from old map to keep ids for shards that have not responded in this results
                         updatedShardMap = new HashMap<>(original.shards());
@@ -690,22 +688,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
         }
-        if (idChanged) {
+        if (updatedShardMap != null) {
             // we free all old contexts that have moved, just in case we have re-tried them elsewhere
             // but they still exist in the old location
-            if (contextsToClose != null) {
-                closeContexts(nodes, searchTransportService, contextsToClose, new ActionListener<Integer>() {
-                    @Override
-                    public void onResponse(Integer integer) {
-                        // ignore
-                    }
+            closeContexts(nodes, searchTransportService, contextsToClose, new ActionListener<Integer>() {
+                @Override
+                public void onResponse(Integer integer) {
+                    // ignore
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.trace("Failure while freeing old point in time contexts", e);
-                    }
-                });
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    logger.trace("Failure while freeing old point in time contexts", e);
+                }
+            });
             return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return originalPit.getEncodedId();

@@ -36,7 +36,7 @@ public class ActiveReadersTests extends ESTestCase {
 
         final String sessionId = UUIDs.randomBase64UUID();
         List<String> relocatedSessionIds = randomList(5, 5, UUIDs::randomBase64UUID);
-        ActiveReaders activeReaders = new ActiveReaders(sessionId, idGenerator);
+        ActiveReaders activeReaders = new ActiveReaders(sessionId);
 
         // add a couple of readers, both from same session and relocated ones (different sessionId)
         Map<ShardSearchContextId, ReaderContext> controlData = new HashMap<>();
@@ -81,7 +81,7 @@ public class ActiveReadersTests extends ESTestCase {
     public void testAddPreventAddingSameIdTwice() {
         final String primarySessionId = UUIDs.randomBase64UUID();
         AtomicLong idGenerator = new AtomicLong();
-        ActiveReaders activeReaders = new ActiveReaders(primarySessionId, idGenerator);
+        ActiveReaders activeReaders = new ActiveReaders(primarySessionId);
         long id = randomLongBetween(0, 1000);
         String readerId = randomBoolean() ? null : UUIDs.randomBase64UUID();
         ReaderContext readerContext = createRandomReaderContext(new ShardSearchContextId(primarySessionId, id, readerId));
@@ -104,7 +104,7 @@ public class ActiveReadersTests extends ESTestCase {
         );
 
         AtomicLong idGenerator = new AtomicLong();
-        ActiveReaders activeReaders = new ActiveReaders(sessionId, idGenerator);
+        ActiveReaders activeReaders = new ActiveReaders(sessionId);
 
         // add a couple of readers, both from same session and relocated ones (different sessionId)
         Map<ShardSearchContextId, ReaderContext> controlData = new HashMap<>();
@@ -134,25 +134,25 @@ public class ActiveReadersTests extends ESTestCase {
             controlData.put(id, readerContext);
         }
         assertEquals(controlData.size(), activeReaders.size());
-        assertEquals(activeRelocatedContexts, activeReaders.relocatioMapSize());
+        assertEquals(activeRelocatedContexts, activeReaders.relocationMapSize());
 
         // remove all contexts in random order
         while (controlData.isEmpty() == false) {
             int lastReaderCount = activeReaders.size();
-            int lastRelocatopnMapCount = activeReaders.relocatioMapSize();
+            int lastRelocatopnMapCount = activeReaders.relocationMapSize();
             ShardSearchContextId contextId = randomFrom(controlData.keySet());
             assertSame(controlData.remove(contextId), activeReaders.remove(contextId));
             assertEquals(lastReaderCount - 1, activeReaders.size());
             if (contextId.getSessionId().equals(sessionId) == false) {
-                assertEquals(lastRelocatopnMapCount - 1, activeReaders.relocatioMapSize());
+                assertEquals(lastRelocatopnMapCount - 1, activeReaders.relocationMapSize());
             } else {
-                assertEquals(lastRelocatopnMapCount, activeReaders.relocatioMapSize());
+                assertEquals(lastRelocatopnMapCount, activeReaders.relocationMapSize());
             }
             // trying to remove same id twice should not throw error but return null
             assertNull(activeReaders.remove(contextId));
         }
         assertEquals(0, activeReaders.size());
-        assertEquals(0, activeReaders.relocatioMapSize());
+        assertEquals(0, activeReaders.relocationMapSize());
     }
 
     private static ReaderContext createRandomReaderContext(ShardSearchContextId id) {

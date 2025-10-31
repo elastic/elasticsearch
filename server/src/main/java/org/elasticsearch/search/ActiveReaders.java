@@ -15,7 +15,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class ActiveReaders {
 
@@ -23,7 +22,7 @@ public class ActiveReaders {
     private final Map<ShardSearchContextId, Long> relocationMap = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final String sessionId;
 
-    ActiveReaders(String searchServiceSessionId, AtomicLong idGenerator) {
+    ActiveReaders(String searchServiceSessionId) {
         this.sessionId = searchServiceSessionId;
     }
 
@@ -39,8 +38,8 @@ public class ActiveReaders {
         assert previous == null;
     }
 
-    Long generateRelocationMapping(ShardSearchContextId relocatedContextId, long mapppingKey) {
-        return relocationMap.putIfAbsent(relocatedContextId, mapppingKey);
+    Long generateRelocationMapping(ShardSearchContextId relocatedContextId, long mappingKey) {
+        return relocationMap.putIfAbsent(relocatedContextId, mappingKey);
     }
 
     ReaderContext get(ShardSearchContextId contextId) {
@@ -80,7 +79,7 @@ public class ActiveReaders {
     /**
      * pkg private for testing
      */
-    int relocatioMapSize() {
+    int relocationMapSize() {
         return relocationMap.size();
     }
 

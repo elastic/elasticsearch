@@ -385,7 +385,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     ) {
         Settings settings = clusterService.getSettings();
         this.sessionId = UUIDs.randomBase64UUID();
-        this.activeReaders = new ActiveReaders(this.sessionId, this.idGenerator);
+        this.activeReaders = new ActiveReaders(this.sessionId);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;

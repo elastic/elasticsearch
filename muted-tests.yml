@@ -318,12 +318,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
   method: testNullsOrderWithMissingOrderSupportQueryingNewNode
   issue: https://github.com/elastic/elasticsearch/issues/132249
-- class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
-  method: testManyDistinctOverFields
-  issue: https://github.com/elastic/elasticsearch/issues/132308
-- class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
-  method: testTooManyByAndOverFields
-  issue: https://github.com/elastic/elasticsearch/issues/132310
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/132349
@@ -507,9 +501,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=indices.validate_query/20_query_string/validate_query with query_string parameters}
   issue: https://github.com/elastic/elasticsearch/issues/137391
-- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
-  method: testILMDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/136585
 
 # Examples:
 #

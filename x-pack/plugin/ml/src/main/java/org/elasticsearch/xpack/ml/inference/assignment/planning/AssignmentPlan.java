@@ -314,12 +314,28 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         return new Quality(isSatisfyingPreviousAssignments, weighedAllocationsScore, memoryScore);
     }
 
-    public AssignmentPlan withDeploymentsWithZeroAllocations(Collection<Deployment> deploymentsWithZeroAllocations) {
+    /**
+     * Adds deployments with zero allocations to this plan. These deployments
+     * are preserved in the plan but have no node assignments. This ensures
+     * that deployments configured with zero allocations are not lost during
+     * planning.
+     *
+     * Deployments with zero allocations are filtered out during the planning
+     * process (since they don't require assignment), but they need to be preserved
+     * in the final plan so that deployment state is maintained correctly.
+     *
+     * @param zeroAllocationDeployments deployments to add with empty assignments
+     * @return a new plan containing the original assignments plus the zero-allocation deployments
+     */
+    public AssignmentPlan withZeroAllocationDeployments(Collection<Deployment> zeroAllocationDeployments) {
         Map<Deployment, Map<Node, Integer>> newAssignments = new HashMap<>(assignments);
-        for (Deployment deployment : deploymentsWithZeroAllocations) {
+        Map<Deployment, Integer> newRemainingModelAllocations = new HashMap<>(remainingModelAllocations);
+        for (Deployment deployment : zeroAllocationDeployments) {
+            assert newAssignments.containsKey(deployment) == false;
             newAssignments.put(deployment, Collections.emptyMap());
+            newRemainingModelAllocations.put(deployment, 0);
         }
-        return new AssignmentPlan(newAssignments, remainingNodeMemory, remainingNodeCores, remainingModelAllocations);
+        return new AssignmentPlan(newAssignments, remainingNodeMemory, remainingNodeCores, newRemainingModelAllocations);
     }
 
     public String prettyPrint() {

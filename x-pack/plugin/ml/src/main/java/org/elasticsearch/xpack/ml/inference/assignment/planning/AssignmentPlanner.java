@@ -105,7 +105,7 @@ public class AssignmentPlanner {
         logger.debug(() -> "Best plan =\n" + bestPlan.prettyPrint());
         logger.debug(() -> prettyPrintOverallStats(bestPlan));
 
-        return bestPlan.withDeploymentsWithZeroAllocations(deploymentsWithZeroAllocations);
+        return bestPlan.withZeroAllocationDeployments(deploymentsWithZeroAllocations);
     }
 
     /**

@@ -30,20 +30,20 @@ public class IndexBalanceConstraintSettings {
 
     /**
      * This setting permits nodes to host more than ideally balanced number of index shards.
-     * Maximum tolerated index shard count = ceil(ideal * skew_tolerance)
-     * i.e. ideal = 4 shards, skew_tolerance = 1.3
-     * maximum tolerated index shards = Math.ceil(4 * 1.3) = 6.
+     * Maximum tolerated index shard count = ideal + skew_tolerance
+     * i.e. ideal = 4 shards, skew_tolerance = 1
+     * maximum tolerated index shards = 4 + 1 = 5.
      */
-    public static final Setting<Double> INDEX_BALANCE_DECIDER_LOAD_SKEW_TOLERANCE = Setting.doubleSetting(
+    public static final Setting<Integer> INDEX_BALANCE_DECIDER_LOAD_SKEW_TOLERANCE = Setting.intSetting(
         SETTING_PREFIX + "load_skew_tolerance",
-        1.5d,
-        1.0d,
+        0,
+        0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     private volatile boolean deciderEnabled;
-    private volatile double loadSkewTolerance;
+    private volatile int loadSkewTolerance;
 
     public IndexBalanceConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(INDEX_BALANCE_DECIDER_ENABLED_SETTING, enabled -> this.deciderEnabled = enabled);
@@ -54,7 +54,7 @@ public class IndexBalanceConstraintSettings {
         return this.deciderEnabled;
     }
 
-    public double getLoadSkewTolerance() {
+    public int getLoadSkewTolerance() {
         return this.loadSkewTolerance;
     }
 

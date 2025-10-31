@@ -189,13 +189,13 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-    public void testCanAllocate_under_threshold() {
+    public void testCanAllocateUnderThreshold() {
         setup(true);
 
         Settings settings = Settings.builder()
             .put("stateless.enabled", "true")
             .put("cluster.routing.allocation.index_balance_decider.enabled", "true")
-            .put("cluster.routing.allocation.index_balance_decider.load_skew_tolerance", 1.0d)
+            .put("cluster.routing.allocation.index_balance_decider.load_skew_tolerance", 0)
             .build();
 
         IndexBalanceAllocationDecider indexBalanceAllocationDecider = new IndexBalanceAllocationDecider(
@@ -251,7 +251,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             "Assigning a shard to a node that is not index or search node should succeed",
             indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingMasterNode, routingAllocation),
             Decision.Type.YES,
-            "Node has neither index nor search roles, outside purview."
+            "Node has neither index nor search roles."
         );
 
         for (RoutingNode routingNode : List.of(routingSearchNodeOne, routingSearchNodeTwo)) {
@@ -277,7 +277,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 "Assigning a replica shard to a search node should succeed",
                 indexBalanceAllocationDecider.canAllocate(replicaIndexShardRouting, routingNode, routingAllocation),
                 Decision.Type.YES,
-                "Decider allows replicas move to index nodes."
+                "An index node cannot own search shards. Decider inactive."
             );
         }
 
@@ -289,13 +289,13 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
-    public void testCanAllocate_exceed_threshold() {
+    public void testCanAllocateExceedThreshold() {
         setup(false);
 
         Settings settings = Settings.builder()
             .put("stateless.enabled", "true")
             .put("cluster.routing.allocation.index_balance_decider.enabled", "true")
-            .put("cluster.routing.allocation.index_balance_decider.load_skew_tolerance", 1.0d)
+            .put("cluster.routing.allocation.index_balance_decider.load_skew_tolerance", 0)
             .build();
 
         IndexBalanceAllocationDecider indexBalanceAllocationDecider = new IndexBalanceAllocationDecider(
@@ -334,24 +334,20 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             "Assigning an additional primary shard to an index node at capacity should fail",
             indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingIndexNodeOne, routingAllocation),
             Decision.Type.NOT_PREFERRED,
-            "For index [[IndexBalanceAllocationDeciderIndex]] with [10] primary shards, Node [indexNodeOne] is "
-                + "expected to hold [5] primary shards for index [[IndexBalanceAllocationDeciderIndex]], based on the total of [2]\n"
-                + "nodes available. The configured load skew tolerance is [1.00], which yields an allocation threshold of\n"
-                + "Math.ceil([5] × [1.00]) = [5] primary shards. Currently, node [indexNodeOne] is assigned [5] primary shards of index "
-                + "[[IndexBalanceAllocationDeciderIndex]]. Therefore,\n"
-                + "assigning additional primary shards is not preferred.\n"
+            "There are [2] eligible nodes in the [primary shards] tier for assignment of [10] shards "
+                + "in index [[IndexBalanceAllocationDeciderIndex]]. Ideally no more than [5]\n"
+                + "shard would be assigned per node (the index balance skew setting is [0]). This node is already assigned [5] shards of\n"
+                + "the index.\n"
         );
 
         assertDecisionMatches(
             "Assigning an additional replica shard to an replica node at capacity should fail",
             indexBalanceAllocationDecider.canAllocate(replicaIndexShardRouting, routingSearchNodeOne, routingAllocation),
             Decision.Type.NOT_PREFERRED,
-            "For index [[IndexBalanceAllocationDeciderIndex]] with [20] replicas, Node [searchNodeOne] is "
-                + "expected to hold [10] replicas for index [[IndexBalanceAllocationDeciderIndex]], based on the total of [2]\n"
-                + "nodes available. The configured load skew tolerance is [1.00], which yields an allocation threshold of\n"
-                + "Math.ceil([10] × [1.00]) = [10] replicas. Currently, node [searchNodeOne] is assigned [10] replicas of index "
-                + "[[IndexBalanceAllocationDeciderIndex]]. Therefore,\n"
-                + "assigning additional replicas is not preferred.\n"
+            "There are [2] eligible nodes in the [replicas] tier for assignment of [20] "
+                + "shards in index [[IndexBalanceAllocationDeciderIndex]]. Ideally no more than [10]\n"
+                + "shard would be assigned per node (the index balance skew setting is [0]). This node is already assigned [10] shards of\n"
+                + "the index.\n"
         );
     }
 

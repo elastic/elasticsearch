@@ -61,11 +61,9 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (indexBalanceConstraintSettings.isDeciderEnabled() == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Decider is disabled.");
-        }
-
-        if (isStateless == false) {
+        if (indexBalanceConstraintSettings.isDeciderEnabled() == false
+            || isStateless == false
+            || clusterExcludeFilters != null && clusterExcludeFilters.isEmpty() == false) {
             return Decision.single(Decision.Type.YES, NAME, "Decider is disabled.");
         }
 
@@ -86,7 +84,6 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         if (node.node().getRoles().contains(SEARCH_ROLE) && shardRouting.primary()) {
             return Decision.single(Decision.Type.YES, NAME, "Decider allows primaries move to search nodes.");
         }
-
 
         final ProjectId projectId = allocation.getClusterState().metadata().projectFor(index).id();
         final Set<DiscoveryNode> eligibleNodes = new HashSet<>();
@@ -110,19 +107,20 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         assert totalShards > 0;
 
         final double idealAllocation = Math.ceil((double) totalShards / eligibleNodes.size());
-        final int threshold = (int) Math.ceil(idealAllocation * indexBalanceConstraintSettings.getLoadSkewTolerance());
+        final int threshold = (int) Math.ceil(idealAllocation) + indexBalanceConstraintSettings.getLoadSkewTolerance();
         final int currentAllocation = node.numberOfOwningShardsForIndex(index);
 
         if (currentAllocation >= threshold) {
             String explanation = Strings.format(
                 """
-                There are [%d] eligible nodes in the [%s] tier for assignment of [%.0f] shards in index [%s]. Ideally no more than [%d]
-                shard would be assigned per node (the index balance skew setting is [%.2f]). This node is already assigned [%d] shards of
-                the index.
-                """,
+                    There are [%d] eligible nodes in the [%s] tier for assignment of [%d] shards in index [%s]. Ideally no more than [%.0f]
+                    shard would be assigned per node (the index balance skew setting is [%d]). This node is already assigned [%d] shards of
+                    the index.
+                    """,
                 eligibleNodes.size(),
                 nomenclature,
                 totalShards,
+                index,
                 idealAllocation,
                 indexBalanceConstraintSettings.getLoadSkewTolerance(),
                 currentAllocation
@@ -138,9 +136,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
     private void collectEligibleNodes(RoutingAllocation allocation, Set<DiscoveryNode> eligibleNodes, DiscoveryNodeRole role) {
         for (DiscoveryNode discoveryNode : allocation.nodes()) {
-            if ( discoveryNode.getRoles().contains(role)
-                && (clusterExcludeFilters == null || clusterExcludeFilters.match(discoveryNode) == false)
-                && allocation.metadata().nodeShutdowns().contains(discoveryNode.getId()) == false) {
+            if (discoveryNode.getRoles().contains(role) && allocation.metadata().nodeShutdowns().contains(discoveryNode.getId()) == false) {
                 eligibleNodes.add(discoveryNode);
             }
         }

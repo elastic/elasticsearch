@@ -12,6 +12,8 @@ package org.elasticsearch.action.admin.cluster.shards;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -25,6 +27,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -39,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportClusterSearchShardsAction extends TransportMasterNodeReadAction<
+public class TransportClusterSearchShardsAction extends TransportLocalClusterStateAction<
     ClusterSearchShardsRequest,
     ClusterSearchShardsResponse> {
 
@@ -49,6 +52,11 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
+    /**
+     * AP prior to 9.3 this was a {@link TransportMasterNodeReadAction} so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     @Inject
     public TransportClusterSearchShardsAction(
         TransportService transportService,
@@ -61,17 +69,23 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
     ) {
         super(
             TYPE.name(),
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            ClusterSearchShardsRequest::new,
-            ClusterSearchShardsResponse::new,
+            transportService.getTaskManager(),
+            clusterService,
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
         );
         this.indicesService = indicesService;
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            ClusterSearchShardsRequest::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
@@ -86,7 +100,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         final ClusterSearchShardsRequest request,
         final ClusterState state,

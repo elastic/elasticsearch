@@ -14,11 +14,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -63,6 +66,11 @@ public final class SearchShardsResponse extends ActionResponse {
         this(groups, nodes, aliasFilters, null);
     }
 
+    /**
+     * AP prior to 9.3 {@link TransportClusterSearchShardsAction} was a {@link TransportMasterNodeReadAction}
+     * so for BwC we must remain able to read these responses until we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     public SearchShardsResponse(StreamInput in) throws IOException {
         this.groups = in.readCollectionAsList(SearchShardsGroup::new);
         this.nodes = in.readCollectionAsList(DiscoveryNode::new);
@@ -74,6 +82,11 @@ public final class SearchShardsResponse extends ActionResponse {
         }
     }
 
+    /**
+     * AP prior to 9.3 {@link TransportClusterSearchShardsAction} was a {@link TransportMasterNodeReadAction}
+     * so for BwC we must remain able to write these responses until we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(groups);

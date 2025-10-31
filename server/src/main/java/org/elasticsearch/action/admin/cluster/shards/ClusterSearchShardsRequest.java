@@ -9,22 +9,20 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSearchShardsRequest>
-    implements
-        IndicesRequest.Replaceable {
+public final class ClusterSearchShardsRequest extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     @Nullable
@@ -38,26 +36,17 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         indices(indices);
     }
 
+    /**
+     * AP prior to 9.3 {@link TransportClusterSearchShardsAction} was a {@link TransportMasterNodeReadAction}
+     * so for BwC we must remain able to read these requests until we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     public ClusterSearchShardsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        out.writeOptionalString(routing);
-        out.writeOptionalString(preference);
-        indicesOptions.writeIndicesOptions(out);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     /**

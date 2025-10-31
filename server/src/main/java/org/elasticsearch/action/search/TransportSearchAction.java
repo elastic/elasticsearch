@@ -1160,7 +1160,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                         indices
-                    ).indicesOptions(searchShardsIdxOpts).local(true).preference(preference).routing(routing);
+                    ).indicesOptions(searchShardsIdxOpts).preference(preference).routing(routing);
                     transportService.sendRequest(
                         connection,
                         TransportClusterSearchShardsAction.TYPE.name(),

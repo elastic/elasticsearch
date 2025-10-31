@@ -10,14 +10,28 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.IOException;
+
 public class ClusterSearchShardsRequestTests extends ESTestCase {
 
+    /**
+     * AP prior to 9.3 {@link TransportClusterSearchShardsAction} was a {@link TransportMasterNodeReadAction}
+     * so for BwC we must remain able to read these requests until we no longer need to support calling this action remotely.
+     * This test method can be removed once we no longer need to keep serialization and deserialization around.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     public void testSerialization() throws Exception {
         ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
@@ -48,7 +62,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
         TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
-            request.writeTo(out);
+            new WriteToWrapper(request).writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setTransportVersion(version);
                 ClusterSearchShardsRequest deserialized = new ClusterSearchShardsRequest(in);
@@ -66,5 +80,34 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> request.indices((String[]) null));
         expectThrows(NullPointerException.class, () -> request.indices((String) null));
         expectThrows(NullPointerException.class, () -> request.indices(new String[] { "index1", null, "index3" }));
+    }
+
+    /**
+     * AP prior to 9.3 {@link TransportClusterSearchShardsAction} was a {@link TransportMasterNodeReadAction}
+     * so for BwC we must remain able to read these requests until we no longer need to support calling this action remotely.
+     * This class preserves the {@link Writeable#writeTo(StreamOutput)} functionality of the request so that
+     * the necessary deserialization can be tested.
+     */
+    private static class WriteToWrapper extends MasterNodeReadRequest<WriteToWrapper> {
+        private final ClusterSearchShardsRequest request;
+
+        WriteToWrapper(ClusterSearchShardsRequest request) {
+            super(request.masterTimeout());
+            this.request = request;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeStringArray(request.indices());
+            out.writeOptionalString(request.routing());
+            out.writeOptionalString(request.preference());
+            request.indicesOptions().writeIndicesOptions(out);
+        }
     }
 }

@@ -48,10 +48,10 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
             RestUtils.getMasterNodeTimeout(request),
             Strings.splitStringByCommaToArray(request.param("index"))
         );
-        clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));
         clusterSearchShardsRequest.routing(request.param("routing"));
         clusterSearchShardsRequest.preference(request.param("preference"));
         clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterSearchShardsRequest.indicesOptions()));
+        RestUtils.consumeDeprecatedLocalParameter(request);
         return channel -> client.execute(
             TransportClusterSearchShardsAction.TYPE,
             clusterSearchShardsRequest,

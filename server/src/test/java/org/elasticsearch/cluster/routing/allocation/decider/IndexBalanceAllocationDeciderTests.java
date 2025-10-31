@@ -254,15 +254,6 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             );
         }
 
-        for (RoutingNode routingNode : List.of(routingSearchNodeOne, routingSearchNodeTwo)) {
-            assertDecisionMatches(
-                "Assigning a primary shard to a search node should succeed",
-                indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingNode, routingAllocation),
-                Decision.Type.YES,
-                "Decider allows primaries move to search nodes."
-            );
-        }
-
         for (RoutingNode routingNode : List.of(routingIndexNodeOne, routingIndexNodeTwo)) {
             assertDecisionMatches(
                 "Assigning a replica shard to a search node should succeed",

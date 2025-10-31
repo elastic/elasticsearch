@@ -3323,7 +3323,7 @@ public class VerifierTests extends ESTestCase {
             assertThat(
                 error("from test | EVAL chunks = CHUNK(body, \"puggles\", {\"chunk_size\":\"foo\"})", fullTextAnalyzer),
                 equalTo(
-                    "1:27: Invalid option [num_chunks] in [CHUNK(body, \"puggles\", {\"num_chunks\":\"foo\"})], "
+                    "1:27: Invalid option [chunk_size] in [CHUNK(body, \"puggles\", {\"chunk_size\":\"foo\"})], "
                         + "cannot cast [foo] to [integer]"
                 )
             );

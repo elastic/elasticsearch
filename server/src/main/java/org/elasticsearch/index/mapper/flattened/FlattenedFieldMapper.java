@@ -925,7 +925,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 () -> new FlattenedSortedSetDocValuesSyntheticFieldLoader(
                     fullPath(),
                     fullPath() + KEYED_FIELD_SUFFIX,
-                    fieldType().ignoreAbove.isSet() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                    fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
                     leafName()
                 )
             );

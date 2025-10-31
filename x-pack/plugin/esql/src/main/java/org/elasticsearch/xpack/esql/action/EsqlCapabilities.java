@@ -1573,6 +1573,10 @@ public class EsqlCapabilities {
         TS_COMMAND_V0(),
 
         /**
+         * Custom error for renamed timestamp
+         */
+        TS_RENAME_TIMESTAMP_ERROR_MESSAGE,
+        /**
          * Add support for counter doubles, ints, and longs in first_ and last_over_time
          */
         FIRST_LAST_OVER_TIME_COUNTER_SUPPORT,
@@ -1588,6 +1592,8 @@ public class EsqlCapabilities {
         INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
 
         DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS,
+
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION,
 
         /**
          * FUSE L2_NORM score normalization support
@@ -1636,6 +1642,14 @@ public class EsqlCapabilities {
          * BooleanSimplification will simplify the original and duplicate filters, so they'll be pushed down again...
          */
         LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
+
+        FIX_MV_CONSTANT_EQUALS_FIELD,
+
+        /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.
+         * https://github.com/elastic/elasticsearch/issues/137019.
+         */
+        FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

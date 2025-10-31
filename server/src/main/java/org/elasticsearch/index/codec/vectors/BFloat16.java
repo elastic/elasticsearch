@@ -38,7 +38,6 @@ public final class BFloat16 {
     }
 
     public static void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
-        assert bFloats.remaining() == floats.length;
         assert bFloats.order() == ByteOrder.LITTLE_ENDIAN;
         for (float v : floats) {
             bFloats.put(floatToBFloat16(v));
@@ -53,7 +52,6 @@ public final class BFloat16 {
     }
 
     public static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
-        assert floats.length == bFloats.remaining();
         assert bFloats.order() == ByteOrder.LITTLE_ENDIAN;
         for (int i = 0; i < floats.length; i++) {
             floats[i] = bFloat16ToFloat(bFloats.get());

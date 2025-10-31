@@ -532,8 +532,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public abstract ElementType elementType();
 
-        public abstract void writeValue(ByteBuffer byteBuffer, float value);
-
         public abstract void writeValues(ByteBuffer byteBuffer, float[] values);
 
         public abstract void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException;
@@ -634,11 +632,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public ElementType elementType() {
             return ElementType.BYTE;
-        }
-
-        @Override
-        public void writeValue(ByteBuffer byteBuffer, float value) {
-            byteBuffer.put((byte) value);
         }
 
         @Override
@@ -896,11 +889,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void writeValue(ByteBuffer byteBuffer, float value) {
-            byteBuffer.putFloat(value);
-        }
-
-        @Override
         public void writeValues(ByteBuffer byteBuffer, float[] values) {
             byteBuffer.asFloatBuffer().put(values);
             byteBuffer.position(byteBuffer.position() + (values.length * Float.BYTES));
@@ -1087,13 +1075,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void writeValue(ByteBuffer byteBuffer, float value) {
-            byteBuffer.putShort(BFloat16.floatToBFloat16(value));
-        }
-
-        @Override
         public void writeValues(ByteBuffer byteBuffer, float[] values) {
-            BFloat16.floatToBFloat16(values, byteBuffer.asShortBuffer().limit(values.length));
+            BFloat16.floatToBFloat16(values, byteBuffer.asShortBuffer());
             byteBuffer.position(byteBuffer.position() + (values.length * BFloat16.BYTES));
         }
 

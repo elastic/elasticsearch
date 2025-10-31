@@ -72,10 +72,13 @@ public class RankVectorsFieldMapper extends FieldMapper {
             () -> DenseVectorFieldMapper.ElementType.FLOAT,
             (n, c, o) -> {
                 DenseVectorFieldMapper.ElementType elementType = namesToElementType.get((String) o);
-                if (elementType == null || elementType == ElementType.BFLOAT16) {
+                if (elementType == null) {
                     throw new MapperParsingException(
                         "invalid element_type [" + o + "]; available types are " + namesToElementType.keySet()
                     );
+                }
+                if (elementType == ElementType.BFLOAT16) {
+                    throw new MapperParsingException("Rank vectors does not support bfloat16");
                 }
                 return elementType;
             },

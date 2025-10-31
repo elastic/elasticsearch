@@ -12,12 +12,8 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.ShortBuffer;
+import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
 public class BFloat16BinaryDenseVectorDocValuesField extends BinaryDenseVectorDocValuesField {
     public BFloat16BinaryDenseVectorDocValuesField(
@@ -32,7 +28,6 @@ public class BFloat16BinaryDenseVectorDocValuesField extends BinaryDenseVectorDo
 
     @Override
     void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, float[] vector) {
-        ShortBuffer fb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
-        BFloat16.bFloat16ToFloat(fb, vector);
+        VectorEncoderDecoder.decodeBFloat16DenseVector(vectorBR, vector);
     }
 }

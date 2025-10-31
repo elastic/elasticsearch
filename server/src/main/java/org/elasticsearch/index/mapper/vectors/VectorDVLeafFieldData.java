@@ -17,7 +17,6 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -33,9 +32,6 @@ import org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.ShortBuffer;
 import java.util.Arrays;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -200,10 +196,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     private class BFloat16DocValues extends FloatDocValues {
         @Override
         void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, float[] vector) {
-            ShortBuffer fb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length)
-                .order(ByteOrder.LITTLE_ENDIAN)
-                .asShortBuffer();
-            BFloat16.bFloat16ToFloat(fb, vector);
+            VectorEncoderDecoder.decodeBFloat16DenseVector(vectorBR, vector);
         }
     }
 

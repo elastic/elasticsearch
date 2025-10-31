@@ -26,8 +26,16 @@ public final class BlockMetadataAccumulator implements Closeable {
     private final DelayedOffsetAccumulator blockDocRangeAcc;
 
     BlockMetadataAccumulator(Directory dir, IOContext context, IndexOutput data, long addressesStart) throws IOException {
-        blockDocRangeAcc = new DelayedOffsetAccumulator(dir, context, data, "block-doc-ranges", 0);
-        blockAddressAcc = new DelayedOffsetAccumulator(dir, context, data, "block-addresses", addressesStart);
+        boolean success = false;
+        try {
+            blockDocRangeAcc = new DelayedOffsetAccumulator(dir, context, data, "block-doc-ranges", 0);
+            blockAddressAcc = new DelayedOffsetAccumulator(dir, context, data, "block-addresses", addressesStart);
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(this); // self-close because constructor caller can't
+            }
+        }
     }
 
     public void addDoc(long numDocsInBlock, long blockLenInBytes) throws IOException {

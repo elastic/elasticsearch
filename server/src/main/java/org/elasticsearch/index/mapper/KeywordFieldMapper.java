@@ -55,6 +55,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -286,7 +287,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 m -> ((KeywordFieldMapper) m).isNormalizerSkipStoreOriginalValue(),
                 () -> "lowercase".equals(normalizer.getValue())
                     && indexAnalyzers.getNormalizer(normalizer.getValue()).analyzer() instanceof LowercaseNormalizer
-            ).setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
+            );
 
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
@@ -357,6 +358,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public boolean hasNormalizer() {
             return this.normalizer.get() != null;
+        }
+
+        public boolean isNormalizerSkipStoreOriginalValue() {
+            return this.normalizerSkipStoreOriginalValue.getValue();
         }
 
         Builder nullValue(String nullValue) {
@@ -812,7 +817,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
-                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+                return new BytesRefsFromOrdsBlockLoader(name());
             }
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
@@ -1406,7 +1411,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // if ignore_above is set, then there is a chance that this field will be ignored. In such cases, we save an
         // extra copy of the field for supporting synthetic source. This layer will check that copy.
-        if (fieldType().ignoreAbove.isSet()) {
+        if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
                 @Override

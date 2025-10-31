@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -62,11 +61,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         createReviewsIndex();
         indicesCreated = true;
 
-    }
-
-    @After
-    public void clearOutTransforms() throws Exception {
-        adminClient().performRequest(new Request("POST", "/_features/_reset"));
     }
 
     @SuppressWarnings("unchecked")

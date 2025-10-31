@@ -1503,7 +1503,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         indexSequence.get(),
                         data.currentDuration,
                         data.totalIterations,
-                        data.timeSinceConverged))
+                        data.timeSinceConverged
+                    ))
             );
         };
 
@@ -1569,7 +1570,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         final var expectedAssignmentsMap = Map.of(new ShardId(index, 0), new ShardAssignment(Set.of("node-0"), 1, 0, 0));
         assertDesiredAssignments(desiredBalance.get(), expectedAssignmentsMap);
 
-        clusterSettings.applySettings(Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(3L)).build());
+        clusterSettings.applySettings(
+            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(3L)).build()
+        );
 
         // Verify that if some time elapses and then another computation starts then we do not count the idle time
         timeInMillis.addAndGet(100L);
@@ -1577,7 +1580,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         requiredIterations.set(2);
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 2),
-            new MockLog.UnseenEventExpectation("no log messages", DesiredBalanceComputer.class.getCanonicalName(), Level.INFO, "* still not converged after *")
+            new MockLog.UnseenEventExpectation(
+                "no log messages",
+                DesiredBalanceComputer.class.getCanonicalName(),
+                Level.INFO,
+                "* still not converged after *"
+            )
         );
     }
 

@@ -12,15 +12,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.common.matchers.DateMillisMatcher;
+import org.elasticsearch.xpack.esql.common.matchers.DateNanosMatcher;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.matchers.DateMillisMatcher;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.matchers.DateNanosMatcher;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.hamcrest.BaseMatcher;
 import org.hamcrest.Matchers;
 
 import java.time.Duration;
@@ -32,7 +31,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -99,12 +97,12 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             new DurationTestCaseData(Duration.ofMinutes(3 * 60), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
 
             // TODO: What to do with hours/minutes/seconds that are not divisors of a full day?
-            //new DurationTestCaseData(Duration.ofHours(5), "2020-01-01T05:30:00Z", "+01", "2020-01-01T05:00:00Z"),
+            // new DurationTestCaseData(Duration.ofHours(5), "2020-01-01T05:30:00Z", "+01", "2020-01-01T05:00:00Z"),
 
             ///
             /// Daylight savings
             ///
-            //- +1 -> +2 at 2025-03-30T02:00:00+01:00
+            // - +1 -> +2 at 2025-03-30T02:00:00+01:00
             new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T00:00:00+01:00", "Europe/Paris", "2025-03-30T00:00:00+01:00"),
             new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T01:00:00+01:00", "Europe/Paris", "2025-03-30T00:00:00+01:00"),
             new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T03:00:00+02:00", "Europe/Paris", "2025-03-30T03:00:00+02:00"),
@@ -127,7 +125,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             new DurationTestCaseData(Duration.ofMinutes(1), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T02:09:00+01:15"),
             new DurationTestCaseData(Duration.ofMinutes(30), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T02:00:00+01:15"),
             new DurationTestCaseData(Duration.ofHours(1), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T02:00:00+01:15"),
-        new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T00:00:00+01:15"),
+            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T00:00:00+01:15"),
             new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T00:00:00+01:15")
         );
     }

@@ -5,9 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.date.matchers;
+package org.elasticsearch.xpack.esql.common.matchers;
 
-import org.elasticsearch.common.time.DateUtils;
 import org.hamcrest.BaseMatcher;
 
 import java.time.Instant;
@@ -15,28 +14,28 @@ import java.time.Instant;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
 /**
- * Test matcher for ESQL date nanos that expects longs, but describes the errors as dates, for better readability.
+ * Test matcher for ESQL datetimes that expects longs, but describes the errors as dates, for better readability.
  * <p>
- *     See {@link DateMillisMatcher} for the datetime (millis) counterpart.
+ *     See {@link DateNanosMatcher} for the date nanos counterpart.
  * </p>
  */
-public class DateNanosMatcher extends BaseMatcher<Long> {
-    private final long timeNanos;
+public class DateMillisMatcher extends BaseMatcher<Long> {
+    private final long timeMillis;
 
-    public DateNanosMatcher(String date) {
-        this.timeNanos = DateUtils.toLong(Instant.parse(date));
+    public DateMillisMatcher(String date) {
+        this.timeMillis = Instant.parse(date).toEpochMilli();
     }
 
     @Override
     public boolean matches(Object item) {
-        return item instanceof Long && timeNanos == (Long) item;
+        return item instanceof Long && timeMillis == (Long) item;
     }
 
     @Override
     public void describeMismatch(Object item, org.hamcrest.Description description) {
         description.appendText("was ");
         if (item instanceof Long l) {
-            description.appendValue(DEFAULT_DATE_TIME_FORMATTER.formatNanos(l));
+            description.appendValue(DEFAULT_DATE_TIME_FORMATTER.formatMillis(l));
         } else {
             description.appendValue(item);
         }
@@ -44,6 +43,6 @@ public class DateNanosMatcher extends BaseMatcher<Long> {
 
     @Override
     public void describeTo(org.hamcrest.Description description) {
-        description.appendText(DEFAULT_DATE_TIME_FORMATTER.formatNanos(timeNanos));
+        description.appendText(DEFAULT_DATE_TIME_FORMATTER.formatMillis(timeMillis));
     }
 }

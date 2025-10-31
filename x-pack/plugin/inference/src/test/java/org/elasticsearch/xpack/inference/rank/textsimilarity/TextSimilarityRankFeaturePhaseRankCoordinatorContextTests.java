@@ -39,7 +39,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         null
     );
 
-    TextSimilarityRankFeaturePhaseRankCoordinatorContext withSnippets = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
+    TextSimilarityRankFeaturePhaseRankCoordinatorContext withChunks = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
         10,
         0,
         100,
@@ -48,7 +48,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         "some query",
         0.0f,
         false,
-        new SnippetConfig(2, "some query", 10)
+        new ChunkScorerConfig(2, "some query", null)
     );
 
     public void testComputeScores() {
@@ -87,7 +87,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         assertArrayEquals(new float[] { 1.0f, 3.0f, 2.0f }, scores, 0.0f);
     }
 
-    public void testExtractScoresFromSingleSnippets() {
+    public void testExtractScoresFromSingleChunk() {
 
         List<RankedDocsResults.RankedDoc> rankedDocs = List.of(
             new RankedDocsResults.RankedDoc(0, 1.0f, "text 1"),
@@ -99,12 +99,12 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
             createRankFeatureDoc(1, 3.0f, 1, List.of("text 2")),
             createRankFeatureDoc(2, 2.0f, 0, List.of("text 3")) };
 
-        float[] scores = withSnippets.extractScoresFromRankedSnippets(rankedDocs, featureDocs);
-        // Returned cores are from the snippet, not the whole text
+        float[] scores = withChunks.extractScoresFromRankedChunks(rankedDocs, featureDocs);
+        // Returned cores are from the chunk, not the whole text
         assertArrayEquals(new float[] { 1.0f, 2.5f, 1.5f }, scores, 0.0f);
     }
 
-    public void testExtractScoresFromMultipleSnippets() {
+    public void testExtractScoresFromMultipleChunks() {
 
         List<RankedDocsResults.RankedDoc> rankedDocs = List.of(
             new RankedDocsResults.RankedDoc(0, 1.0f, "this is text 1"),
@@ -119,8 +119,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
             createRankFeatureDoc(1, 3.0f, 1, List.of("yet more text", "this is text 2")),
             createRankFeatureDoc(2, 2.0f, 0, List.of("this is text 3", "oh look, more text")) };
 
-        float[] scores = withSnippets.extractScoresFromRankedSnippets(rankedDocs, featureDocs);
-        // Returned scores are from the best-ranking snippet, not the whole text
+        float[] scores = withChunks.extractScoresFromRankedChunks(rankedDocs, featureDocs);
+        // Returned scores are from the best-ranking chunk, not the whole text
         assertArrayEquals(new float[] { 2.5f, 3.0f, 2.0f }, scores, 0.0f);
     }
 

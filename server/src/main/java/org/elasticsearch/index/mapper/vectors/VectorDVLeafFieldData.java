@@ -60,7 +60,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
 
     @Override
     public SortedBinaryDocValues getBytesValues() {
-        throw new UnsupportedOperationException("String representation of doc values for vector fields is not supported");
+        throw new IllegalArgumentException("String representation of doc values for vector fields is not supported");
     }
 
     @Override

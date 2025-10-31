@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.Objects;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
 
@@ -45,6 +46,16 @@ public class ESVectorUtil {
 
     public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
         return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension);
+    }
+
+    public static ESNextOSQVectorsScorer getESNextOSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength
+    ) throws IOException {
+        return ESVectorizationProvider.getInstance().newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
     }
 
     public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
@@ -382,6 +393,13 @@ public class ESVectorUtil {
         IMPL.packAsBinary(vector, packed);
     }
 
+    public static void packDibit(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.packDibit(vector, packed);
+    }
+
     /**
      * The idea here is to organize the query vector bits such that the first bit
      * of every dimension is in the first set dimensions bits, or (dimensions/8) bytes. The second,
@@ -398,5 +416,23 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("packed array is too small: " + quantQueryByte.length * Byte.SIZE + " < " + 4 * q.length);
         }
         IMPL.transposeHalfByte(q, quantQueryByte);
+    }
+
+    /**
+     * Searches for the first occurrence of the given marker byte in the specified range of the array.
+     *
+     * <p>The search starts at {@code offset} and examines at most {@code length} bytes. The return
+     * value is the relative index of the first occurrence of {@code marker} within this slice,
+     * or {@code -1} if not found.
+     *
+     * @param bytes  the byte array to search
+     * @param offset the starting index within the array
+     * @param length the number of bytes to examine
+     * @param marker the byte to search for
+     * @return the relative index (0..length-1) of the first match, or {@code -1} if not found
+     */
+    public static int indexOf(byte[] bytes, int offset, int length, byte marker) {
+        Objects.checkFromIndexSize(offset, length, bytes.length);
+        return IMPL.indexOf(bytes, offset, length, marker);
     }
 }

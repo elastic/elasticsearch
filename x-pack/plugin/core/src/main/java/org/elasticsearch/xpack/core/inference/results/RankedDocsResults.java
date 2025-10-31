@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -112,30 +111,14 @@ public class RankedDocsResults implements InferenceServiceResults {
         }
 
         public static RankedDoc of(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                return new RankedDoc(in.readInt(), in.readFloat(), in.readOptionalString());
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                return new RankedDoc(in.readInt(), in.readFloat(), in.readString());
-            } else {
-                return new RankedDoc(Integer.parseInt(in.readString()), Float.parseFloat(in.readString()), in.readString());
-            }
+            return new RankedDoc(in.readInt(), in.readFloat(), in.readOptionalString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                out.writeInt(index);
-                out.writeFloat(relevanceScore);
-                out.writeOptionalString(text);
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeInt(index);
-                out.writeFloat(relevanceScore);
-                out.writeString(text == null ? "" : text);
-            } else {
-                out.writeString(Integer.toString(index));
-                out.writeString(Float.toString(relevanceScore));
-                out.writeString(text == null ? "" : text);
-            }
+            out.writeInt(index);
+            out.writeFloat(relevanceScore);
+            out.writeOptionalString(text);
         }
 
         public Map<String, Object> asMap() {

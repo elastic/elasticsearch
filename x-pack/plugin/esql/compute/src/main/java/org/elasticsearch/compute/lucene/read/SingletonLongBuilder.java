@@ -60,7 +60,7 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     @Override
     public long estimatedBytes() {
-        return (long) values.length * Long.BYTES;
+        return valuesSize(values.length);
     }
 
     @Override

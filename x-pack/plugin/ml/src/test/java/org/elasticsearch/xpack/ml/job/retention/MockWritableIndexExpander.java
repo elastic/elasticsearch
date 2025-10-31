@@ -30,10 +30,8 @@ public class MockWritableIndexExpander {
     }
 
     private static void mockWhenIndicesAreNotWritable(WritableIndexExpander writableIndexExpander) {
-        when(writableIndexExpander.getWritableIndices(anyString()))
-            .thenReturn(new ArrayList<>());
-        when(writableIndexExpander.getWritableIndices(ArgumentMatchers.<Collection<String>>any()))
-            .thenReturn(new ArrayList<>());
+        when(writableIndexExpander.getWritableIndices(anyString())).thenReturn(new ArrayList<>());
+        when(writableIndexExpander.getWritableIndices(ArgumentMatchers.<Collection<String>>any())).thenReturn(new ArrayList<>());
     }
 
     private static void mockWhenIndicesAreWritable(WritableIndexExpander writableIndexExpander) {

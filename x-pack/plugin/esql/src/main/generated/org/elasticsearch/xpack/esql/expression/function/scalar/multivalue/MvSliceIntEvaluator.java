@@ -75,34 +75,36 @@ public final class MvSliceIntEvaluator implements EvalOperator.ExpressionEvaluat
         if (!fieldBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (startBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (startBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (startBlock.getValueCount(p) != 1) {
-          if (startBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (endBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (endBlock.getValueCount(p) != 1) {
-          if (endBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (endBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
+        int start = startBlock.getInt(startBlock.getFirstValueIndex(p));
+        int end = endBlock.getInt(endBlock.getFirstValueIndex(p));
         try {
-          MvSlice.process(result, p, fieldBlock, startBlock.getInt(startBlock.getFirstValueIndex(p)), endBlock.getInt(endBlock.getFirstValueIndex(p)));
+          MvSlice.process(result, p, fieldBlock, start, end);
         } catch (InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

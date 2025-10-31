@@ -280,7 +280,7 @@ public class SecurityContextTests extends ESTestCase {
         threadContext.putHeader(requestHeaders);
 
         final Map<String, Object> transientHeaders = Map.ofEntries(
-            Map.entry(AuthorizationServiceField.AUTHORIZATION_INFO_KEY, Mockito.mock(AuthorizationInfo.class)),
+            Map.entry(AuthorizationServiceField.AUTHORIZATION_INFO_VALUE.getKey(), Mockito.mock(AuthorizationInfo.class)),
             Map.entry(
                 AuthenticationField.AUTHENTICATION_KEY,
                 Authentication.newAnonymousAuthentication(new AnonymousUser(Settings.EMPTY), "test-node")

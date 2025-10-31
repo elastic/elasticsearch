@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -41,18 +42,20 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -139,8 +142,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
+        return createAllocationService(settings, gatewayAllocator, clusterInfoService, snapshotsInfoService, Collections.emptyList());
+    }
+
+    public static MockAllocationService createAllocationService(
+        Settings settings,
+        GatewayAllocator gatewayAllocator,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService,
+        List<ClusterPlugin> clusterPlugins
+    ) {
         return new MockAllocationService(
-            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
+            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings), clusterPlugins),
             gatewayAllocator,
             createShardsAllocator(settings),
             clusterInfoService,
@@ -149,8 +162,16 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return randomAllocationDeciders(settings, clusterSettings, Collections.emptyList());
+    }
+
+    public static AllocationDeciders randomAllocationDeciders(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        List<ClusterPlugin> clusterPlugins
+    ) {
         List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList())
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, clusterPlugins)
         );
         Collections.shuffle(deciders, random());
         return new AllocationDeciders(deciders);
@@ -158,7 +179,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     protected static ShardsAllocator createShardsAllocator(Settings settings) {
         return switch (pickShardsAllocator(settings)) {
-            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
+            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(
+                Settings.builder().put(settings).put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), BALANCED_ALLOCATOR).build()
+            );
             case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
             default -> throw new AssertionError("Unknown allocator");
         };
@@ -172,7 +195,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
-        var clusterSettings = createBuiltInClusterSettings(settings);
+        var clusterSettings = createBuiltInClusterSettings(
+            Settings.builder()
+                // disable thread watchdog (submits infinitely repeating task to threadpool) by default
+                .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
+                .put(settings)
+                .build()
+        );
         var clusterService = ClusterServiceUtils.createClusterService(queue.getThreadPool(), clusterSettings);
         return new DesiredBalanceShardsAllocator(
             clusterSettings,
@@ -180,9 +209,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             queue.getThreadPool(),
             clusterService,
             null,
-            TelemetryProvider.NOOP,
             EMPTY_NODE_ALLOCATION_STATS,
-            TEST_ONLY_EXPLAINER
+            TEST_ONLY_EXPLAINER,
+            DesiredBalanceMetrics.NOOP
         ) {
             private RoutingAllocation lastAllocation;
 

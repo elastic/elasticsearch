@@ -105,9 +105,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // swap the filter with its child
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
         } else if (child instanceof Join join && child instanceof InlineJoin == false) {
-            // TODO: could we do better here about pushing down filters for inlinestats?
+            // TODO: could we do better here about pushing down filters for inline stats?
             // See also https://github.com/elastic/elasticsearch/issues/127497
-            // Push down past INLINESTATS if the condition is on the groupings
+            // Push down past INLINE STATS if the condition is on the groupings
             return pushDownPastJoin(filter, join, ctx.foldCtx());
         }
         // cannot push past a Limit, this could change the tailing result set returned
@@ -171,7 +171,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
 
                         List<Expression> existingFilters = new ArrayList<>(Predicates.splitAnd(existingRightFilter.condition()));
                         int sizeBefore = existingFilters.size();
-                        rightPushableFilters.stream().filter(e -> existingFilters.contains(e) == false).forEach(existingFilters::add);
+                        rightPushableFilters.stream()
+                            .filter(e -> existingFilters.stream().anyMatch(x -> x.semanticEquals(e)) == false)
+                            .forEach(existingFilters::add);
                         if (sizeBefore != existingFilters.size()) {
                             right = existingRightFilter.with(Predicates.combineAnd(existingFilters));
                             join = (Join) join.replaceRight(right);

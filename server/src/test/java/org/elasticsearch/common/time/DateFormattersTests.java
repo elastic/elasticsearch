@@ -11,6 +11,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -1467,5 +1468,20 @@ public class DateFormattersTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern(input));
         assertThat(e.getCause(), instanceOf(ClassCastException.class));
         assertThat(e.getMessage(), containsString(input));
+    }
+
+    public void testXContentElasticsearchExtensionDefaultFormatter() {
+        final var formatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+        assertSame(XContentElasticsearchExtension.DEFAULT_FORMATTER, formatter);
+
+        assertEquals("2025-09-12T08:12:12.123Z", formatter.format(Instant.ofEpochMilli(1757664732123L)));
+        assertEquals("2025-09-12T08:12:12.000Z", formatter.format(Instant.ofEpochMilli(1757664732000L)));
+        assertEquals("2025-09-12T08:12:00.000Z", formatter.format(Instant.ofEpochMilli(1757664720000L)));
+        assertEquals("2025-09-12T08:00:00.000Z", formatter.format(Instant.ofEpochMilli(1757664000000L)));
+        assertEquals("2025-09-12T00:00:00.000Z", formatter.format(Instant.ofEpochMilli(1757635200000L)));
+
+        // NB differs from Instant.toString():
+        assertEquals("2025-09-12T08:12:12.123Z", Instant.ofEpochMilli(1757664732123L).toString());
+        assertEquals("2025-09-12T08:12:00Z", Instant.ofEpochMilli(1757664720000L).toString());
     }
 }

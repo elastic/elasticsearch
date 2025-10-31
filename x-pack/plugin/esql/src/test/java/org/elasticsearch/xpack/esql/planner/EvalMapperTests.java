@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
@@ -72,14 +73,16 @@ public class EvalMapperTests extends ESTestCase {
         Locale.US,
         "test",
         null,
-        null,
+        QueryPragmas.EMPTY,
         10000000,
         10000,
         StringUtils.EMPTY,
         false,
         Map.of(),
         System.nanoTime(),
-        false
+        false,
+        10000000,
+        100000
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")

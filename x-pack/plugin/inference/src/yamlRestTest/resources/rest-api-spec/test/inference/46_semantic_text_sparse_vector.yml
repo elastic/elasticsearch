@@ -34,6 +34,23 @@ setup:
           }
 
   - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
       indices.create:
         index: test-semantic-text-index
         body:
@@ -344,3 +361,83 @@ setup:
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
   - close_to: { hits.hits.1._score: { value: 3.657212E9, error: 1e6 } }
   - match: { hits.hits.1.matched_queries: [ "i-like-naming-my-queries" ] }
+
+---
+"sparse_vector query against an empty semantic_text field":
+  - requires:
+      cluster_features: "search.new_semantic_query_interceptors"
+      reason: New semantic query interceptors
+
+  - do:
+      indices.create:
+        index: empty-semantic-text-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      search:
+        index: empty-semantic-text-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+
+  - match: { hits.total.value: 0 }
+
+---
+"sparse_vector query against semantic_text field using a dense vector model":
+  - requires:
+      cluster_features: "search.new_semantic_query_interceptors"
+      reason: New semantic query interceptors
+
+  - do:
+      indices.create:
+        index: test-semantic-text-index-using-dense-vector
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      index:
+        index: test-semantic-text-index-using-dense-vector
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  # Don't specify the inference ID so that dense vector inference results are generated for the query text
+  - do:
+      catch: bad_request
+      search:
+        index: test-semantic-text-index-using-dense-vector
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [sparse_embedding] model" }
+
+  # Specify the inference ID so that sparse vector inference results are generated for the query text
+  - do:
+      catch: bad_request
+      search:
+        index: test-semantic-text-index-using-dense-vector
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+              inference_id: sparse-inference-id
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [sparse_embedding] model" }

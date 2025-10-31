@@ -116,6 +116,7 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
                     VectorData.fromFloats(queries[i]),
                     10,
                     10,
+                    10f,
                     null,
                     null,
                     null,

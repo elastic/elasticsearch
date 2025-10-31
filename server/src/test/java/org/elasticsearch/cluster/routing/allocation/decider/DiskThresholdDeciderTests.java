@@ -1415,6 +1415,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 reservedSpace,
                 Map.of(),
                 Map.of(),
+                Map.of(),
                 Map.of()
             );
         }

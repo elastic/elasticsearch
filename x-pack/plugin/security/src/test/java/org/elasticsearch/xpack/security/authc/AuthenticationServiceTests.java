@@ -42,6 +42,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
@@ -340,7 +341,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             threadPool,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
         tokenService = new TokenService(
             settings,
@@ -415,7 +417,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         final AtomicBoolean completed = new AtomicBoolean(false);
         service.authenticate("action", transportRequest, true, ActionListener.wrap(authentication -> {
-            assertThat(threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY), is(authenticationResult));
+            assertThat(AuthenticationResult.THREAD_CONTEXT_VALUE.get(threadContext), is(authenticationResult));
             assertThat(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY), is(authentication));
             assertThat(authentication.getEffectiveSubject().getRealm().getDomain(), is(secondDomain));
             verify(auditTrail).authenticationSuccess(anyString(), eq(authentication), eq("action"), eq(transportRequest));

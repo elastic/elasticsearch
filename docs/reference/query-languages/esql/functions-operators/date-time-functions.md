@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 navigation_title: "Date-time functions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-date-time-functions
@@ -35,5 +38,8 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/now.md
+:::
+
+:::{include} ../_snippets/functions/layout/trange.md
 :::
 

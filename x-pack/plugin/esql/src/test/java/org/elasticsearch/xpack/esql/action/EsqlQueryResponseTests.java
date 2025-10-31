@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -38,6 +39,10 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Types;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -58,6 +63,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
@@ -68,6 +74,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -192,7 +199,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.DATE_PERIOD
                 || t == DataType.TIME_DURATION
                 || t == DataType.PARTIAL_AGG
-                || t == DataType.AGGREGATE_METRIC_DOUBLE,
+                || t == DataType.AGGREGATE_METRIC_DOUBLE
+                || t == DataType.TSID_DATA_TYPE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -282,6 +290,21 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         floatBuilder.appendFloat(randomFloat());
                     }
                     floatBuilder.endPositionEntry();
+                }
+                case TSID_DATA_TYPE -> {
+                    BytesRef tsIdValue = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value();
+                    ((BytesRefBlock.Builder) builder).appendBytesRef(tsIdValue);
+                }
+                case EXPONENTIAL_HISTOGRAM -> {
+                    ExponentialHistogramBlockBuilder expBuilder = (ExponentialHistogramBlockBuilder) builder;
+                    int valueCount = randomIntBetween(0, 500);
+                    int bucketCount = randomIntBetween(4, Math.max(4, valueCount));
+                    ExponentialHistogram histo = ExponentialHistogram.create(
+                        bucketCount,
+                        ExponentialHistogramCircuitBreaker.noop(),
+                        randomDoubles(valueCount).toArray()
+                    );
+                    expBuilder.append(histo);
                 }
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
@@ -1249,6 +1272,21 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             }
                         }
                         floatBuilder.endPositionEntry();
+                    }
+                    case TSID_DATA_TYPE -> {
+                        // This has been added just to test a round trip. In reality, TSID should never be taken from XContent
+                        byte[] decode = Base64.getUrlDecoder().decode(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(decode));
+                    }
+                    case EXPONENTIAL_HISTOGRAM -> {
+                        ExponentialHistogramBlockBuilder expHistoBuilder = (ExponentialHistogramBlockBuilder) builder;
+                        Map<String, Object> serializedHisto = Types.forciblyCast(value);
+                        ExponentialHistogram parsed = ExponentialHistogramXContent.parseForTesting(serializedHisto);
+                        if (parsed == null) {
+                            expHistoBuilder.appendNull();
+                        } else {
+                            expHistoBuilder.append(parsed);
+                        }
                     }
                 }
             }

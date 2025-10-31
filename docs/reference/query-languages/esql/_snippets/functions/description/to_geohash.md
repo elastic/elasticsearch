@@ -2,5 +2,5 @@
 
 **Description**
 
-Converts an input value to a `geohash` value. A string will only be successfully converted if it respects the `geohash` format.
+Converts an input value to a `geohash` value. A string will only be successfully converted if it respects the `geohash` format, as described for the [geohash grid aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md).
 

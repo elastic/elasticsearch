@@ -120,10 +120,10 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeLong(getLong(0));
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof LongArrayVector v) {
+        } else if (this instanceof LongArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof LongBigArrayVector v) {
+        } else if (this instanceof LongBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {

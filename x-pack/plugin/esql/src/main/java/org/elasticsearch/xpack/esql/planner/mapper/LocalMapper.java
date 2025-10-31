@@ -108,7 +108,6 @@ public class LocalMapper {
                         join.source(),
                         left,
                         localData,
-                        config.matchFields(),
                         config.leftFields(),
                         config.rightFields(),
                         join.rightOutputFields()
@@ -140,9 +139,11 @@ public class LocalMapper {
                 fragmentExec,
                 config.leftFields(),
                 config.rightFields(),
-                join.rightOutputFields()
+                join.rightOutputFields(),
+                config.joinOnConditions()
             );
         }
         return MapperUtils.unsupported(binary);
     }
+
 }

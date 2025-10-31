@@ -56,11 +56,13 @@ public class KnnQuery extends Query {
         int adjustedK = Math.max(k, minCandidates == null ? 0 : minCandidates);
         minCandidates = minCandidates == null ? null : Math.max(minCandidates, adjustedK);
 
+        // TODO: expose visit_percentage in ESQL
         KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(
             field,
             query,
             adjustedK,
             minCandidates,
+            null,
             rescoreVectorBuilder,
             vectorSimilarity
         );

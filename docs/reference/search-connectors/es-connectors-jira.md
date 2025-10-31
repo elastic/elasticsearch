@@ -55,6 +55,7 @@ PUT _connector/my-jira-connector
   "service_type": "jira"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -204,6 +205,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -319,6 +321,7 @@ This connector supports [advanced sync rules](/reference/search-connectors/es-sy
   }
 ]
 ```
+% NOTCONSOLE
 
 **Example 2**: Query to index data based on priority of issues for given projects.
 
@@ -329,6 +332,7 @@ This connector supports [advanced sync rules](/reference/search-connectors/es-sy
   }
 ]
 ```
+% NOTCONSOLE
 
 **Example 3**: Query to index data based on assignee and created time.
 
@@ -339,6 +343,7 @@ This connector supports [advanced sync rules](/reference/search-connectors/es-sy
   }
 ]
 ```
+% NOTCONSOLE
 
 
 ### Document level security [es-connectors-jira-client-document-level-security]

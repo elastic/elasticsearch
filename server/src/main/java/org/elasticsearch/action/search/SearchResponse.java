@@ -87,6 +87,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
+    // only used for telemetry purposes on the coordinating node, where the search response gets created
+    private transient Long timeRangeFilterFromMillis;
 
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
@@ -187,6 +189,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             clusters,
             pointInTimeId
         );
+        this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
     }
 
     public SearchResponse(
@@ -464,6 +467,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeOptionalBytesReference(pointInTimeId);
     }
 
+    public Long getTimeRangeFilterFromMillis() {
+        return timeRangeFilterFromMillis;
+    }
+
     @Override
     public String toString() {
         return hasReferences() == false ? "SearchResponse[released]" : Strings.toString(this);
@@ -602,13 +609,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         public Clusters(Map<String, Cluster> clusterInfoMap) {
+            this(clusterInfoMap, true);
+        }
+
+        public Clusters(Map<String, Cluster> clusterInfoMap, boolean ccsMinimizeRoundtrips) {
             assert clusterInfoMap.size() > 0 : "this constructor should not be called with an empty Cluster info map";
             this.total = clusterInfoMap.size();
-            this.clusterInfo = clusterInfoMap;
+            this.clusterInfo = ConcurrentCollections.newConcurrentMap();
+            this.clusterInfo.putAll(clusterInfoMap);
             this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
             this.skipped = getClusterStateCount(Cluster.Status.SKIPPED);
             // should only be called if "details" section of fromXContent is present (for ccsMinimizeRoundtrips)
-            this.ccsMinimizeRoundtrips = true;
+            this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
         }
 
         @Override

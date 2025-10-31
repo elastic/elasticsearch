@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -34,19 +37,22 @@ public class SumOverTime extends TimeSeriesAggregateFunction {
     );
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long" },
-        description = "The sum over time value of a field.",
-        type = FunctionType.AGGREGATE
+        returnType = { "double", "long" },
+        description = "Calculates the sum over time value of a field.",
+        type = FunctionType.TIME_SERIES_AGGREGATE,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
+        examples = { @Example(file = "k8s-timeseries", tag = "sum_over_time") }
     )
     public SumOverTime(
         Source source,
         @Param(name = "field", type = { "aggregate_metric_double", "double", "integer", "long" }) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public SumOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public SumOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private SumOverTime(StreamInput in) throws IOException {
@@ -60,17 +66,17 @@ public class SumOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public SumOverTime withFilter(Expression filter) {
-        return new SumOverTime(source(), field(), filter);
+        return new SumOverTime(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<SumOverTime> info() {
-        return NodeInfo.create(this, SumOverTime::new, field(), filter());
+        return NodeInfo.create(this, SumOverTime::new, field(), filter(), window());
     }
 
     @Override
     public SumOverTime replaceChildren(List<Expression> newChildren) {
-        return new SumOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new SumOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -85,6 +91,6 @@ public class SumOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public Sum perTimeSeriesAggregation() {
-        return new Sum(source(), field(), filter(), SummationMode.LOSSY_LITERAL);
+        return new Sum(source(), field(), filter(), window(), SummationMode.LOSSY_LITERAL);
     }
 }

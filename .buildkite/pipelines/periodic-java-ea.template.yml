@@ -1,5 +1,5 @@
 env:
-  JAVA_EA_VERSION: "${JAVA_EA_VERSION:-25-pre}"
+  JAVA_EA_VERSION: "${JAVA_EA_VERSION:-26-pre}"
 
 steps:
   - group: bwc

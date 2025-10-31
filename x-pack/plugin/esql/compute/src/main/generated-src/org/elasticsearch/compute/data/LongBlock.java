@@ -34,6 +34,24 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
      */
     long getLong(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, long value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getLong(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     LongVector asVector();
 
@@ -102,10 +120,10 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof LongArrayBlock b) {
+        } else if (this instanceof LongArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof LongBigArrayBlock b) {
+        } else if (this instanceof LongBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {

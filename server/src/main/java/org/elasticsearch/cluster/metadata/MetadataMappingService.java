@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -219,14 +218,13 @@ public class MetadataMappingService {
                     indexMetadataBuilder.putInferenceFields(docMapper.mappers().inferenceFields());
                 }
                 boolean updatedSettings = false;
-                ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
                 final Settings.Builder additionalIndexSettings = Settings.builder();
                 if (updatedMapping) {
                     indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion())
                         .mappingsUpdatedVersion(IndexVersion.current());
                     for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
                         Settings.Builder newAdditionalSettingsBuilder = Settings.builder();
-                        provider.onUpdateMappings(indexMetadata, docMapper, newAdditionalSettingsBuilder, customMetadataBuilder::put);
+                        provider.onUpdateMappings(indexMetadata, docMapper, newAdditionalSettingsBuilder);
                         if (newAdditionalSettingsBuilder.keys().isEmpty() == false) {
                             Settings newAdditionalSettings = newAdditionalSettingsBuilder.build();
                             MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
@@ -242,7 +240,6 @@ public class MetadataMappingService {
                     indexMetadataBuilder.settings(indexSettingsBuilder.build());
                     indexMetadataBuilder.settingsVersion(1 + indexMetadata.getSettingsVersion());
                 }
-                indexMetadataBuilder.putCustom(customMetadataBuilder.build());
                 /*
                  * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have
                  * already incremented the mapping version if necessary. Therefore, the mapping version increment must remain before this

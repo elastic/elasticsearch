@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -11,8 +12,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -42,18 +41,24 @@ public final class UrlDecodeEvaluator extends AbstractConvertFunction.AbstractEv
   @Override
   public Block evalVector(Vector v) {
     BytesRefVector vector = (BytesRefVector) v;
-    OrdinalBytesRefVector ordinals = vector.asOrdinals();
-    if (ordinals != null) {
-      return evalOrdinals(ordinals);
-    }
     int positionCount = v.getPositionCount();
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
-      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
+      try {
+        return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
+      } catch (IllegalArgumentException  e) {
+        registerException(e);
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
+      }
     }
     try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendBytesRef(evalValue(vector, p, scratchPad));
+        try {
+          builder.appendBytesRef(evalValue(vector, p, scratchPad));
+        } catch (IllegalArgumentException  e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
       return builder.build();
     }
@@ -77,13 +82,17 @@ public final class UrlDecodeEvaluator extends AbstractConvertFunction.AbstractEv
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          BytesRef value = evalValue(block, i, scratchPad);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+          try {
+            BytesRef value = evalValue(block, i, scratchPad);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendBytesRef(value);
+            valuesAppended = true;
+          } catch (IllegalArgumentException  e) {
+            registerException(e);
           }
-          builder.appendBytesRef(value);
-          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();
@@ -98,19 +107,6 @@ public final class UrlDecodeEvaluator extends AbstractConvertFunction.AbstractEv
   private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return UrlDecode.process(value);
-  }
-
-  private Block evalOrdinals(OrdinalBytesRefVector v) {
-    int positionCount = v.getDictionaryVector().getPositionCount();
-    BytesRef scratchPad = new BytesRef();
-    try (BytesRefVector.Builder builder = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
-      for (int p = 0; p < positionCount; p++) {
-        builder.appendBytesRef(evalValue(v.getDictionaryVector(), p, scratchPad));
-      }
-      IntVector ordinals = v.getOrdinalsVector();
-      ordinals.incRef();
-      return new OrdinalBytesRefVector(ordinals, builder.build()).asBlock();
-    }
   }
 
   @Override

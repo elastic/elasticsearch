@@ -1,4 +1,9 @@
 ---
+applies_to:
+  stack:
+  serverless:
+products:
+  - id: elasticsearch
 navigation_title: "Sparse vector"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sparse-vector.html
@@ -90,13 +95,13 @@ This ensures that:
 * The tokens that are kept are frequent enough and have significant scoring.
 * Very infrequent tokens that may not have as high of a score are removed.
 
-## Accessing `dense_vector` fields in search responses
+## Accessing `sparse_vector` fields in search responses
 ```{applies_to}
 stack: ga 9.2
 serverless: ga
 ```
 
-By default, `dense_vector` fields are **not included in `_source`** in responses from the `_search`, `_msearch`, `_get`, and `_mget` APIs.
+By default, `sparse_vector` fields are **not included in `_source`** in responses from the `_search`, `_msearch`, `_get`, and `_mget` APIs.
 This helps reduce response size and improve performance, especially in scenarios where vectors are used solely for similarity scoring and not required in the output.
 
 To retrieve vector values explicitly, you can use:
@@ -109,6 +114,7 @@ POST my-index-2/_search
   "fields": ["my_vector"]
 }
 ```
+% TEST[skip:no index setup]
 
 - The `_source.exclude_vectors` flag to re-enable vector inclusion in `_source` responses:
 
@@ -120,6 +126,11 @@ POST my-index-2/_search
   }
 }
 ```
+% TEST[skip:no index setup]
+
+:::{tip}
+For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
+:::
 
 ### Storage behavior and `_source`
 
@@ -220,24 +231,84 @@ GET my-index-000001/_search
 }
 ```
 
-::::{note}
-`sparse_vector` fields can not be included in indices that were **created** on {{es}} versions between 8.0 and 8.10
-::::
+## Updating `sparse_vector` fields
 
+When using the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) with the `doc` parameter, `sparse_vector` fields behave like nested objects and are **merged** rather than replaced. This means:
 
-::::{note}
-`sparse_vector` fields only support strictly positive values. Negative values will be rejected.
-::::
+- Existing tokens in the sparse vector are preserved
+- New tokens are added
+- Tokens present in both the existing and new data will have their values updated
 
+This is different from primitive array fields (like `keyword`), which are replaced entirely during updates.
 
-::::{note}
-`sparse_vector` fields do not support [analyzers](docs-content://manage-data/data-store/text-analysis.md), querying, sorting or aggregating. They may only be used within specialized queries. The recommended query to use on these fields are [`sparse_vector`](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md) queries. They may also be used within legacy [`text_expansion`](/reference/query-languages/query-dsl/query-dsl-text-expansion-query.md) queries.
-::::
+### Example of merging behavior
 
+Original document:
 
-::::{note}
-`sparse_vector` fields only preserve 9 significant bits for the precision, which translates to a relative error of about 0.4%.
-::::
+```console
+PUT /my-index/_doc/1
+{
+  "my_vector": {
+    "token_a": 0.5,
+    "token_b": 0.8
+  }
+}
+```
 
+Partial update:
 
+```console
+POST /my-index/_update/1
+{
+  "doc": {
+    "my_vector": {
+      "token_c": 0.3
+    }
+  }
+}
+```
+% TEST[continued]
 
+Observe that tokens are merged, not replaced:
+
+```js
+{
+  "my_vector": {
+    "token_a": 0.5,
+    "token_b": 0.8,
+    "token_c": 0.3
+  }
+}
+```
+% NOTCONSOLE
+
+### Replacing the entire `sparse_vector` field
+
+To replace the entire contents of a `sparse_vector` field, use a [script](docs-content://explore-analyze/scripting/modules-scripting-using.md) in your update request:
+
+```console
+POST /my-index/_update/1
+{
+  "script": {
+    "source": "ctx._source.my_vector = params.new_vector",
+    "params": {
+      "new_vector": {
+        "token_x": 1.0,
+        "token_y": 0.6
+      }
+    }
+  }
+}
+```
+% TEST[continued]
+
+:::{note}
+This same merging behavior also applies to [`rank_features` fields](/reference/elasticsearch/mapping-reference/rank-features.md), because they are also object-like structures.
+:::
+
+## Important notes and limitations
+
+- `sparse_vector` fields cannot be included in indices that were **created** on {{es}} versions between 8.0 and 8.10
+- `sparse_vector` fields only support strictly positive values. Negative values will be rejected.
+- `sparse_vector` fields do not support [analyzers](docs-content://manage-data/data-store/text-analysis.md), querying, sorting or aggregating. They may only be used within specialized queries. The recommended query to use on these fields are [`sparse_vector`](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md) queries. They may also be used within legacy [`text_expansion`](/reference/query-languages/query-dsl/query-dsl-text-expansion-query.md) queries.
+- `sparse_vector` fields only preserve 9 significant bits for the precision, which translates to a relative error of about 0.4%.

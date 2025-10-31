@@ -14,7 +14,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,11 +29,6 @@ import static org.hamcrest.Matchers.not;
 public class CrossClusterLookupJoinFailuresIT extends AbstractCrossClusterTestCase {
     protected boolean reuseClusters() {
         return false;
-    }
-
-    @Before
-    public void checkEnabled() {
-        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
     }
 
     public void testLookupFail() throws IOException {

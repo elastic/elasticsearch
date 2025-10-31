@@ -65,7 +65,16 @@ import java.util.stream.Stream;
 import static org.elasticsearch.repositories.ProjectRepo.PROJECT_REPO_SERIALIZER;
 
 /**
- * Meta data about snapshots that are currently executing
+ * Metadata about snapshots that are currently executing.
+ * <p>
+ * This data structure serves two purposes:
+ * <ol>
+ * <li>It records a checkpoint of the state of the ongoing snapshots so that if the current master fails and a new master is elected then
+ * the ongoing snapshots can continue without having to re-do an excessive amount of work. In practice today the only work that is repeated
+ * on a master failover is the finalization of any snapshots that are ready to finalize.</li>
+ * <li>It communicates to the data nodes the snapshot work they should currently be performing, which it does by setting each shard's
+ * {@link ShardSnapshotStatus#state} field to {@link ShardState#INIT}.</li>
+ * </ol>
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
@@ -1803,6 +1812,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private static final class SnapshotInProgressDiff implements NamedDiff<Custom> {
 
+        private static final TransportVersion PROJECT_ID_IN_SNAPSHOT = TransportVersion.fromName("project_id_in_snapshot");
+
         private final SnapshotsInProgress after;
 
         private final DiffableUtils.MapDiff<ProjectRepo, ByRepo, Map<ProjectRepo, ByRepo>> mapDiff;
@@ -1815,7 +1826,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         SnapshotInProgressDiff(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+            if (in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
                 final var oldMapDiff = DiffableUtils.readJdkMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -1866,13 +1877,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public void writeTo(StreamOutput out) throws IOException {
             assert after != null : "should only write instances that were diffed from this node's state";
             if (out.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
-                if (out.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+                if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
                     DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
                         if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
                             final var message = "Cannot write instance with non-default project id "
                                 + projectRepo.projectId()
                                 + " to version before "
-                                + TransportVersions.PROJECT_ID_IN_SNAPSHOT;
+                                + PROJECT_ID_IN_SNAPSHOT;
                             assert false : message;
                             throw new IllegalArgumentException(message);
                         }

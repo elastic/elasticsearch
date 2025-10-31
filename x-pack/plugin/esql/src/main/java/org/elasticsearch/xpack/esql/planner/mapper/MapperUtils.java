@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -135,12 +136,17 @@ public class MapperUtils {
             );
         }
 
-        if (p instanceof FuseScoreEval rrf) {
-            return new FuseScoreEvalExec(rrf.source(), child, rrf.score(), rrf.discriminator());
+        if (p instanceof FuseScoreEval fuse) {
+            return new FuseScoreEvalExec(fuse.source(), child, fuse.score(), fuse.discriminator(), fuse.fuseConfig());
         }
 
         if (p instanceof Sample sample) {
             return new SampleExec(sample.source(), child, sample.probability());
+        }
+
+        if (p instanceof Subquery) {
+            // A Subquery node is just a placeholder for the subquery plan, so we just return the child plan
+            return child;
         }
 
         return unsupported(p);

@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 record ComputeContext(
@@ -22,13 +21,13 @@ record ComputeContext(
     String description,
     String clusterAlias,
     EsqlFlags flags,
-    List<SearchContext> searchContexts,
+    IndexedByShardId<ComputeSearchContext> searchContexts,
     Configuration configuration,
     FoldContext foldCtx,
     Supplier<ExchangeSource> exchangeSourceSupplier,
     Supplier<ExchangeSink> exchangeSinkSupplier
 ) {
-    List<SearchExecutionContext> searchExecutionContexts() {
-        return searchContexts.stream().map(SearchContext::getSearchExecutionContext).toList();
+    IndexedByShardId<? extends SearchExecutionContext> searchExecutionContexts() {
+        return searchContexts.map(s -> s.searchContext().getSearchExecutionContext());
     }
 }

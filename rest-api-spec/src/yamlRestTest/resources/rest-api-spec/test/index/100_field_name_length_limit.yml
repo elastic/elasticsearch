@@ -1,0 +1,213 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.ignore_dynamic_field_names_beyond_limit"]
+      reason: "setting must be present to be tested"
+
+---
+
+"Test field name length limit":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mapping:
+                field_name_length:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 45
+          mappings:
+            dynamic: true
+
+  - do:
+      index:
+        index: test_index
+        id: 1
+        refresh: true
+        body:
+          foo:
+            test_really_long_field_name_that_will_be_ignored: foo
+            field_name_not_ignored: 10
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.field_name_not_ignored.type: long }
+
+  - do:
+      get:
+        index: test_index
+        id: 1
+        _source: true
+        stored_fields: [_ignored]
+  - match:
+      _source:
+        foo:
+          test_really_long_field_name_that_will_be_ignored: foo
+          field_name_not_ignored: 10
+  - match: { _ignored: [ "foo.test_really_long_field_name_that_will_be_ignored" ] }
+
+---
+
+"Test field name length limit array":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mapping:
+                field_name_length:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 45
+          mappings:
+            dynamic: true
+
+  - do:
+      index:
+        index: test_index
+        id: 1
+        refresh: true
+        body:
+          foo:
+            test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+            field_name_not_ignored: [ 10, 20, 30 ]
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.field_name_not_ignored.type: long }
+
+  - do:
+      get:
+        index: test_index
+        id: 1
+        _source: true
+        stored_fields: [ _ignored ]
+
+  - match:
+      _source:
+        foo:
+          test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+          field_name_not_ignored: [ 10, 20, 30 ]
+  - match: {_ignored:["foo.test_really_long_field_name_that_will_be_ignored"]}
+
+---
+
+"Test field name length limit synthetic source":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                field_name_length:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 45
+          mappings:
+            dynamic: true
+
+  - do:
+      index:
+        index: test_index
+        id: 1
+        refresh: true
+        body:
+          foo:
+            test_really_long_field_name_that_will_be_ignored: foo
+            field_name_not_ignored: 10
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.field_name_not_ignored.type: long }
+
+  - do:
+      get:
+        index: test_index
+        id: 1
+        _source: true
+        stored_fields: [ _ignored ]
+  - match:
+      _source:
+        foo:
+          test_really_long_field_name_that_will_be_ignored: foo
+          field_name_not_ignored: 10
+  - match: {_ignored:["foo.test_really_long_field_name_that_will_be_ignored"]}
+
+---
+
+"Test field name length limit array synthetic source":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                field_name_length:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 45
+          mappings:
+            dynamic: true
+
+  - do:
+      index:
+        index: test_index
+        id: 1
+        refresh: true
+        body:
+          foo:
+            test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+            field_name_not_ignored: [ 10, 20, 30 ]
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.field_name_not_ignored.type: long }
+
+  - do:
+      get:
+        index: test_index
+        id: 1
+        _source: true
+        stored_fields: [ _ignored ]
+  - match:
+      _source:
+        foo:
+          test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+          field_name_not_ignored: [ 10, 20, 30 ]
+  - match: {_ignored:["foo.test_really_long_field_name_that_will_be_ignored"]}
+
+---
+
+"Test field name length limit with static mapping":
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mapping:
+                field_name_length:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 45
+          mappings:
+            dynamic: false
+            properties:
+              test_really_long_field_name_that_will_be_ignored:
+                type: text
+
+  - match: {error.reason: "Field name [test_really_long_field_name_that_will_be_ignored] is longer than the limit of [45] characters"}

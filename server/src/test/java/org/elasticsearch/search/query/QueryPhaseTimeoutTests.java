@@ -43,13 +43,22 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -375,7 +384,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     private TestSearchContext createSearchContextWithTimeout(TimeoutQuery query, int size) throws IOException {
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader)) {
+        TestSearchContext context = new TestSearchContext(createSearchExecutionContext(), indexShard, newContextSearcher(reader)) {
             @Override
             public long getRelativeTimeInMillis() {
                 // this controls whether a timeout is raised or not. We abstract time away by pretending that the clock stops
@@ -391,11 +400,45 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     private TestSearchContext createSearchContext(Query query, int size) throws IOException {
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
+        TestSearchContext context = new TestSearchContext(createSearchExecutionContext(), indexShard, newContextSearcher(reader));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(size);
         return context;
+    }
+
+    private SearchExecutionContext createSearchExecutionContext() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .creationDate(System.currentTimeMillis())
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        // final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
+        final long nowInMillis = randomNonNegativeLong();
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP),
+            (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            null,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            parserConfig(),
+            writableRegistry(),
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            Collections.emptyMap(),
+            MapperMetrics.NOOP
+        );
     }
 
     public void testSuggestOnlyWithTimeout() throws Exception {
@@ -428,7 +471,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         ContextIndexSearcher contextIndexSearcher = newContextSearcher(reader);
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
         suggestionSearchContext.addSuggestion("suggestion", new TestSuggestionContext(new TestSuggester(contextIndexSearcher), null));
-        TestSearchContext context = new TestSearchContext(null, indexShard, contextIndexSearcher) {
+        TestSearchContext context = new TestSearchContext(createSearchExecutionContext(), indexShard, contextIndexSearcher) {
             @Override
             public SuggestionSearchContext suggest() {
                 return suggestionSearchContext;

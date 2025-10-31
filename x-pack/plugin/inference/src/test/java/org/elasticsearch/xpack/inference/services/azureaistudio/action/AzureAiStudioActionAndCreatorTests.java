@@ -46,7 +46,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -90,7 +90,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
         final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingsTokenResponseJson));
 
@@ -107,7 +107,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             final var action = creator.create(model, Map.of());
             final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             final var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), null, inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             final var result = listener.actionGet(TIMEOUT);
 
@@ -129,7 +129,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
         final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testCompletionTokenResponseJson));
             final var webserverUrl = getUrl(webServer);
@@ -166,7 +166,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
         final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testRerankTokenResponseJson));
             final var webserverUrl = getUrl(webServer);

@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
@@ -62,7 +61,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             TimeValue.timeValueMillis(1),
             mockThreadPool,
             listener
@@ -82,7 +81,7 @@ public class RequestTaskTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -106,7 +105,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -135,7 +134,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -162,7 +161,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             TimeValue.timeValueMillis(1),
             mockThreadPool,
             listener

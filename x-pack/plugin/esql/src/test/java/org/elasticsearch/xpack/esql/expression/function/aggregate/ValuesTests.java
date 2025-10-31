@@ -65,7 +65,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 100)
         ).flatMap(List::stream).map(ValuesTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
     }
 
     @Override

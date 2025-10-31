@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -14,6 +16,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
@@ -21,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class OTLPMetricsRestAction extends BaseRestHandler {
     @Override
     public String getName() {
@@ -48,8 +53,7 @@ public class OTLPMetricsRestAction extends BaseRestHandler {
                 ActionListener.releaseBefore(request.content(), new RestResponseListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(OTLPMetricsTransportAction.MetricsResponse r) {
-                        RestStatus restStatus = r.getStatus();
-                        return new RestResponse(restStatus, "application/x-protobuf", r.getResponse());
+                        return new RestResponse(r.getStatus(), "application/x-protobuf", r.getResponse());
                     }
                 })
             );
@@ -59,7 +63,13 @@ public class OTLPMetricsRestAction extends BaseRestHandler {
         // (a request that does not carry any telemetry data)
         // the server SHOULD respond with success.
         // https://opentelemetry.io/docs/specs/otlp/#full-success-1
-        return channel -> channel.sendResponse(new RestResponse(RestStatus.OK, "application/x-protobuf", new BytesArray(new byte[0])));
+        return channel -> channel.sendResponse(
+            new RestResponse(
+                RestStatus.OK,
+                "application/x-protobuf",
+                new BytesArray(ExportMetricsServiceResponse.newBuilder().build().toByteArray())
+            )
+        );
     }
 
 }

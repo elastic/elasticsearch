@@ -67,7 +67,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
     static {
         PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
             RetrieverBuilder innerRetriever = p.namedObject(RetrieverBuilder.class, n, c);
-            c.trackRetrieverUsage(innerRetriever.getName());
+            c.trackRetrieverUsage(innerRetriever);
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), WEIGHT_FIELD);

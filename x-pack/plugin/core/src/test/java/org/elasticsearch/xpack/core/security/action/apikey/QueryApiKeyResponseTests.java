@@ -34,6 +34,7 @@ public class QueryApiKeyResponseTests extends ESTestCase {
                 null,
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -65,6 +66,7 @@ public class QueryApiKeyResponseTests extends ESTestCase {
                 null,
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
+                null,
                 null,
                 null,
                 null,

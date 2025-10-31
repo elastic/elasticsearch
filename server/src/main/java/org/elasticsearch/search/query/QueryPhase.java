@@ -104,7 +104,7 @@ public class QueryPhase {
                         queryPhaseRankShardContext.rankWindowSize()
                     )
                 ) {
-                    QueryPhase.addCollectorsAndSearch(rankSearchContext);
+                    QueryPhase.addCollectorsAndSearch(rankSearchContext, null);
                     QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
                     rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
                     serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
@@ -140,7 +140,7 @@ public class QueryPhase {
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
 
-        addCollectorsAndSearch(searchContext);
+        addCollectorsAndSearch(searchContext, searchContext.getSearchExecutionContext().getTimeRangeFilterFromMillis());
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
@@ -153,10 +153,11 @@ public class QueryPhase {
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
      */
-    static void addCollectorsAndSearch(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
+        queryResult.setTimeRangeFilterFromMillis(timeRangeFilterFromMillis);
         queryResult.searchTimedOut(false);
         try {
             queryResult.from(searchContext.from());

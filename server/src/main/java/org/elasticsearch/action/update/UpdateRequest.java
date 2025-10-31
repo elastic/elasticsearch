@@ -688,6 +688,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return indexRouting.updateShard(id, routing);
     }
 
+    @Override
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.updateShard(id, routing);
+    }
+
     public UpdateRequest setRequireAlias(boolean requireAlias) {
         this.requireAlias = requireAlias;
         return this;

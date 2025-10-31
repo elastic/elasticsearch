@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -30,6 +31,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.UTF8DecodingReader;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -297,12 +299,18 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
             if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
                 && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
-                final String parentFallbackFieldName = keywordParent.syntheticSourceFallbackFieldName();
                 if (parent.isStored()) {
-                    return storedFieldFetcher(parentFieldName, parentFallbackFieldName);
+                    // if the parent keyword field has ignore_above set, then any ignored values will be stored under a fallback field
+                    return combineFieldFetchers(
+                        storedFieldFetcher(parentFieldName),
+                        binaryDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
+                    );
                 } else if (parent.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(parentFallbackFieldName));
+                    return combineFieldFetchers(
+                        docValuesFieldFetcher(ifd),
+                        binaryDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
+                    );
                 }
             }
 
@@ -325,22 +333,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             final KeywordFieldMapper.KeywordFieldType keywordDelegate
         ) {
             if (keywordDelegate.ignoreAbove().valuesPotentiallyIgnored()) {
-                // because we don't know whether the delegate field will be ignored during parsing, we must also check the current field
-                String fieldName = name();
+                String delegateFieldName = keywordDelegate.name();
+                // bc we don't know whether the delegate will ignore a value, we must also check the fallback field created by this
+                // match_only_text field
                 String fallbackName = syntheticSourceFallbackFieldName();
 
-                // delegate field names
-                String delegateFieldName = keywordDelegate.name();
-                String delegateFieldFallbackName = keywordDelegate.syntheticSourceFallbackFieldName();
-
                 if (keywordDelegate.isStored()) {
-                    return storedFieldFetcher(delegateFieldName, delegateFieldFallbackName, fieldName, fallbackName);
+                    return storedFieldFetcher(delegateFieldName, fallbackName);
                 } else if (keywordDelegate.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(
-                        docValuesFieldFetcher(ifd),
-                        storedFieldFetcher(delegateFieldFallbackName, fieldName, fallbackName)
-                    );
+                    return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(fallbackName));
                 }
             }
 
@@ -369,6 +371,42 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                         return values;
                     } else {
                         return List.of();
+                    }
+                };
+            };
+        }
+
+        /**
+         * Used exclusively to load ignored values from binary doc values. These values are stored in a separate fallback field in order to
+         * retain the original value and hence be able to support synthetic source.
+         */
+        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> binaryDocValuesFieldFetcher(
+            String fieldName
+        ) {
+            return context -> {
+                var binaryDocValues = DocValues.getBinary(context.reader(), fieldName);
+                return docId -> {
+                    if (binaryDocValues == null || binaryDocValues.advanceExact(docId) == false) {
+                        return List.of();
+                    }
+
+                    // see KeywordFieldMapper.MultiValuedBinaryDocValuesField for context on how to decode these binary doc values back into
+                    // strings
+                    BytesRef docValuesBytes = binaryDocValues.binaryValue();
+
+                    try (ByteArrayStreamInput stream = new ByteArrayStreamInput()) {
+                        stream.reset(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
+
+                        int docValueCount = stream.readVInt();
+                        var values = new ArrayList<>(docValueCount);
+
+                        for (int i = 0; i < docValueCount; i++) {
+                            // this function already knows how to decode the underlying bytes array, so no need to explicitly call VInt()
+                            BytesRef valueBytes = stream.readBytesRef();
+                            values.add(valueBytes.utf8ToString());
+                        }
+
+                        return values;
                     }
                 };
             };

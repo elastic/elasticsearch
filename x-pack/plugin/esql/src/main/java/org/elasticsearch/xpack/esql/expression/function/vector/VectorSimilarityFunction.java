@@ -233,7 +233,10 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
             vectorArray[i] = ((Number) vectorList.get(i)).floatValue();
         }
 
-        return new FusedBlockLoaderExpression(field, new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vectorArray));
+        return new FusedBlockLoaderExpression(
+            field,
+            new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vectorArray)
+        );
     }
 
     interface VectorValueProvider extends Releasable {

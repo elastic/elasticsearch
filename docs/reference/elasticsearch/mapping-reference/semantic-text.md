@@ -535,26 +535,11 @@ Note that the `fields` option is **not** available for the Reindex API.
 
 ### Example: Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
 
-::::{applies-switch}
-:::{applies-item} { "stack": "preview 9.0" }
-Content for 9.0 version
-:::
-:::{applies-item} { "stack": "ga 9.1" }
-Content for 9.1 version
-:::
-::::
-
-::::{applies-switch}
-:::{applies-item} stack: preview 9.0
-Other content for 9.0 version
-:::
-:::{applies-item} stack: ga 9.1
-Other content for 9.1 version
-:::
-::::
-
 If you want to verify that your embeddings look correct, you can view the
 {{infer}} data that `semantic_text` typically hides using `fields`.
+
+::::{applies-switch}
+:::{applies-item} { "stack": "ga 9.0", "ga 9.1" }
 
 ```console
 POST my-index/_search
@@ -631,6 +616,93 @@ semantic search for `semantic_text` fields.
 1. The {{infer}} endpoint used to generate embeddings.
 2. Lists details about the model used to generate embeddings, such as the service name and task type.
 3. The embeddings generated for this chunk.
+
+:::
+:::{applies-item} { "stack": "ga 9.2" }
+
+```console
+POST test-index/_search
+{
+  "_source": { "exclude_vectors": false },
+  "query": {
+    "match": {
+      "my_semantic_field": "Which country is Paris in?"
+    }
+  },
+  "fields": ["_inference_fields"]
+}
+```
+
+This will return verbose chunked embeddings content that is used to perform
+semantic search for `semantic_text` fields.
+
+
+% TEST[skip:Requires {{infer}} endpoint]
+
+```console-response
+{
+  "took": 18,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": { "value": 1, "relation": "eq" },
+    "max_score": 16.532316,
+    "hits": [
+      {
+        "_index": "test-index",
+        "_id": "1",
+        "_score": 16.532316,
+        "_source": {
+          "my_semantic_field": "Paris is the capital of France.",
+          "_inference_fields": {
+            "my_semantic_field": {
+              "inference": {
+                "inference_id": ".elser-2-elasticsearch", <1>
+                "model_settings": { <2>
+                  "service": "elasticsearch",
+                  "task_type": "sparse_embedding"
+                },
+                "chunks": {
+                  "my_semantic_field": [
+                    {
+                      "start_offset": 0,
+                      "end_offset": 31,
+                      "embeddings": { <3>
+                        "airport": 0.12011719,
+                        "brussels": 0.032836914,
+                        "capital": 2.1328125,
+                        "capitals": 0.6386719,
+                        "capitol": 1.2890625,
+                        "cities": 0.78125,
+                        "city": 1.265625,
+                        "continent": 0.26953125,
+                        "country": 0.59765625,
+                        ...
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
+1. The {{infer}} endpoint used to generate embeddings.
+2. Lists details about the model used to generate embeddings, such as the service name and task type.
+3. The embeddings generated for this chunk.
+
+:::
+::::
 
 
 ## Customizing `semantic_text` indexing [custom-indexing]

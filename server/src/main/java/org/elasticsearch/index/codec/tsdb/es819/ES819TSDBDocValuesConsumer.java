@@ -56,6 +56,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.codec.tsdb.es819.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.MIN_BLOCK_SIZE_BYTES;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
@@ -508,10 +509,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 }
             }
         }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(offsetsAccumulator);
+        }
     }
 
     private final class CompressedBinaryBlockWriter implements BinaryWriter {
-        static final int MIN_BLOCK_BYTES = 256 * 1024;
         static final int START_BLOCK_DOCS = 1024;
 
         final Compressor compressor;
@@ -547,7 +552,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             docRanges[numDocsInCurrentBlock] = uncompressedBlockLength;
 
             int totalUncompressedLength = uncompressedBlockLength + numDocsInCurrentBlock * Integer.BYTES;
-            if (totalUncompressedLength > MIN_BLOCK_BYTES) {
+            if (totalUncompressedLength > MIN_BLOCK_SIZE_BYTES) {
                 flushData();
             }
         }
@@ -615,7 +620,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         @Override
         public void close() throws IOException {
-            blockMetaAcc.close();
+            IOUtils.close(blockMetaAcc);
         }
     }
 

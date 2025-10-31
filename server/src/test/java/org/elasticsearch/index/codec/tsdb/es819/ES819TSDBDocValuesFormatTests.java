@@ -63,7 +63,10 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -87,6 +90,122 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     @Override
     protected Codec getCodec() {
         return codec;
+    }
+
+    // Test with data large enough to require multiple binary doc value blocks
+    public void testBlockWiseBinarySparse() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+        String binaryField = "binary_field";
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+
+            int maxBlocks = 4;
+            int binaryDataSize = randomIntBetween(0, ES819TSDBDocValuesFormat.MIN_BLOCK_SIZE_BYTES * maxBlocks);
+
+            List<String> binaryValues = new ArrayList<>();
+            int totalSize = 0;
+            while (totalSize < binaryDataSize) {
+                if (randomBoolean()) {
+                    String value = randomAlphaOfLengthBetween(0, 100);
+                    binaryValues.add(value);
+                    totalSize += value.length();
+                } else {
+                    binaryValues.add(null);
+                }
+            }
+            int numDocs = binaryValues.size();
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = baseTimestamp + (1000L * i);
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
+
+                String binaryValue = binaryValues.get(i);
+                if (binaryValue != null) {
+                    d.add(new BinaryDocValuesField(binaryField, new BytesRef(binaryValue)));
+                }
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var binaryDV = leaf.getBinaryDocValues(binaryField);
+                assertNotNull(binaryDV);
+                for (int i = 0; i < numDocs; i++) {
+                    String expected = binaryValues.removeLast();
+                    if (expected == null) {
+                        assertFalse(binaryDV.advanceExact(i));
+                    } else {
+                        assertTrue(binaryDV.advanceExact(i));
+                        assertEquals(expected, binaryDV.binaryValue().utf8ToString());
+                    }
+                }
+            }
+        }
+    }
+
+    // Test with data large enough to require multiple binary doc value blocks
+    public void testBlockWiseBinaryDense() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+        String binaryField = "binary_field";
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+
+            int maxBlocks = 4;
+            int binaryDataSize = randomIntBetween(0, ES819TSDBDocValuesFormat.MIN_BLOCK_SIZE_BYTES * maxBlocks);
+
+            List<String> binaryValues = new ArrayList<>();
+            int totalSize = 0;
+            while (totalSize < binaryDataSize) {
+                String value = randomAlphaOfLengthBetween(0, 100);
+                binaryValues.add(value);
+                totalSize += value.length();
+            }
+            int numDocs = binaryValues.size();
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = baseTimestamp + (1000L * i);
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
+
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(binaryValues.get(i))));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var binaryDV = leaf.getBinaryDocValues(binaryField);
+                assertNotNull(binaryDV);
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals(i, binaryDV.nextDoc());
+                    assertEquals(binaryValues.removeLast(), binaryDV.binaryValue().utf8ToString());
+                }
+            }
+        }
     }
 
     public void testForceMergeDenseCase() throws Exception {

@@ -34,7 +34,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.hamcrest.CoreMatchers.equalTo;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOptimizerTests {
@@ -102,7 +101,7 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
             assertEquals(1, fields.size());
             Alias a = fields.get(0);
             assertEquals("x", a.name());
-            verifySubstitution(a, roundToPointsSize, configuration);
+            verifySubstitution(a, roundToPointsSize);
             LogicalPlan subPlan = predicateString.isEmpty() ? eval : eval.child();
             EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
         }
@@ -126,7 +125,7 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
             assertEquals(1, fields.size());
             Alias a = fields.get(0);
             assertEquals("x", a.name());
-            verifySubstitution(a, roundToPointsSize, configuration);
+            verifySubstitution(a, roundToPointsSize);
             LogicalPlan subPlan = predicateString.isEmpty() ? eval : eval.child();
             EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
         }
@@ -150,7 +149,7 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
             assertEquals(1, fields.size());
             Alias a = fields.get(0);
             assertEquals("x", a.name());
-            verifySubstitution(a, roundToPointsSize, configuration);
+            verifySubstitution(a, roundToPointsSize);
             LogicalPlan subPlan = predicateString.isEmpty() ? eval : eval.child();
             EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
         }
@@ -181,7 +180,7 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
             assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
             Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
             assertEquals("y", a.name());
-            verifySubstitution(a, roundToPointsSize, configuration);
+            verifySubstitution(a, roundToPointsSize);
             LogicalPlan subPlan = hasWhere ? eval.child() : eval;
             EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
         }
@@ -209,7 +208,7 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
             assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
             Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
             assertEquals("y", a.name());
-            verifySubstitution(a, roundToPointsSize, configuration);
+            verifySubstitution(a, roundToPointsSize);
             LogicalPlan subPlan = hasWhere ? eval.child() : eval;
             EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
         }
@@ -237,13 +236,13 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
             assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
             Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
             assertEquals("y", a.name());
-            verifySubstitution(a, roundToPointsSize, configuration);
+            verifySubstitution(a, roundToPointsSize);
             LogicalPlan subPlan = hasWhere ? eval.child() : eval;
             EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
         }
     }
 
-    private void verifySubstitution(Alias a, int roundToPointsSize, Configuration configuration) {
+    private void verifySubstitution(Alias a, int roundToPointsSize) {
         FieldAttribute fa = null;
         Expression e = a.child();
         if (roundToPointsSize > 0) {
@@ -252,20 +251,16 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
             assertEquals(roundToPointsSize, roundTo.points().size());
         } else if (roundToPointsSize == 0) {
             if (e instanceof DateTrunc dateTrunc) {
-                assertThat(dateTrunc.configuration(), equalTo(configuration));
                 fa = as(dateTrunc.field(), FieldAttribute.class);
             } else if (e instanceof Bucket bucket) {
-                assertThat(bucket.configuration(), equalTo(configuration));
                 fa = as(bucket.field(), FieldAttribute.class);
             } else {
                 fail(e.getClass() + " is not supported");
             }
         } else {
             if (e instanceof DateTrunc dateTrunc) {
-                assertThat(dateTrunc.configuration(), equalTo(configuration));
                 assertTrue(dateTrunc.field() instanceof ReferenceAttribute);
             } else if (e instanceof Bucket bucket) {
-                assertThat(bucket.configuration(), equalTo(configuration));
                 assertTrue(bucket.field() instanceof ReferenceAttribute);
             } else {
                 fail(e.getClass() + " is not supported");

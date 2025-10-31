@@ -95,9 +95,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "UTC", "2020-01-01T03:00:00Z"),
             new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
             new DurationTestCaseData(Duration.ofMinutes(3 * 60), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
-
-            // TODO: What to do with hours/minutes/seconds that are not divisors of a full day?
-            // new DurationTestCaseData(Duration.ofHours(5), "2020-01-01T05:30:00Z", "+01", "2020-01-01T05:00:00Z"),
+            new DurationTestCaseData(Duration.ofHours(5), "2020-01-01T05:30:00Z", "+01", "2020-01-01T05:00:00Z"),
 
             ///
             /// Daylight savings
@@ -116,8 +114,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             // Bigger intervals
             new DurationTestCaseData(Duration.ofHours(12), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
             new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
-            // TODO: What to do with hours over a day?
-            // new DurationTestCaseData(Duration.ofHours(48), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00")
+            new DurationTestCaseData(Duration.ofHours(48), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
 
             ///
             /// Partial hours timezones

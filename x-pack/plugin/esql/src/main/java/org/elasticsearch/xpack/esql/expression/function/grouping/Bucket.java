@@ -239,6 +239,10 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         );
     }
 
+    public Configuration configuration() {
+        return configuration;
+    }
+
     private static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to) {
         List<Expression> list = new ArrayList<>(4);
         list.add(field);

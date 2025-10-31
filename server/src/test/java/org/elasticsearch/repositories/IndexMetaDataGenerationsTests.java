@@ -27,7 +27,6 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
     public void testIndexMetaDataGenerations() {
         Map<String, String> identifiers = new HashMap<>();
         Map<IndexId, String> lookupInternal = new HashMap<>();
-        Map<String, String> blobUuidToIndexMetadataMap = new HashMap<>();
 
         int numberOfMetadataIdentifiers = randomIntBetween(5, 10);
         for (int i = 0; i < numberOfMetadataIdentifiers; i++) {
@@ -35,7 +34,6 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
             String metaIdentifier = generateMetaIdentifier(indexUUID);
             String blobUUID = randomAlphanumericOfLength(randomIntBetween(5, 10));
             identifiers.put(metaIdentifier, blobUUID);
-            blobUuidToIndexMetadataMap.put(blobUUID, metaIdentifier);
 
             IndexId indexId = new IndexId(randomAlphanumericOfLength(10), indexUUID);
             lookupInternal.put(indexId, metaIdentifier);
@@ -48,7 +46,6 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
 
         assertEquals(lookup, generations.lookup);
         assertEquals(identifiers, generations.identifiers);
-        assertEquals(blobUuidToIndexMetadataMap, generations.blobUuidToIndexMetadataMap);
     }
 
     public void testBuildUniqueIdentifierWithAllFieldsPresent() {
@@ -76,7 +73,7 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         assertEquals(indexUUID + "-_na_-" + settingsVersion + "-" + mappingVersion + "-" + aliasesVersion, result);
     }
 
-    public void testConvertBlobIdToIndexUUIDReturnsIndexUUID() {
+    public void testGetIndexUUIDFromBlobIdReturnsIndexUUID() {
         String indexUUID = generateUUID();
         String randomSetting = randomAlphaOfLength(randomIntBetween(5, 10));
         long settingsVersion = randomNonNegativeLong();
@@ -94,7 +91,7 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         assertEquals(indexUUID, generations.getIndexUUIDFromBlobId(blobId));
     }
 
-    public void testConvertBlobIdToIndexUUIDReturnsNullWhenBlobIdIsNotFound() {
+    public void testGetIndexUUIDFromBlobIdReturnsNullWhenBlobIdIsNotFound() {
         IndexMetaDataGenerations generations = new IndexMetaDataGenerations(Map.of(), Map.of());
         assertNull(generations.getIndexUUIDFromBlobId(randomAlphanumericOfLength(randomIntBetween(5, 10))));
     }

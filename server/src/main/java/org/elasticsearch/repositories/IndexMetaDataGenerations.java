@@ -9,7 +9,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -23,6 +22,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.UUIDs.RANDOM_BASED_UUID_STRING_LENGTH;
 
 /**
  * Tracks the blob uuids of blobs containing {@link IndexMetadata} for snapshots as well an identifier for each of these blobs.
@@ -46,20 +47,12 @@ public final class IndexMetaDataGenerations {
      */
     final Map<String, String> identifiers;
 
-    /**
-     * Map of blob uuid to index metadata identifier. This is a reverse lookup of the identifiers map.
-     */
-    final Map<String, String> blobUuidToIndexMetadataMap;
-
     IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
         assert identifiers.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet()))
             : "identifier mappings " + identifiers + " don't track the same blob ids as the lookup map " + lookup;
         assert lookup.values().stream().noneMatch(Map::isEmpty) : "Lookup contained empty map [" + lookup + "]";
         this.lookup = Map.copyOf(lookup);
         this.identifiers = Map.copyOf(identifiers);
-        this.blobUuidToIndexMetadataMap = identifiers.entrySet()
-            .stream()
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getValue, Map.Entry::getKey));
     }
 
     public boolean isEmpty() {
@@ -163,7 +156,7 @@ public final class IndexMetaDataGenerations {
 
     @Override
     public int hashCode() {
-        return Objects.hash(identifiers, lookup, blobUuidToIndexMetadataMap);
+        return Objects.hash(identifiers, lookup);
     }
 
     @Override
@@ -175,20 +168,12 @@ public final class IndexMetaDataGenerations {
             return false;
         }
         final IndexMetaDataGenerations other = (IndexMetaDataGenerations) that;
-        return lookup.equals(other.lookup)
-            && identifiers.equals(other.identifiers)
-            && blobUuidToIndexMetadataMap.equals(other.blobUuidToIndexMetadataMap);
+        return lookup.equals(other.lookup) && identifiers.equals(other.identifiers);
     }
 
     @Override
     public String toString() {
-        return "IndexMetaDataGenerations{lookup:"
-            + lookup
-            + "}{identifier:"
-            + identifiers
-            + "}{blobUuidToIndexMetadataMap:"
-            + blobUuidToIndexMetadataMap
-            + "}";
+        return "IndexMetaDataGenerations{lookup:" + lookup + "}{identifier:" + identifiers + "}";
     }
 
     /**
@@ -214,27 +199,23 @@ public final class IndexMetaDataGenerations {
 
     /**
      * Given a blobId, returns the index UUID associated with it.
-     * <p>
-     * If the blobId is not found, returns null.
-     * <p>
-     * If the index UUID is _na_ {@code ClusterState.UNKNOWN_UUID}
      * @param blobId The blob ID
+     * @return the index UUID associated with the blobId, or null if the blobId is not found
      */
     @Nullable
     public String getIndexUUIDFromBlobId(String blobId) {
-        // Find the unique identifier for this blobId
-        String uniqueIdentifier = blobUuidToIndexMetadataMap.get(blobId);
-        if (uniqueIdentifier == null) {
-            return null;
-        }
+        // Map of blob id to index uuid. This is a reverse lookup of the identifiers map.
+        final Map<String, String> blobUuidToIndexUUIDMap = identifiers.entrySet()
+            .stream()
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    Map.Entry::getValue,
+                    // Parses the index UUID from the beginning of the unique index metadata identifier
+                    entry -> entry.getKey().substring(0, RANDOM_BASED_UUID_STRING_LENGTH)
+                )
+            );
 
-        // The uniqueIdentifier is built in {@code buildUniqueIdentifier}, and is prefixed with indexUUID
-        // The indexUUID is either a UUID of length 22, or _na_
-        boolean na = uniqueIdentifier.startsWith(ClusterState.UNKNOWN_UUID + "-");
-        if (na) {
-            return ClusterState.UNKNOWN_UUID;
-        }
-        assert uniqueIdentifier.length() >= 22;
-        return uniqueIdentifier.substring(0, 22);
+        // Find the unique identifier for this blobId
+        return blobUuidToIndexUUIDMap.get(blobId);
     }
 }

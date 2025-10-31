@@ -63,8 +63,10 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.MIN_BLOCK_SIZE_BYTES;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -98,18 +100,21 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
         String binaryField = "binary_field";
+        boolean testVeryLargeValues = randomFloat() < 0.1;
 
         var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
 
             int maxBlocks = 4;
-            int binaryDataSize = randomIntBetween(0, ES819TSDBDocValuesFormat.MIN_BLOCK_SIZE_BYTES * maxBlocks);
+            int binaryDataSize = randomIntBetween(0, MIN_BLOCK_SIZE_BYTES * maxBlocks);
 
             List<String> binaryValues = new ArrayList<>();
             int totalSize = 0;
             while (totalSize < binaryDataSize) {
                 if (randomBoolean()) {
-                    String value = randomAlphaOfLengthBetween(0, 100);
+                    final String value = testVeryLargeValues
+                        ? randomAlphaOfLengthBetween(MIN_BLOCK_SIZE_BYTES / 2, 2 * MIN_BLOCK_SIZE_BYTES)
+                        : randomAlphaOfLengthBetween(0, 50);
                     binaryValues.add(value);
                     totalSize += value.length();
                 } else {
@@ -162,17 +167,21 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
         String binaryField = "binary_field";
+        boolean testVeryLargeValues = randomFloat() < 0.1;
 
         var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
 
             int maxBlocks = 4;
-            int binaryDataSize = randomIntBetween(0, ES819TSDBDocValuesFormat.MIN_BLOCK_SIZE_BYTES * maxBlocks);
+            int binaryDataSize = randomIntBetween(0, MIN_BLOCK_SIZE_BYTES * maxBlocks);
 
             List<String> binaryValues = new ArrayList<>();
             int totalSize = 0;
             while (totalSize < binaryDataSize) {
-                String value = randomAlphaOfLengthBetween(0, 100);
+                final String value = testVeryLargeValues
+                    ? randomAlphaOfLengthBetween(MIN_BLOCK_SIZE_BYTES / 2, 2 * MIN_BLOCK_SIZE_BYTES)
+                    : randomAlphaOfLengthBetween(0, 50);
+
                 binaryValues.add(value);
                 totalSize += value.length();
             }

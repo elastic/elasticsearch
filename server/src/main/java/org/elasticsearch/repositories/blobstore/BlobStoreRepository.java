@@ -64,6 +64,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.DeflateCompressor;
 import org.elasticsearch.common.compress.NotXContentException;
+import org.elasticsearch.common.date.DateUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -4220,14 +4221,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.trace("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path());
                 final long startMillis = threadPool.rawRelativeTimeInMillis();
                 shardContainer.writeBlob(OperationPurpose.SNAPSHOT_DATA, partName, inputStream, partBytes, false);
-                final long uploadTimeInMillis = threadPool.rawRelativeTimeInMillis() - startMillis;
+                final long endMillis = threadPool.rawRelativeTimeInMillis();
+                final long uploadTimeInMillis = endMillis - startMillis;
                 blobStoreSnapshotMetrics.incrementCountersForPartUpload(partBytes, uploadTimeInMillis);
                 logger.trace(
-                    "[{}] Writing [{}] of size [{}b] to [{}] took [{}ms]",
+                    "[{}] Writing [{}] of size [{}b] to [{}]. Started at [{}], ended at [{}] and took [{}ms]",
                     metadata.name(),
                     partName,
                     partBytes,
                     shardContainer.path(),
+                    DateUtils.convertMillisToDateTime(startMillis),
+                    DateUtils.convertMillisToDateTime(endMillis),
                     uploadTimeInMillis
                 );
             }

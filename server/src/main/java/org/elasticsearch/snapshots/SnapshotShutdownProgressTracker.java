@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.date.DateUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -136,14 +137,16 @@ public class SnapshotShutdownProgressTracker {
         logger.info(
             """
                 Current active shard snapshot stats on data node [{}]. \
-                Node shutdown cluster state update received at [{} millis]. \
-                Finished signalling shard snapshots to pause at [{} millis]. \
+                Node shutdown cluster state update received at [{}] [{} millis]. \
+                Finished signalling shard snapshots to pause at [{}] [{} millis]. \
                 Number shard snapshots running [{}]. \
                 Number shard snapshots waiting for master node reply to status update request [{}] \
                 Shard snapshot completion stats since shutdown began: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}]\
                 """,
             getLocalNodeId.get(),
+            DateUtils.convertMillisToDateTime(shutdownStartMillis),
             shutdownStartMillis,
+            DateUtils.convertMillisToDateTime(shutdownFinishedSignallingPausingMillis),
             shutdownFinishedSignallingPausingMillis,
             numberOfShardSnapshotsInProgressOnDataNode.get(),
             shardSnapshotRequests.size(),

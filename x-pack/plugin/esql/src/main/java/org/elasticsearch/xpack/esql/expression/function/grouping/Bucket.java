@@ -43,6 +43,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -69,26 +70,29 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
-    private static final Rounding.Builder LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY);
-    private static final Rounding.Builder[] HUMAN_DATE_ROUNDINGS = new Rounding.Builder[] {
-        Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR),
-        Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
-        Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH),
-        Rounding.builder(TimeValue.timeValueHours(12)),
-        Rounding.builder(TimeValue.timeValueHours(3)),
-        Rounding.builder(TimeValue.timeValueHours(1)),
-        Rounding.builder(TimeValue.timeValueMinutes(30)),
-        Rounding.builder(TimeValue.timeValueMinutes(10)),
-        Rounding.builder(TimeValue.timeValueMinutes(5)),
-        Rounding.builder(TimeValue.timeValueMinutes(1)),
-        Rounding.builder(TimeValue.timeValueSeconds(30)),
-        Rounding.builder(TimeValue.timeValueSeconds(10)),
-        Rounding.builder(TimeValue.timeValueSeconds(5)),
-        Rounding.builder(TimeValue.timeValueSeconds(1)),
-        Rounding.builder(TimeValue.timeValueMillis(100)),
-        Rounding.builder(TimeValue.timeValueMillis(50)),
-        Rounding.builder(TimeValue.timeValueMillis(10)),
-        Rounding.builder(TimeValue.timeValueMillis(1)), };
+    private static final Function<ZoneId, Rounding> LARGEST_HUMAN_DATE_ROUNDING = (zoneId) -> Rounding.builder(
+        Rounding.DateTimeUnit.YEAR_OF_CENTURY
+    ).timeZone(zoneId).build();
+    private static final List<Function<ZoneId, Rounding>> HUMAN_DATE_ROUNDINGS = List.of(
+        (zoneId) -> Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueHours(12)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueHours(3)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueHours(1)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueMinutes(30)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueMinutes(10)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueMinutes(5)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueMinutes(1)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueSeconds(30)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueSeconds(10)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueSeconds(5)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueSeconds(1)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueMillis(100)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueMillis(50)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueMillis(10)).timeZone(zoneId).build(),
+        (zoneId) -> Rounding.builder(TimeValue.timeValueMillis(1)).timeZone(zoneId).build()
+    );
 
     private final Configuration configuration;
     private final Expression field;
@@ -331,9 +335,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId) {
         Rounding pickRounding() {
-            Rounding prev = LARGEST_HUMAN_DATE_ROUNDING.timeZone(zoneId).build();
-            for (Rounding.Builder builder : HUMAN_DATE_ROUNDINGS) {
-                Rounding r = builder.timeZone(zoneId).build();
+            Rounding prev = LARGEST_HUMAN_DATE_ROUNDING.apply(zoneId);
+            for (Function<ZoneId, Rounding> roundingMaker : HUMAN_DATE_ROUNDINGS) {
+                Rounding r = roundingMaker.apply(zoneId);
                 if (roundingIsOk(r)) {
                     prev = r;
                 } else {

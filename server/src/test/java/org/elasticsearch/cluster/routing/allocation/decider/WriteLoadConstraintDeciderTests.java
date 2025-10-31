@@ -233,6 +233,16 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 testHarness.routingAllocation
             ).type()
         );
+        assertEquals(
+            "A shard with no write load can still return NOT_PREFERRED",
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDecider.canRemain(
+                testHarness.clusterState.metadata().getProject().index(indexName),
+                testHarness.shardRoutingNoWriteLoad,
+                testHarness.aboveQueuingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
     }
 
     private void assertDecisionMatches(String description, Decision decision, Decision.Type type, String explanationPattern) {

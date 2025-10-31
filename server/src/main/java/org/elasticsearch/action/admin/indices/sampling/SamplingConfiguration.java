@@ -71,7 +71,9 @@ public record SamplingConfiguration(
     public static final String INVALID_MAX_SIZE_MIN_MESSAGE = "maxSize must be greater than 0";
     public static final String INVALID_MAX_SIZE_MAX_MESSAGE = "maxSize must be less than or equal to "
         + (int) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * 100)
-        + "% of heap size";
+        + "% of heap size ("
+        + calculateDefaultMaxSize().toString()
+        + ")";
     public static final String INVALID_TIME_TO_LIVE_MIN_MESSAGE = "timeToLive must be greater than 0";
     public static final String INVALID_TIME_TO_LIVE_MAX_MESSAGE = "timeToLive must be less than or equal to "
         + MAX_TIME_TO_LIVE_DAYS
@@ -188,15 +190,6 @@ public record SamplingConfiguration(
         return ByteSizeValue.ofBytes(Math.max(heapBasedSize, DEFAULT_MAX_SIZE_FLOOR.getBytes()));
     }
 
-    /**
-     * Calculates the maximum allowed max size as a percentage of the configured heap size.
-     *
-     * @return The maximum allowed max size value
-     */
-    private static ByteSizeValue calculateMaxAllowedSize() {
-        return ByteSizeValue.ofBytes((long) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize()));
-    }
-
     // Convenience constructor without creationTime
     public SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
         this(rate, maxSamples, maxSize, timeToLive, condition, null);
@@ -289,7 +282,7 @@ public record SamplingConfiguration(
             if (maxSize.compareTo(ByteSizeValue.ZERO) <= 0) {
                 throw new IllegalArgumentException(INVALID_MAX_SIZE_MIN_MESSAGE);
             }
-            ByteSizeValue maxLimit = calculateMaxAllowedSize();
+            ByteSizeValue maxLimit = calculateDefaultMaxSize();
             if (maxSize.compareTo(maxLimit) > 0) {
                 throw new IllegalArgumentException(INVALID_MAX_SIZE_MAX_MESSAGE);
             }

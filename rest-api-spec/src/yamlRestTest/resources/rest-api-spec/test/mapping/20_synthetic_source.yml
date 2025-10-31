@@ -313,3 +313,44 @@ synthetic_source text with normalized keyword with skip store original value:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.foo: "apache lucene powers elastic" }
+
+---
+synthetic_source text with normalized keyword with default skip store original value:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: text
+                fields:
+                  raw:
+                    type: keyword
+                    normalizer: lowercase
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        refresh: true
+        body:
+          foo: "Apache LUCENE powers ELASTIC"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo: lucene
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.foo: "apache lucene powers elastic" }

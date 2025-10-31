@@ -1,0 +1,186 @@
+---
+"Test get sample with multiple reroutes":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      ingest.put_pipeline:
+        id: pipeline1
+        body:  >
+          {
+             "processors" : [
+              {
+                "set" : {
+                  "field": "message",
+                  "value": "set by pipeline1"
+                }
+              },
+              {
+                "reroute" : {
+                  "destination": "foo.bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: pipeline2
+        body:  >
+          {
+             "processors" : [
+              {
+                "set" : {
+                  "field": "message",
+                  "value": "set by pipeline2"
+                }
+              },
+              {
+                "reroute" : {
+                  "destination": "foo.bar.baz"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [foo]
+          template:
+            settings:
+              default_pipeline: pipeline1
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                message:
+                  type: text
+          data_stream: {}
+  - match: { acknowledged: true }
+
+  - do:
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [foo.bar]
+          template:
+            settings:
+              default_pipeline: pipeline2
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                message:
+                  type: text
+          data_stream: {}
+  - match: { acknowledged: true }
+
+  - do:
+      indices.put_index_template:
+        name: my-template3
+        body:
+          index_patterns: [foo.bar.baz]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                message:
+                  type: text
+          data_stream: {}
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create_data_stream:
+        name: foo
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: foo.bar
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: foo.bar.baz
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: foo.bar.baz
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: foo
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.put_sample_configuration:
+        index: foo.bar
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.put_sample_configuration:
+        index: foo.bar.baz
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create":{"_index": "foo" } }'
+          - '{"@timestamp": 123456, "message": "This is the original message"}'
+          - '{ "create":{"_index": "foo" } }'
+          - '{"@timestamp": 123456, "message": "This is the original message"}'
+  - match: { errors: false }
+
+  - do:
+      indices.get_sample:
+        index: foo
+  - length: { sample: 2 }
+  - match: { sample.0.index: "foo" }
+  - match: { sample.0.source.message: "This is the original message" }
+  - match: { sample.1.source.message: "This is the original message" }
+
+  - do:
+      indices.get_sample:
+        index: foo.bar
+  - length: { sample: 2 }
+  - match: { sample.0.index: "foo.bar" }
+  - match: { sample.0.source.message: "This is the original message" }
+  - match: { sample.1.source.message: "This is the original message" }
+
+  - do:
+      indices.get_sample:
+        index: foo.bar.baz
+  - length: { sample: 2 }
+  - match: { sample.0.index: "foo.bar.baz" }
+  - match: { sample.0.source.message: "This is the original message" }
+  - match: { sample.1.source.message: "This is the original message" }
+
+---
+teardown:
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.delete_data_stream:
+        name: foo*

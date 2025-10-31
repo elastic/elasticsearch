@@ -159,11 +159,29 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
      * we perform the force merge on the _source_ index and snapshot the source index.
      */
     public void testSearchableSnapshotForceMergesSourceIndex() throws Exception {
-        // Data streams have 1 primary shard by default.
-        // The test suite runs with 4 nodes, so we can have up to 3 (allocated) replicas.
         final String phase = randomBoolean() ? "cold" : "frozen";
-        final int numberOfPrimaries = 1;
+        final int numberOfPrimaries = randomIntBetween(1, 3);
         final String backingIndexName = prepareDataStreamWithDocs(phase, numberOfPrimaries, 0);
+
+        // Enable/start ILM on the data stream.
+        updateIndexSettings(dataStream, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        assertForceMergedSnapshotDone(phase, backingIndexName, numberOfPrimaries, false);
+    }
+
+    /**
+     * Test that when we have a searchable snapshot action with force merge enabled, the source index has _at least one_ replica,
+     * and we opt out of performing the force-merge on a zero-replica clone (through {@link SearchableSnapshotAction#forceMergeOnClone}),
+     * we perform the force merge on the _source_ index and snapshot the source index.
+     */
+    public void testSearchableSnapshotForceMergeOnCloneOptOut() throws Exception {
+        final String phase = randomBoolean() ? "cold" : "frozen";
+        final int numberOfPrimaries = randomIntBetween(1, 3);
+        // The test suite runs with 4 nodes, so we can have up to 3 (allocated) replicas.
+        final int numberOfReplicas = randomIntBetween(1, 3);
+        final String backingIndexName = prepareDataStreamWithDocs(phase, numberOfPrimaries, numberOfReplicas);
+        // Update the policy to set `forceMergeOnClone` false in the SearchableSnapshotAction.
+        createNewSingletonPolicy(client(), policy, phase, new SearchableSnapshotAction(snapshotRepo, true, null, null, false));
 
         // Enable/start ILM on the data stream.
         updateIndexSettings(dataStream, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
@@ -893,7 +911,10 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode, null))
+                Map.of(
+                    SearchableSnapshotAction.NAME,
+                    new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode, null, null)
+                )
             ),
             null
         );
@@ -941,7 +962,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     SearchableSnapshotAction.NAME,
-                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueHours(2))
+                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueHours(2), null)
                 )
             ),
             new Phase("delete", TimeValue.timeValueDays(1), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
@@ -998,7 +1019,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     SearchableSnapshotAction.NAME,
-                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueSeconds(10))
+                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueSeconds(10), null)
                 )
             ),
             new Phase("delete", TimeValue.timeValueDays(1), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
@@ -1033,11 +1054,17 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, phase, new SearchableSnapshotAction(snapshotRepo, true));
 
+        final var indexSettings = indexSettings(numberOfPrimaries, numberOfReplicas);
+        // Randomly enable auto-expand replicas to test that we remove the setting for the clone with 0 replicas.
+        if (numberOfReplicas > 0 && randomBoolean()) {
+            logger.info("--> enabling auto-expand replicas on backing index");
+            indexSettings.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "1-all");
+        }
         createComposableTemplate(
             client(),
             randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
-            new Template(indexSettings(numberOfPrimaries, numberOfReplicas).build(), null, null)
+            new Template(indexSettings.build(), null, null)
         );
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);

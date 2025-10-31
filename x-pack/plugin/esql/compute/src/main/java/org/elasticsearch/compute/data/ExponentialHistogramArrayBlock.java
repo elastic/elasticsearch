@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
 import java.util.List;
@@ -78,15 +78,17 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         return List.of(sums, valueCounts, zeroThresholds, encodedHistograms, minima, maxima);
     }
 
-    void loadValue(int valueIndex, CompressedExponentialHistogram resultHistogram, BytesRef tempBytesRef) {
-        BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), tempBytesRef);
+    @Override
+    public ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch) {
+        BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), scratch.bytesRefScratch);
         double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
         long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
         double sum = sums.getDouble(sums.getFirstValueIndex(valueIndex));
         double min = valueCount == 0 ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(valueIndex));
         double max = valueCount == 0 ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(valueIndex));
         try {
-            resultHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
+            scratch.reusedHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
+            return scratch.reusedHistogram;
         } catch (IOException e) {
             throw new IllegalStateException("error loading histogram", e);
         }
@@ -291,12 +293,12 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        minima.writeTo(out);
-        maxima.writeTo(out);
-        sums.writeTo(out);
-        valueCounts.writeTo(out);
-        zeroThresholds.writeTo(out);
-        encodedHistograms.writeTo(out);
+        Block.writeTypedBlock(minima, out);
+        Block.writeTypedBlock(maxima, out);
+        Block.writeTypedBlock(sums, out);
+        Block.writeTypedBlock(valueCounts, out);
+        Block.writeTypedBlock(zeroThresholds, out);
+        Block.writeTypedBlock(encodedHistograms, out);
     }
 
     public static ExponentialHistogramArrayBlock readFrom(BlockStreamInput in) throws IOException {
@@ -309,12 +311,12 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
 
         boolean success = false;
         try {
-            minima = DoubleBlock.readFrom(in);
-            maxima = DoubleBlock.readFrom(in);
-            sums = DoubleBlock.readFrom(in);
-            valueCounts = LongBlock.readFrom(in);
-            zeroThresholds = DoubleBlock.readFrom(in);
-            encodedHistograms = BytesRefBlock.readFrom(in);
+            minima = (DoubleBlock) Block.readTypedBlock(in);
+            maxima = (DoubleBlock) Block.readTypedBlock(in);
+            sums = (DoubleBlock) Block.readTypedBlock(in);
+            valueCounts = (LongBlock) Block.readTypedBlock(in);
+            zeroThresholds = (DoubleBlock) Block.readTypedBlock(in);
+            encodedHistograms = (BytesRefBlock) Block.readTypedBlock(in);
             success = true;
         } finally {
             if (success == false) {
@@ -374,4 +376,5 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         // this ensures proper equality with null blocks and should be unique enough for practical purposes
         return encodedHistograms.hashCode();
     }
+
 }

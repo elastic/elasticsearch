@@ -362,6 +362,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this.normalizer.get() != null;
         }
 
+        public boolean isNormalizerSkipStoreOriginalValue() {
+            return this.normalizerSkipStoreOriginalValue.getValue();
+        }
+
         Builder nullValue(String nullValue) {
             this.nullValue.setValue(nullValue);
             return this;
@@ -1421,7 +1425,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // if ignore_above is set, then there is a chance that this field will be ignored. In such cases, we save an
         // extra copy of the field for supporting synthetic source. This layer will check that copy.
-        if (fieldType().ignoreAbove.isSet()) {
+        if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
                 @Override

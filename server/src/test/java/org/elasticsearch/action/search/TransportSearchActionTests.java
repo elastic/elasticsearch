@@ -1102,6 +1102,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1132,6 +1134,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
+                    null,
+                    false,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1185,6 +1189,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
+                    null,
+                    false,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1216,6 +1222,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1263,6 +1271,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1784,7 +1794,7 @@ public class TransportSearchActionTests extends ESTestCase {
             NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow());
 
             SearchService searchService = mock(SearchService.class);
-            when(searchService.getRewriteContext(any(), any(), any(), any(), any(), anyBoolean(), anyBoolean())).thenReturn(
+            when(searchService.getRewriteContext(any(), any(), any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(
                 new QueryRewriteContext(null, null, null, null, null, null, null, null, null)
             );
             ClusterService clusterService = new ClusterService(

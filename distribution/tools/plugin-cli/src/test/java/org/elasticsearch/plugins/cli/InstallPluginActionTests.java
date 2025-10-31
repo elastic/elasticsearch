@@ -596,7 +596,10 @@ public class InstallPluginActionTests extends ESTestCase {
         assumeTrue("requires file URL scheme", location.startsWith("file:"));
         InstallablePlugin modifiedPlugin = new InstallablePlugin("fake", location);
         UserException e = expectThrows(UserException.class, () -> installPlugin(modifiedPlugin));
-        assertThat(e.getMessage(), startsWith("Installation of plugin in location [" + location + "] from inside the plugins directory is not permitted."));
+        assertThat(
+            e.getMessage(),
+            startsWith("Installation of plugin in location [" + location + "] from inside the plugins directory is not permitted.")
+        );
     }
 
     public void testMalformedUrlNotMaven() {

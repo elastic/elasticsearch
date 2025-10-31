@@ -58,7 +58,7 @@ public record SamplingConfiguration(
 
     // Constants for validation and defaults
     public static final int MAX_SAMPLES_LIMIT = 10_000;
-    public static final double MAX_SIZE_HEAP_PERCENTAGE_LIMIT = 0.1;
+    public static final double MAX_SIZE_HEAP_PERCENTAGE_LIMIT = 0.01;
     public static final ByteSizeValue DEFAULT_MAX_SIZE_FLOOR = ByteSizeValue.ofKb(100);
     public static final long MAX_TIME_TO_LIVE_DAYS = 30;
     public static final int DEFAULT_MAX_SAMPLES = 100;

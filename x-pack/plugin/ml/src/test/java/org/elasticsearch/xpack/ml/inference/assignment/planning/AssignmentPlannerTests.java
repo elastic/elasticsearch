@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1169,7 +1170,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(assignmentPlan.getRemainingNodeCores(node1.id()), greaterThanOrEqualTo(0));
     }
 
-    public void testDeploymentWithZeroAllocationsIsPreserved() {
+    public void testZeroAllocationsDeploymentIsPreserved() {
         Node node = new Node("n_1", ByteSizeValue.ofGb(4).getBytes(), 4);
         Deployment deployment = new Deployment(
             "m_1",
@@ -1187,8 +1188,67 @@ public class AssignmentPlannerTests extends ESTestCase {
         AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
 
         assertThat(assignmentPlan.deployments(), contains(deployment));
+        assertThat(assignmentPlan.assignments(deployment), isEmpty());
+        assertThat(assignmentPlan.satisfiesAllocations(deployment), is(true));
         assertThat(assignmentPlan.getRemainingNodeMemory(node.id()), equalTo(ByteSizeValue.ofGb(4).getBytes()));
         assertThat(assignmentPlan.getRemainingNodeCores(node.id()), equalTo(4));
+    }
+
+    public void testMultipleZeroAllocationsDeploymentsArePreserved() {
+        Node node = new Node("n_1", ByteSizeValue.ofMb(4096).getBytes(), 4);
+        Deployment zeroAllocationDeployment1 = new Deployment(
+            "m_1",
+            "m_1",
+            ByteSizeValue.ofMb(500).getBytes(),
+            0,
+            1,
+            Map.of(),
+            0,
+            new AdaptiveAllocationsSettings(true, 0, 42),
+            0,
+            0
+        );
+        Deployment zeroAllocationDeployment2 = new Deployment(
+            "m_2",
+            "m_2",
+            ByteSizeValue.ofMb(600).getBytes(),
+            0,
+            1,
+            Map.of(),
+            4,
+            new AdaptiveAllocationsSettings(true, 0, 42),
+            0,
+            0
+        );
+        Deployment oneAllocationDeployment = new AssignmentPlan.Deployment(
+            "m_1",
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            1,
+            1,
+            Map.of(),
+            0,
+            null,
+            0,
+            0
+        );
+
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(
+            List.of(node),
+            List.of(zeroAllocationDeployment1, oneAllocationDeployment, zeroAllocationDeployment2)
+        ).computePlan();
+
+        assertThat(
+            assignmentPlan.deployments(),
+            containsInAnyOrder(zeroAllocationDeployment1, zeroAllocationDeployment2, oneAllocationDeployment)
+        );
+        assertModelFullyAssignedToNode(assignmentPlan, oneAllocationDeployment, node);
+        assertThat(assignmentPlan.assignments(zeroAllocationDeployment1), isEmpty());
+        assertThat(assignmentPlan.assignments(zeroAllocationDeployment2), isEmpty());
+        assertThat(assignmentPlan.assignments(zeroAllocationDeployment1), isEmpty());
+        assertThat(assignmentPlan.assignments(zeroAllocationDeployment2), isEmpty());
+        assertThat(assignmentPlan.getRemainingNodeMemory(node.id()), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeCores(node.id()), equalTo(3));
     }
 
     public static List<Deployment> createDeploymentsFromPlan(AssignmentPlan plan) {

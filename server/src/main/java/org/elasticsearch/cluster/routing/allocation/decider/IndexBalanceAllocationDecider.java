@@ -75,7 +75,6 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         }
 
         assert node.node() != null;
-        assert node.node().getRoles() != null && node.node().getRoles().isEmpty() == false;
         if (node.node().getRoles().contains(INDEX_ROLE) == false && node.node().getRoles().contains(SEARCH_ROLE) == false) {
             return Decision.single(Decision.Type.YES, NAME, "Node has neither index nor search roles, outside purview.");
         }
@@ -87,6 +86,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         if (node.node().getRoles().contains(SEARCH_ROLE) && shardRouting.primary()) {
             return Decision.single(Decision.Type.YES, NAME, "Decider allows primaries move to search nodes.");
         }
+
 
         final ProjectId projectId = allocation.getClusterState().metadata().projectFor(index).id();
         final Set<DiscoveryNode> eligibleNodes = new HashSet<>();
@@ -116,29 +116,16 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         if (currentAllocation >= threshold) {
             String explanation = Strings.format(
                 """
-                    For index [%s] with [%d] %s, Node [%s] is expected to hold [%.0f] %s for index [%s], based on the total of [%d]
-                    nodes available. The configured load skew tolerance is [%.2f], which yields an allocation threshold of
-                    Math.ceil([%.0f] × [%.2f]) = [%d] %s. Currently, node [%s] is assigned [%d] %s of index [%s]. Therefore,
-                    assigning additional %s is not preferred.
-                    """,
-                index,
-                totalShards,
-                nomenclature,
-                node.nodeId(),
-                idealAllocation,
-                nomenclature,
-                index,
+                There are [%d] eligible nodes in the [%s] tier for assignment of [%.0f] shards in index [%s]. Ideally no more than [%d]
+                shard would be assigned per node (the index balance skew setting is [%.2f]). This node is already assigned [%d] shards of
+                the index.
+                """,
                 eligibleNodes.size(),
-                indexBalanceConstraintSettings.getLoadSkewTolerance(),
+                nomenclature,
+                totalShards,
                 idealAllocation,
                 indexBalanceConstraintSettings.getLoadSkewTolerance(),
-                threshold,
-                nomenclature,
-                node.nodeId(),
-                currentAllocation,
-                nomenclature,
-                index,
-                nomenclature
+                currentAllocation
             );
 
             logger.trace(explanation);
@@ -151,8 +138,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
     private void collectEligibleNodes(RoutingAllocation allocation, Set<DiscoveryNode> eligibleNodes, DiscoveryNodeRole role) {
         for (DiscoveryNode discoveryNode : allocation.nodes()) {
-            if (discoveryNode.canContainData()
-                && discoveryNode.getRoles().contains(role)
+            if ( discoveryNode.getRoles().contains(role)
                 && (clusterExcludeFilters == null || clusterExcludeFilters.match(discoveryNode) == false)
                 && allocation.metadata().nodeShutdowns().contains(discoveryNode.getId()) == false) {
                 eligibleNodes.add(discoveryNode);

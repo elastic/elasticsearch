@@ -169,7 +169,6 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             updateClusterSettings(
                 Settings.builder()
                     .put("cluster.routing.allocation.exclude._name", harness.firstDataNodeName)
-                    .put("cluster.routing.allocation.index_balance_decider.load_skew_tolerance", 1000)
             );
 
             safeAwait(temporaryClusterStateListener);
@@ -608,6 +607,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(queueLatencyThresholdMillis)
             )
+            .put("cluster.routing.allocation.index_balance_decider.load_skew_tolerance", 1000)
             // Disable rebalancing so that testing can see Decider change outcomes only.
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
             .build();

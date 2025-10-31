@@ -349,7 +349,7 @@ public class InstallPluginAction implements Closeable {
             if (pluginRealPath.startsWith(pluginsDirectory)) {
                 throw new UserException(
                     ExitCodes.USAGE,
-                    "plugin location [" + pluginLocation + "] is inside the plugins directory [" + pluginsDirectory + "]"
+                    "Installation of plugin in location [" + pluginLocation + "] from inside the plugins directory is not permitted."
                 );
             }
         }

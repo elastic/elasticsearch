@@ -586,7 +586,7 @@ public class InstallPluginActionTests extends ESTestCase {
         assertPlugin("fake", pluginDir, env.v2());
     }
 
-    public void testInstallFromInsidePluginsDirectory() throws Exception {
+    public void testCannotInstallFromInsidePluginsDirectory() throws Exception {
         InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         Path pluginZipInsidePlugins = env.v2().pluginsDir().resolve("fake.zip");
         try (InputStream in = FileSystemUtils.openFileURLStream(new URL(pluginZip.getLocation()))) {
@@ -596,7 +596,7 @@ public class InstallPluginActionTests extends ESTestCase {
         assumeTrue("requires file URL scheme", location.startsWith("file:"));
         InstallablePlugin modifiedPlugin = new InstallablePlugin("fake", location);
         UserException e = expectThrows(UserException.class, () -> installPlugin(modifiedPlugin));
-        assertThat(e.getMessage(), startsWith("plugin location [" + location + "] is inside the plugins directory"));
+        assertThat(e.getMessage(), startsWith("Installation of plugin in location [" + location + "] from inside the plugins directory is not permitted."));
     }
 
     public void testMalformedUrlNotMaven() {

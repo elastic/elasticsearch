@@ -64,12 +64,12 @@ public class DateTrunc extends EsqlConfigurationFunction {
         returnType = { "date", "date_nanos" },
         description = "Rounds down a date to the closest interval since epoch, which starts at `0001-01-01T00:00:00Z`.",
         examples = {
-            @Example(file = "date", tag = "docsDateTrunc"),
+            @Example(file = "date_trunc", tag = "docsDateTrunc"),
             @Example(
                 description = "Combine `DATE_TRUNC` with [`STATS`](/reference/query-languages/esql/commands/stats-by.md) "
                     + "to create date histograms. "
                     + "For example, the number of hires per year:",
-                file = "date",
+                file = "date_trunc",
                 tag = "docsDateTruncHistogram"
             ),
             @Example(description = "Or an hourly error rate:", file = "conditional", tag = "docsCaseHourlyErrorRate") }

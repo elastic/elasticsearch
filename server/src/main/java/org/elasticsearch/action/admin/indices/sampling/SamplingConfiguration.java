@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -57,10 +58,10 @@ public record SamplingConfiguration(
 
     // Constants for validation and defaults
     public static final int MAX_SAMPLES_LIMIT = 10_000;
-    public static final long MAX_SIZE_LIMIT_GIGABYTES = 5;
+    public static final double MAX_SIZE_HEAP_PERCENTAGE_LIMIT = 0.1;
+    public static final ByteSizeValue DEFAULT_MAX_SIZE_FLOOR = ByteSizeValue.ofKb(100);
     public static final long MAX_TIME_TO_LIVE_DAYS = 30;
     public static final int DEFAULT_MAX_SAMPLES = 100;
-    public static final long DEFAULT_MAX_SIZE_GIGABYTES = 1;
     public static final long DEFAULT_TIME_TO_LIVE_DAYS = 10;
 
     // Error messages
@@ -68,7 +69,9 @@ public record SamplingConfiguration(
     public static final String INVALID_MAX_SAMPLES_MIN_MESSAGE = "maxSamples must be greater than 0";
     public static final String INVALID_MAX_SAMPLES_MAX_MESSAGE = "maxSamples must be less than or equal to " + MAX_SAMPLES_LIMIT;
     public static final String INVALID_MAX_SIZE_MIN_MESSAGE = "maxSize must be greater than 0";
-    public static final String INVALID_MAX_SIZE_MAX_MESSAGE = "maxSize must be less than or equal to " + MAX_SIZE_LIMIT_GIGABYTES + "GB";
+    public static final String INVALID_MAX_SIZE_MAX_MESSAGE = "maxSize must be less than or equal to "
+        + (int) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * 100)
+        + "% of heap size";
     public static final String INVALID_TIME_TO_LIVE_MIN_MESSAGE = "timeToLive must be greater than 0";
     public static final String INVALID_TIME_TO_LIVE_MAX_MESSAGE = "timeToLive must be less than or equal to "
         + MAX_TIME_TO_LIVE_DAYS
@@ -152,7 +155,7 @@ public record SamplingConfiguration(
      *
      * @param rate The fraction of documents to sample (must be between 0 and 1)
      * @param maxSamples The maximum number of documents to sample (optional, defaults to {@link #DEFAULT_MAX_SAMPLES})
-     * @param maxSize The maximum total size of sampled documents (optional, defaults to {@link #DEFAULT_MAX_SIZE_GIGABYTES} GB)
+     * @param maxSize The maximum total size of sampled documents (optional, defaults to {@link #MAX_SIZE_HEAP_PERCENTAGE_LIMIT} of heap)
      * @param timeToLive The duration for which the sampled documents
      *                   should be retained (optional, defaults to {@link #DEFAULT_TIME_TO_LIVE_DAYS} days)
      * @param condition An optional condition script that sampled documents must satisfy (optional, can be null)
@@ -168,7 +171,14 @@ public record SamplingConfiguration(
     ) {
         this.rate = rate;
         this.maxSamples = maxSamples == null ? DEFAULT_MAX_SAMPLES : maxSamples;
-        this.maxSize = maxSize == null ? ByteSizeValue.ofGb(DEFAULT_MAX_SIZE_GIGABYTES) : maxSize;
+        this.maxSize = maxSize == null
+            ? ByteSizeValue.ofBytes(
+                Math.max(
+                    (long) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize()),
+                    DEFAULT_MAX_SIZE_FLOOR.getBytes()
+                )
+            )
+            : maxSize;
         this.timeToLive = timeToLive == null ? TimeValue.timeValueDays(DEFAULT_TIME_TO_LIVE_DAYS) : timeToLive;
         this.condition = condition;
         this.creationTime = creationTime == null ? Instant.now().toEpochMilli() : creationTime;
@@ -266,7 +276,9 @@ public record SamplingConfiguration(
             if (maxSize.compareTo(ByteSizeValue.ZERO) <= 0) {
                 throw new IllegalArgumentException(INVALID_MAX_SIZE_MIN_MESSAGE);
             }
-            ByteSizeValue maxLimit = ByteSizeValue.ofGb(MAX_SIZE_LIMIT_GIGABYTES);
+            ByteSizeValue maxLimit = ByteSizeValue.ofBytes(
+                (long) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize())
+            );
             if (maxSize.compareTo(maxLimit) > 0) {
                 throw new IllegalArgumentException(INVALID_MAX_SIZE_MAX_MESSAGE);
             }

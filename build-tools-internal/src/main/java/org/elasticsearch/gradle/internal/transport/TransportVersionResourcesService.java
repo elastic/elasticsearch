@@ -264,7 +264,9 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         // only want to look at definitions <= the current upper bound.
         // TODO: we should filter all of the upper bounds/definitions that are validated by this, not just in this method
         TransportVersionUpperBound currentUpperBound = upperBounds.stream()
-            .filter(u -> u.name().equals(currentUpperBoundName)).findFirst().orElse(null);
+            .filter(u -> u.name().equals(currentUpperBoundName))
+            .findFirst()
+            .orElse(null);
         if (currentUpperBound == null) {
             // since there is no current upper bound, we don't know if we are on a release branch
             return false;

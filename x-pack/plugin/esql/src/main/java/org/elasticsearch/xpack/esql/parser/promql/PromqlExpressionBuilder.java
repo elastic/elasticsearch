@@ -20,13 +20,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.HexLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelNameContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.StringContext;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -67,20 +71,6 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
         return visitList(this, contexts, Expression.class);
-    }
-
-    TimeValue expressionToTimeValue(Expression timeValueAsExpression) {
-        if (timeValueAsExpression instanceof Literal literal
-            && literal.foldable()
-            && literal.fold(FoldContext.small()) instanceof TimeValue timeValue) {
-            return timeValue;
-        } else {
-            throw new ParsingException(
-                timeValueAsExpression.source(),
-                "Expected a duration, got [{}]",
-                timeValueAsExpression.source().text()
-            );
-        }
     }
 
     @Override
@@ -164,16 +154,52 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 "Expected literals to be already converted to timevalue, got [{}]",
                 l.value()
             );
+            case LogicalPlan plan -> {
+                // Scalar arithmetic has been folded and wrapped in LiteralSelector
+                if (plan instanceof LiteralSelector literalSelector) {
+                    Literal literal = literalSelector.literal();
+                    Object value = literal.value();
+
+                    // Handle Duration
+                    if (value instanceof Duration duration) {
+                        yield PromqlArithmeticUtils.durationToTimeValue(duration);
+                    }
+
+                    // Handle numeric scalars interpreted as seconds
+                    if (value instanceof Number num) {
+                        long seconds = num.longValue();
+                        if (seconds <= 0) {
+                            throw new ParsingException(source(ctx), "Duration must be positive, got [{}]s", seconds);
+                        }
+                        yield TimeValue.timeValueSeconds(seconds);
+                    }
+
+                    throw new ParsingException(
+                        source(ctx),
+                        "Expected duration or numeric value, got [{}]",
+                        value.getClass().getSimpleName()
+                    );
+                }
+
+                // Non-literal LogicalPlan
+                throw new ParsingException(
+                    source(ctx),
+                    "Duration must be a constant expression"
+                );
+            }
             case Expression e -> {
-                if (e.foldable() == false) {
-                    throw new ParsingException(source(ctx), "Expected a duration, got [{}]", source(ctx).text());
+                // Fallback for Expression (shouldn't happen with new logic)
+                if (e.foldable()) {
+                    Object folded = e.fold(FoldContext.small());
+                    if (folded instanceof TimeValue timeValue) {
+                        yield timeValue;
+                    }
+                    if (folded instanceof Duration duration) {
+                        yield PromqlArithmeticUtils.durationToTimeValue(duration);
+                    }
                 }
-                Object folded = e.fold(FoldContext.small());
-                if (folded instanceof TimeValue timeValue) {
-                    yield timeValue;
-                } else {
-                    throw new ParsingException(source(ctx), "Expected a duration, got [{}]", source(ctx).text());
-                }
+                // otherwise bail out
+                throw new ParsingException(source(ctx), "Expected a duration, got [{}]", source(ctx).text());
             }
             default -> throw new ParsingException(source(ctx), "Expected a duration, got [{}]", source(ctx).text());
         };
@@ -202,14 +228,15 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         }
         String timeString = null;
         Source source;
-        if (ctx.TIME_VALUE_WITH_COLON() != null) {
+        var timeCtx = ctx.TIME_VALUE_WITH_COLON();
+        if (timeCtx != null) {
             // drop leading :
-            timeString = ctx.TIME_VALUE_WITH_COLON().getText().substring(1).trim();
-            source = source(ctx.TIME_VALUE_WITH_COLON());
+            timeString = timeCtx.getText().substring(1).trim();
         } else {
-            timeString = ctx.TIME_VALUE().getText();
-            source = source(ctx.TIME_VALUE());
+            timeCtx = ctx.TIME_VALUE();
+            timeString = timeCtx.getText();
         }
+        source = source(timeCtx);
 
         return parseTimeValue(source, timeString);
     }

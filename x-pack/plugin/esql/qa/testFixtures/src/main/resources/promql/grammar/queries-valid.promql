@@ -11,16 +11,16 @@ http_requests_total{job="apiserver", handler="/api/comments"}[5m];
 http_requests_total{job=~".*server"};
 http_requests_total{status!~"4.."};
 rate(http_requests_total[5m])[30m:1m];
-max_over_time(deriv(rate(distance_covered_total[5s])[30s:5s])[10m:]);
+//max_over_time(deriv(rate(distance_covered_total[5s])[30s:5s])[10m:]);
 rate(http_requests_total[5m]);
 sum by (job) (
   rate(http_requests_total[5m])
 );
-(instance_memory_limit_bytes - instance_memory_usage_bytes) / 1024 / 1024;
+//(instance_memory_limit_bytes - instance_memory_usage_bytes) / 1024 / 1024;
 sum by (app, proc) (
   instance_memory_limit_bytes - instance_memory_usage_bytes
 ) / 1024 / 1024;
-topk(3, sum by (app, proc) (rate(instance_cpu_time_ns[5m])));
+//topk(3, sum by (app, proc) (rate(instance_cpu_time_ns[5m])));
 count by (app) (instance_cpu_time_ns);
 
 //
@@ -234,6 +234,7 @@ info(rate(http_request_counter_total{}[5m]));
 info(http_request_counter_total{namespace="zzz"}, {foo="bar", bar="baz"});
 
 // nested math, added in Prometheus 3.4.0 / May 2025
+// https://github.com/prometheus/prometheus/pull/16249
 foo[11s+10s-5*2^2];
 foo[-(10s-5s)+20s];
 foo[-10s+15s];

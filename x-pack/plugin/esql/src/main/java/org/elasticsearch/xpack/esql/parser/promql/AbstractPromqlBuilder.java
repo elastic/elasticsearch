@@ -58,6 +58,10 @@ class AbstractPromqlBuilder extends PromqlBaseParserBaseVisitor<Object> {
         return PromqlParserUtils.adjustSource(ParserUtils.source(parserRuleContext), startLine, startColumn);
     }
 
+    protected Source source(ParseTree parseTree) {
+        return PromqlParserUtils.adjustSource(ParserUtils.source(parseTree), startLine, startColumn);
+    }
+
     protected Source source(Token token) {
         return PromqlParserUtils.adjustSource(ParserUtils.source(token), startLine, startColumn);
     }

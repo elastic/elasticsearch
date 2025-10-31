@@ -75,9 +75,10 @@ public class PromqlAstTests extends ESTestCase {
     //@AwaitsFix(bugUrl = "placeholder for individual queries")
     public void testSingleQuery() throws Exception {
         String query = """
-            rate(http_requests_total[5m])[30m:1m]
+            rate(http_requests_total[5m])[30m:1m+1^2%1]
             """;
-        new PromqlParser().createStatement(query);
+        var plan = new PromqlParser().createStatement(query);
+        log.info("{}", plan);
     }
 
     static List<Tuple<String, Integer>> readQueries(String source) throws Exception {

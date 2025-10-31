@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithme
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.set.VectorBinarySet;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
-import org.elasticsearch.xpack.esql.expression.promql.types.PromqlDataTypes;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -48,7 +48,6 @@ import java.util.Locale;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.WITHIN_SERIES_AGGREGATION;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AND;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ASTERISK;
@@ -78,12 +77,64 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     }
 
     protected LogicalPlan plan(ParseTree ctx) {
-        return typedParsing(this, ctx, LogicalPlan.class);
+        // wrap literal (expressions) into a plan to on demand instead of passing around
+        // LiteralSelector everywhere
+        return wrapLiteral(ctx);
     }
 
     @Override
     public LogicalPlan visitSingleStatement(PromqlBaseParser.SingleStatementContext ctx) {
         return plan(ctx.expression());
+    }
+
+    static boolean isRangeVector(LogicalPlan plan) {
+        return switch (plan) {
+            case RangeSelector r -> true;
+            case Subquery s -> true;
+            default -> false;
+        };
+    }
+
+    static boolean isInstantVector(LogicalPlan plan) {
+        return isRangeVector(plan) == false;
+    }
+
+    private LogicalPlan wrapLiteral(ParseTree ctx) {
+        if (ctx == null) {
+            return null;
+        }
+        Source source = source(ctx);
+        Object result = visit(ctx);
+        return switch (result) {
+            case LogicalPlan plan -> plan;
+            case Literal literal -> new LiteralSelector(source, literal);
+            case TimeValue tv -> {
+                // Convert TimeValue to Duration for TIME_DURATION datatype
+                Duration duration = PromqlArithmeticUtils.timeValueToDuration(tv);
+                yield new LiteralSelector(source, new Literal(source, duration, DataType.TIME_DURATION));
+            }
+            case Expression expr -> throw new ParsingException(
+                source,
+                "Expected a plan or literal, got expression [{}]",
+                expr.getClass().getSimpleName()
+            );
+            default -> throw new ParsingException(source, "Expected a plan, got [{}]", result.getClass().getSimpleName());
+        };
+    }
+
+    private Literal unwrapLiteral(ParserRuleContext ctx) {
+        Object o = visit(ctx);
+        return switch (o) {
+            case Literal literal -> literal;
+            case Expression expression -> {
+                if (expression.foldable()) {
+                    yield Literal.of(FoldContext.small(), expression);
+                }
+                throw new ParsingException(source(ctx), "Constant expression required, found [{}]", expression.sourceText());
+            }
+            case LiteralSelector selector -> selector.literal();
+            default -> throw new ParsingException(source(ctx), "Constant expression required, found [{}]", ctx.getText());
+        };
     }
 
     @Override
@@ -148,154 +199,15 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             TimeValue range = visitDuration(durationCtx);
             // TODO: TimeValue might not be needed after all
             rangeEx = new Literal(source(ctx.duration()), Duration.ofSeconds(range.getSeconds()), DataType.TIME_DURATION);
-            // fall back to default
-            if (evaluation == null) {
-                evaluation = Evaluation.NONE;
-            }
         }
 
         final LabelMatchers matchers = new LabelMatchers(labels);
-        final Evaluation finalEvaluation = evaluation;
 
         UnresolvedTimestamp timestamp = new UnresolvedTimestamp(source);
 
         return rangeEx == null
-            ? new InstantSelector(source, series, labelExpressions, matchers, finalEvaluation, timestamp)
-            : new RangeSelector(source, series, labelExpressions, matchers, rangeEx, finalEvaluation, timestamp);
-    }
-
-    @Override
-    @SuppressWarnings("rawtypes")
-    public Object visitFunction(PromqlBaseParser.FunctionContext ctx) {
-        Source source = source(ctx);
-        String name = ctx.IDENTIFIER().getText().toLowerCase(Locale.ROOT);
-
-        Boolean exists = PromqlFunctionRegistry.INSTANCE.functionExists(name);
-        if (Boolean.TRUE.equals(exists) == false) {
-            String message = exists == null ? "Function [{}] not implemented yet" : "Unknown function [{}]";
-            throw new ParsingException(source, message, name);
-        }
-
-        var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
-
-        // TODO: the list of params could contain literals so need to handle that
-        var paramsCtx = ctx.functionParams();
-        List<Node> params = paramsCtx != null ? visitList(this, paramsCtx.expression(), Node.class) : emptyList();
-
-        int paramCount = params.size();
-        String message = "Invalid number of parameters for function [{}], required [{}], found [{}]";
-        if (paramCount < metadata.arity().min()) {
-            throw new ParsingException(source, message, name, metadata.arity().min(), paramCount);
-        }
-        if (paramCount > metadata.arity().max()) {
-            throw new ParsingException(source, message, name, metadata.arity().max(), paramCount);
-        }
-
-        // child plan is always the first parameter
-        LogicalPlan child = (LogicalPlan) params.get(0);
-
-        // PromQl expects early validation of the tree so let's do it here
-        PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
-
-        LogicalPlan plan = null;
-        // explicit grouping
-        if (groupingContext != null) {
-            var grouping = groupingContext.BY() != null ? AcrossSeriesAggregate.Grouping.BY : AcrossSeriesAggregate.Grouping.WITHOUT;
-
-            if (grouping != AcrossSeriesAggregate.Grouping.BY) {
-                throw new ParsingException(source, "[{}] clause not supported yet", grouping.name().toLowerCase(Locale.ROOT), name);
-            }
-
-            if (metadata.functionType() != ACROSS_SERIES_AGGREGATION) {
-                throw new ParsingException(
-                    source,
-                    "[{}] clause not allowed on non-aggregation function [{}]",
-                    grouping.name().toLowerCase(Locale.ROOT),
-                    name
-                );
-            }
-
-            PromqlBaseParser.LabelListContext labelListCtx = groupingContext.labelList();
-            List<String> groupingKeys = visitLabelList(labelListCtx);
-            // TODO: this
-            List<Expression> groupings = new ArrayList<>(groupingKeys.size());
-            for (int i = 0; i < groupingKeys.size(); i++) {
-                groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
-            }
-            plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
-        } else {
-            if (metadata.functionType() == ACROSS_SERIES_AGGREGATION) {
-                plan = new AcrossSeriesAggregate(source, child, name, List.of(), AcrossSeriesAggregate.Grouping.NONE, List.of());
-            } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
-                if (child instanceof RangeSelector == false) {
-                    throw new ParsingException(source, "expected type range vector in call to function [{}], got instant vector", name);
-                }
-
-                plan = new WithinSeriesAggregate(source, child, name, List.of());
-                // instant selector function - definitely no grouping
-            }
-        }
-        //
-        return plan;
-    }
-
-    private LogicalPlan wrapLiteral(ParserRuleContext ctx) {
-        if (ctx == null) {
-            return null;
-        }
-        Source source = source(ctx);
-        Object result = visit(ctx);
-        return switch (result) {
-            case LogicalPlan plan -> plan;
-            case Literal literal -> new LiteralSelector(source, literal);
-            case Expression expr -> throw new ParsingException(
-                source,
-                "Expected a plan or literal, got expression [{}]",
-                expr.getClass().getSimpleName()
-            );
-            default -> throw new ParsingException(source, "Expected a plan, got [{}]", result.getClass().getSimpleName());
-        };
-    }
-
-    @Override
-    public LogicalPlan visitArithmeticUnary(PromqlBaseParser.ArithmeticUnaryContext ctx) {
-        Source source = source(ctx);
-        LogicalPlan unary = wrapLiteral(ctx.expression());
-
-        // unary operators do not make sense outside numeric data
-        if (unary instanceof LiteralSelector literalSelector) {
-            Literal literal = literalSelector.literal();
-            Object value = literal.value();
-            DataType dataType = literal.dataType();
-            if (dataType.isNumeric() == false || value instanceof Number == false) {
-                throw new ParsingException(
-                    source,
-                    "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
-                    dataType.typeName()
-                );
-            }
-            // optimize negation in case of literals
-            if (ctx.operator.getType() == MINUS) {
-                Number negatedValue = Arithmetics.negate((Number) value);
-                unary = new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
-            }
-        }
-        // forbid range selectors
-        else if (unary instanceof InstantSelector == false) {
-            throw new ParsingException(
-                source,
-                "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
-                unary.nodeName()
-            );
-        }
-
-        // For non-literals (vectors), rewrite as 0 - expression
-        if (ctx.operator.getType() == MINUS) {
-            LiteralSelector zero = new LiteralSelector(source, Literal.integer(source, 0));
-            return new VectorBinaryArithmetic(source, zero, unary, VectorMatch.NONE, VectorBinaryArithmetic.ArithmeticOp.SUB);
-        }
-
-        return unary;
+            ? new InstantSelector(source, series, labelExpressions, matchers, evaluation, timestamp)
+            : new RangeSelector(source, series, labelExpressions, matchers, rangeEx, evaluation, timestamp);
     }
 
     @Override
@@ -304,6 +216,30 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         LogicalPlan le = wrapLiteral(ctx.left);
         LogicalPlan re = wrapLiteral(ctx.right);
 
+        // SCALAR DETECTION: Check if both operands are pure scalar literals
+        if (le instanceof LiteralSelector leftSel && re instanceof LiteralSelector rightSel) {
+            Literal leftLiteral = leftSel.literal();
+            Literal rightLiteral = rightSel.literal();
+
+            // Extract values
+            Object leftValue = leftLiteral.value();
+            Object rightValue = rightLiteral.value();
+
+            // Convert token type to operation enum
+            ArithmeticOperation operation = ArithmeticOperation.fromTokenType(source(ctx.op), ctx.op.getType());
+
+            // Evaluate using centralized utility
+            Object result = PromqlArithmeticUtils.evaluate(source, leftValue, rightValue, operation);
+
+            // Determine result data type
+            DataType resultType = determineResultType(result);
+
+            // Wrap folded result in LiteralSelector
+            Literal resultLiteral = new Literal(source, result, resultType);
+            return new LiteralSelector(source, resultLiteral);
+        }
+
+        // VECTOR ARITHMETIC: At least one operand is not a scalar literal
         boolean bool = ctx.BOOL() != null;
         int opType = ctx.op.getType();
         String opText = ctx.op.getText();
@@ -410,29 +346,200 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         };
     }
 
+    /**
+     * Determine DataType from the result value.
+     */
+    private DataType determineResultType(Object value) {
+        return switch (value) {
+            case Duration d -> DataType.TIME_DURATION;
+            case Integer i -> DataType.INTEGER;
+            case Long l -> DataType.LONG;
+            case Double d -> DataType.DOUBLE;
+            case Number n -> DataType.DOUBLE; // fallback for other Number types
+            default -> throw new IllegalArgumentException("Unexpected result type: " + value.getClass());
+        };
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")
+    public Object visitFunction(PromqlBaseParser.FunctionContext ctx) {
+        Source source = source(ctx);
+        String name = ctx.IDENTIFIER().getText().toLowerCase(Locale.ROOT);
+
+        Boolean exists = PromqlFunctionRegistry.INSTANCE.functionExists(name);
+        if (Boolean.TRUE.equals(exists) == false) {
+            String message = exists == null ? "Function [{}] not implemented yet" : "Unknown function [{}]";
+            throw new ParsingException(source, message, name);
+        }
+
+        var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
+
+        // TODO: the list of params could contain literals so need to handle that
+        var paramsCtx = ctx.functionParams();
+        List<Node> params = paramsCtx != null ? visitList(this, paramsCtx.expression(), Node.class) : emptyList();
+
+        int paramCount = params.size();
+        String message = "Invalid number of parameters for function [{}], required [{}], found [{}]";
+        if (paramCount < metadata.arity().min()) {
+            throw new ParsingException(source, message, name, metadata.arity().min(), paramCount);
+        }
+        if (paramCount > metadata.arity().max()) {
+            throw new ParsingException(source, message, name, metadata.arity().max(), paramCount);
+        }
+
+        // child plan is always the first parameter
+        LogicalPlan child = (LogicalPlan) params.get(0);
+
+        // PromQl expects early validation of the tree so let's do it here
+        PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
+
+        LogicalPlan plan = null;
+        // explicit grouping
+        if (groupingContext != null) {
+            var grouping = groupingContext.BY() != null ? AcrossSeriesAggregate.Grouping.BY : AcrossSeriesAggregate.Grouping.WITHOUT;
+
+            if (grouping != AcrossSeriesAggregate.Grouping.BY) {
+                throw new ParsingException(source, "[{}] clause not supported yet", grouping.name().toLowerCase(Locale.ROOT), name);
+            }
+
+            if (metadata.functionType() != ACROSS_SERIES_AGGREGATION) {
+                throw new ParsingException(
+                    source,
+                    "[{}] clause not allowed on non-aggregation function [{}]",
+                    grouping.name().toLowerCase(Locale.ROOT),
+                    name
+                );
+            }
+
+            PromqlBaseParser.LabelListContext labelListCtx = groupingContext.labelList();
+            List<String> groupingKeys = visitLabelList(labelListCtx);
+            // TODO: this
+            List<Expression> groupings = new ArrayList<>(groupingKeys.size());
+            for (int i = 0; i < groupingKeys.size(); i++) {
+                groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
+            }
+            plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
+        } else {
+            if (metadata.functionType() == ACROSS_SERIES_AGGREGATION) {
+                plan = new AcrossSeriesAggregate(source, child, name, List.of(), AcrossSeriesAggregate.Grouping.NONE, List.of());
+            } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
+                if (isRangeVector(child) == false) {
+                    throw new ParsingException(source, "expected type range vector in call to function [{}], got instant vector", name);
+                }
+
+                plan = new WithinSeriesAggregate(source, child, name, List.of());
+                // instant selector function - definitely no grouping
+            }
+        }
+        //
+        return plan;
+    }
+
+    @Override
+    public LogicalPlan visitArithmeticUnary(PromqlBaseParser.ArithmeticUnaryContext ctx) {
+        Source source = source(ctx);
+        LogicalPlan unary = wrapLiteral(ctx.expression());
+
+        // unary operators do not make sense outside numeric data
+        if (unary instanceof LiteralSelector literalSelector) {
+            Literal literal = literalSelector.literal();
+            Object value = literal.value();
+            DataType dataType = literal.dataType();
+            if (dataType.isNumeric() == false || value instanceof Number == false) {
+                throw new ParsingException(
+                    source,
+                    "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
+                    dataType.typeName()
+                );
+            }
+            // optimize negation in case of literals
+            if (ctx.operator.getType() == MINUS) {
+                Number negatedValue = Arithmetics.negate((Number) value);
+                unary = new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
+            }
+        }
+        // forbid range selectors
+        else if (isRangeVector(unary)) {
+            throw new ParsingException(
+                source,
+                "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
+                unary.nodeName()
+            );
+        }
+
+        // For non-literals (vectors), rewrite as 0 - expression
+        if (ctx.operator.getType() == MINUS) {
+            LiteralSelector zero = new LiteralSelector(source, Literal.integer(source, 0));
+            return new VectorBinaryArithmetic(source, zero, unary, VectorMatch.NONE, VectorBinaryArithmetic.ArithmeticOp.SUB);
+        }
+
+        return unary;
+    }
+
     @Override
     public Subquery visitSubquery(PromqlBaseParser.SubqueryContext ctx) {
         Source source = source(ctx);
-        Expression expression = expression(ctx.expression());
+        LogicalPlan plan = plan(ctx.expression());
 
-        if (PromqlDataTypes.isInstantVector(expression.dataType()) == false) {
-            throw new ParsingException(source, "Subquery is only allowed on instant vector, got {}", expression.dataType().typeName());
+        if (isRangeVector(plan)) {
+            throw new ParsingException(source, "Subquery is only allowed on instant vector, got {}", plan.nodeName());
         }
 
         Evaluation evaluation = visitEvaluation(ctx.evaluation());
-        if (evaluation == null) {
-            // TODO: fallback to defaults
+        TimeValue rangeEx = visitDuration(ctx.range);
+        TimeValue resolution = visitSubqueryResolution(ctx.subqueryResolution());
+
+        return new Subquery(source(ctx), plan, rangeEx, resolution, evaluation);
+    }
+
+    /**
+     * Parse subquery resolution, reusing the same expression folding logic used for duration arithmetic.
+     */
+    public TimeValue visitSubqueryResolution(PromqlBaseParser.SubqueryResolutionContext ctx) {
+        if (ctx == null) {
+            return null;
         }
 
-        Expression rangeEx = expression(ctx.range);
-        Expression resolution = expression(ctx.subqueryResolution());
+        // Case 1: COLON (resolution=duration)?
+        // Examples: ":5m", ":(5m + 1m)", etc.
+        // This reuses visitDuration which already handles arithmetic through expression folding
+        if (ctx.resolution != null) {
+            return visitDuration(ctx.resolution);
+        }
 
-        return new Subquery(
-            source(ctx),
-            expression(ctx.expression()),
-            expressionToTimeValue(rangeEx),
-            expressionToTimeValue(resolution),
-            evaluation
-        );
+        // Case 2-5: TIME_VALUE_WITH_COLON cases
+        // Examples: ":5m", ":5m * 2", ":5m ^ 2", ":5m + 1m", etc.
+        var timeCtx = ctx.TIME_VALUE_WITH_COLON();
+        if (timeCtx != null) {
+            // Parse the base time value (e.g., ":5m" -> "5m")
+            String timeString = timeCtx.getText().substring(1).trim();
+            Source timeSource = source(timeCtx);
+            TimeValue baseValue = PromqlParserUtils.parseTimeValue(timeSource, timeString);
+
+            if (ctx.op == null || ctx.expression() == null) {
+                return baseValue;
+            }
+
+            // Convert TimeValue to Duration for arithmetic
+            Duration leftDuration = PromqlArithmeticUtils.timeValueToDuration(baseValue);
+
+            // Evaluate right expression
+            Object rightValue = unwrapLiteral(ctx.expression()).value();
+
+            // Perform arithmetic using utility
+            ArithmeticOperation operation = ArithmeticOperation.fromTokenType(source(ctx.op), ctx.op.getType());
+            Object result = PromqlArithmeticUtils.evaluate(source(ctx), leftDuration, rightValue, operation);
+
+            // Convert result back to TimeValue
+            if (result instanceof Duration duration) {
+                return PromqlArithmeticUtils.durationToTimeValue(duration);
+            }
+
+            throw new ParsingException(source(ctx), "Expected duration result, got [{}]",
+                result.getClass().getSimpleName());
+        }
+
+        // Just COLON with no resolution - use default
+        return null;
     }
 }

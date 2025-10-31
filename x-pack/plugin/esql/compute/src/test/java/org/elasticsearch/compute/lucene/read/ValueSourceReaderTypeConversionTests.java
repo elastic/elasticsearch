@@ -1228,10 +1228,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 if (singletons != null) {
                     pageCount -= singletons;
                 }
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":column_at_a_time:" + multiName(type), lessThanOrEqualTo(pageCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + multiName(type), lessThanOrEqualTo(pageCount)));
             }
         }
 

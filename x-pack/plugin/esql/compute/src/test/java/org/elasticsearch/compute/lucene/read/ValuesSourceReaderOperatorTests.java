@@ -1372,15 +1372,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Map<?, ?> readers
         ) {
             if (forcedRowByRow) {
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":row_stride:" + singleName(type), lessThanOrEqualTo(segmentCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":row_stride:" + singleName(type), lessThanOrEqualTo(segmentCount)));
             } else {
-                assertMap(
-                    readers,
-                    matchesMap().entry(name + ":column_at_a_time:" + singleName(type), lessThanOrEqualTo(pageCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + singleName(type), lessThanOrEqualTo(pageCount)));
             }
         }
 

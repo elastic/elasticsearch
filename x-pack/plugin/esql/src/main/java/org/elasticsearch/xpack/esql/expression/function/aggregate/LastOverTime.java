@@ -65,16 +65,11 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         ) Expression field,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, timestamp);
+        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
     }
 
-    // compatibility constructor used when reading from the stream
-    private LastOverTime(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.getFirst());
-    }
-
-    private LastOverTime(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+    public LastOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
@@ -83,7 +78,8 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -94,21 +90,17 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     @Override
     protected NodeInfo<LastOverTime> info() {
-        return NodeInfo.create(this, LastOverTime::new, field(), timestamp);
+        return NodeInfo.create(this, LastOverTime::new, field(), filter(), window(), timestamp);
     }
 
     @Override
     public LastOverTime replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
-        }
-        return new LastOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new LastOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public LastOverTime withFilter(Expression filter) {
-        return new LastOverTime(source(), field(), filter, timestamp);
+        return new LastOverTime(source(), field(), filter, window(), timestamp);
     }
 
     @Override

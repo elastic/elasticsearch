@@ -43,6 +43,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -162,8 +163,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
             String name = fi.name;
-            if (fi.getName().endsWith("._original") && isMapped.apply(fi.getName()) == false) {
-                name = fi.getName().substring(0, fi.getName().length() - "._original".length());
+            if (fi.getName().endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
+                name = fi.getName().substring(0, fi.getName().length() - TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX.length());
             }
             if (filter.run(name)) {
                 filteredInfos.add(fi);

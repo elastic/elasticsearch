@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -125,9 +124,7 @@ public final class ExponentialHistogramStates {
         }
 
         public Block evaluateFinal(IntVector selected, DriverContext driverContext) {
-            try (
-                var builder = driverContext.blockFactory().newExponentialHistogramBlockBuilder(selected.getPositionCount());
-            ) {
+            try (var builder = driverContext.blockFactory().newExponentialHistogramBlockBuilder(selected.getPositionCount());) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     ExponentialHistogramMerger state = getOrNull(groupId);
@@ -143,7 +140,7 @@ public final class ExponentialHistogramStates {
 
         @Override
         public void close() {
-            for (int i=0; i<states.size(); i++) {
+            for (int i = 0; i < states.size(); i++) {
                 Releasables.close(states.get(i));
             }
             Releasables.close(states);

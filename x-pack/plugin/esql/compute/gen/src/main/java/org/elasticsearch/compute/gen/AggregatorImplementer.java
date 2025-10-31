@@ -54,7 +54,6 @@ import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
@@ -123,7 +122,7 @@ public class AggregatorImplementer {
         }).filter(a -> a instanceof PositionArgument == false).toList();
 
         this.attemptToUseVectors = aggParams.stream().anyMatch(a -> (a instanceof BlockArgument) == false)
-            && aggParams.stream().noneMatch(a -> a instanceof StandardArgument  && a.dataType(false) == null);
+            && aggParams.stream().noneMatch(a -> a instanceof StandardArgument && a.dataType(false) == null);
 
         this.createParameters = init.getParameters()
             .stream()
@@ -347,9 +346,9 @@ public class AggregatorImplementer {
         if (attemptToUseVectors) {
             for (Argument a : aggParams) {
                 String rawBlock = "addRawBlock("
-                                  + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
-                                  + (hasMask ? ", mask" : "")
-                                  + ")";
+                    + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
+                    + (hasMask ? ", mask" : "")
+                    + ")";
 
                 a.resolveVectors(builder, rawBlock, "return");
             }
@@ -716,10 +715,10 @@ public class AggregatorImplementer {
             if (vectorType(elementType) != null) {
                 s += vectorAccessorName(elementType()) + "(" + position;
             } else {
-                s+= getMethod(fromString(elementType())) + "(" + name() + ".getFirstValueIndex("+position+")";
+                s += getMethod(fromString(elementType())) + "(" + name() + ".getFirstValueIndex(" + position + ")";
             }
             if (scratchType(elementType()) != null) {
-                s += ", "+name()+"Scratch";
+                s += ", " + name() + "Scratch";
             }
             return s + ")";
         }
@@ -727,7 +726,7 @@ public class AggregatorImplementer {
         public void addScratchDeclaration(MethodSpec.Builder builder) {
             ClassName scratchType = scratchType(elementType());
             if (scratchType != null) {
-                builder.addStatement("$T $L = new $T()", scratchType, name()+"Scratch", scratchType);
+                builder.addStatement("$T $L = new $T()", scratchType, name() + "Scratch", scratchType);
             }
         }
 
@@ -745,7 +744,6 @@ public class AggregatorImplementer {
                 builder.addStatement("$T $L = (($T) $L).asVector()", vectorType(elementType), name, blockType, name + "Uncast");
             }
         }
-
 
         public TypeName combineArgType() {
             var type = Types.fromString(elementType);

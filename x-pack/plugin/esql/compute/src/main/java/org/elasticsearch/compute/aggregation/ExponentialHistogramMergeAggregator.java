@@ -16,11 +16,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
-@Aggregator(
-    {
-        @IntermediateState(name = "value", type = "EXPONENTIAL_HISTOGRAM"),
-    }
-)
+@Aggregator({ @IntermediateState(name = "value", type = "EXPONENTIAL_HISTOGRAM"), })
 @GroupingAggregator
 public class ExponentialHistogramMergeAggregator {
 
@@ -52,7 +48,11 @@ public class ExponentialHistogramMergeAggregator {
         state.add(groupId, value);
     }
 
-    public static Block evaluateFinal(ExponentialHistogramStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    public static Block evaluateFinal(
+        ExponentialHistogramStates.GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         return state.evaluateFinal(selected, ctx.driverContext());
     }
 }

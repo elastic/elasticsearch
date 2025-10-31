@@ -71,10 +71,9 @@ public class EvaluatorImplementer {
             declarationType.getSimpleName() + extraName + "Evaluator"
         );
         this.processOutputsMultivalued = this.processFunction.hasBlockType;
-        boolean anyParameterNotSupportingVectors =
-            this.processFunction.args.stream()
-                .filter(a -> a instanceof FixedArgument == false && a instanceof PositionArgument == false)
-                .anyMatch(a -> a.dataType(false) == null);
+        boolean anyParameterNotSupportingVectors = this.processFunction.args.stream()
+            .filter(a -> a instanceof FixedArgument == false && a instanceof PositionArgument == false)
+            .anyMatch(a -> a.dataType(false) == null);
         vectorsUnsupported = processOutputsMultivalued || anyParameterNotSupportingVectors;
         this.allNullsIsNull = allNullsIsNull;
     }

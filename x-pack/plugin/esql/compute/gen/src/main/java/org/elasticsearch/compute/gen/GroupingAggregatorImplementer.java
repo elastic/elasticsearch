@@ -51,7 +51,6 @@ import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_EVALUATOR_CONTEXT;
@@ -129,7 +128,7 @@ public class GroupingAggregatorImplementer {
         }).filter(a -> a instanceof PositionArgument == false).toList();
 
         this.hasOnlyBlockArguments = this.aggParams.stream().allMatch(a -> a instanceof BlockArgument);
-        this.allArgumentsSupportVectors = aggParams.stream().noneMatch(a -> a instanceof StandardArgument  && a.dataType(false) == null);
+        this.allArgumentsSupportVectors = aggParams.stream().noneMatch(a -> a instanceof StandardArgument && a.dataType(false) == null);
 
         this.createParameters = init.getParameters()
             .stream()
@@ -333,8 +332,8 @@ public class GroupingAggregatorImplementer {
         }
 
         String groupIdTrackingStatement = "maybeEnableGroupIdTracking(seenGroupIds, "
-                                          + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
-                                          + ")";
+            + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
+            + ")";
 
         if (allArgumentsSupportVectors) {
 
@@ -347,7 +346,7 @@ public class GroupingAggregatorImplementer {
                 );
                 builder.beginControlFlow("if ($L == null)", (a instanceof BlockArgument) ? (a.name() + "Vector") : a.vectorName());
                 {
-                    builder.addStatement( groupIdTrackingStatement);
+                    builder.addStatement(groupIdTrackingStatement);
                     returnAddInput(builder, false);
                 }
                 builder.endControlFlow();

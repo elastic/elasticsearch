@@ -148,7 +148,7 @@ public class Types {
                 type,
                 alias,
                 ClassName.get(DATA_PACKAGE, block),
-                vector == null ? null: ClassName.get(DATA_PACKAGE, vector),
+                vector == null ? null : ClassName.get(DATA_PACKAGE, vector),
                 scratch
             );
         }

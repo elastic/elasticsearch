@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
-import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 public class ValueExtractorForExponentialHistogram implements ValueExtractor {

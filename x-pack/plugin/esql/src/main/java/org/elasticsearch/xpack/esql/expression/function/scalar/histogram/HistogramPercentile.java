@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,17 +42,11 @@ public class HistogramPercentile extends EsqlScalarFunction {
     private final Expression percentile;
 
     @FunctionInfo(returnType = { "double" })
-    public HistogramPercentile(Source source,
-                               @Param(
-                                   name = "histogram",
-                                   type = { "exponential_histogram" }
-                               )
-                               Expression histogram,
-                               @Param(
-                                   name = "percentile",
-                                   type = { "double", "integer", "long", "unsigned_long" }
-                               )
-                               Expression percentile) {
+    public HistogramPercentile(
+        Source source,
+        @Param(name = "histogram", type = { "exponential_histogram" }) Expression histogram,
+        @Param(name = "percentile", type = { "double", "integer", "long", "unsigned_long" }) Expression percentile
+    ) {
         super(source, List.of(histogram, percentile));
         this.histogram = histogram;
         this.percentile = percentile;
@@ -65,20 +58,8 @@ public class HistogramPercentile extends EsqlScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            histogram,
-            dt -> dt == DataType.EXPONENTIAL_HISTOGRAM,
-            sourceText(),
-            DEFAULT,
-            "exponential_histogram"
-        ).and(
-            isType(
-                percentile,
-                DataType::isNumeric,
-                sourceText(),
-                DEFAULT,
-                "numeric types"
-            )
+        return isType(histogram, dt -> dt == DataType.EXPONENTIAL_HISTOGRAM, sourceText(), DEFAULT, "exponential_histogram").and(
+            isType(percentile, DataType::isNumeric, sourceText(), DEFAULT, "numeric types")
         );
     }
 
@@ -121,6 +102,5 @@ public class HistogramPercentile extends EsqlScalarFunction {
         var percentileEvaluator = Cast.cast(source(), percentile.dataType(), DataType.DOUBLE, toEvaluator.apply(percentile));
         return new HistogramPercentileEvaluator.Factory(source(), fieldEvaluator, percentileEvaluator);
     }
-
 
 }

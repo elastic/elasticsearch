@@ -32,10 +32,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public class Merge extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Merge", Merge::new);
 
-    @FunctionInfo(
-        returnType = "exponential_histogram",
-        type = FunctionType.AGGREGATE
-    )
+    @FunctionInfo(returnType = "exponential_histogram", type = FunctionType.AGGREGATE)
     public Merge(Source source, @Param(name = "histogram", type = { "exponential_histogram" }) Expression field) {
         this(source, field, Literal.TRUE);
     }
@@ -60,13 +57,7 @@ public class Merge extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt == DataType.EXPONENTIAL_HISTOGRAM,
-            sourceText(),
-            DEFAULT,
-            "exponential_histogram"
-        );
+        return isType(field(), dt -> dt == DataType.EXPONENTIAL_HISTOGRAM, sourceText(), DEFAULT, "exponential_histogram");
     }
 
     @Override

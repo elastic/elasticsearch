@@ -36,16 +36,12 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx) throws IOException {
+    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
         List<MockWarnings.MockWarning> expectedWarnings = new ArrayList<>();
-        int docCount = 10_000;
-        int cardinality = lowCardinality ? between(1, LOW_CARDINALITY) : between(LOW_CARDINALITY + 1, LOW_CARDINALITY * 2);
-        for (int i = 0; i < docCount; i++) {
-            if (multiValues && i % cardinality == 0) {
-                expectedWarnings.add(
-                    new MockWarnings.MockWarning(IllegalArgumentException.class, "single-value function encountered multi-value")
-                );
-            }
+        for (int i = 0; i < mvCount; i++) {
+            expectedWarnings.add(
+                new MockWarnings.MockWarning(IllegalArgumentException.class, "single-value function encountered multi-value")
+            );
         }
 
         var warnings = new MockWarnings();

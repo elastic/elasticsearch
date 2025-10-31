@@ -33,7 +33,7 @@ public class MvMaxBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx) throws IOException {
+    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
         var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
         var mvMaxLoader = new MvMaxBytesRefsFromOrdsBlockLoader("field");
 

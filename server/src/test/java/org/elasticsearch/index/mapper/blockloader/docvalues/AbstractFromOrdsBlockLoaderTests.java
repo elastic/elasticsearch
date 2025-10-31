@@ -56,9 +56,10 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
         this.missingValues = missingValues;
     }
 
-    protected abstract void innerTest(LeafReaderContext ctx) throws IOException;
+    protected abstract void innerTest(LeafReaderContext ctx, int mvCount) throws IOException;
 
     public void test() throws IOException {
+        int mvCount = 0;
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int docCount = 10_000;
             int cardinality = lowCardinality ? between(1, LOW_CARDINALITY) : between(LOW_CARDINALITY + 1, LOW_CARDINALITY * 2);
@@ -67,6 +68,7 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
                 doc.add(field(i % cardinality));
                 if (multiValues && i % cardinality == 0) {
                     doc.add(field((i % cardinality) + 1));
+                    mvCount++;
                 }
                 iw.addDocument(doc);
             }
@@ -76,7 +78,7 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
             iw.forceMerge(1);
             try (DirectoryReader dr = iw.getReader()) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
-                innerTest(ctx);
+                innerTest(ctx, mvCount);
             }
         }
     }

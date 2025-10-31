@@ -33,7 +33,7 @@ public class MvMinBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx) throws IOException {
+    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
         var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
         var mvMinLoader = new MvMinBytesRefsFromOrdsBlockLoader("field");
 

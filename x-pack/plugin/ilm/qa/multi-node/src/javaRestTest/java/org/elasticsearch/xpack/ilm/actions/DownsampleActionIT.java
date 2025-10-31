@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ILMDownsampleIT extends IlmESRestTestCase {
+public class DownsampleActionIT extends IlmESRestTestCase {
 
     private String index;
     private String policy;
@@ -566,7 +566,13 @@ public class ILMDownsampleIT extends IlmESRestTestCase {
     public void testDownsampleTwiceSameInterval() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);
-        DownsampleConfig.SamplingMethod initialSamplingMethod = DownsampleActionTests.randomSamplingMethod();
+        // Ensure that changing the sampling method does not cause this index to fail, since it's already downsampled for this interval.
+        DownsampleConfig.SamplingMethod initialSamplingMethod = randomBoolean()
+            ? null
+            : randomFrom(DownsampleConfig.SamplingMethod.values());
+        DownsampleConfig.SamplingMethod updatedSamplingMethod = initialSamplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE
+            ? (randomBoolean() ? null : DownsampleConfig.SamplingMethod.AGGREGATE)
+            : DownsampleConfig.SamplingMethod.LAST_VALUE;
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
                 "policy": {
@@ -643,7 +649,7 @@ public class ILMDownsampleIT extends IlmESRestTestCase {
         // downsampled index attempt to go through the downsample action again when in cold)
         // Sometimes the sampling method might be different; this step should not fail considering that the index is already downsampled.
         Request updatePolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
-        updatePolicyRequest.setJsonEntity("""
+        updatePolicyRequest.setJsonEntity(String.format(Locale.ROOT, """
             {
                 "policy": {
                     "phases": {
@@ -655,14 +661,14 @@ public class ILMDownsampleIT extends IlmESRestTestCase {
                             "min_age": "0ms",
                             "actions": {
                                "downsample": {
-                                  "fixed_interval" : "5m"
+                                  "fixed_interval" : "5m"%s
                                }
                             }
                         }
                     }
                 }
             }
-            """);
+            """, getSamplingMethodInPolicy(updatedSamplingMethod)));
         assertOK(client().performRequest(updatePolicyRequest));
 
         // the downsample index (already part of the data stream as we created it in the warm phase previously) should continue to exist and

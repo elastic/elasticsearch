@@ -20,8 +20,8 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
-import org.elasticsearch.compute.data.ExponentialHistogramBlockAccessor;
 import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
+import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -51,8 +50,6 @@ import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
-import static org.elasticsearch.test.ESTestCase.randomLongBetween;
-import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,11 +73,6 @@ public class BlockTestUtils {
                 randomDouble(),
                 randomNonNegativeInt()
             );
-            case LONG_RANGE -> {
-                var from = randomMillisUpToYear9999();
-                var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
-                yield new LongRangeBlockBuilder.LongRange(from, to);
-            }
             case DOC -> new BlockUtils.Doc(
                 randomIntBetween(0, 255), // Shard ID should be small and non-negative.
                 randomInt(),
@@ -230,11 +222,6 @@ public class BlockTestUtils {
             b.count().appendInt(aggMetric.count());
             return;
         }
-        if (builder instanceof LongRangeBlockBuilder b && value instanceof LongRangeBlockBuilder.LongRange lit) {
-            b.from().appendLong(lit.from());
-            b.to().appendLong(lit.to());
-            return;
-        }
         if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
             b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
             return;
@@ -334,7 +321,10 @@ public class BlockTestUtils {
                         i++;
                         yield lit;
                     }
-                    case EXPONENTIAL_HISTOGRAM -> new ExponentialHistogramBlockAccessor((ExponentialHistogramBlock) block).get(i);
+                    case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlock) block).getExponentialHistogram(
+                        i++,
+                        new ExponentialHistogramScratch()
+                    );
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }

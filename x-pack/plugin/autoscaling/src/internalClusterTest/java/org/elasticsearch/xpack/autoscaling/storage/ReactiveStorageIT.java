@@ -26,7 +26,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
@@ -400,13 +399,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
     }
 
-    @TestLogging(
-        reason = "Debugging https://github.com/elastic/elasticsearch/issues/96764",
-        value = "org.elasticsearch.cluster.InternalClusterInfoService:TRACE"
-            + ",org.elasticsearch.xpack.autoscaling.action:TRACE"
-            + ",org.elasticsearch.cluster.routing.allocation:DEBUG"
-    )
-    public void testScaleDuringSplitOrClone() throws Exception {
+    public void testScaleDuringSplit() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();
 
@@ -460,9 +453,8 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
 
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), indexName);
-        ResizeType resizeType = randomFrom(ResizeType.CLONE, ResizeType.SPLIT);
         String cloneName = "clone-" + indexName;
-        int resizedShardCount = resizeType == ResizeType.CLONE ? 1 : between(2, 10);
+        int resizedShardCount = between(2, 10);
         assertAcked(
             indicesAdmin().prepareResizeIndex(indexName, cloneName)
                 .setSettings(
@@ -472,7 +464,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                         .build()
                 )
                 .setWaitForActiveShards(ActiveShardCount.NONE)
-                .setResizeType(resizeType)
+                .setResizeType(ResizeType.SPLIT)
         );
 
         // * 2 since worst case is no hard links, see DiskThresholdDecider.getExpectedShardSize.

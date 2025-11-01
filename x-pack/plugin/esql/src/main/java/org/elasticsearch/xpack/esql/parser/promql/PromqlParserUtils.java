@@ -284,9 +284,6 @@ public class PromqlParserUtils {
         } catch (NumberFormatException ignore) {
             // Not a float, try parsing as date string
         }
-        if (value.startsWith("\"") && value.endsWith("\"")) {
-            value = value.substring(1, value.length() - 1);
-        }
         try {
             return Instant.parse(value);
         } catch (DateTimeParseException e) {

@@ -10,7 +10,6 @@
 | cartesian_shape | keyword |
 | date | keyword |
 | date_nanos | keyword |
-| date_range | keyword |
 | dense_vector | keyword |
 | double | keyword |
 | geo_point | keyword |

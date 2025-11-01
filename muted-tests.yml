@@ -501,6 +501,9 @@ tests:
 - class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
   method: testILMDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/137489
+- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
+  method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
+  issue: https://github.com/elastic/elasticsearch/issues/137457
 
 # Examples:
 #

@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.TestBlock;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -79,7 +80,9 @@ public class MvMinBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
                 assertThat(mvMin.get(i), nullValue());
                 continue;
             }
-            BytesRef bytes = (BytesRef) (str instanceof List<?> l ? l.getFirst() : str);
+            BytesRef bytes = (BytesRef) (str instanceof List<?> l
+                ? l.stream().map(b -> (BytesRef) b).min(Comparator.naturalOrder()).get()
+                : str);
             assertThat(mvMin.get(i), equalTo(bytes));
         }
     }

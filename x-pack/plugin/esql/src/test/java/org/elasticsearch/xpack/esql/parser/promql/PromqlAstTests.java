@@ -44,7 +44,8 @@ public class PromqlAstTests extends ESTestCase {
             String q = line.v1();
             try {
                 PromqlParser parser = new PromqlParser();
-                parser.createStatement(q);
+                var plan = parser.createStatement(q);
+                log.trace("{}", plan);
             } catch (ParsingException pe) {
                 fail(format(null, "Error parsing line {}:{} '{}' [{}]", line.v2(), pe.getColumnNumber(), pe.getErrorMessage(), q));
             } catch (Exception e) {
@@ -72,11 +73,11 @@ public class PromqlAstTests extends ESTestCase {
         }
     }
 
-    //@AwaitsFix(bugUrl = "placeholder for individual queries")
+    @AwaitsFix(bugUrl = "placeholder for individual queries")
     public void testSingleQuery() throws Exception {
-        // 1 == bool 1
+        // rate(http_requests_total[5m])[30m:1m+1^2%1]
         String query = """
-            rate(http_requests_total[5m])[30m:1m+1^2%1]
+            1 + 2 / (3 * 1)
             """;
         var plan = new PromqlParser().createStatement(query);
         log.info("{}", plan);

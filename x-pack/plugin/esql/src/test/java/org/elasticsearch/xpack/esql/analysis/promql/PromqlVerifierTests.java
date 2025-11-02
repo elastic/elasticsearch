@@ -49,13 +49,15 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    @Ignore
     public void testPromqlSubquery() {
-        // TODO doesn't parse
-        // line 1:36: Invalid query 'network.bytes_in'[ValueExpressionContext] given; expected Expression but found
-        // InstantSelector
-        assertThat(error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m:])))", tsdb), equalTo(""));
-        assertThat(error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m:1m])))", tsdb), equalTo(""));
+        assertThat(
+            error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m:])))", tsdb),
+            equalTo("1:36: subqueries are not supported at this time [network.bytes_in[5m:]]")
+        );
+        assertThat(
+            error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m:1m])))", tsdb),
+            equalTo("1:36: subqueries are not supported at this time [network.bytes_in[5m:1m]]")
+        );
     }
 
     @Ignore

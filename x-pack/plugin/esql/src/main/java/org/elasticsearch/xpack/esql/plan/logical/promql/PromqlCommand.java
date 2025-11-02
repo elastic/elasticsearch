@@ -151,6 +151,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                     failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
                 }
             }
+            if (lp instanceof Subquery) {
+                failures.add(fail(lp, "subqueries are not supported at this time [{}]", lp.sourceText()));
+            }
             if (step() != null && lp instanceof RangeSelector rs) {
                 Duration rangeDuration = (Duration) rs.range().fold(null);
                 if (rangeDuration.equals(step()) == false) {

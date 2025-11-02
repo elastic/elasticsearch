@@ -60,8 +60,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     }
 
     private CreateIndexRequest targetIndexRequest;
-    private String sourceIndex;
-    private ResizeType type;
+    private final String sourceIndex;
+    private final ResizeType type;
     private Boolean copySettings = true;
     private ByteSizeValue maxPrimaryShardSize;
 
@@ -103,10 +103,6 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         }
         assert copySettings == null || copySettings;
         return validationException;
-    }
-
-    public void setSourceIndex(String index) {
-        this.sourceIndex = index;
     }
 
     @Override
@@ -172,13 +168,6 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
      */
     public void setWaitForActiveShards(final int waitForActiveShards) {
         setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
-
-    /**
-     * The type of the resize operation
-     */
-    public void setResizeType(ResizeType type) {
-        this.type = Objects.requireNonNull(type);
     }
 
     /**

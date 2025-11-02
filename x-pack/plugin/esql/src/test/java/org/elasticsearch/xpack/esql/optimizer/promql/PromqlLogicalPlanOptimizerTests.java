@@ -101,7 +101,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
             TS k8s
-            | promql step 5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
+            | promql step 1h ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
             """);
 
@@ -137,7 +137,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
             TS k8s
-            | promql step 5m (
+            | promql step 1h (
                 avg(avg_over_time(network.bytes_in[1h]))
               )
             | LIMIT 1000
@@ -152,7 +152,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
             TS k8s
-            | promql step 10 ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
+            | promql step 1h ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
             """);
 
         System.out.println(plan);
@@ -164,7 +164,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | STATS AVG(RATE(`metrics.system.cpu.time`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         String testQuery = """
             TS k8s
-            | promql step 42 (
+            | promql step 1h (
                 avg by (pod) (rate(network.bytes_in[1h]))
                 )
             """;

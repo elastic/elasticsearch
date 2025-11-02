@@ -32,6 +32,16 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testPromqlStepAndRangeMisaligned() {
+        assertThat(
+            error("""
+                TS test | PROMQL step 1m (
+                  avg(rate(network.bytes_in[5m]))
+                )""", tsdb),
+            equalTo("2:29: the duration for range vector selector [5m] must be equal to the query's step for range queries at this time")
+        );
+    }
+
     public void testPromqlIllegalNameLabelMatcher() {
         assertThat(
             error("TS test | PROMQL step 5m (avg({__name__=~\"*.foo.*\"}))", tsdb),

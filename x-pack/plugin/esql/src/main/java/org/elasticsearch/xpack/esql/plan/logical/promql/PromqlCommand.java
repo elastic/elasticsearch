@@ -13,8 +13,10 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
@@ -140,12 +142,27 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         if (p instanceof AcrossSeriesAggregate == false) {
             failures.add(fail(p, "only aggregations across timeseries are supported at this time (found [{}])", p.sourceText()));
         }
-        p.forEachDown(Selector.class, s -> {
-            if (s.labelMatchers().nameLabel().matcher().isRegex()) {
-                failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
+        p.forEachDown(lp -> {
+            if (lp instanceof Selector s) {
+                if (s.labelMatchers().nameLabel().matcher().isRegex()) {
+                    failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
+                }
+                if (s.evaluation() != null && s.evaluation().offset() != null && s.evaluation().offset().isZero() == false) {
+                    failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
+                }
             }
-            if (s.evaluation() != null && s.evaluation().offset() != null && s.evaluation().offset().isZero() == false) {
-                failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
+            if (step() != null && lp instanceof RangeSelector rs) {
+                Duration rangeDuration = (Duration) rs.range().fold(null);
+                if (rangeDuration.equals(step()) == false) {
+                    failures.add(
+                        fail(
+                            rs.range(),
+                            "the duration for range vector selector [{}] "
+                                + "must be equal to the query's step for range queries at this time",
+                            rs.range().sourceText()
+                        )
+                    );
+                }
             }
         });
     }

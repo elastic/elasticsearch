@@ -17,6 +17,8 @@ promqlParam
 promqlParamContent
     : PROMQL_UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
+    | QUOTED_STRING
+    | NAMED_OR_POSITIONAL_PARAM
     ;
 
 promqlQueryPart

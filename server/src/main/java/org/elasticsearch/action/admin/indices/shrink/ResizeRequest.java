@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -24,8 +23,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -36,10 +33,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request class to shrink an index into a single shard
  */
-public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
+public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest {
 
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
-    private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
+    public static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
+
     static {
         PARSER.declareField(
             (parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
@@ -205,30 +203,6 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
      */
     public ByteSizeValue getMaxPrimaryShardSize() {
         return maxPrimaryShardSize;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.startObject(CreateIndexRequest.SETTINGS.getPreferredName());
-            {
-                targetIndexRequest.settings().toXContent(builder, params);
-            }
-            builder.endObject();
-            builder.startObject(CreateIndexRequest.ALIASES.getPreferredName());
-            {
-                for (Alias alias : targetIndexRequest.aliases()) {
-                    alias.toXContent(builder, params);
-                }
-            }
-            builder.endObject();
-            if (maxPrimaryShardSize != null) {
-                builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
-            }
-        }
-        builder.endObject();
-        return builder;
     }
 
     public void fromXContent(XContentParser parser) throws IOException {

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -34,6 +35,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests.assertAliasesEqual;
+import static org.elasticsearch.action.admin.indices.shrink.ResizeRequest.MAX_PRIMARY_SHARD_SIZE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsString;
@@ -68,13 +70,13 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
     public void testToXContent() throws IOException {
         {
             ResizeRequest request = new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ResizeType.SPLIT, "source", "target");
-            String actualRequestBody = Strings.toString(request);
+            String actualRequestBody = Strings.toString(resizeRequestToXContent(request));
             assertEquals("{\"settings\":{},\"aliases\":{}}", actualRequestBody);
         }
         {
             ResizeRequest request = new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ResizeType.SPLIT, "source", "target");
             request.setMaxPrimaryShardSize(ByteSizeValue.of(100, ByteSizeUnit.MB));
-            String actualRequestBody = Strings.toString(request);
+            String actualRequestBody = Strings.toString(resizeRequestToXContent(request));
             assertEquals("""
                 {"settings":{},"aliases":{},"max_primary_shard_size":"100mb"}""", actualRequestBody);
         }
@@ -97,7 +99,7 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
             settings.put(SETTING_NUMBER_OF_SHARDS, 10);
             target.settings(settings);
             request.setTargetIndex(target);
-            String actualRequestBody = Strings.toString(request);
+            String actualRequestBody = Strings.toString(resizeRequestToXContent(request));
             String expectedRequestBody = """
                 {
                   "settings": {
@@ -126,7 +128,12 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
 
         boolean humanReadable = randomBoolean();
         final XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(resizeRequest, xContentType, EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            resizeRequestToXContent(resizeRequest),
+            xContentType,
+            EMPTY_PARAMS,
+            humanReadable
+        );
 
         ResizeRequest parsedResizeRequest = new ResizeRequest(
             TEST_REQUEST_TIMEOUT,
@@ -150,7 +157,12 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
         assertEquals(resizeRequest.getTargetIndexRequest().settings(), parsedResizeRequest.getTargetIndexRequest().settings());
         assertEquals(resizeRequest.getMaxPrimaryShardSize(), parsedResizeRequest.getMaxPrimaryShardSize());
 
-        BytesReference finalBytes = toShuffledXContent(parsedResizeRequest, xContentType, EMPTY_PARAMS, humanReadable);
+        BytesReference finalBytes = toShuffledXContent(
+            resizeRequestToXContent(parsedResizeRequest),
+            xContentType,
+            EMPTY_PARAMS,
+            humanReadable
+        );
         ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
@@ -197,5 +209,30 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
     @Override
     protected ResizeRequest mutateInstance(ResizeRequest instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    private static ToXContent resizeRequestToXContent(ResizeRequest resizeRequest) {
+        return (builder, params) -> {
+            builder.startObject();
+            {
+                builder.startObject(CreateIndexRequest.SETTINGS.getPreferredName());
+                {
+                    resizeRequest.getTargetIndexRequest().settings().toXContent(builder, params);
+                }
+                builder.endObject();
+                builder.startObject(CreateIndexRequest.ALIASES.getPreferredName());
+                {
+                    for (Alias alias : resizeRequest.getTargetIndexRequest().aliases()) {
+                        alias.toXContent(builder, params);
+                    }
+                }
+                builder.endObject();
+                if (resizeRequest.getMaxPrimaryShardSize() != null) {
+                    builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), resizeRequest.getMaxPrimaryShardSize());
+                }
+            }
+            builder.endObject();
+            return builder;
+        };
     }
 }

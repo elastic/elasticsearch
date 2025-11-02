@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -211,7 +211,7 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
-    private static ToXContent resizeRequestToXContent(ResizeRequest resizeRequest) {
+    private static ToXContentObject resizeRequestToXContent(ResizeRequest resizeRequest) {
         return (builder, params) -> {
             builder.startObject();
             {

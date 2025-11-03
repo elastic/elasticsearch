@@ -67,14 +67,12 @@ public class AllocationBalancingRoundMetrics {
         for (Map.Entry<String, NodesWeightsChanges> changesEntry : summary.nodeNameToWeightChanges().entrySet()) {
             String nodeName = changesEntry.getKey();
             NodesWeightsChanges weightChanges = changesEntry.getValue();
-
-            DesiredBalanceMetrics.NodeWeightStats baseWeights = weightChanges.baseWeights();
             BalancingRoundSummary.NodeWeightsDiff weightsDiff = weightChanges.weightsDiff();
 
-            shardCountHistogram.record(baseWeights.shardCount() + weightsDiff.shardCountDiff(), getNodeAttributes(nodeName));
-            diskUsageHistogram.record(baseWeights.diskUsageInBytes() + weightsDiff.diskUsageInBytesDiff(), getNodeAttributes(nodeName));
-            writeLoadHistogram.record(baseWeights.writeLoad() + weightsDiff.writeLoadDiff(), getNodeAttributes(nodeName));
-            totalWeightHistogram.record(baseWeights.nodeWeight() + weightsDiff.totalWeightDiff(), getNodeAttributes(nodeName));
+            shardCountHistogram.record(Math.abs(weightsDiff.shardCountDiff()), getNodeAttributes(nodeName));
+            diskUsageHistogram.record(Math.abs(weightsDiff.diskUsageInBytesDiff()), getNodeAttributes(nodeName));
+            writeLoadHistogram.record(Math.abs(weightsDiff.writeLoadDiff()), getNodeAttributes(nodeName));
+            totalWeightHistogram.record(Math.abs(weightsDiff.totalWeightDiff()), getNodeAttributes(nodeName));
         }
     }
 

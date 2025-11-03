@@ -185,10 +185,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                 recordingMeterRegistry,
                 List.of(1L, 1L),
                 List.of(50L, 200L),
-                Map.of("node1", List.of(2L, 2L), "node2", List.of(2L, 2L)),
-                Map.of("node1", List.of(4.0, 4.0), "node2", List.of(4.0, 4.0)),
-                Map.of("node1", List.of(6.0, 6.0), "node2", List.of(6.0, 6.0)),
-                Map.of("node1", List.of(8.0, 8.0), "node2", List.of(8.0, 8.0))
+                Map.of("node1", List.of(1L, 1L), "node2", List.of(1L, 1L)),
+                Map.of("node1", List.of(2.0, 2.0), "node2", List.of(2.0, 2.0)),
+                Map.of("node1", List.of(3.0, 3.0), "node2", List.of(3.0, 3.0)),
+                Map.of("node1", List.of(4.0, 4.0), "node2", List.of(4.0, 4.0))
             );
         }
     }
@@ -223,10 +223,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                 recordingMeterRegistry,
                 List.of(1L, 1L),
                 List.of(50L, 100L),
-                Map.of("node1", List.of(2L, 2L), "node2", List.of(2L, 2L)),
-                Map.of("node1", List.of(4.0, 4.0), "node2", List.of(4.0, 4.0)),
-                Map.of("node1", List.of(6.0, 6.0), "node2", List.of(6.0, 6.0)),
-                Map.of("node1", List.of(8.0, 8.0), "node2", List.of(8.0, 8.0))
+                Map.of("node1", List.of(1L, 1L), "node2", List.of(1L, 1L)),
+                Map.of("node1", List.of(2.0, 2.0), "node2", List.of(2.0, 2.0)),
+                Map.of("node1", List.of(3.0, 3.0), "node2", List.of(3.0, 3.0)),
+                Map.of("node1", List.of(4.0, 4.0), "node2", List.of(4.0, 4.0))
             );
         }
     }
@@ -259,10 +259,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                 recordingMeterRegistry,
                 List.of(1L),
                 List.of(50L),
-                Map.of("node1", List.of(2L), "node2", List.of(2L)),
-                Map.of("node1", List.of(4.0), "node2", List.of(4.0)),
-                Map.of("node1", List.of(6.0), "node2", List.of(6.0)),
-                Map.of("node1", List.of(8.0), "node2", List.of(8.0))
+                Map.of("node1", List.of(1L), "node2", List.of(1L)),
+                Map.of("node1", List.of(2.0), "node2", List.of(2.0)),
+                Map.of("node1", List.of(3.0), "node2", List.of(3.0)),
+                Map.of("node1", List.of(4.0), "node2", List.of(4.0))
             );
 
             deterministicTaskQueue.advanceTime();
@@ -292,10 +292,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                 recordingMeterRegistry,
                 List.of(1L),
                 List.of(50L),
-                Map.of("node1", List.of(2L), "node2", List.of(2L)),
-                Map.of("node1", List.of(4.0), "node2", List.of(4.0)),
-                Map.of("node1", List.of(6.0), "node2", List.of(6.0)),
-                Map.of("node1", List.of(8.0), "node2", List.of(8.0))
+                Map.of("node1", List.of(1L), "node2", List.of(1L)),
+                Map.of("node1", List.of(2.0), "node2", List.of(2.0)),
+                Map.of("node1", List.of(3.0), "node2", List.of(3.0)),
+                Map.of("node1", List.of(4.0), "node2", List.of(4.0))
             );
         }
     }
@@ -329,10 +329,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                 recordingMeterRegistry,
                 List.of(1L),
                 List.of(50L),
-                Map.of("node1", List.of(2L), "node2", List.of(2L)),
-                Map.of("node1", List.of(4.0), "node2", List.of(4.0)),
-                Map.of("node1", List.of(6.0), "node2", List.of(6.0)),
-                Map.of("node1", List.of(8.0), "node2", List.of(8.0))
+                Map.of("node1", List.of(1L), "node2", List.of(1L)),
+                Map.of("node1", List.of(2.0), "node2", List.of(2.0)),
+                Map.of("node1", List.of(3.0), "node2", List.of(3.0)),
+                Map.of("node1", List.of(4.0), "node2", List.of(4.0))
             );
 
             /**
@@ -360,10 +360,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                 recordingMeterRegistry,
                 List.of(1L),
                 List.of(50L),
-                Map.of("node1", List.of(2L), "node2", List.of(2L)),
-                Map.of("node1", List.of(4.0), "node2", List.of(4.0)),
-                Map.of("node1", List.of(6.0), "node2", List.of(6.0)),
-                Map.of("node1", List.of(8.0), "node2", List.of(8.0))
+                Map.of("node1", List.of(1L), "node2", List.of(1L)),
+                Map.of("node1", List.of(2.0), "node2", List.of(2.0)),
+                Map.of("node1", List.of(3.0), "node2", List.of(3.0)),
+                Map.of("node1", List.of(4.0), "node2", List.of(4.0))
             );
         }
     }

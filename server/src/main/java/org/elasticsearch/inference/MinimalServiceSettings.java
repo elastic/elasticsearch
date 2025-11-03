@@ -62,9 +62,9 @@ public record MinimalServiceSettings(
 
     public static final String SERVICE_FIELD = "service";
     public static final String TASK_TYPE_FIELD = "task_type";
-    public static final String DIMENSIONS_FIELD = "dimensions";
-    public static final String SIMILARITY_FIELD = "similarity";
-    public static final String ELEMENT_TYPE_FIELD = "element_type";
+    static final String DIMENSIONS_FIELD = "dimensions";
+    static final String SIMILARITY_FIELD = "similarity";
+    static final String ELEMENT_TYPE_FIELD = "element_type";
 
     private static final ConstructingObjectParser<MinimalServiceSettings, Void> PARSER = new ConstructingObjectParser<>(
         "model_settings",

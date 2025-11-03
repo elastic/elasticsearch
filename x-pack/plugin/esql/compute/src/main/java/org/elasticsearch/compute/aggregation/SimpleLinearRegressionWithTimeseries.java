@@ -29,6 +29,11 @@ class SimpleLinearRegressionWithTimeseries implements AggregatorState {
     long sumTs;
     double sumTsVal;
     long sumTsSq;
+    long maxTs;
+
+    public interface SimpleLinearModelFunction {
+        double predict(SimpleLinearRegressionWithTimeseries model);
+    }
 
     SimpleLinearRegressionWithTimeseries() {
         this.count = 0;
@@ -36,6 +41,7 @@ class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         this.sumTs = 0;
         this.sumTsVal = 0.0;
         this.sumTsSq = 0;
+        this.maxTs = Long.MIN_VALUE;
     }
 
     void add(long ts, double val) {
@@ -44,9 +50,16 @@ class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         sumTs += ts;
         sumTsVal += ts * val;
         sumTsSq += ts * ts;
+        if (ts > maxTs) {
+            maxTs = ts;
+        }
     }
 
-    double slope() {
+    public double lastTimestamp() {
+        return maxTs;
+    }
+
+    public double slope() {
         if (count <= 1) {
             return Double.NaN;
         }
@@ -58,7 +71,7 @@ class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         return numerator / denominator * 1000.0; // per second
     }
 
-    double intercept() {
+    public double intercept() {
         if (count == 0) {
             return 0.0; // or handle as needed
         }

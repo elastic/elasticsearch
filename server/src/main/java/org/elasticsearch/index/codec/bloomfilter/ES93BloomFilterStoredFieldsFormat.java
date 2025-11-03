@@ -69,7 +69,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
     public static final String STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME = "ES93BloomFilterStoredFieldsFormat";
     public static final String STORED_FIELDS_BLOOM_FILTER_EXTENSION = "sfbf";
     public static final String STORED_FIELDS_METADATA_BLOOM_FILTER_EXTENSION = "sfbfm";
-    private static final int VERSION_START = 1;
+    private static final int VERSION_START = 0;
     private static final int VERSION_CURRENT = VERSION_START;
 
     // We use prime numbers with the Kirsch-Mitzenmacher technique to obtain multiple hashes from two hash functions

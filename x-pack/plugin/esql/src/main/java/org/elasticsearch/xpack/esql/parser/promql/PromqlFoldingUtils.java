@@ -64,11 +64,7 @@ public class PromqlFoldingUtils {
         Duration result = switch (op) {
             case ADD -> left.plus(right);
             case SUB -> left.minus(right);
-            default -> throw new ParsingException(
-                source,
-                "Operation [{}] not supported between two durations",
-                op
-            );
+            default -> throw new ParsingException(source, "Operation [{}] not supported between two durations", op);
         };
 
         return result;

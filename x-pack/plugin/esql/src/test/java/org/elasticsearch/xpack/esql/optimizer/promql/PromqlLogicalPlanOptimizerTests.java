@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -280,26 +280,26 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         System.out.println(plan);
     }
 
-//    public void testPromqlArithmetricOperators() {
-//        // TODO doesn't parse
-//        //  line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; expected LogicalPlan but found VectorBinaryArithmetic
-//        assertThat(
-//            error("TS test | PROMQL step 5m (1+1)", tsdb),
-//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-//        );
-//        assertThat(
-//            error("TS test | PROMQL step 5m ( foo and bar )", tsdb),
-//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-//        );
-//        assertThat(
-//            error("TS test | PROMQL step 5m (1+foo)", tsdb),
-//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-//        );
-//        assertThat(
-//            error("TS test | PROMQL step 5m (foo+bar)", tsdb),
-//            equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-//        );
-//    }
+    // public void testPromqlArithmetricOperators() {
+    // // TODO doesn't parse
+    // // line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; expected LogicalPlan but found VectorBinaryArithmetic
+    // assertThat(
+    // error("TS test | PROMQL step 5m (1+1)", tsdb),
+    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+    // );
+    // assertThat(
+    // error("TS test | PROMQL step 5m ( foo and bar )", tsdb),
+    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+    // );
+    // assertThat(
+    // error("TS test | PROMQL step 5m (1+foo)", tsdb),
+    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+    // );
+    // assertThat(
+    // error("TS test | PROMQL step 5m (foo+bar)", tsdb),
+    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
+    // );
+    // }
 
     protected LogicalPlan planPromql(String query) {
         var analyzed = tsAnalyzer.analyze(parser.createStatement(query));

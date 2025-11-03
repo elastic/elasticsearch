@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
@@ -163,9 +161,7 @@ public abstract class VectorBinaryOperator extends BinaryPlan {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o)) {
             VectorBinaryOperator that = (VectorBinaryOperator) o;
-            return dropMetricName == that.dropMetricName
-                && Objects.equals(match, that.match)
-                && Objects.equals(binaryOp, that.binaryOp);
+            return dropMetricName == that.dropMetricName && Objects.equals(match, that.match) && Objects.equals(binaryOp, that.binaryOp);
         }
         return false;
     }

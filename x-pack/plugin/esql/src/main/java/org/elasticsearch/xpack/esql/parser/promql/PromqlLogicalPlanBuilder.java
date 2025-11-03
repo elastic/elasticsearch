@@ -548,8 +548,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 return duration;
             }
 
-            throw new ParsingException(source(ctx), "Expected duration result, got [{}]",
-                result.getClass().getSimpleName());
+            throw new ParsingException(source(ctx), "Expected duration result, got [{}]", result.getClass().getSimpleName());
         }
 
         // Just COLON with no resolution - use default

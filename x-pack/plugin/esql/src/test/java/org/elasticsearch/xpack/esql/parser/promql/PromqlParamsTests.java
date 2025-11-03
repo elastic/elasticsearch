@@ -71,10 +71,7 @@ public class PromqlParamsTests extends ESTestCase {
     }
 
     public void testNegativeStep() {
-        ParsingException e = assertThrows(
-            ParsingException.class,
-            () -> parse("TS test | PROMQL step `-1` (avg(foo))")
-        );
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("TS test | PROMQL step `-1` (avg(foo))"));
         assertThat(
             e.getMessage(),
             containsString("invalid parameter \"step\": zero or negative query resolution step widths are not accepted")
@@ -113,10 +110,7 @@ public class PromqlParamsTests extends ESTestCase {
     }
 
     public void testUnknownParameterNoSuggestion() {
-        ParsingException e = assertThrows(
-            ParsingException.class,
-            () -> parse("TS test | PROMQL foo 1 (avg(foo))")
-        );
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("TS test | PROMQL foo 1 (avg(foo))"));
         assertThat(e.getMessage(), containsString("Unknown parameter [foo]"));
     }
 

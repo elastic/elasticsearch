@@ -3,4 +3,5 @@ summary: Taking additional settings providers into account for data stream effec
   settings
 area: Data streams
 type: bug
-issues: []
+issues:
+ - 137381

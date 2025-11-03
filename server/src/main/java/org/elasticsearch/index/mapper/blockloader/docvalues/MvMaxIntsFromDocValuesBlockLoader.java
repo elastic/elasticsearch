@@ -29,7 +29,7 @@ public class MvMaxIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
 
     @Override
     protected AllReader sortedReader(SortedNumericDocValues docValues) {
-        return new MvMinSorted(docValues);
+        return new MvMaxSorted(docValues);
     }
 
     @Override
@@ -37,10 +37,10 @@ public class MvMaxIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
         return "IntsFromDocValues[" + fieldName + "]";
     }
 
-    public static class MvMinSorted extends BlockDocValuesReader {
+    public static class MvMaxSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
-        MvMinSorted(SortedNumericDocValues numericDocValues) {
+        MvMaxSorted(SortedNumericDocValues numericDocValues) {
             this.numericDocValues = numericDocValues;
         }
 

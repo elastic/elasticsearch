@@ -1580,6 +1580,11 @@ public class EsqlCapabilities {
         PUSHING_DOWN_EVAL_WITH_SCORE,
 
         /**
+         * Fix for ClassCastException in STATS
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION,
+
+        /**
          * Fix attribute equality to respect the name id of the attribute.
          */
         ATTRIBUTE_EQUALS_RESPECTS_NAME_ID,

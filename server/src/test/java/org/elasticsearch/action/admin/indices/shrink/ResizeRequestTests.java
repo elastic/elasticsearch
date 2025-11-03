@@ -138,7 +138,7 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
         ResizeRequest parsedResizeRequest = new ResizeRequest(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
-            ResizeType.SPLIT,
+            randomFrom(ResizeType.values()),
             randomValueOtherThan(resizeRequest.getSourceIndex(), () -> randomAlphaOfLength(5)),
             randomValueOtherThan(resizeRequest.getTargetIndexRequest().index(), () -> randomAlphaOfLength(5))
         );
@@ -193,7 +193,7 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
         ResizeRequest resizeRequest = new ResizeRequest(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
-            ResizeType.SPLIT,
+            randomFrom(ResizeType.values()),
             randomAlphaOfLengthBetween(3, 10),
             randomAlphaOfLengthBetween(3, 10)
         );

@@ -114,7 +114,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
         RequestInfo requestInfo = new RequestInfo(
             authentication,
-            new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ResizeType.SPLIT, "foo", "bar"),
+            new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomFrom(ResizeType.values()), "foo", "bar"),
             TransportResizeAction.TYPE.name(),
             null
         );
@@ -155,7 +155,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
             RequestInfo requestInfo = new RequestInfo(
                 authentication,
-                new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ResizeType.SPLIT, "source", "target"),
+                new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomFrom(ResizeType.values()), "source", "target"),
                 TransportResizeAction.TYPE.name(),
                 null
             );
@@ -185,7 +185,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
             RequestInfo requestInfo = new RequestInfo(
                 authentication,
-                new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ResizeType.SPLIT, "target", "source"),
+                new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomFrom(ResizeType.values()), "target", "source"),
                 TransportResizeAction.TYPE.name(),
                 null
             );

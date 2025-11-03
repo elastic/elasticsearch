@@ -31,8 +31,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
@@ -54,8 +52,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         this::checkIndexDataPath,
         this::storeTypeSettingCheck,
         this::deprecatedCamelCasePattern,
-        this::legacyRoutingSettingCheck,
-        this::percolatorIndicesCheck
+        this::legacyRoutingSettingCheck
     );
 
     public IndexDeprecationChecker(IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -97,6 +94,24 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         ClusterState clusterState,
         Map<String, List<String>> indexToTransformIds
     ) {
+        // We check for percolator indices first as that will include potentially older indices as well.
+        List<String> percolatorIncompatibleFieldMappings = DeprecatedIndexPredicate.reindexRequiredForPecolatorFields(
+            indexMetadata,
+            false,
+            false
+        );
+        if (percolatorIncompatibleFieldMappings.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Field mappings with incompatible percolator type",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/percolator.html#_reindexing_your_percolator_queries",
+                "The index was created before 8.19 and contains mappings that must be reindexed due to containing percolator fields. "
+                    + String.join(", ", percolatorIncompatibleFieldMappings),
+                false,
+                Map.of("reindex_required", true, "excluded_actions", List.of("readOnly"))
+            );
+        }
+
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
@@ -105,7 +120,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             fieldLevelMappingIssue(
                 indexMetadata,
                 (mappingMetadata, sourceAsMap) -> cldrIncompatibleFieldMappings.addAll(
-                    findInPropertiesRecursively(
+                    DeprecatedIndexPredicate.findInPropertiesRecursively(
                         mappingMetadata.type(),
                         sourceAsMap,
                         this::isDateFieldWithCompatFormatPattern,
@@ -318,112 +333,11 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         );
     }
 
-    private DeprecationIssue percolatorIndicesCheck(
-        IndexMetadata indexMetadata,
-        ClusterState clusterState,
-        Map<String, List<String>> ignored
-    ) {
-        if (DeprecatedIndexPredicate.reindexRequiredForTransportVersion(indexMetadata, false, false)) {
-            List<String> percolatorIncompatibleFieldMappings = new ArrayList<>();
-            fieldLevelMappingIssue(
-                indexMetadata,
-                (mappingMetadata, sourceAsMap) -> percolatorIncompatibleFieldMappings.addAll(
-                    findInPropertiesRecursively(
-                        mappingMetadata.type(),
-                        sourceAsMap,
-                        property -> "percolator".equals(property.get("type")),
-                        (type, entry) -> "Field [" + entry.getKey() + "] is of type [" + mappingMetadata.type() + "]",
-                        "",
-                        ""
-                    )
-                )
-            );
-
-            if (percolatorIncompatibleFieldMappings.isEmpty() == false) {
-                return new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
-                    "Field mappings with incompatible percolator type",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/percolator.html#_reindexing_your_percolator_queries",
-                    "The index was created before 8.19 and contains mappings that must be reindexed due to containing percolator fields. "
-                        + String.join(", ", percolatorIncompatibleFieldMappings),
-                    false,
-                    Map.of("reindex_required", true, "excluded_actions", List.of("readOnly"))
-                );
-            }
-        }
-        return null;
-    }
-
     private void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
         if (indexMetadata.mapping() != null) {
             Map<String, Object> sourceAsMap = indexMetadata.mapping().sourceAsMap();
             checker.accept(indexMetadata.mapping(), sourceAsMap);
         }
-    }
-
-    /**
-     * iterates through the "properties" field of mappings and returns any predicates that match in the
-     * form of issue-strings.
-     *
-     * @param type the document type
-     * @param parentMap the mapping to read properties from
-     * @param predicate the predicate to check against for issues, issue is returned if predicate evaluates to true
-     * @param fieldFormatter a function that takes a type and mapping field entry and returns a formatted field representation
-     * @return a list of issues found in fields
-     */
-    @SuppressWarnings("unchecked")
-    private List<String> findInPropertiesRecursively(
-        String type,
-        Map<String, Object> parentMap,
-        Function<Map<?, ?>, Boolean> predicate,
-        BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter,
-        String fieldBeginMarker,
-        String fieldEndMarker
-    ) {
-        List<String> issues = new ArrayList<>();
-        Map<?, ?> properties = (Map<?, ?>) parentMap.get("properties");
-        if (properties == null) {
-            return issues;
-        }
-        for (Map.Entry<?, ?> entry : properties.entrySet()) {
-            Map<String, Object> valueMap = (Map<String, Object>) entry.getValue();
-            if (predicate.apply(valueMap)) {
-                issues.add(fieldBeginMarker + fieldFormatter.apply(type, entry) + fieldEndMarker);
-            }
-
-            Map<?, ?> values = (Map<?, ?>) valueMap.get("fields");
-            if (values != null) {
-                for (Map.Entry<?, ?> multifieldEntry : values.entrySet()) {
-                    Map<String, Object> multifieldValueMap = (Map<String, Object>) multifieldEntry.getValue();
-                    if (predicate.apply(multifieldValueMap)) {
-                        issues.add(
-                            fieldBeginMarker
-                                + fieldFormatter.apply(type, entry)
-                                + ", multifield: "
-                                + multifieldEntry.getKey()
-                                + fieldEndMarker
-                        );
-                    }
-                    if (multifieldValueMap.containsKey("properties")) {
-                        issues.addAll(
-                            findInPropertiesRecursively(
-                                type,
-                                multifieldValueMap,
-                                predicate,
-                                fieldFormatter,
-                                fieldBeginMarker,
-                                fieldEndMarker
-                            )
-                        );
-                    }
-                }
-            }
-            if (valueMap.containsKey("properties")) {
-                issues.addAll(findInPropertiesRecursively(type, valueMap, predicate, fieldFormatter, fieldBeginMarker, fieldEndMarker));
-            }
-        }
-
-        return issues;
     }
 
     private DeprecationIssue deprecatedCamelCasePattern(
@@ -435,7 +349,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         fieldLevelMappingIssue(
             indexMetadata,
             ((mappingMetadata, sourceAsMap) -> fields.addAll(
-                findInPropertiesRecursively(
+                DeprecatedIndexPredicate.findInPropertiesRecursively(
                     mappingMetadata.type(),
                     sourceAsMap,
                     this::isDateFieldWithCamelCasePattern,

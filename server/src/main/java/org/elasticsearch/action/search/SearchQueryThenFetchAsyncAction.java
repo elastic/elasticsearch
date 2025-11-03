@@ -879,6 +879,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             } catch (IOException e) {
                 releaseAllResultsContexts();
                 channelListener.onFailure(e);
+                return;
             }
             ActionListener.respondAndRelease(
                 channelListener,
@@ -886,6 +887,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             );
         }
 
+        // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)
         private void writeSuccessfulResponse(RecyclerBytesStreamOutput out) throws IOException {
             final QueryPhaseResultConsumer.MergeResult mergeResult;
             try {
@@ -924,6 +926,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             NodeQueryResponse.writeMergeResult(out, mergeResult, queryPhaseResultConsumer.topDocsStats);
         }
 
+        // Writes the "reduction failure" response (see NodeQueryResponse for the corresponding read logic)
         private void writeReductionFailureResponse(RecyclerBytesStreamOutput out, Exception reductionFailure) throws IOException {
             final int resultCount = queryPhaseResultConsumer.getNumShards();
             out.writeVInt(resultCount);

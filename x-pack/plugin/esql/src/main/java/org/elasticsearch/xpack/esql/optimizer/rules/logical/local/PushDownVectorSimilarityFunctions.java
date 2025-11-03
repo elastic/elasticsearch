@@ -18,13 +18,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,30 +39,44 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * the similarity function during value loading, when one side of the function is a literal.
  * It also adds the new field function attribute to the EsRelation output, and adds a projection after it to remove it from the output.
  */
-public class PushDownVectorSimilarityFunctions extends OptimizerRules.ParameterizedOptimizerRule<
+public class PushDownVectorSimilarityFunctions extends ParameterizedRule<
+    LogicalPlan,
     LogicalPlan,
     LocalLogicalOptimizerContext> {
 
-    public PushDownVectorSimilarityFunctions() {
-        super(OptimizerRules.TransformDirection.DOWN);
-    }
 
     @Override
-    protected LogicalPlan rule(LogicalPlan plan, LocalLogicalOptimizerContext context) {
+    public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
+        Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
+        return plan.transformUp(LogicalPlan.class, p -> doRule(p, context.searchStats(), addedAttrs));
+    }
+
+
+    private LogicalPlan doRule(LogicalPlan plan, SearchStats searchStats, Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs) {
+        // Collect field attributes from previous runs
+        int originalAddedAttrsSize = addedAttrs.size();
+        if (plan instanceof EsRelation rel) {
+            addedAttrs.clear();
+            for (Attribute attr : rel.output()) {
+                if (attr instanceof FieldAttribute fa && fa.field() instanceof FunctionEsField) {
+                    addedAttrs.put(fa.ignoreId(), fa);
+                }
+            }
+        }
+
         if (plan instanceof Eval || plan instanceof Filter || plan instanceof Aggregate) {
-            Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
             LogicalPlan transformedPlan = plan.transformExpressionsOnly(
                 VectorSimilarityFunction.class,
-                similarityFunction -> replaceFieldsForFieldTransformations(similarityFunction, addedAttrs, context)
+                similarityFunction -> replaceFieldsForFieldTransformations(similarityFunction, addedAttrs, searchStats)
             );
 
-            if (addedAttrs.isEmpty()) {
+            // No fields were added, return the original plan
+            if (addedAttrs.size() == originalAddedAttrsSize) {
                 return plan;
             }
 
             List<Attribute> previousAttrs = transformedPlan.output();
-            // Transforms EsRelation to extract the new attribute
-
+            // Transforms EsRelation to extract the new attributes
             List<Attribute> addedAttrsList = addedAttrs.values().stream().toList();
             transformedPlan = transformedPlan.transformDown(EsRelation.class, esRelation -> {
                 AttributeSet updatedOutput = esRelation.outputSet().combine(AttributeSet.of(addedAttrsList));
@@ -82,8 +97,7 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
 
     private static Expression replaceFieldsForFieldTransformations(
         VectorSimilarityFunction similarityFunction,
-        Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs,
-        LocalLogicalOptimizerContext context
+        Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs, SearchStats searchStats
     ) {
         // Only replace if exactly one side is a literal and the other a field attribute
         if ((similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) == false) {
@@ -98,7 +112,7 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
             fieldAttr = fa;
         }
         // We can push down also for doc values, requires handling that case on the field mapper
-        if (fieldAttr == null || context.searchStats().isIndexed(fieldAttr.fieldName()) == false) {
+        if (fieldAttr == null || searchStats.isIndexed(fieldAttr.fieldName()) == false) {
             return similarityFunction;
         }
 
@@ -131,7 +145,6 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
         );
         Attribute.IdIgnoringWrapper key = newFunctionAttr.ignoreId();
         if (addedAttrs.containsKey(key)) {
-            ;
             return addedAttrs.get(key);
         }
 

@@ -171,7 +171,7 @@ public final class InternalRealms {
             config -> new OpenIdConnectRealm(config, sslService, userRoleMapper, resourceWatcherService),
             // JWT realm
             JwtRealmSettings.TYPE,
-            config -> new JwtRealm(config, sslService, userRoleMapper)
+            config -> new JwtRealm(config, sslService, userRoleMapper, threadPool)
         );
     }
 

@@ -128,15 +128,21 @@ import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.elasticsearch.action.admin.indices.sampling.DeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.GetAllSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.GetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.PutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestDeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.RestGetAllSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.RestGetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.RestPutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportDeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportGetAllSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportPutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
@@ -370,6 +376,7 @@ import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
 import org.elasticsearch.rest.action.cat.RestAllocationAction;
 import org.elasticsearch.rest.action.cat.RestCatAction;
+import org.elasticsearch.rest.action.cat.RestCatCircuitBreakerAction;
 import org.elasticsearch.rest.action.cat.RestCatComponentTemplateAction;
 import org.elasticsearch.rest.action.cat.RestCatRecoveryAction;
 import org.elasticsearch.rest.action.cat.RestFielddataAction;
@@ -829,6 +836,8 @@ public class ActionModule extends AbstractModule {
             actions.register(PutSampleConfigurationAction.INSTANCE, TransportPutSampleConfigurationAction.class);
             actions.register(GetSampleStatsAction.INSTANCE, TransportGetSampleStatsAction.class);
             actions.register(DeleteSampleConfigurationAction.INSTANCE, TransportDeleteSampleConfigurationAction.class);
+            actions.register(GetSampleConfigurationAction.INSTANCE, TransportGetSampleConfigurationAction.class);
+            actions.register(GetAllSampleConfigurationAction.INSTANCE, TransportGetAllSampleConfigurationAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -1018,6 +1027,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction());
         registerHandler.accept(new RestAliasAction());
         registerHandler.accept(new RestThreadPoolAction());
+        registerHandler.accept(new RestCatCircuitBreakerAction());
         registerHandler.accept(new RestPluginsAction());
         registerHandler.accept(new RestFielddataAction());
         registerHandler.accept(new RestNodeAttrsAction());
@@ -1064,6 +1074,8 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestPutSampleConfigurationAction());
             registerHandler.accept(new RestGetSampleStatsAction());
             registerHandler.accept(new RestDeleteSampleConfigurationAction());
+            registerHandler.accept(new RestGetSampleConfigurationAction());
+            registerHandler.accept(new RestGetAllSampleConfigurationAction());
         }
     }
 

@@ -25,9 +25,12 @@ type make it simpler to perform semantic search on your data. The
 with [match](/reference/query-languages/query-dsl/query-dsl-match-query.md), [sparse_vector](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md)
 or [knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md) queries.
 
-If you don’t specify an inference endpoint, the `inference_id` field defaults to
-`.elser-2-elasticsearch`, a preconfigured endpoint for the elasticsearch
-service.
+{applies_to}`serverless: ga` If you don’t specify an {{infer}} endpoint, the `inference_id` field defaults to
+`.elser-v2-elastic`, a preconfigured endpoint for the `elasticsearch` service.
+This endpoint uses the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
+
+{applies_to}`stack: ga 9.0` If you don’t specify an {{infer}} endpoint, the `inference_id` field defaults to
+`.elser-2-elasticsearch`, a preconfigured endpoint for the `elasticsearch` service.
 
 Using `semantic_text`, you won’t need to specify how to generate embeddings for
 your data, or how to index it. The {{infer}} endpoint automatically determines
@@ -43,10 +46,15 @@ You can use either preconfigured endpoints in your `semantic_text` fields which
 are ideal for most use cases or create custom endpoints and reference them in
 the field mappings.
 
-### Using the default ELSER endpoint
+:::::::{tab-set}
 
-If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
-`semantic_text` with the following API request:
+::::::{tab-item} Using the default ELSER on EIS endpoint on Serverless
+
+```{applies_to}
+serverless: ga
+```
+
+If you use the default `.elser-v2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
 
 ```console
 PUT my-index-000001
@@ -62,10 +70,58 @@ PUT my-index-000001
 ```
 % TEST[skip:Requires inference endpoint]
 
+::::::
+
+::::::{tab-item} Using the preconfigured ELSER on EIS endpoint in Cloud
+
+```{applies_to}
+stack: ga 9.2
+deployment:
+  self: unavailable
+```
+
+If you use the preconfigured `.elser-v2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": ".elser-v2-elastic"
+      }
+    }
+  }
+}
+```
+
+::::::
+
+::::::{tab-item} Using the default ELSER endpoint
+
+If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+```
+
+::::::
+
+:::::::
+
 ### Using a custom endpoint
 
-To use a custom {{infer}} endpoint instead of the default
-`.elser-2-elasticsearch`, you
+To use a custom {{infer}} endpoint instead of the default, you
 must [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
 and specify its `inference_id` when setting up the `semantic_text` field type.
 
@@ -110,13 +166,47 @@ PUT my-index-000003
 % TEST[skip:Requires inference endpoint]
 
 ### Using ELSER on EIS
+
 ```{applies_to}
-stack: preview 9.1
-serverless: preview
+stack: preview 9.1 ga 9.2
+deployment:
+  self: unavailable
+serverless: ga
 ```
 
 If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service through the Elastic Inference Service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
 set up `semantic_text` with the following API request:
+
+:::::::{tab-set}
+
+::::::{tab-item} Using ELSER on EIS on Serverless
+
+```{applies_to}
+serverless: ga
+```
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+```
+
+::::::
+
+::::::{tab-item} Using ELSER on EIS in Cloud
+
+```{applies_to}
+stack: ga 9.2
+deployment:
+  self: unavailable
+```
 
 ```console
 PUT my-index-000001
@@ -133,10 +223,9 @@ PUT my-index-000001
 ```
 % TEST[skip:Requires inference endpoint]
 
-::::{note}
-While we do encourage experimentation, we do not recommend implementing production use cases on top of this feature while it is in Technical Preview.
+::::::
 
-::::
+:::::::
 
 ## Parameters for `semantic_text` fields [semantic-text-params]
 
@@ -424,21 +513,29 @@ POST test-index/_search
 
 ## Updates and partial updates for `semantic_text` fields [semantic-text-updates]
 
-When updating documents that contain `semantic_text` fields, it’s important to understand how inference is triggered:
+When updating documents that contain `semantic_text` fields, it's important to understand how inference is triggered:
 
-* **Full document updates**
-  When you perform a full document update, **all `semantic_text` fields will re-run inference** even if their values did not change. This ensures that the embeddings are always consistent with the current document state but can increase ingestion costs.
+Full document updates
+:   Full document updates re-run inference on all `semantic_text` fields, even if their values did not change. This ensures that embeddings remain consistent with the current document state but can increase ingestion costs.
 
-* **Partial updates using the Bulk API**
-  Partial updates that **omit `semantic_text` fields** and are submitted through the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) will **reuse the existing embeddings** stored in the index. In this case, inference is **not triggered** for fields that were not updated, which can significantly reduce processing time and cost.
+Partial updates using the Bulk API
+:   Partial updates submitted through the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) reuse existing embeddings when you omit `semantic_text` fields. Inference does not run for omitted fields, which can significantly reduce processing time and cost.
 
-* **Partial updates using the Update API**
-  When using the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) with a `doc` object that **omits `semantic_text` fields**, inference **will still run** on all `semantic_text` fields. This means that even if the field values are not changed, embeddings will be re-generated.
+Partial updates using the Update API
+:   Partial updates submitted through the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) re-run inference on all `semantic_text` fields, even when you omit them from the `doc` object. Embeddings are re-generated regardless of whether field values changed.
 
-If you want to avoid unnecessary inference and keep existing embeddings:
+To preserve existing embeddings and avoid unnecessary inference costs:
 
-    * Use **partial updates through the Bulk API**.
-    * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
+ * Use partial updates with the Bulk API.
+ * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
+
+### Scripted updates
+
+For indices containing `semantic_text` fields, updates that use scripts have the
+following behavior:
+
+- ✅ **Supported:** [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update)
+- ❌ **Not supported:** [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1). Scripted updates will fail even if the script targets non-`semantic_text` fields.
 
 ## Returning semantic field embeddings in `_source`
 
@@ -578,18 +675,6 @@ PUT my-index-000004
 ```
 % TEST[skip:Requires inference endpoint]
 
-## Updates to `semantic_text` fields [update-script]
-
-For indices containing `semantic_text` fields, updates that use scripts have the
-following behavior:
-
-* Are supported through
-  the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update).
-* Are not supported through
-  the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1)
-  and will fail. Even if the script targets non-`semantic_text` fields, the
-  update will fail when the index contains a `semantic_text` field.
-
 ## `copy_to` and multi-fields support [copy-to-support]
 
 The semantic_text field type can serve as the target
@@ -648,25 +733,13 @@ PUT test-index
 
 You can query `semantic_text` fields using the following query types:
 
-- Match query: The recommended method for querying `semantic_text` fields. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ES|QL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax.
-<!--
-Refer to examples of match queries on `semantic_text` fields. 
--->
+- Match query: The recommended method for querying `semantic_text` fields. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ES|QL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax. To learn how to run match queries on `semantic_text` fields, refer to this [example](https://www.elastic.co/docs/solutions/search/semantic-search/semantic-search-semantic-text#semantic-text-semantic-search).
 
-- [kNN query](/reference/query-languages/query-dsl/query-dsl-knn-query.md): Finds the nearest vectors to a query vector using a similarity metric, mainly for advanced or combined search use cases. 
-<!-- 
-Refer to examples of kNN queries on `semantic_text` fields. 
--->
+- kNN query: Finds the nearest vectors to a query vector using a similarity metric, mainly for advanced or combined search use cases. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text) or {applies_to}`stack: ga 9.2` [ES|QL](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) syntax. To learn how to run knn queries on `semantic_text` fields, refer to this [example](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text).
 
-- [Sparse vector query](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md): Executes searches using sparse vectors generated by a sparse retrieval model such as [ELSER](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-elser.md).
-<!-- 
-Refer to examples of sparse vector queries on `semantic_text` fields.
--->
+- Sparse vector query: Executes searches using sparse vectors generated by a sparse retrieval model such as [ELSER](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-elser.md). You can use it with [Query DSL](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md) syntax. To learn how to run sparse vector queries on `semantic_text` fields, refer to this [example](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md#example-query-on-a-semantic_text-field).
 
 - [Semantic query](/reference/query-languages/query-dsl/query-dsl-semantic-query.md): We don't recommend this legacy query type for _new_ projects, because the alternatives in this list enable more flexibility and customization. The `semantic` query remains available to support existing implementations.
-<!-- 
-Refer to examples of semantic queries on `semantic_text` fields.
--->
 
 
 ## Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]

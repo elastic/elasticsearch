@@ -1004,7 +1004,7 @@ public class WildcardFieldMapper extends FieldMapper {
         this.indexVersionCreated = builder.indexCreatedVersion;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
-        this.originalName = storeIgnored ? fullPath() + "._original" : null;
+        this.originalName = storeIgnored ? fullPath() + KeywordFieldMapper.FALLBACK_FIELD_NAME_SUFFIX : null;
     }
 
     @Override
@@ -1087,7 +1087,7 @@ public class WildcardFieldMapper extends FieldMapper {
         return new SyntheticSourceSupport.Native(() -> {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
             layers.add(new WildcardSyntheticFieldLoader());
-            if (ignoreAbove.isSet()) {
+            if (ignoreAbove.valuesPotentiallyIgnored()) {
                 layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                     @Override
                     protected void writeValue(Object value, XContentBuilder b) throws IOException {

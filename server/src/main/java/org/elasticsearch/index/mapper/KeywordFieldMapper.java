@@ -104,6 +104,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     static final NodeFeature KEYWORD_DIMENSION_IGNORE_ABOVE = new NodeFeature("mapper.keyword_dimension_ignore_above", true);
     static final NodeFeature KEYWORD_NORMALIZER_SYNTHETIC_SOURCE = new NodeFeature("mapper.keyword_normalizer_synthetic_source", true);
+    public static final String FALLBACK_FIELD_NAME_SUFFIX = "._original";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -472,7 +473,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
             this.isSyntheticSource = isSyntheticSource;
-            this.originalName = isSyntheticSource ? name + "._original" : null;
+            this.originalName = isSyntheticSource ? name + FALLBACK_FIELD_NAME_SUFFIX : null;
         }
 
         public KeywordFieldType(String name) {
@@ -1240,7 +1241,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         }
 
-        if (fieldType().ignoreAbove.isSet()) {
+        if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName) {
                 @Override
                 protected void writeValue(Object value, XContentBuilder b) throws IOException {

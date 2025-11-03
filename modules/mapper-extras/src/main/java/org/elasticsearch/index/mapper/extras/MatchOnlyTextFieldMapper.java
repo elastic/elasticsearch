@@ -202,7 +202,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource, syntheticSourceDelegate);
-            this.originalName = isSyntheticSource ? name + "._original" : null;
+            this.originalName = isSyntheticSource ? name + KeywordFieldMapper.FALLBACK_FIELD_NAME_SUFFIX : null;
             this.withinMultiField = withinMultiField;
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
         }
@@ -247,7 +247,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 String parentField = searchExecutionContext.parentPath(name());
                 var parent = searchExecutionContext.lookup().fieldType(parentField);
 
-                if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.ignoreAbove().isSet()) {
+                if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
+                    && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
                     if (parent.isStored()) {
                         return storedFieldFetcher(parentField, keywordParent.originalName());
                     } else if (parent.hasDocValues()) {
@@ -268,7 +269,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 var kwd = textFieldType.syntheticSourceDelegate();
 
                 if (kwd != null) {
-                    if (kwd.ignoreAbove().isSet()) {
+                    if (kwd.ignoreAbove().valuesPotentiallyIgnored()) {
                         if (kwd.isStored()) {
                             return storedFieldFetcher(kwd.name(), kwd.originalName());
                         } else if (kwd.hasDocValues()) {

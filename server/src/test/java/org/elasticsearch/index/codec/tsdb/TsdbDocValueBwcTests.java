@@ -65,10 +65,10 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         testMixedIndex(oldCodec, newCodec);
     }
 
-    // TODO update Current to Version1 once version is incremented
-    public void testMixedIndexDocValueVersion0ToCurrent() throws Exception {
+    public void testMixedIndexDocValueVersion0ToVersion1() throws Exception {
         var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES819TSDBDocValuesFormatVersion0());
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        var compressionMode = ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode();
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
     }
 

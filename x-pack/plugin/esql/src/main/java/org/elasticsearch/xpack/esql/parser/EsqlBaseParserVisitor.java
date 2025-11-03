@@ -393,6 +393,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#sparklineCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSparklineCommand(EsqlBaseParser.SparklineCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#forkCommand}.
    * @param ctx the parse tree
    * @return the visitor result

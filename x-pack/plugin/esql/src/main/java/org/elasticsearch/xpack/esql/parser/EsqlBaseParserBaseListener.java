@@ -757,6 +757,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterSparklineCommand(EsqlBaseParser.SparklineCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSparklineCommand(EsqlBaseParser.SparklineCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterForkCommand(EsqlBaseParser.ForkCommandContext ctx) { }
   /**
    * {@inheritDoc}

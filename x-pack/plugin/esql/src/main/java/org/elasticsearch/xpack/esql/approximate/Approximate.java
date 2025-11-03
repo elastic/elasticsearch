@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -71,6 +73,9 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
@@ -79,6 +84,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -127,10 +133,6 @@ import java.util.stream.Collectors;
 public class Approximate {
 
     public record QueryProperties(boolean hasNonCountAllAgg, boolean preservesRows) {}
-
-    public interface LogicalPlanRunner {
-        void run(LogicalPlan plan, ActionListener<Result> listener);
-    }
 
     /**
      * These processing commands are supported.
@@ -236,27 +238,23 @@ public class Approximate {
 
     private final LogicalPlan logicalPlan;
     private final QueryProperties queryProperties;
-    private final LogicalPlanRunner runner;
+    private final EsqlSession.PlanRunner runner;
+    private final LogicalPlanOptimizer logicalPlanOptimizer;
+    private final Function<LogicalPlan, PhysicalPlan> toPhysicalPlan;
+    private final Configuration configuration;
+    private final FoldContext foldContext;
 
     private long sourceRowCount;
 
-    public Approximate(LogicalPlan logicalPlan, LogicalPlanRunner logicalPlanRunner) {
+
+    public Approximate(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, Function<LogicalPlan, PhysicalPlan> toPhysicalPlan, EsqlSession.PlanRunner runner, Configuration configuration, FoldContext foldContext) {
         this.logicalPlan = logicalPlan;
         this.queryProperties = verifyPlan(logicalPlan);
-        this.runner = logicalPlanRunner;
-    }
-
-    /**
-     * Computes approximate results for the logical plan.
-     */
-    public void approximate(ActionListener<Result> listener) {
-        if (queryProperties.hasNonCountAllAgg || queryProperties.preservesRows == false) {
-            runner.run(sourceCountPlan(), sourceCountListener(listener));
-        } else {
-            // Counting all rows is fast for queries that preserve all rows, as it's returned from
-            // Lucene's metadata. Approximation would only slow things down in this case.
-            runner.run(logicalPlan, listener);
-        }
+        this.logicalPlanOptimizer = logicalPlanOptimizer;
+        this.toPhysicalPlan = toPhysicalPlan;
+        this.runner = runner;
+        this.configuration = configuration;
+        this.foldContext = foldContext;
     }
 
     /**
@@ -332,6 +330,19 @@ public class Approximate {
     }
 
     /**
+     * Computes approximate results for the logical plan.
+     */
+    public void approximate(ActionListener<Result> listener) {
+        if (queryProperties.hasNonCountAllAgg || queryProperties.preservesRows == false) {
+            runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, sourceCountListener(listener));
+        } else {
+            // Counting all rows is fast for queries that preserve all rows, as it's returned from
+            // Lucene's metadata. Approximation would only slow things down in this case.
+            runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
+        }
+    }
+
+    /**
      * Plan that counts the number of rows in the source index.
      * This is the ES|QL query:
      * <pre>
@@ -351,7 +362,7 @@ public class Approximate {
         });
 
         sourceCountPlan.setPreOptimized();
-        return sourceCountPlan;
+        return logicalPlanOptimizer.optimize(sourceCountPlan);
     }
 
     /**
@@ -365,9 +376,9 @@ public class Approximate {
             logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
             double sampleProbability = sourceRowCount <= SAMPLE_ROW_COUNT ? 1.0 : (double) SAMPLE_ROW_COUNT / sourceRowCount;
             if (queryProperties.preservesRows || sampleProbability == 1.0) {
-                runner.run(approximatePlan(sampleProbability), listener);
+                runner.run(toPhysicalPlan.apply(approximatePlan(sampleProbability)), configuration, foldContext, listener);
             } else {
-                runner.run(countPlan(sampleProbability), countListener(sampleProbability, listener));
+                runner.run(toPhysicalPlan.apply(countPlan(sampleProbability)), configuration, foldContext, countListener(sampleProbability, listener));
             }
         });
     }
@@ -405,7 +416,7 @@ public class Approximate {
         });
 
         countPlan.setPreOptimized();
-        return countPlan;
+        return logicalPlanOptimizer.optimize(countPlan);
     }
 
     /**
@@ -420,9 +431,9 @@ public class Approximate {
             logger.debug("countPlan result (p={}): {} rows", sampleProbability, rowCount);
             double newSampleProbability = sampleProbability * SAMPLE_ROW_COUNT / Math.max(1, rowCount);
             if (rowCount <= SAMPLE_ROW_COUNT / 2 && newSampleProbability < 1.0) {
-                runner.run(countPlan(newSampleProbability), countListener(newSampleProbability, listener));
+                runner.run(toPhysicalPlan.apply(countPlan(newSampleProbability)), configuration, foldContext, countListener(newSampleProbability, listener));
             } else {
-                runner.run(approximatePlan(newSampleProbability), listener);
+                runner.run(toPhysicalPlan.apply(approximatePlan(newSampleProbability)), configuration, foldContext, listener);
             }
         });
     }
@@ -711,7 +722,7 @@ public class Approximate {
 
         logger.debug("approximate plan:\n{}", approximatePlan);
 
-        return approximatePlan;
+        return logicalPlanOptimizer.optimize(approximatePlan);
     }
 
     /**

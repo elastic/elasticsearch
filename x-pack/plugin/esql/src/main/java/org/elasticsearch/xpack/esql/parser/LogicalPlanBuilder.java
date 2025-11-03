@@ -1226,7 +1226,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
         Source source = source(ctx);
-        PromqlParams params = parse(ctx, source);
+        PromqlParams params = parsePromqlParams(ctx, source);
 
         // TODO: Perform type and value validation
         var queryCtx = ctx.promqlQueryPart();
@@ -1257,7 +1257,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return plan -> new PromqlCommand(source, plan, promqlPlan, params);
     }
 
-    private static PromqlParams parse(EsqlBaseParser.PromqlCommandContext ctx, Source source) {
+    private static PromqlParams parsePromqlParams(EsqlBaseParser.PromqlCommandContext ctx, Source source) {
         Instant time = null;
         Instant start = null;
         Instant end = null;

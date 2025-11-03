@@ -501,9 +501,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
   method: testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
   issue: https://github.com/elastic/elasticsearch/issues/137491
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/137512
+- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
+  method: testBasicCCRAndILMIntegration {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/137494
+- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
+  method: testCcrAndIlmWithRollover {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/137528
 
 # Examples:
 #

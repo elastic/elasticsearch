@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -38,7 +37,6 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -55,6 +53,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_ST
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
@@ -167,16 +166,21 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("LOOKUP JOIN after SORT not yet supported in CCS", testName.contains("OnTheCoordinator"));
 
         assumeFalse("FORK not yet supported with CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
+
+        // And convertToRemoteIndices does not generate correct queries with subqueries in the FROM command yet
+        assumeFalse(
+            "Subqueries in FROM command not yet supported in CCS",
+            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+        );
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
         if (remoteFeaturesService == null) {
             var remoteNodeVersions = readVersionsFromNodesInfo(remoteClusterClient());
-            var semanticNodeVersions = remoteNodeVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
-            remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteClusterClient()), semanticNodeVersions);
+            remoteFeaturesService = createTestFeatureService(
+                getClusterStateFeatures(remoteClusterClient()),
+                fromSemanticVersions(remoteNodeVersions)
+            );
         }
         return remoteFeaturesService;
     }
@@ -297,7 +301,15 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String first = commands[0].trim();
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
-        String[] commandParts = first.split("\\s+", 2);
+
+        // Split "SET a=b; FROM x" into "SET a=b" and "FROM x"
+        int lastSetDelimiterPosition = first.lastIndexOf(';');
+        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition + 1);
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition + 1);
+
+        // Split "FROM a, b, c" into "FROM" and "a, b, c"
+        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+
         String command = commandParts[0].trim();
         if (command.equalsIgnoreCase("from") || command.equalsIgnoreCase("ts")) {
             String[] indexMetadataParts = commandParts[1].split("(?i)\\bmetadata\\b", 2);
@@ -319,7 +331,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                     + remoteIndices
                     + " "
                     + (indexMetadataParts.length == 1 ? "" : "metadata " + indexMetadataParts[1]);
-                testCase.query = newFirstCommand + query.substring(first.length());
+                testCase.query = setStatements + newFirstCommand + query.substring(first.length());
             }
         }
 

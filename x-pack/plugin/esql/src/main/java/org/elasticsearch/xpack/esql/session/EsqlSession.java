@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.approximate.Approximate;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -205,7 +206,8 @@ public class EsqlSession {
             System.nanoTime(),
             request.allowPartialResults(),
             clusterSettings.timeseriesResultTruncationMaxSize(),
-            clusterSettings.timeseriesResultTruncationDefaultSize()
+            clusterSettings.timeseriesResultTruncationDefaultSize(),
+            true
         );
         FoldContext foldContext = configuration.newFoldContext();
 
@@ -355,13 +357,14 @@ public class EsqlSession {
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
         } else if (request.approximate()) {
-            Approximate.LogicalPlanRunner logicalPlanRunner = (p, l) -> runner.run(
-                logicalPlanToPhysicalPlan(optimizedPlan(p, logicalPlanOptimizer), request, physicalPlanOptimizer),
+            new Approximate(
+                optimizedPlan,
+                logicalPlanOptimizer,
+                p -> logicalPlanToPhysicalPlan(optimizedPlan(p, logicalPlanOptimizer), request, physicalPlanOptimizer),
+                runner,
                 configuration,
-                foldContext,
-                l
-            );
-            new Approximate(optimizedPlan, logicalPlanRunner).approximate(listener);
+                foldContext
+            ).approximate(listener);
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer);
             // execute main plan

@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 /**
- * {@link Expression} that can be "fused" into value loading. Most of the time
+ * {@link Expression} that can be "pushed" into value loading. Most of the time
  * we load values into {@link Block}s and then run the expressions on them, but
  * sometimes it's worth short-circuiting this process and running the expression
  * in the tight loop we use for loading:
@@ -37,6 +37,10 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  *     <li>
  *         {@code MV_COUNT(anything)} - counts are always integers.
  *     </li>
+ *     <li>
+ *         {@code MV_MIN} and {@code MV_MAX} - loads much fewer data for
+ *         multivalued fields.
+ *     </li>
  * </ul>
  */
 public interface BlockLoaderExpression {
@@ -45,12 +49,12 @@ public interface BlockLoaderExpression {
      * "fusing" the expression into the load. Or null if the fusion isn't possible.
      */
     @Nullable
-    FusedBlockLoaderExpression tryFuse(SearchStats stats);
+    PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats);
 
     /**
      * Expression "fused" to the block loader.
      * @param field the field whose load we're fusing into
      * @param config the expression's configuration
      */
-    record FusedBlockLoaderExpression(FieldAttribute field, BlockLoaderFunctionConfig config) {}
+    record PushedBlockLoaderExpression(FieldAttribute field, BlockLoaderFunctionConfig config) {}
 }

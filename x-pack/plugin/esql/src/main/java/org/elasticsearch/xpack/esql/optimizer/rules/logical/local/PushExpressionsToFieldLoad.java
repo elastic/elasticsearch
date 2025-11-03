@@ -37,9 +37,9 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * the similarity function during value loading, when one side of the function is a literal.
  * It also adds the new field function attribute to the EsRelation output, and adds a projection after it to remove it from the output.
  */
-public class FuseExpressionToFieldLoad extends OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LocalLogicalOptimizerContext> {
+public class PushExpressionsToFieldLoad extends OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LocalLogicalOptimizerContext> {
 
-    public FuseExpressionToFieldLoad() {
+    public PushExpressionsToFieldLoad() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
@@ -49,7 +49,7 @@ public class FuseExpressionToFieldLoad extends OptimizerRules.ParameterizedOptim
             Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
             LogicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
                 if (e instanceof BlockLoaderExpression ble) {
-                    BlockLoaderExpression.FusedBlockLoaderExpression fuse = ble.tryFuse(context.searchStats());
+                    BlockLoaderExpression.PushedBlockLoaderExpression fuse = ble.tryPushToFieldLoading(context.searchStats());
                     if (fuse != null) {
                         return replaceFieldsForFieldTransformations(e, addedAttrs, fuse);
                     }
@@ -85,7 +85,7 @@ public class FuseExpressionToFieldLoad extends OptimizerRules.ParameterizedOptim
     private static Expression replaceFieldsForFieldTransformations(
         Expression e,
         Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs,
-        BlockLoaderExpression.FusedBlockLoaderExpression fuse
+        BlockLoaderExpression.PushedBlockLoaderExpression fuse
     ) {
         // Change the similarity function to a reference of a transformation on the field
         FunctionEsField functionEsField = new FunctionEsField(fuse.field().field(), e.dataType(), fuse.config());

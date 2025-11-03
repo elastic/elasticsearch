@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.FuseExpressionToFieldLoad;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
@@ -71,7 +71,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             )
         );
         if (EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled()) {
-            rules.add(new FuseExpressionToFieldLoad());
+            rules.add(new PushExpressionsToFieldLoad());
         }
 
         return new Batch<>("Local rewrite", Limiter.ONCE, rules.toArray(Rule[]::new));

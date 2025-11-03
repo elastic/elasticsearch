@@ -208,7 +208,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     }
 
     @Override
-    public final FusedBlockLoaderExpression tryFuse(SearchStats stats) {
+    public final PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
         // Bail if we're not directly comparing a field with a literal.
         Literal literal;
         FieldAttribute field;
@@ -233,7 +233,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
             vectorArray[i] = ((Number) vectorList.get(i)).floatValue();
         }
 
-        return new FusedBlockLoaderExpression(
+        return new PushedBlockLoaderExpression(
             field,
             new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vectorArray)
         );

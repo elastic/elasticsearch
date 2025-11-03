@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -30,8 +29,6 @@ public final class MvContainsBooleanEvaluator implements EvalOperator.Expression
   private final EvalOperator.ExpressionEvaluator subset;
 
   private final DriverContext driverContext;
-
-  private Warnings warnings;
 
   public MvContainsBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator superset,
       EvalOperator.ExpressionEvaluator subset, DriverContext driverContext) {
@@ -76,18 +73,6 @@ public final class MvContainsBooleanEvaluator implements EvalOperator.Expression
   @Override
   public void close() {
     Releasables.closeExpectNoException(superset, subset);
-  }
-
-  private Warnings warnings() {
-    if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
-    }
-    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

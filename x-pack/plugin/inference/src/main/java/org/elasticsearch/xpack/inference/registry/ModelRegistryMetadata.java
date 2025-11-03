@@ -169,11 +169,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         this.serviceToInferenceEndpointIds = buildServiceToInferenceEndpointIdsMap(modelMap);
     }
 
-    private ModelRegistryMetadata(
-        ImmutableOpenMap<String, MinimalServiceSettings> modelMap,
-        Set<String> tombstones,
-        boolean isUpgraded
-    ) {
+    private ModelRegistryMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap, Set<String> tombstones, boolean isUpgraded) {
         this.isUpgraded = isUpgraded;
         this.modelMap = modelMap;
         this.tombstones = tombstones;

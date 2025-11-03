@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-public class Drop extends UnaryPlan implements TelemetryAware, Streaming, SortAgnostic {
+public class Drop extends UnaryPlan implements TelemetryAware, Streaming {
     private final List<NamedExpression> removals;
 
     public Drop(Source source, LogicalPlan child, List<NamedExpression> removals) {

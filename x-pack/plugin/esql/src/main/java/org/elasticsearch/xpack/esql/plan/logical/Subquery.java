@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic {
+public class Subquery extends UnaryPlan implements TelemetryAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Subquery", Subquery::new);
 
     // subquery alias/qualifier could be added in the future if needed

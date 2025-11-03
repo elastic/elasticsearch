@@ -44,7 +44,7 @@ public abstract class BigCountTests extends TDigestTestCase {
         for (int compression : new int[] { 100, 500, 1000, 10000 }) {
             try (TDigest digest = createDigest(compression)) {
                 addData(digest);
-                assertThat("Too big, dude!", digest.centroidCount(), lessThanOrEqualTo(compression * 10));
+                assertThat("Compression = " + compression, digest.centroidCount(), lessThanOrEqualTo(compression * 10));
             }
         }
     }

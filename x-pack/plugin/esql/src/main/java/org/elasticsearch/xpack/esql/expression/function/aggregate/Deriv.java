@@ -43,12 +43,12 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
     }
 
     public Deriv(Source source, Expression field, Expression timestamp) {
-        super(source, field, Literal.TRUE, List.of(timestamp));
+        super(source, field, Literal.TRUE, NO_WINDOW, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
     public Deriv(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+        super(source, field, filter, NO_WINDOW, List.of(timestamp));
         this.timestamp = timestamp;
     }
 

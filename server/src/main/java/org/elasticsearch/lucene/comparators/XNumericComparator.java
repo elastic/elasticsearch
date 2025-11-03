@@ -317,8 +317,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         // helps to be conservative about increasing the sampling interval
         private int tryUpdateFailCount = 0;
 
-        @SuppressWarnings("checkstyle:RedundantModifier")
-        public PointsCompetitiveDISIBuilder(PointValues pointValues, NumericLeafComparator comparator) {
+        PointsCompetitiveDISIBuilder(PointValues pointValues, NumericLeafComparator comparator) throws IOException {
             super(comparator);
             LeafReaderContext context = comparator.context;
             FieldInfo info = context.reader().getFieldInfos().fieldInfo(field);
@@ -342,6 +341,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
                         + bytesCount);
             }
             this.pointValues = pointValues;
+            postInitializeCompetitiveIterator();
         }
 
         @Override
@@ -360,6 +360,25 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         @Override
         protected int docCount() {
             return pointValues.getDocCount();
+        }
+
+        /**
+         * If queue is full and global min/max point values are not competitive with bottom then set an
+         * empty iterator as competitive iterator.
+         *
+         * @throws IOException i/o exception while fetching min and max values from point values
+         */
+        void postInitializeCompetitiveIterator() throws IOException {
+            if (queueFull) {
+                long bottom = leafComparator.bottomAsComparableLong();
+                long minValue = sortableBytesToLong(pointValues.getMinPackedValue());
+                long maxValue = sortableBytesToLong(pointValues.getMaxPackedValue());
+                if (reverse == false && bottom < minValue) {
+                    competitiveIterator.update(DocIdSetIterator.empty());
+                } else if (reverse && bottom > maxValue) {
+                    competitiveIterator.update(DocIdSetIterator.empty());
+                }
+            }
         }
 
         @Override
@@ -476,8 +495,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         private final DocValuesSkipper skipper;
         private final TwoPhaseIterator innerTwoPhase;
 
-        @SuppressWarnings("checkstyle:RedundantModifier")
-        public DVSkipperCompetitiveDISIBuilder(
+        DVSkipperCompetitiveDISIBuilder(
             DocValuesSkipper skipper, NumericLeafComparator leafComparator) throws IOException {
             super(leafComparator);
             this.skipper = skipper;
@@ -496,11 +514,27 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
                         return 2; // 2 comparisons
                     }
                 };
+            postInitializeCompetitiveIterator();
         }
 
         @Override
         protected int docCount() {
             return skipper.docCount();
+        }
+
+        /**
+         * If queue is full and global min/max skipper are not competitive with bottom then set an empty
+         * iterator as competitive iterator.
+         */
+        void postInitializeCompetitiveIterator() {
+            if (queueFull) {
+                long bottom = leafComparator.bottomAsComparableLong();
+                if (reverse == false && bottom < skipper.minValue()) {
+                    competitiveIterator.update(DocIdSetIterator.empty());
+                } else if (reverse && bottom > skipper.maxValue()) {
+                    competitiveIterator.update(DocIdSetIterator.empty());
+                }
+            }
         }
 
         @Override

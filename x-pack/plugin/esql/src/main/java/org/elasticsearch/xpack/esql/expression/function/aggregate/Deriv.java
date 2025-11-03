@@ -43,18 +43,18 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
     }
 
     public Deriv(Source source, Expression field, Expression timestamp) {
-        super(source, field, Literal.TRUE, NO_WINDOW, List.of(timestamp));
-        this.timestamp = timestamp;
+        this(source, field, Literal.TRUE, timestamp, NO_WINDOW);
     }
 
-    public Deriv(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, NO_WINDOW, List.of(timestamp));
+    public Deriv(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
     private Deriv(org.elasticsearch.common.io.stream.StreamInput in) throws java.io.IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class)
@@ -68,7 +68,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Deriv(source(), field(), filter, timestamp);
+        return new Deriv(source(), field(), filter, timestamp, window());
     }
 
     @Override
@@ -78,17 +78,19 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() == 3) {
-            return new Deriv(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        if (newChildren.size() == 4) {
+            return new Deriv(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        } else if (newChildren.size() == 3) {
+            return new Deriv(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), timestamp);
         } else {
-            assert newChildren.size() == 2;
+            assert newChildren.size() == 2 : "Expected 2, 3, 4 children but got " + newChildren.size();
             return new Deriv(source(), newChildren.get(0), newChildren.get(1));
         }
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Deriv::new, field(), filter(), timestamp);
+        return NodeInfo.create(this, Deriv::new, field(), filter(), window(), timestamp);
     }
 
     @Override

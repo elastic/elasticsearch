@@ -43,10 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.initCrossClusterState;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -666,34 +663,90 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     }
 
     public void testInitCrossClusterState() {
-        final TestIndicesExpressionGrouper indicesGrouper = new TestIndicesExpressionGrouper();
+        // local only
+        {
+            var local = new EsqlExecutionInfo(true);
 
+            EsqlCCSUtils.initCrossClusterInfo(
+                new TestIndicesExpressionGrouper(),
+                createLicenseState(null),
+                new IndexPattern(null, "index-1,index-2,index-*"),
+                local
+            );
+
+            assertThat(local.isCrossClusterSearch(), equalTo(false));
+            assertThat(local.getCluster(LOCAL_CLUSTER_ALIAS).getIndexExpression(), equalTo("index-1,index-2,index-*"));
+        }
+
+        // remote only
+        {
+            var remote = new EsqlExecutionInfo(true);
+
+            EsqlCCSUtils.initCrossClusterInfo(
+                new TestIndicesExpressionGrouper(),
+                createLicenseState(null),
+                new IndexPattern(null, "r1:index-1,r2:index-2,r3:index-*"),
+                remote
+            );
+
+            assertThat(remote.isCrossClusterSearch(), equalTo(true));
+            assertThat(remote.clusterAliases(), containsInAnyOrder("r1", "r2", "r3"));
+            assertThat(remote.getCluster("r1").getIndexExpression(), equalTo("index-1"));
+            assertThat(remote.getCluster("r2").getIndexExpression(), equalTo("index-2"));
+            assertThat(remote.getCluster("r3").getIndexExpression(), equalTo("index-*"));
+        }
+
+        // local and remote
+        {
+            var remoteAndLocal = new EsqlExecutionInfo(true);
+
+            EsqlCCSUtils.initCrossClusterInfo(
+                new TestIndicesExpressionGrouper(),
+                createLicenseState(null),
+                new IndexPattern(null, "r1:index-1,r2:index-2,index-*"),
+                remoteAndLocal
+            );
+
+            assertThat(remoteAndLocal.isCrossClusterSearch(), equalTo(true));
+            assertThat(remoteAndLocal.clusterAliases(), containsInAnyOrder(LOCAL_CLUSTER_ALIAS, "r1", "r2"));
+            assertThat(remoteAndLocal.getCluster(LOCAL_CLUSTER_ALIAS).getIndexExpression(), equalTo("index-*"));
+            assertThat(remoteAndLocal.getCluster("r1").getIndexExpression(), equalTo("index-1"));
+            assertThat(remoteAndLocal.getCluster("r2").getIndexExpression(), equalTo("index-2"));
+        }
+    }
+
+    public void testCheckLicense() {
         // local only search works with any license state
         {
-            var localOnly = new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*"));
+            var localOnly = new EsqlExecutionInfo(true);
+            localOnly.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "idx", true));
 
-            assertLicenseCheckPasses(indicesGrouper, null, localOnly, "");
+            assertLicenseCheckPasses(localOnly, null);
             for (var mode : License.OperationMode.values()) {
-                assertLicenseCheckPasses(indicesGrouper, activeLicenseStatus(mode), localOnly, "");
-                assertLicenseCheckPasses(indicesGrouper, inactiveLicenseStatus(mode), localOnly, "");
+                assertLicenseCheckPasses(localOnly, activeLicenseStatus(mode));
+                assertLicenseCheckPasses(localOnly, inactiveLicenseStatus(mode));
             }
         }
 
         // cross-cluster search requires a valid (active, non-expired) enterprise license OR a valid trial license
         {
-            var remote = new IndexPattern(EMPTY, randomFrom("idx,remote:idx", "idx1,remote:idx2*,remote:logs"));
+            var remote = new EsqlExecutionInfo(true);
+            if (randomBoolean()) {
+                remote.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "idx", true));
+            }
+            remote.swapCluster("remote", (k, v) -> new EsqlExecutionInfo.Cluster("remote", "idx", true));
 
             var supportedLicenses = EnumSet.of(License.OperationMode.TRIAL, License.OperationMode.ENTERPRISE);
             var unsupportedLicenses = EnumSet.complementOf(supportedLicenses);
 
-            assertLicenseCheckFails(indicesGrouper, null, remote, "none");
+            assertLicenseCheckFails(remote, null, "none");
             for (var mode : supportedLicenses) {
-                assertLicenseCheckPasses(indicesGrouper, activeLicenseStatus(mode), remote, "", "remote");
-                assertLicenseCheckFails(indicesGrouper, inactiveLicenseStatus(mode), remote, "expired " + nameOf(mode) + " license");
+                assertLicenseCheckPasses(remote, activeLicenseStatus(mode));
+                assertLicenseCheckFails(remote, inactiveLicenseStatus(mode), "expired " + nameOf(mode) + " license");
             }
             for (var mode : unsupportedLicenses) {
-                assertLicenseCheckFails(indicesGrouper, activeLicenseStatus(mode), remote, "active " + nameOf(mode) + " license");
-                assertLicenseCheckFails(indicesGrouper, inactiveLicenseStatus(mode), remote, "expired " + nameOf(mode) + " license");
+                assertLicenseCheckFails(remote, activeLicenseStatus(mode), "active " + nameOf(mode) + " license");
+                assertLicenseCheckFails(remote, inactiveLicenseStatus(mode), "expired " + nameOf(mode) + " license");
             }
         }
     }
@@ -706,21 +759,13 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         return status != null ? new XPackLicenseState(System::currentTimeMillis, status) : null;
     }
 
-    private void assertLicenseCheckPasses(
-        TestIndicesExpressionGrouper indicesGrouper,
-        XPackLicenseStatus status,
-        IndexPattern pattern,
-        String... expectedRemotes
-    ) {
-        var executionInfo = new EsqlExecutionInfo(true);
-        initCrossClusterState(indicesGrouper, createLicenseState(status), Set.of(pattern), executionInfo);
-        assertThat(executionInfo.clusterAliases(), containsInAnyOrder(expectedRemotes));
+    private void assertLicenseCheckPasses(EsqlExecutionInfo executionInfo, XPackLicenseStatus licenseStatus) {
+        EsqlCCSUtils.checkLicense(executionInfo, createLicenseState(licenseStatus));
     }
 
     private void assertLicenseCheckFails(
-        TestIndicesExpressionGrouper indicesGrouper,
+        EsqlExecutionInfo executionInfo,
         XPackLicenseStatus licenseStatus,
-        IndexPattern pattern,
         String expectedErrorMessageSuffix
     ) {
         ElasticsearchStatusException e = expectThrows(
@@ -728,7 +773,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             equalTo(
                 "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
             ),
-            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), Set.of(pattern), new EsqlExecutionInfo(true))
+            () -> EsqlCCSUtils.checkLicense(executionInfo, createLicenseState(licenseStatus))
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
@@ -745,32 +790,34 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         @Override
         public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions, boolean returnLocalAll) {
             final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-            final String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-
             for (String expr : indexExpressions) {
                 assertFalse(Strings.isNullOrBlank(expr));
                 String[] split = expr.split(":", 2);
                 assertTrue("Bad index expression: " + expr, split.length < 3);
                 String clusterAlias;
-                String indexExpr;
+                String indexExpression;
                 if (split.length == 1) {
-                    clusterAlias = localKey;
-                    indexExpr = expr;
+                    clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+                    indexExpression = expr;
                 } else {
                     clusterAlias = split[0];
-                    indexExpr = split[1];
-
+                    indexExpression = split[1];
                 }
-                OriginalIndices currIndices = originalIndicesMap.get(clusterAlias);
-                if (currIndices == null) {
-                    originalIndicesMap.put(clusterAlias, new OriginalIndices(new String[] { indexExpr }, indicesOptions));
-                } else {
-                    List<String> indicesList = Arrays.stream(currIndices.indices()).collect(Collectors.toList());
-                    indicesList.add(indexExpr);
-                    originalIndicesMap.put(clusterAlias, new OriginalIndices(indicesList.toArray(new String[0]), indicesOptions));
-                }
+                assertFalse("* remote cluster resolution is not supported in test: " + expr, clusterAlias.contains("*"));
+                originalIndicesMap.compute(
+                    clusterAlias,
+                    (key, indices) -> indices == null
+                        ? new OriginalIndices(new String[] { indexExpression }, indicesOptions)
+                        : new OriginalIndices(append(indices.indices(), indexExpression), indicesOptions)
+                );
             }
             return originalIndicesMap;
+        }
+
+        private static String[] append(String[] original, String additional) {
+            var copy = Arrays.copyOf(original, original.length + 1);
+            copy[copy.length - 1] = additional;
+            return copy;
         }
     }
 }

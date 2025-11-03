@@ -500,7 +500,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             Settings templateSettings = mergedTemplate.template().settings();
             String indexModeSettingName = IndexSettings.MODE.getKey();
             if (templateSettings != null
-                && Objects.equals(mapperService.getIndexSettings().getMode(), templateSettings.get(indexModeSettingName)) == false) {
+                && Objects.equals(
+                    mapperService.getIndexSettings().getMode().getName(),
+                    templateSettings.get(indexModeSettingName)
+                ) == false) {
                 /*
                  * It is possible that someone has changed the index mode in the template, but the data stream has not been rolled over yet.
                  * This mapperService is for the write index, which still has the old index mode in its index settings. This only matters
@@ -510,6 +513,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 IndexMetadata oldIndexMetadata = indexService.getMetadata();
                 Settings.Builder settingsBuilder = Settings.builder().put(oldIndexMetadata.getSettings());
                 settingsBuilder.put(indexModeSettingName, templateSettings.get(indexModeSettingName));
+
                 String indexRoutingPathSettingName = IndexMetadata.INDEX_ROUTING_PATH.getKey();
                 settingsBuilder.put(indexRoutingPathSettingName, templateSettings.get(indexRoutingPathSettingName));
                 IndexMetadata newIndexMetadata = new IndexMetadata.Builder(oldIndexMetadata).settings(settingsBuilder.build()).build();

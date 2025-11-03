@@ -504,6 +504,9 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
   method: testUpdates
   issue: https://github.com/elastic/elasticsearch/issues/137512
+- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
+  method: testBasicCCRAndILMIntegration {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/137494
 
 # Examples:
 #

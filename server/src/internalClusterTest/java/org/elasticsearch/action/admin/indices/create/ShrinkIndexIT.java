@@ -129,7 +129,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         );
         ensureGreen();
         // now merge source into a 2 shard index
-
         assertAcked(
             executeResize(
                 ResizeType.SHRINK,

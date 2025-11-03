@@ -28,6 +28,7 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankMode
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.validation.NvidiaServiceIntegrationValidator;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -420,11 +422,9 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
                 );
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                            """
-                                The name of the model to use for the inference task. Refer to the \
-                                Nvidia models documentation for the list of available models."""
-                    )
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("""
+                        The name of the model to use for the inference task. Refer to the \
+                        Nvidia models documentation for the list of available models.""")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -442,5 +442,15 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
                     .build();
             }
         );
+    }
+
+    @Override
+    public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
+        // Nvidia text embedding models require validation using the task settings' input type
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            return new NvidiaServiceIntegrationValidator();
+        }
+
+        return null;
     }
 }

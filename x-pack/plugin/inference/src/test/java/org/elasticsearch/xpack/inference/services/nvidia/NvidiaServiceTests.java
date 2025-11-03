@@ -301,11 +301,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    createServiceSettingsMap(TEXT_EMBEDDING),
-                    null,
-                    getSecretSettingsMap("secret")
-                ),
+                getRequestConfigMap(createServiceSettingsMap(TEXT_EMBEDDING), null, getSecretSettingsMap("secret")),
                 modelVerificationActionListener
             );
         }
@@ -336,7 +332,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(buildServiceSettingsMap(null, url, null, null,null,null), getSecretSettingsMap(secret)),
+                getRequestConfigMap(buildServiceSettingsMap(null, url, null, null, null, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -619,7 +615,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Configuration contains settings [{extra_key=value}] unknown to the [openshift_ai] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [nvidia] service")
                     );
                 }
             );
@@ -852,7 +848,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(2800));
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(300));
     }
 
 }

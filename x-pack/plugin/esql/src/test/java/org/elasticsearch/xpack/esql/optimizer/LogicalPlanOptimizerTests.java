@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -212,45 +213,23 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
-
     public void testPruneColumnsWhenFork() {
         var query = """
-                FROM employees
-                | KEEP first_name
-                | EVAL x = 1.0
-                | DROP x
+                ROW x = [1, 2, 3, 4, 5]
+                | MV_EXPAND x
+                | EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
+                | STATS avg1 = AVG(x) WHERE x <= 3,
+                    avg2 = AVG(x),
+                    avg3 = AVG(agg_metric) WHERE x <=3,
+                    avg4 = AVG(agg_metric)
+                 | FORK (WHERE true) (WHERE true) | WHERE _fork == "fork1" | DROP _fork
             """;
-//        var plan = plan(query);
-
-        var query2 = """
-            FROM employees
-            | KEEP first_name
-            | EVAL x = 1.0
-            | DROP x
-            | FORK (WHERE true) (WHERE true)
-            | WHERE _fork == "fork1"
-            | DROP _fork
-            """;
-//        var plan2 = plan(query2);
-
-        var query3 = """
-            FROM employees
-            | EVAL z = 1
-            | WHERE z == 1
-            | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | WHERE z - 1 == 0)
-                   (WHERE emp_no == 10081 OR emp_no == 10087 | EVAL a = "x" )
-                   (STATS x = COUNT(*), y = MAX(emp_no), z = MIN(emp_no) | EVAL a = "y" )
-                   (STATS x = COUNT(*), y = MIN(emp_no))
-            | WHERE _fork == "fork2" OR a == "y"
-            | KEEP _fork, emp_no, x, y, z
-            | SORT _fork, emp_no
-            """;
-        var plan3 = plan(query3);
-        assertEquals(query, query2);
+        var plan = plan(query);
+        assertNotNull(plan);
     }
 
     public void testEvalWithScoreImplicitLimit() {
@@ -278,7 +257,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields().size(), equalTo(1));
         assertThat(eval.fields().get(0).child(), instanceOf(Score.class));
->>>>>>> origin/main
     }
 
     public void testEmptyProjections() {

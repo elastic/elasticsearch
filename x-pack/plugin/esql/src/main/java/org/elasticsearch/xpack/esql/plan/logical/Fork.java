@@ -175,7 +175,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         }
         Fork other = (Fork) o;
 
-        return Objects.equals(children(), other.children());
+        return output.equals(other.output) && Objects.equals(children(), other.children());
     }
 
     @Override

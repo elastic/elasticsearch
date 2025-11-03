@@ -19,9 +19,13 @@ To use the `downsample` action in the `hot` phase, the `rollover` action **must*
 
 `fixed_interval`
 :   (Required, string) The [fixed time interval](docs-content://manage-data/lifecycle/rollup/understanding-groups.md#rollup-understanding-group-intervals) into which the data will be downsampled.
+
 `force_merge_index` {applies_to}`stack: ga 9.3`
 :   (Optional, boolean) When true, the downsampled index will be [force merged](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) to one [segment](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-segments). Defaults to `true`.
 
+`sampling_method` {applies_to}`stack: ga 9.3`
+:   (Optional, string) The sampling method that will be used to sample metrics; there are two methods available `aggregate` and
+the `last_value`. Defaults to `aggregate`.
 
 ## Example [ilm-downsample-ex]
 

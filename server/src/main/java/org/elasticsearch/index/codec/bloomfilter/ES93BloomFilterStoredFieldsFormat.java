@@ -114,7 +114,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
                     + " or less (rounded to nearest power of two)"
             );
         }
-        this.bloomFilterSizeInBits = (int) Math.multiplyExact(closestPowerOfTwoBloomFilterSizeInBytes, Byte.SIZE);
+        this.bloomFilterSizeInBits = Math.toIntExact(Math.multiplyExact(closestPowerOfTwoBloomFilterSizeInBytes, Byte.SIZE));
     }
 
     @Override

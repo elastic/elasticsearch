@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
  * The BoostingQuery class can be used to effectively demote results that match a given query.

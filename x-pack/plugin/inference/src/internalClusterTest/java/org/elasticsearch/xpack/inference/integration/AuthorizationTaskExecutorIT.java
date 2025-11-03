@@ -237,7 +237,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
             {
                 "models": [
                     {
-                      "model_name": "multilingual-embed-v1",
+                      "model_name": "jina-embeddings-v3",
                       "task_types": ["embed/text/dense"]
                     }
                 ]

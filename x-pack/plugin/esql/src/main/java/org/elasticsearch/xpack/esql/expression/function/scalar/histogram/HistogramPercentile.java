@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -31,6 +32,11 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * Extracts a percentile value from a single histogram value.
+ * Note that this function is currently only intended for usage in surrogates and not available as a user-facing function.
+ * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
+ */
 public class HistogramPercentile extends EsqlScalarFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -63,6 +69,14 @@ public class HistogramPercentile extends EsqlScalarFunction {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
+    Expression histogram() {
+        return histogram;
+    }
+
+    Expression percentile() {
+        return percentile;
+    }
+
     @Override
     protected TypeResolution resolveType() {
         return isType(
@@ -90,6 +104,11 @@ public class HistogramPercentile extends EsqlScalarFunction {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new HistogramPercentile(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public boolean foldable() {
+        return histogram.foldable() && percentile.foldable();
     }
 
     @Override

@@ -2910,34 +2910,35 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             return List.of();
                         }
                         try {
-                            if (sourceValue instanceof List<?> v) {
-                                for (Object o : v) {
-                                    values.add(NumberFieldMapper.NumberType.FLOAT.parse(o, false));
-                                }
-                            } else if (sourceValue instanceof String s) {
-                                if ((element.elementType() == BYTE_ELEMENT.elementType()
-                                    || element.elementType() == BIT_ELEMENT.elementType())
-                                    && s.length() == dims * 2
-                                    && ByteElement.isMaybeHexString(s)) {
-                                    byte[] bytes;
-                                    try {
-                                        bytes = HexFormat.of().parseHex(s);
-                                    } catch (IllegalArgumentException e) {
-                                        bytes = Base64.getDecoder().decode(s);
-                                    }
-                                    for (byte b : bytes) {
-                                        values.add((float) b);
-                                    }
-                                } else {
-                                    byte[] floatBytes = Base64.getDecoder().decode(s);
-                                    float[] floats = new float[dims];
-                                    ByteBuffer.wrap(floatBytes).asFloatBuffer().get(floats);
-                                    for (float f : floats) {
-                                        values.add(f);
+                            switch (sourceValue) {
+                                case List<?> v -> {
+                                    for (Object o : v) {
+                                        values.add(NumberFieldMapper.NumberType.FLOAT.parse(o, false));
                                     }
                                 }
-                            } else {
-                                ignoredValues.add(sourceValue);
+                                case String s -> {
+                                    if ((element.elementType() == ElementType.BYTE || element.elementType() == ElementType.BIT)
+                                        && s.length() == dims * 2
+                                        && ByteElement.isMaybeHexString(s)) {
+                                        byte[] bytes;
+                                        try {
+                                            bytes = HexFormat.of().parseHex(s);
+                                        } catch (IllegalArgumentException e) {
+                                            bytes = Base64.getDecoder().decode(s);
+                                        }
+                                        for (byte b : bytes) {
+                                            values.add((float) b);
+                                        }
+                                    } else {
+                                        byte[] floatBytes = Base64.getDecoder().decode(s);
+                                        float[] floats = new float[dims];
+                                        ByteBuffer.wrap(floatBytes).asFloatBuffer().get(floats);
+                                        for (float f : floats) {
+                                            values.add(f);
+                                        }
+                                    }
+                                }
+                                default -> ignoredValues.add(sourceValue);
                             }
                         } catch (Exception e) {
                             // if parsing fails here then it would have failed at index time

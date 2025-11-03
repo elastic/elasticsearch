@@ -171,7 +171,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
      * This enables automatic selection of EIS for better performance while maintaining compatibility with on-prem deployments.
      */
     private static String getPreferredElserInferenceId(ModelRegistry modelRegistry) {
-        if (modelRegistry != null && modelRegistry.containsDefaultConfigId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
+        if (modelRegistry != null && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
             return DEFAULT_EIS_ELSER_INFERENCE_ID;
         }
         return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;

@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,6 +94,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -150,8 +152,7 @@ public class ModelRegistry implements ClusterStateListener {
     private final AtomicBoolean upgradeMetadataInProgress = new AtomicBoolean(false);
     private final Set<String> preventDeletionLock = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final ClusterService clusterService;
-
-    private volatile Metadata lastMetadata;
+    private final AtomicReference<Metadata> lastMetadata = new AtomicReference<>();
 
     public ModelRegistry(ClusterService clusterService, Client client) {
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -170,13 +171,24 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     /**
-     * Returns true if the provided inference entity id is the same as one of the default
-     * endpoints ids.
+     * Returns true if the model registry contains (whether it has persisted it or not) the provided inference entity id.
+     * EIS preconfigured endpoints are also considered.
      * @param inferenceEntityId the id to search for
      * @return true if we find a match and false if not
      */
-    public boolean containsDefaultConfigId(String inferenceEntityId) {
-        return defaultConfigIds.containsKey(inferenceEntityId);
+    public boolean containsPreconfiguredInferenceEndpointId(String inferenceEntityId) {
+        if (defaultConfigIds.containsKey(inferenceEntityId)) {
+            return true;
+        }
+
+        if (lastMetadata.get() != null) {
+            var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
+            var state = ModelRegistryMetadata.fromState(project);
+            var eisPreconfiguredEndpoints = state.getServiceInferenceIds(ElasticInferenceService.NAME);
+            return eisPreconfiguredEndpoints.contains(inferenceEntityId);
+        }
+
+        return false;
     }
 
     /**
@@ -229,16 +241,15 @@ public class ModelRegistry implements ClusterStateListener {
      * @throws ResourceNotFoundException if the specified id is guaranteed to not exist in the cluster.
      */
     public MinimalServiceSettings getMinimalServiceSettings(String inferenceEntityId) throws ResourceNotFoundException {
-        synchronized (this) {
-            if (lastMetadata == null) {
-                throw new IllegalStateException("initial cluster state not set yet");
-            }
+        if (lastMetadata.get() == null) {
+            throw new IllegalStateException("initial cluster state not set yet");
         }
+
         var config = defaultConfigIds.get(inferenceEntityId);
         if (config != null) {
             return config.settings();
         }
-        var project = lastMetadata.getProject(ProjectId.DEFAULT);
+        var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
         var state = ModelRegistryMetadata.fromState(project);
         var existing = state.getMinimalServiceSettings(inferenceEntityId);
         if (state.isUpgraded() && existing == null) {
@@ -248,14 +259,14 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     public Set<String> getInferenceIds() {
-        synchronized (this) {
-            if (lastMetadata == null) {
-                throw new IllegalStateException("initial cluster state not set yet");
-            }
+        Set<String> metadataInferenceIds = Set.of();
+        if (lastMetadata.get() != null) {
+            var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
+            var state = ModelRegistryMetadata.fromState(project);
+            metadataInferenceIds = state.getInferenceIds();
         }
-        var project = lastMetadata.getProject(ProjectId.DEFAULT);
-        var state = ModelRegistryMetadata.fromState(project);
-        var ids = new HashSet<>(state.getInferenceIds());
+
+        var ids = new HashSet<>(metadataInferenceIds);
         ids.addAll(Set.copyOf(defaultConfigIds.keySet()));
         return ids;
     }
@@ -953,10 +964,8 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     public boolean isReady() {
-        synchronized (this) {
-            if (lastMetadata == null) {
-                return false;
-            }
+        if (lastMetadata.get() == null) {
+            return false;
         }
 
         return clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false;
@@ -1153,11 +1162,9 @@ public class ModelRegistry implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (lastMetadata == null || event.metadataChanged()) {
+        if (lastMetadata.get() == null || event.metadataChanged()) {
             // keep track of the last applied cluster state
-            synchronized (this) {
-                lastMetadata = event.state().metadata();
-            }
+            lastMetadata.set(event.state().metadata());
         }
 
         if (event.localNodeMaster() == false) {

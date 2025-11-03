@@ -133,6 +133,10 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         var eisEndpoints = getEisEndpoints();
         assertThat(eisEndpoints, empty());
+
+        for (String eisPreconfiguredEndpoints : InternalPreconfiguredEndpoints.EIS_PRECONFIGURED_ENDPOINT_IDS) {
+            assertFalse(modelRegistry.containsPreconfiguredInferenceEndpointId(eisPreconfiguredEndpoints));
+        }
     }
 
     public static TaskInfo waitForTask(String taskAction, AdminClient adminClient) throws Exception {
@@ -203,6 +207,9 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         var rainbowSprinklesModel = eisEndpoints.get(0);
         assertChatCompletionUnparsedModel(rainbowSprinklesModel);
+        assertTrue(
+            modelRegistry.containsPreconfiguredInferenceEndpointId(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1)
+        );
     }
 
     private void assertChatCompletionUnparsedModel(UnparsedModel rainbowSprinklesModel) {

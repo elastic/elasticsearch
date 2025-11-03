@@ -224,7 +224,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     }
 
     private boolean isInferenceIdReserved(String inferenceEndpointId) {
-        return modelRegistry.containsDefaultConfigId(inferenceEndpointId);
+        return modelRegistry.containsPreconfiguredInferenceEndpointId(inferenceEndpointId);
     }
 
     private static String buildErrorString(String inferenceEndpointId, Set<String> pipelines, Set<String> indexes) {

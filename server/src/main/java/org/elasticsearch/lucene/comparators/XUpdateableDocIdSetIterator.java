@@ -70,4 +70,3 @@ public final class XUpdateableDocIdSetIterator extends AbstractDocIdSetIterator 
         }
     }
 }
-

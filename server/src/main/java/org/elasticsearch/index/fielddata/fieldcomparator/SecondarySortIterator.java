@@ -90,7 +90,7 @@ class SecondarySortIterator extends DocIdSetIterator {
                     int upTo = valueFieldUpTo;
                     if (maxValue < this.minValue) {
                         // We've moved past the end of the valid values in the secondary sort field
-                        // for this primary value.  Advance the primary skipper to find the starting point
+                        // for this primary value. Advance the primary skipper to find the starting point
                         // for the next primary value, where the secondary field values will have reset
                         primaryFieldSkipper.advance(target);
                         primaryFieldUpTo = primaryFieldSkipper.maxDocID(0);

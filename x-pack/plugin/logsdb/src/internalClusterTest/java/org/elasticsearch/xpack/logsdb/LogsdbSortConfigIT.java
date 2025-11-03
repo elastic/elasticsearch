@@ -214,9 +214,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         assertOrder(backingIndex, orderedDocs);
 
         SearchRequest searchRequest = new SearchRequest(dataStreamName);
-        searchRequest.source().sort("@timestamp", SortOrder.DESC).query(
-            new TermQueryBuilder("host.name", "aaa")
-        );
+        searchRequest.source().sort("@timestamp", SortOrder.DESC).query(new TermQueryBuilder("host.name", "aaa"));
         var response = client().search(searchRequest).get();
         assertEquals(4, response.getHits().getHits().length);
         response.decRef();

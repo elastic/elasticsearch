@@ -162,7 +162,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     }
 
     @SuppressForbidden(reason = "fixtures use java.io.File based APIs")
-    private static Path getRootPath(TemporaryFolder folder) {
+    public static Path getRootPath(TemporaryFolder folder) {
         return folder.getRoot().toPath();
     }
 }

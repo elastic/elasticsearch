@@ -439,6 +439,7 @@ public class IndexResolver {
             req.filters("-nested");
         }
         req.setMergeResults(false);
+        req.summarizeFailures(true);
         return req;
     }
 }

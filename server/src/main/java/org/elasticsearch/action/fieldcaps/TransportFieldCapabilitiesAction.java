@@ -437,7 +437,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.isEmpty() == false) {
+        if (indexResponses.isEmpty() == false || request.summarizeFailures()) {
             if (request.isMergeResults()) {
                 ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures, minTransportVersion));
             } else {

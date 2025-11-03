@@ -116,11 +116,7 @@ public class PromqlFoldingUtils {
             case ADD -> arithmetics(source, duration, scalar, ArithmeticOp.ADD);
             case SUB -> arithmetics(source, Duration.ofSeconds(scalar.longValue()), duration, ArithmeticOp.SUB);
             case MUL -> arithmetics(source, duration, scalar, ArithmeticOp.MUL);
-            default -> throw new ParsingException(
-                source,
-                "Operation [{}] not supported with scalar on left and duration on right",
-                op
-            );
+            default -> throw new ParsingException(source, "Operation [{}] not supported with scalar on left and duration on right", op);
         };
     }
 

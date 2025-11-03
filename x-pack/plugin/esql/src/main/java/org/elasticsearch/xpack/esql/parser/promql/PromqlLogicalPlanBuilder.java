@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.compari
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.set.VectorBinarySet;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
-import org.elasticsearch.xpack.esql.parser.EsqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -296,7 +295,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             Object leftValue = leftLiteral.value();
             Object rightValue = rightLiteral.value();
 
-            //  arithmetics
+            // arithmetics
             if (binaryOperator instanceof ArithmeticOp arithmeticOp) {
                 Object result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, arithmeticOp);
                 DataType resultType = determineResultType(result);
@@ -356,19 +355,11 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
         return switch (binaryOperator) {
             case ArithmeticOp arithmeticOp -> new VectorBinaryArithmetic(source, le, re, modifier, arithmeticOp);
-            case ComparisonOp comparisonOp -> new VectorBinaryComparison(
-                source,
-                le,
-                re,
-                modifier,
-                bool,
-                comparisonOp
-            );
+            case ComparisonOp comparisonOp -> new VectorBinaryComparison(source, le, re, modifier, bool, comparisonOp);
             case VectorBinarySet.SetOp setOp -> new VectorBinarySet(source, le, re, modifier, setOp);
             default -> throw new ParsingException(source(ctx.op), "Unknown arithmetic {}", opText);
         };
     }
-
 
     private BinaryOp binaryOp(Token opType) {
         return switch (opType.getType()) {

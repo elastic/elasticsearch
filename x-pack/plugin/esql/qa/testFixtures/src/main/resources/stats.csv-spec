@@ -3537,3 +3537,15 @@ from airports
 a:long | b:long | c:long | d:long
 891    | 1782   | 8      | 8
 ;
+
+fixClassCastBug7
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats a = median(x), b = percentile(x, 50), c = count_distinct(x)
+;
+
+a:double | b:double | c:long
+6.0      | 6.0      | 8
+;

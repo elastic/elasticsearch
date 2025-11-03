@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -4465,6 +4466,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -5308,6 +5311,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -5359,6 +5364,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -5564,6 +5571,8 @@ public class IndexShardTests extends IndexShardTestCase {
                             });
                             assertThat(preparedForReset.get(), equalTo(true));
                             l.onResponse(null);
+                        } catch (Exception e) {
+                            l.onFailure(e);
                         }
                     }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 } catch (Exception e) {
@@ -5852,7 +5861,7 @@ public class IndexShardTests extends IndexShardTestCase {
     private static void blockingCallRelocated(
         IndexShard indexShard,
         ShardRouting routing,
-        BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer
+        CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> consumer
     ) {
         safeAwait(
             (ActionListener<Void> listener) -> indexShard.relocated(

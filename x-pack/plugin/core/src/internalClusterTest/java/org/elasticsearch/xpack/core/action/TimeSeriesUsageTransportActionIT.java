@@ -495,7 +495,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     new Phase(
                         "hot",
                         TimeValue.ZERO,
-                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.MINUTE, null, hotForceMergeEnabled))
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.MINUTE, null, hotForceMergeEnabled, null))
                     )
                 )
             ),
@@ -506,13 +506,13 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     new Phase(
                         "warm",
                         TimeValue.ZERO,
-                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.HOUR, null, warmForceMergeEnabled))
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.HOUR, null, warmForceMergeEnabled, null))
                     ),
                     "cold",
                     new Phase(
                         "cold",
                         TimeValue.timeValueDays(3),
-                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.DAY, null, coldForceMergeEnabled))
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.DAY, null, coldForceMergeEnabled, null))
                     )
                 )
             ),

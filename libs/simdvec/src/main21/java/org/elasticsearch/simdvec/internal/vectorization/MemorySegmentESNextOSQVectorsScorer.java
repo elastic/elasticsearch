@@ -25,20 +25,6 @@ import java.lang.foreign.MemorySegment;
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsScorer {
 
-    private static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
-
-    private static final VectorSpecies<Long> LONG_SPECIES_128 = LongVector.SPECIES_128;
-    private static final VectorSpecies<Long> LONG_SPECIES_256 = LongVector.SPECIES_256;
-
-    private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
-    private static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
-
-    private static final VectorSpecies<Short> SHORT_SPECIES_128 = ShortVector.SPECIES_128;
-    private static final VectorSpecies<Short> SHORT_SPECIES_256 = ShortVector.SPECIES_256;
-
-    private static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
-    private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
-
     private final MemorySegment memorySegment;
     private final MemorySegmentScorer scorer;
 
@@ -116,7 +102,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         );
     }
 
-    abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer,
+    abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer,
         MSInt4SymmetricESNextOSQVectorsScorer {
 
         static final int BULK_SIZE = MemorySegmentESNextOSQVectorsScorer.BULK_SIZE;

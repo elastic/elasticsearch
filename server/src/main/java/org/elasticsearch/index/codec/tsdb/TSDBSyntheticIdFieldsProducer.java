@@ -287,7 +287,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
          */
         private int slowScanToFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
             // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
-            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd)) { // can't use tsIdDocValues.ordValue() here??
+            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd)) {
                 tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
                 cachedTsIdOrd = -1;
                 cachedTsId = null;
@@ -320,7 +320,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
          */
         private int slowScanToFirstDocWithTsIdOrdinalEqualTo(int tsIdOrd) throws IOException {
             // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
-            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd)) { // can't use tsIdDocValues.ordValue() here??
+            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd)) {
                 tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
                 cachedTsIdOrd = -1;
                 cachedTsId = null;

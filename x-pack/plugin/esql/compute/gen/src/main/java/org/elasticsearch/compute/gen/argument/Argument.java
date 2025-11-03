@@ -17,7 +17,6 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.gen.Types;
 
 import java.util.List;
-import java.util.Objects;
 
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
@@ -25,7 +24,6 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
 import static org.elasticsearch.compute.gen.Methods.getMethod;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 import static org.elasticsearch.compute.gen.argument.StandardArgument.isBlockType;
@@ -93,16 +91,16 @@ public interface Argument {
         return name() + "Offset";
     }
 
+    default ClassName scratchType() {
+        return Types.scratchType(type().toString());
+    }
+
     default String scratchName() {
-        if (isBytesRef() == false) {
-            throw new IllegalStateException("can't build scratch for non-BytesRef");
+        if (scratchType() == null) {
+            throw new IllegalStateException("can't build scratch for " + type());
         }
 
         return name() + "Scratch";
-    }
-
-    default boolean isBytesRef() {
-        return Objects.equals(type(), BYTES_REF);
     }
 
     String name();
@@ -118,6 +116,13 @@ public interface Argument {
      * Block or Vector, but for fixed fields will be the original fixed type.
      */
     TypeName dataType(boolean blockStyle);
+
+    /**
+     * False if and only if there is a block backing this parameter and that block does not support access as a vector. Otherwise true.
+     */
+    default boolean supportsVectorReadAccess() {
+        return true;
+    }
 
     /**
      * The parameter passed to the real evaluation function
@@ -198,7 +203,7 @@ public interface Argument {
      */
     default void read(MethodSpec.Builder builder, String accessor, String firstParam) {
         String params = firstParam;
-        if (isBytesRef()) {
+        if (scratchType() != null) {
             params += ", " + scratchName();
         }
         builder.addStatement("$T $L = $L.$L($L)", type(), valueName(), accessor, getMethod(type()), params);

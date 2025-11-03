@@ -544,90 +544,14 @@ Note that the `fields` option is **not** available for the Reindex API.
 ### Example: Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
 
 To verify that your embeddings look correct, you can retrieve the {{infer}} data that `semantic_text` normally hides from search results.
-The recommended method for retrieving this data differs between versions [9.0–9.1](#retrieve-embeddings-9.0-9.1) and [9.2](#retrieve-embeddings-9.2).
+The recommended method for retrieving this data differs between versions [9.2](#retrieve-embeddings-9.2) and [9.0–9.1](#retrieve-embeddings-9.0-9.1).
 
-#### Retrieve embeddings for versions 9.0-9.1 [retrieve-embeddings-9.0-9.1]
+#### Retrieve embeddings from version 9.2 [retrieve-embeddings-9.2]
 ```{applies_to}
-stack: ga 9.1
+stack: ga 9.2
 ```
 
-```console
-POST my-index/_search
-{
-  "query": {
-    "match": {
-      "my_semantic_field": "Which country is Paris in?"
-    }
-  },
-  "fields": [
-    "_inference_fields"
-  ]
-}
-```
-% TEST[skip:Requires {{infer}} endpoint]
-
-This will return verbose chunked embeddings content that is used to perform
-semantic search for `semantic_text` fields.
-
-```console-response
-{
-  "took": 179,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": {
-    "total": { "value": 1, "relation": "eq" },
-    "max_score": 16.532316,
-    "hits": [
-      {
-        "_index": "test-index",
-        "_id": "1",
-        "_score": 16.532316,
-        "_source": {
-          "my_semantic_field": "Paris is the capital of France.",
-          "_inference_fields": {
-            "my_semantic_field": {
-              "inference": {
-                "inference_id": ".elser-2-elasticsearch", <1>
-                "model_settings": { <2>
-                  "service": "elasticsearch",                          
-                  "task_type": "sparse_embedding"
-                },
-                "chunks": {
-                  "my_semantic_field": [
-                    {
-                      "start_offset": 0,                               
-                      "end_offset": 31,
-                      "embeddings": { <3>
-                        "paris": 2.5234375,
-                        "france": 2.0,
-                        "capital": 2.1328125,
-                        "city": 1.265625,
-                        "country": 0.59765625,
-                        ...
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    ]
-  }
-}
-```
-% TEST[skip:Requires {{infer}} endpoint]
-1. The {{infer}} endpoint used to generate embeddings.
-2. Lists details about the model used to generate embeddings, such as the service name and task type.
-3. The embeddings generated for this chunk.
-
-#### Retrieve embeddings for version 9.2 [retrieve-embeddings-9.2]
+To retrieve the stored embeddings in {{es}} 9.2 and later, set the `exclude_vectors` parameter to `false` in the `_source` field. This ensures that the vector data, which is excluded by default, is included in the search response.
 
 ```console
 POST test-index/_search
@@ -644,9 +568,8 @@ POST test-index/_search
 ```
 % TEST[skip:Requires {{infer}} endpoint]
 
-
 This will return verbose chunked embeddings content that is used to perform
-semantic search for `semantic_text` fields.
+semantic search for `semantic_text` fields:
 
 ```console-response
 {
@@ -709,6 +632,30 @@ semantic search for `semantic_text` fields.
 1. The {{infer}} endpoint used to generate embeddings.
 2. Lists details about the model used to generate embeddings, such as the service name and task type.
 3. The embeddings generated for this chunk.
+
+#### Retrieve embeddings for versions 9.0-9.1 [retrieve-embeddings-9.0-9.1]
+
+To retrieve stored embeddings in versions 9.0 and 9.1, use the `fields` parameter with `_inference_fields`. This lets you include the vector data that is not shown by default in the response.
+
+:::{warning}
+This method is only recommended for {{es}} versions 9.0 and 9.1.
+For version 9.2 and later, use the [`exclude_vectors`](#retrieve-embeddings-9.2) parameter instead.
+:::
+
+```console
+POST my-index/_search
+{
+  "query": {
+    "match": {
+      "my_semantic_field": "Which country is Paris in?"
+    }
+  },
+  "fields": [
+    "_inference_fields"
+  ]
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
 
 ## Customizing `semantic_text` indexing [custom-indexing]
 

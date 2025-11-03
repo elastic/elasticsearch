@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
@@ -148,6 +149,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             targetIndexName,
             indexSettings(1, 0)
         );
+        resizeRequest.setWaitForActiveShards(ActiveShardCount.ALL);
 
         safeAwait(
             SubscribableListener.<CreateIndexResponse>newForked(l -> client().execute(TransportResizeAction.TYPE, resizeRequest, l))

@@ -40,13 +40,9 @@ public class AllocationBalancingRoundMetrics {
     private final DoubleHistogram writeLoadHistogram;
     private final DoubleHistogram totalWeightHistogram;
 
-    private final MeterRegistry meterRegistry;
-
     public static AllocationBalancingRoundMetrics NOOP = new AllocationBalancingRoundMetrics(MeterRegistry.NOOP);
 
     public AllocationBalancingRoundMetrics(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
-
         this.balancingRoundCounter = meterRegistry.registerLongCounter(
             NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME,
             "Current number of balancing rounds",

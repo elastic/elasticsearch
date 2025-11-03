@@ -110,7 +110,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -141,7 +145,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -200,7 +208,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         doc.add(new KnnFloatVectorField("fieldB", new float[] { 3.0f, 2.0f, 1.0f }));
         iw.addDocument(doc);
 
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
         LeafReader leafReader = ir.leaves().get(0).reader();
 
         // Check that fieldA behaves as normal
@@ -235,7 +247,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         doc.add(new KnnByteVectorField("fieldB", new byte[] { 3, 2, 1 }));
         iw.addDocument(doc);
 
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
         LeafReader leafReader = ir.leaves().get(0).reader();
 
         // Check that fieldA behaves as normal
@@ -275,7 +291,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         {
@@ -302,7 +322,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         {
@@ -329,7 +353,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         {
@@ -356,7 +384,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         {
@@ -383,7 +415,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         {
@@ -410,7 +446,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         {
@@ -439,7 +479,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         Fields vectors = ir.termVectors().get(0);
@@ -468,7 +512,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -494,7 +542,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -523,7 +575,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -552,7 +608,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -581,7 +641,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -611,7 +675,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -641,7 +709,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> true
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -672,7 +744,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // open reader
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(automaton),
+            (fieldName) -> true
+        );
 
         // see only one field
         {
@@ -714,7 +790,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
-                        new CharacterRunAutomaton(automaton)
+                        new CharacterRunAutomaton(automaton),
+                        (fieldName) -> true
                     )
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
@@ -731,7 +808,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
-                        new CharacterRunAutomaton(automaton)
+                        new CharacterRunAutomaton(automaton),
+                        (fieldName) -> true
                     )
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
@@ -745,7 +823,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
-                        new CharacterRunAutomaton(automaton)
+                        new CharacterRunAutomaton(automaton),
+                        (fieldName) -> true
                     )
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
@@ -763,7 +842,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
-                        new CharacterRunAutomaton(automaton)
+                        new CharacterRunAutomaton(automaton),
+                        (fieldName) -> true
                     )
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
@@ -777,7 +857,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
-                        new CharacterRunAutomaton(automaton)
+                        new CharacterRunAutomaton(automaton),
+                        (fieldName) -> true
                     )
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
@@ -795,12 +876,85 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
-                        new CharacterRunAutomaton(automaton)
+                        new CharacterRunAutomaton(automaton),
+                        (fieldName) -> true
                     )
                 ) {
                     String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
                     assertEquals("""
                         {"arr":[{}],"fieldA":"testA","fieldB":"testB","obj":{"fieldC":"testC"}}""", syntheticSource);
+                }
+            }
+        }
+    }
+
+    public void testVisibilityOriginalFieldNames() throws Exception {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                Document doc = new Document();
+                doc.add(new StoredField("a._original", new BytesRef("a")));
+                doc.add(new StoredField("b._ignore_malformed", new BytesRef("b")));
+                doc.add(new StoredField("c", new BytesRef("c")));
+                iw.addDocument(doc);
+
+                // Field a is mapped:
+
+                var filter = new CharacterRunAutomaton(Automatons.patterns(List.of("a", "c")));
+                try (
+                    DirectoryReader ir = FieldSubsetReader.wrap(
+                        DirectoryReader.open(iw),
+                        filter,
+                        (fieldName) -> false
+                    )
+                ) {
+
+                    Document fields = ir.storedFields().document(0);
+                    assertEquals(2, fields.getFields().size());
+                    assertEquals(new BytesRef("a"), fields.getBinaryValue("a._original"));
+                    assertEquals(new BytesRef("c"), fields.getBinaryValue("c"));
+                }
+                // Field a is not mapped:
+                try (
+                    DirectoryReader ir = FieldSubsetReader.wrap(
+                        DirectoryReader.open(iw),
+                        filter,
+                        (fieldName) -> true
+                    )
+                ) {
+
+                    Document fields = ir.storedFields().document(0);
+                    assertEquals(1, fields.getFields().size());
+                    assertNull(fields.getBinaryValue("a._original"));
+                    assertEquals(new BytesRef("c"), fields.getBinaryValue("c"));
+                }
+                // Field b is mapped:
+                filter = new CharacterRunAutomaton(Automatons.patterns(List.of("b", "c")));
+                try (
+                    DirectoryReader ir = FieldSubsetReader.wrap(
+                        DirectoryReader.open(iw),
+                        filter,
+                        (fieldName) -> false
+                    )
+                ) {
+
+                    Document fields = ir.storedFields().document(0);
+                    assertEquals(2, fields.getFields().size());
+                    assertEquals(new BytesRef("b"), fields.getBinaryValue("b._ignore_malformed"));
+                    assertEquals(new BytesRef("c"), fields.getBinaryValue("c"));
+                }
+                // Field b is not mapped:
+                try (
+                    DirectoryReader ir = FieldSubsetReader.wrap(
+                        DirectoryReader.open(iw),
+                        filter,
+                        (fieldName) -> true
+                    )
+                ) {
+
+                    Document fields = ir.storedFields().document(0);
+                    assertEquals(1, fields.getFields().size());
+                    assertNull(fields.getBinaryValue("b._ignore_malformed"));
+                    assertEquals(new BytesRef("c"), fields.getBinaryValue("c"));
                 }
             }
         }
@@ -968,7 +1122,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         Set<String> fields = new HashSet<>();
         fields.add("fieldA");
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", FieldNamesFieldMapper.NAME));
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(automaton),
+            (fieldName) -> false
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -1026,7 +1184,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // open reader
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", "fieldC", FieldNamesFieldMapper.NAME));
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(automaton),
+            (fieldName) -> false
+        );
 
         // see only two fields
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -1071,7 +1233,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // open reader
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", "fieldC", FieldNamesFieldMapper.NAME));
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(automaton),
+            (fieldName) -> false
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -1105,7 +1271,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // open reader
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(automaton),
+            (fieldName) -> false
+        );
 
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -1133,7 +1303,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("id")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("id")),
+            (fieldName) -> false
+        );
         assertEquals(2, ir.numDocs());
         assertEquals(1, ir.leaves().size());
 
@@ -1167,7 +1341,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldB")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldB")),
+            (fieldName) -> false
+        );
 
         // sees no fields
         assertNull(ir.termVectors().get(0));
@@ -1186,7 +1364,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(new Document());
 
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> false
+        );
 
         // see no fields
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -1217,11 +1399,16 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         final DirectoryReader directoryReader = FieldSubsetReader.wrap(
             DirectoryReader.open(dir),
-            new CharacterRunAutomaton(Automata.makeString("fieldA"))
+            new CharacterRunAutomaton(Automata.makeString("fieldA")),
+            (fieldName) -> false
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> FieldSubsetReader.wrap(directoryReader, new CharacterRunAutomaton(Automata.makeString("fieldA")))
+            () -> FieldSubsetReader.wrap(
+                directoryReader,
+                new CharacterRunAutomaton(Automata.makeString("fieldA")),
+                (fieldName) -> false
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1407,7 +1594,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // open reader
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
+        DirectoryReader ir = FieldSubsetReader.wrap(
+            DirectoryReader.open(iw),
+            new CharacterRunAutomaton(automaton),
+            (fieldName) -> false
+        );
 
         TestUtil.checkReader(ir);
         assertThat(ir.leaves().size(), greaterThanOrEqualTo(1));

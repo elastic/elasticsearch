@@ -497,6 +497,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             if (mapperService == null) {
                 return CompressedXContent.fromJSON("{}");
             }
+            Settings templateSettings = mergedTemplate.template().settings();
+            String indexModeSettingName = IndexSettings.MODE.getKey();
+            if (Objects.equals(mapperService.getIndexSettings().getMode(), templateSettings.get(indexModeSettingName)) == false) {
+                /*
+                 * It is possible that someone has changed the index mode in the template, but the data stream has not been rolled over yet.
+                 * This mapperService is for the write index, which still has the old index mode in its index settings. This only matters
+                 * for validation. To avoid failing index-mode-specific mapping validation due to using the old index mode with the new
+                 * mapping, we make sure to correct the index mode and index routing path here.
+                 */
+                IndexMetadata oldIndexMetadata = indexService.getMetadata();
+                Settings.Builder settingsBuilder = Settings.builder().put(oldIndexMetadata.getSettings());
+                settingsBuilder.put(indexModeSettingName, templateSettings.get(indexModeSettingName));
+                String indexRoutingPathSettingName = IndexMetadata.INDEX_ROUTING_PATH.getKey();
+                settingsBuilder.put(indexRoutingPathSettingName, templateSettings.get(indexRoutingPathSettingName));
+                IndexMetadata newIndexMetadata = new IndexMetadata.Builder(oldIndexMetadata).settings(settingsBuilder.build()).build();
+                mapperService.getIndexSettings().updateIndexMetadata(newIndexMetadata);
+            }
             CompressedXContent mergedMapping = mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
                 mappings,

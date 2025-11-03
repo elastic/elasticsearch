@@ -109,12 +109,12 @@ import java.util.concurrent.Executor;
  *     response in future (e.g. via {@link #addListener} or {@link #andThen}) but it does not formally take ownership of the response (e.g.
  *     by calling {@link org.elasticsearch.core.RefCounted#incRef}). In particular, in the usual pattern ...
  *     <pre>{@code
- *         SubscribableListener.newForked(l1 -> step1(l1)).andThen(l2 -> step2(l2))...
+ *         SubscribableListener.newForked(l1 -> step1(l1)).andThen((l2, r1) -> step2(r1, l2))...
  *     }</pre>
- *     ... if {@code step1} sometimes completes quickly then it may complete {@code l1} before even invoking the {@link #andThen}, which
- *     could cause a use-after-release bug when combined with the usual refcounting discipline which releases a reference to the response
- *     after the waiting listener's {@link ActionListener#onResponse} returns. The caller must take steps to keep responses alive until
- *     they are no longer needed.</li>
+ *     ... if {@code r1} is ref-counted then usually {@code step1} will call {@link org.elasticsearch.core.RefCounted#decRef} immediately
+ *     after {@code l1.onResponse(r1)} returns since it no longer needs to keep the response alive itself. This is a problem because it may
+ *     happen before the {@link #andThen} adds the second step to the chain, so that by the time {@code step2} runs the response {@code r1}
+ *     may already be fully-released. The caller must take steps to keep responses alive until they are no longer needed.</li>
  * </ul>
  */
 public class SubscribableListener<T> implements ActionListener<T> {

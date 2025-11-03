@@ -320,6 +320,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         private List<FieldCapabilitiesIndexResponse> indexResponses = Collections.emptyList();
         private List<FieldCapabilitiesFailure> failures = Collections.emptyList();
         private TransportVersion minTransportVersion = null;
+        private ResolvedIndexExpressions resolvedIndexExpressions = null;
 
         private Builder() {}
 
@@ -366,6 +367,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
             return this;
         }
 
+        public Builder withResolvedIndexExpressions(ResolvedIndexExpressions resolvedIndexExpressions) {
+            this.resolvedIndexExpressions = resolvedIndexExpressions;
+            return this;
+        }
+
         public FieldCapabilitiesResponse build() {
             return new FieldCapabilitiesResponse(
                 indices,
@@ -375,7 +381,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
                 indexResponses,
                 failures,
                 minTransportVersion,
-                null
+                resolvedIndexExpressions
             );
         }
     }

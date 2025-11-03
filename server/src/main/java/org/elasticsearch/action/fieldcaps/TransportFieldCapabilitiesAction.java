@@ -379,38 +379,43 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
              * this, we use `CountDown` and track each response, irrespective of whether it's valid or not, and then perform the
              * reconciliation when it has counted down and the request is a resolvable CPS request.
              */
-            CountDown countDownResponses = new CountDown(remoteClusterIndices.size());
+            Runnable crossProjectReconciler;
             Map<String, ResolvedIndexExpressions> linkedProjectsResponses = ConcurrentCollections.newConcurrentMap();
-            Runnable crossProjectReconciler = () -> {
-                if (countDownResponses.countDown() && crossProjectEnabled) {
-                    /*
-                     * This happens when one or more linked projects respond with an error instead of a valid response -- say, networking
-                     * error.
-                     */
-                    if (linkedProjectsResponses.size() != remoteClusterIndices.size()) {
-                        listener.onFailure(
-                            new IllegalArgumentException(
-                                "Invalid number of responses received: "
-                                    + linkedProjectsResponses.size()
-                                    + " vs expected "
-                                    + remoteClusterIndices.size()
-                            )
+            if (remoteClusterIndices.size() > 0) {
+                CountDown countDownResponses = new CountDown(remoteClusterIndices.size());
+                crossProjectReconciler = () -> {
+                    if (countDownResponses.countDown() && crossProjectEnabled) {
+                        /*
+                         * This happens when one or more linked projects respond with an error instead of a valid response -- say
+                         * networking error.
+                         */
+                        if (linkedProjectsResponses.size() != remoteClusterIndices.size()) {
+                            listener.onFailure(
+                                new IllegalArgumentException(
+                                    "Invalid number of responses received: "
+                                        + linkedProjectsResponses.size()
+                                        + " vs expected "
+                                        + remoteClusterIndices.size()
+                                )
+                            );
+                            return;
+                        }
+
+                        Exception validationEx = CrossProjectIndexResolutionValidator.validate(
+                            request.indicesOptions(),
+                            null,
+                            request.getResolvedIndexExpressions(),
+                            linkedProjectsResponses
                         );
-                        return;
-                    }
 
-                    Exception validationEx = CrossProjectIndexResolutionValidator.validate(
-                        request.indicesOptions(),
-                        null,
-                        request.getResolvedIndexExpressions(),
-                        linkedProjectsResponses
-                    );
-
-                    if (validationEx != null) {
-                        listener.onFailure(validationEx);
+                        if (validationEx != null) {
+                            listener.onFailure(validationEx);
+                        }
                     }
-                }
-            };
+                };
+            } else {
+                crossProjectReconciler = () -> {};
+            }
 
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
             // send us back all individual index results.
@@ -631,6 +636,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         .withResolvedRemotelyBuilder(resolvedRemotely)
                         .withMinTransportVersion(minTransportVersion.get())
                         .withFailures(failures)
+                        .withResolvedIndexExpressions(request.getResolvedIndexExpressions())
                         .build()
                 );
             }

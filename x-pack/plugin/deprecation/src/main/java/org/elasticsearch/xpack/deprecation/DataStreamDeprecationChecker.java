@@ -137,7 +137,7 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
                 false,
                 ofEntries(
                     entry("reindex_required", true),
-                    // entry("excluded_actions", List.of("readOnly")),
+                    entry("excluded_actions", List.of("readOnly")),
                     entry("total_backing_indices", backingIndices.size()),
                     entry("ignored_indices_requiring_upgrade_count", percolatorIgnoredIndices.size()),
                     entry("ignored_indices_requiring_upgrade", percolatorIgnoredIndices)

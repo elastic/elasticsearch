@@ -22,6 +22,8 @@ import org.junit.Before;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -79,6 +81,37 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
         assertThat(result.impacts(), hasSize(2));
     }
 
+    public void testUnhealthyThresholds() throws Exception {
+        // baseline
+        assertEquals(HealthStatus.GREEN, fetchShardsCapacityIndicatorResult().status());
+
+        // set very large threshold to force the indicator to go yellow
+        updateClusterSettings(Settings.builder().put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), 100000000));
+        assertBusy(() -> {
+            // waits for settings to propagate to health metadata
+            assertEquals(HealthStatus.YELLOW, fetchShardsCapacityIndicatorResult().status());
+        });
+
+        // set very large threshold to force the indicator to go red
+        updateClusterSettings(Settings.builder().put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), 90000000));
+        assertBusy(() -> {
+            // waits for settings to propagate to health metadata
+            assertEquals(HealthStatus.RED, fetchShardsCapacityIndicatorResult().status());
+        });
+
+        // reset thresholds to defaults
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey())
+                .putNull(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey())
+        );
+        assertBusy(() -> {
+            // waits for settings to propagate to health metadata
+            assertEquals(HealthStatus.GREEN, fetchShardsCapacityIndicatorResult().status());
+        });
+
+    }
+
     private void createIndex(int shards, int replicas) {
         createIndex(INDEX_NAME, indexSettings(shards, replicas).build());
     }
@@ -128,6 +161,14 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
             assertTrue(
                 "max_shards_per_node.frozen setting must be greater than 0",
                 healthMetadata.getShardLimitsMetadata().maxShardsPerNodeFrozen() > 0
+            );
+            assertTrue(
+                "health.shard_capacity.unhealthy_threshold.yellow setting must be greater than 0",
+                healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdYellow() > 0
+            );
+            assertTrue(
+                "health.shard_capacity.unhealthy_threshold.red setting must be greater than 0",
+                healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdRed() > 0
             );
         });
     }

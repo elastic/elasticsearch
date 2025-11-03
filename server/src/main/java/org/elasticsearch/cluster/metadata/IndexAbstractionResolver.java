@@ -76,10 +76,8 @@ public class IndexAbstractionResolver {
         final TargetProjects targetProjects,
         final boolean includeDataStreams
     ) {
-        assert targetProjects != TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
-            : "cannot resolve indices cross project if target set is local only";
-        if (false == targetProjects.crossProject()) {
-            final String message = "cannot resolve indices cross project if target set is not cross project";
+        if (targetProjects == TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED) {
+            final String message = "cannot resolve indices cross project if target set is local only";
             assert false : message;
             throw new IllegalArgumentException(message);
         }

@@ -492,9 +492,6 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
-- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
-  method: testSearchableSnapshotAction
-  issue: https://github.com/elastic/elasticsearch/issues/137167
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=indices.validate_query/20_query_string/validate_query with query_string parameters}
   issue: https://github.com/elastic/elasticsearch/issues/137391
@@ -504,9 +501,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
   method: testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
   issue: https://github.com/elastic/elasticsearch/issues/137491
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/137512
+- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
+  method: testBasicCCRAndILMIntegration {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/137494
+- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
+  method: testCcrAndIlmWithRollover {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/137528
 
 # Examples:
 #

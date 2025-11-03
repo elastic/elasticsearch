@@ -1385,6 +1385,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 kibanaRole.indices().allowedIndicesMatcher("indices:admin/data_stream/lifecycle/put").test(indexAbstraction),
                 is(true)
             );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:admin/forcemerge").test(indexAbstraction), is(true));
 
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);
@@ -1983,6 +1984,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-extrahop.investigation-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-qualys_gav.asset-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-sentinel_one.application-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-sentinel_one.threat_event-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-island_browser.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-island_browser.device-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-cyera.classification-" + randomAlphaOfLength(randomIntBetween(1, 10)),

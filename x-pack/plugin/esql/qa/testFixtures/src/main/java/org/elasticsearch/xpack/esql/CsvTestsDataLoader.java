@@ -17,6 +17,7 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
+import org.apache.lucene.util.IOConsumer;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -30,6 +31,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -43,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -55,6 +58,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStr
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
+    private static final int PARALLEL_THREADS = 10;
     private static final int BULK_DATA_SIZE = 100_000;
     private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
     private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
@@ -78,8 +82,9 @@ public class CsvTestsDataLoader {
     private static final TestDataset LANGUAGES = new TestDataset("languages");
     private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES_NON_UNIQUE_KEY = new TestDataset("languages_non_unique_key");
-    private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_NON_UNIQUE_KEY.withIndex("languages_lookup_non_unique_key")
-        .withSetting("lookup-settings.json");
+    private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
+        .withData("languages_non_unique_key.csv")
+        .withDynamicTypeMapping(Map.of("country", "text"));
     private static final TestDataset LANGUAGES_NESTED_FIELDS = new TestDataset(
         "languages_nested_fields",
         "mapping-languages_nested_fields.json",
@@ -148,7 +153,9 @@ public class CsvTestsDataLoader {
     private static final TestDataset DATE_NANOS_UNION_TYPES = new TestDataset("date_nanos_union_types");
     private static final TestDataset COUNTRIES_BBOX = new TestDataset("countries_bbox");
     private static final TestDataset COUNTRIES_BBOX_WEB = new TestDataset("countries_bbox_web");
-    private static final TestDataset AIRPORT_CITY_BOUNDARIES = new TestDataset("airport_city_boundaries");
+    private static final TestDataset AIRPORT_CITY_BOUNDARIES = new TestDataset("airport_city_boundaries").withSetting(
+        "lookup-settings.json"
+    );
     private static final TestDataset CARTESIAN_MULTIPOLYGONS = new TestDataset("cartesian_multipolygons");
     private static final TestDataset CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES = new TestDataset("cartesian_multipolygons_no_doc_values")
         .withData("cartesian_multipolygons.csv");
@@ -168,6 +175,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset COLORS = new TestDataset("colors");
+    private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -233,6 +241,7 @@ public class CsvTestsDataLoader {
         Map.entry(MV_TEXT.indexName, MV_TEXT),
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
         Map.entry(COLORS.indexName, COLORS),
+        Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP)
     );
@@ -246,6 +255,7 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
     private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
     private static final EnrichConfig CITY_AIRPORTS_ENRICH = new EnrichConfig("city_airports", "enrich-policy-city_airports.json");
+    private static final EnrichConfig COLORS_ENRICH = new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json");
 
     public static final List<String> ENRICH_SOURCE_INDICES = List.of(
         "languages",
@@ -254,7 +264,8 @@ public class CsvTestsDataLoader {
         "ages",
         "heights",
         "decades",
-        "airport_city_boundaries"
+        "airport_city_boundaries",
+        "colors_cmyk"
     );
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
         LANGUAGES_ENRICH,
@@ -265,7 +276,8 @@ public class CsvTestsDataLoader {
         DECADES_ENRICH,
         CITY_NAMES_ENRICH,
         CITY_BOUNDARIES_ENRICH,
-        CITY_AIRPORTS_ENRICH
+        CITY_AIRPORTS_ENRICH,
+        COLORS_ENRICH
     );
     public static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
 
@@ -421,16 +433,42 @@ public class CsvTestsDataLoader {
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        List<TestDataset> datasets = availableDatasetsForEs(
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            timeSeriesOnly
+        ).stream().toList();
 
-        Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, timeSeriesOnly)) {
-            load(client, dataset, logger, indexCreator);
-            loadedDatasets.add(dataset.indexName);
-        }
-        forceMerge(client, loadedDatasets, logger);
-        for (var policy : ENRICH_POLICIES) {
-            loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
-        }
+        logger.info("Creating test indices");
+        executeInParallel(datasets, dataset -> createIndex(client, dataset, indexCreator), "Failed to create indices in parallel");
+
+        logger.info("Loading test datasets");
+        executeInParallel(datasets, dataset -> loadData(client, dataset, logger), "Failed to load data in parallel");
+
+        forceMerge(client, datasets.stream().map(d -> d.indexName).collect(Collectors.toSet()), logger);
+
+        logger.info("Loading enrich policies");
+        executeInParallel(
+            ENRICH_POLICIES,
+            policy -> loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger),
+            "Failed to load enrich policies in parallel"
+        );
+
+    }
+
+    private static <T> void executeInParallel(List<T> items, IOConsumer<T> consumer, String errorMessage) {
+        Semaphore semaphore = new Semaphore(PARALLEL_THREADS);
+        ESTestCase.runInParallel(items.size(), i -> {
+            try {
+                semaphore.acquire();
+                consumer.accept(items.get(i));
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(errorMessage, e);
+            } finally {
+                semaphore.release();
+            }
+        });
     }
 
     public static void createInferenceEndpoints(RestClient client) throws IOException {
@@ -569,6 +607,7 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
+        logger.info("Loading enrich policy [{}] from file [{}]", policyName, policyFileName);
         URL policyMapping = getResource("/" + policyFileName);
         String entity = readTextFile(policyMapping);
         Request request = new Request("PUT", "/_enrich/policy/" + policyName);
@@ -587,11 +626,14 @@ public class CsvTestsDataLoader {
         return result;
     }
 
-    private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
+    private static void createIndex(RestClient client, TestDataset dataset, IndexCreator indexCreator) throws IOException {
         URL mapping = getResource("/" + dataset.mappingFileName);
         Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
+    }
 
+    private static void loadData(RestClient client, TestDataset dataset, Logger logger) throws IOException {
+        logger.info("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
         // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
         if (dataset.dataFileName != null) {
             URL data = getResource("/data/" + dataset.dataFileName);
@@ -854,15 +896,16 @@ public class CsvTestsDataLoader {
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        @Nullable Map<String, String> typeMapping,
+        @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
+        @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
         boolean requiresInferenceEndpoint
     ) {
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, false);
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, false);
         }
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, false);
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, false);
         }
 
         public TestDataset withIndex(String indexName) {
@@ -873,6 +916,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -885,6 +929,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -897,6 +942,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -909,6 +955,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -921,6 +968,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 false,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -933,12 +981,35 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
+                requiresInferenceEndpoint
+            );
+        }
+
+        public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
 
         public TestDataset withInferenceEndpoint(boolean needsInference) {
-            return new TestDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, needsInference);
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                needsInference
+            );
         }
 
         private Settings readSettingsFile() throws IOException {

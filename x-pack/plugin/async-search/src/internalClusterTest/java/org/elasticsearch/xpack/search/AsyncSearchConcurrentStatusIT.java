@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -33,6 +35,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.IntStream;
 
 @SuiteScopeTestCase
 public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
@@ -91,7 +94,12 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
             // Wait for pollers to be active
             CountDownLatch warmed = new CountDownLatch(1);
 
-            PollerGroup pollers = createPollers(id, pollerThreads, aggName, stats, warmed);
+            // Executor and coordination for pollers
+            ExecutorService pollerExec = Executors.newFixedThreadPool(pollerThreads);
+            AtomicBoolean running = new AtomicBoolean(true);
+            Queue<Throwable> failures = new ConcurrentLinkedQueue<>();
+
+            CompletableFuture<Void> pollers = createPollers(id, pollerThreads, stats, warmed, pollerExec, running, failures);
 
             // Wait until pollers are issuing requests (warming period)
             assertTrue("pollers did not warm up in time", warmed.await(timeout.millis(), TimeUnit.MILLISECONDS));
@@ -117,15 +125,30 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
             } catch (TimeoutException e) {
                 consumer.cancel(true);
                 fail(e, "Consumer thread did not finish within timeout");
-            } catch (Exception ignored) {} finally {
-
+            } catch (Exception ignored) {
+                // ignored
+            } finally {
+                // Stop pollers
+                running.set(false);
                 try {
-                    pollers.stopAndAwait(timeout);
-                } catch (InterruptedException e) {
+                    pollers.get(timeout.millis(), TimeUnit.MILLISECONDS);
+                } catch (TimeoutException te) {
+                    // The finally block will shut down the pollers forcibly
+                } catch (ExecutionException ee) {
+                    failures.add(ExceptionsHelper.unwrapCause(ee.getCause()));
+                } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    fail("Interrupted while stopping pollers: " + e.getMessage());
+                } finally {
+                    pollerExec.shutdownNow();
+                    try {
+                        pollerExec.awaitTermination(timeout.millis(), TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        fail("Interrupted while stopping pollers: " + ie.getMessage());
+                    }
                 }
 
+                // Shut down the consumer executor
                 consumerExec.shutdown();
                 try {
                     consumerExec.awaitTermination(timeout.millis(), TimeUnit.MILLISECONDS);
@@ -134,13 +157,12 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
                 }
             }
 
-            assertNoWorkerFailures(pollers);
+            assertNoWorkerFailures(failures);
             assertStats(stats);
         }
     }
 
-    private void assertNoWorkerFailures(PollerGroup pollers) {
-        List<Throwable> failures = pollers.getFailures();
+    private void assertNoWorkerFailures(Queue<Throwable> failures) {
         assertTrue(
             "Unexpected worker failures:\n" + failures.stream().map(ExceptionsHelper::stackTrace).reduce("", (a, b) -> a + "\n---\n" + b),
             failures.isEmpty()
@@ -175,57 +197,68 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
         }
     }
 
-    private PollerGroup createPollers(String id, int threads, String aggName, PollStats stats, CountDownLatch warmed) {
-        final ExecutorService exec = Executors.newFixedThreadPool(threads);
-        final List<Future<?>> futures = new ArrayList<>(threads);
-        final AtomicBoolean running = new AtomicBoolean(true);
+    private CompletableFuture<Void> createPollers(
+        String id,
+        int threads,
+        PollStats stats,
+        CountDownLatch warmed,
+        ExecutorService pollerExec,
+        AtomicBoolean running,
+        Queue<Throwable> failures
+    ) {
+        @SuppressWarnings("unchecked")
+        final CompletableFuture<Void>[] tasks = IntStream.range(0, threads).mapToObj(i -> CompletableFuture.runAsync(() -> {
+            while (running.get()) {
+                AsyncSearchResponse resp = null;
+                try {
+                    resp = getAsyncSearch(id);
+                    stats.totalCalls.increment();
 
-        for (int i = 0; i < threads; i++) {
-            futures.add(exec.submit(() -> {
-                while (running.get()) {
-                    AsyncSearchResponse resp = null;
-                    try {
-                        resp = getAsyncSearch(id);
-                        stats.totalCalls.increment();
+                    // Once enough requests have been sent, consider pollers "warmed".
+                    if (stats.totalCalls.sum() >= threads) {
+                        warmed.countDown();
+                    }
 
-                        // Once enough requests have been sent, consider pollers "warmed".
-                        if (stats.totalCalls.sum() >= threads) {
-                            warmed.countDown();
-                        }
-
-                        if (resp.isRunning()) {
-                            stats.runningResponses.increment();
-                        } else {
-                            // Success-only assertions: if reported completed, we must have a proper search response
-                            assertNull("Async search reported completed with failure", resp.getFailure());
-                            assertNotNull("Completed async search must carry a SearchResponse", resp.getSearchResponse());
-                            assertNotNull("Completed async search must have aggregations", resp.getSearchResponse().getAggregations());
-                            assertNotNull(
-                                "Completed async search must contain the expected aggregation",
-                                resp.getSearchResponse().getAggregations().get(aggName)
-                            );
-                            stats.completedResponses.increment();
-                        }
-                    } catch (Exception e) {
-                        Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if (cause instanceof ElasticsearchStatusException) {
-                            RestStatus status = ExceptionsHelper.status(cause);
-                            if (status == RestStatus.GONE) {
-                                stats.gone410.increment();
-                            }
+                    if (resp.isRunning()) {
+                        stats.runningResponses.increment();
+                    } else {
+                        // Success-only assertions: if reported completed, we must have a proper search response
+                        assertNull("Async search reported completed with failure", resp.getFailure());
+                        assertNotNull("Completed async search must carry a SearchResponse", resp.getSearchResponse());
+                        assertNotNull("Completed async search must have aggregations", resp.getSearchResponse().getAggregations());
+                        assertNotNull(
+                            "Completed async search must contain the expected aggregation",
+                            resp.getSearchResponse().getAggregations().get("terms")
+                        );
+                        stats.completedResponses.increment();
+                    }
+                } catch (Exception e) {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof ElasticsearchStatusException) {
+                        RestStatus status = ExceptionsHelper.status(cause);
+                        if (status == RestStatus.GONE) {
+                            stats.gone410.increment();
                         } else {
                             stats.exceptions.increment();
+                            failures.add(cause);
                         }
-                    } finally {
-                        if (resp != null) {
-                            resp.decRef();
-                        }
+                    } else {
+                        stats.exceptions.increment();
+                        failures.add(cause);
+                    }
+                } finally {
+                    if (resp != null) {
+                        resp.decRef();
                     }
                 }
-                return null;
-            }));
-        }
-        return new PollerGroup(exec, futures, running);
+            }
+        }, pollerExec).whenComplete((v, ex) -> {
+            if (ex != null) {
+                failures.add(ExceptionsHelper.unwrapCause(ex));
+            }
+        })).toArray(CompletableFuture[]::new);
+
+        return CompletableFuture.allOf(tasks);
     }
 
     static final class PollStats {
@@ -234,42 +267,5 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
         final LongAdder completedResponses = new LongAdder();
         final LongAdder exceptions = new LongAdder();
         final LongAdder gone410 = new LongAdder();
-    }
-
-    static class PollerGroup {
-        private final ExecutorService exec;
-        private final List<Future<?>> futures;
-        // The threads are created and running right away
-        private final AtomicBoolean running;
-
-        private PollerGroup(ExecutorService exec, List<Future<?>> futures, AtomicBoolean running) {
-            this.exec = exec;
-            this.futures = futures;
-            this.running = running;
-        }
-
-        void stopAndAwait(TimeValue timeout) throws InterruptedException {
-            running.set(false);
-            exec.shutdown();
-            if (exec.awaitTermination(timeout.millis(), TimeUnit.MILLISECONDS) == false) {
-                exec.shutdownNow();
-                exec.awaitTermination(timeout.millis(), TimeUnit.MILLISECONDS);
-            }
-        }
-
-        List<Throwable> getFailures() {
-            List<Throwable> failures = new ArrayList<>();
-            for (Future<?> f : futures) {
-                try {
-                    f.get();
-                } catch (CancellationException ignored) {} catch (ExecutionException ee) {
-                    failures.add(ExceptionsHelper.unwrapCause(ee.getCause()));
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    if (failures.isEmpty()) failures.add(ie);
-                }
-            }
-            return failures;
-        }
     }
 }

@@ -145,7 +145,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             .map(
                 data -> List.of(
                     new TestCaseSupplier(
-                        "period, millis; " + data.period() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                        data.testCaseNameForMillis(),
                         List.of(DataType.DATETIME, DataType.DATE_PERIOD),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
@@ -158,7 +158,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     ),
                     new TestCaseSupplier(
-                        "period, nanos; " + data.period() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                        data.testCaseNameForNanos(),
                         List.of(DataType.DATE_NANOS, DataType.DATE_PERIOD),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
@@ -182,7 +182,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             .map(
                 data -> List.of(
                     new TestCaseSupplier(
-                        "duration, millis; " + data.duration() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                        data.testCaseNameForMillis(),
                         List.of(DataType.DATETIME, DataType.TIME_DURATION),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
@@ -195,7 +195,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     ),
                     new TestCaseSupplier(
-                        "duration, nanos; " + data.duration() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                        data.testCaseNameForNanos(),
                         List.of(DataType.DATE_NANOS, DataType.TIME_DURATION),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(

@@ -55,6 +55,16 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
     }
 
     public record PeriodTestCaseData(Period period, String inputDate, @Nullable String zoneIdString, String expectedDate) {
+        public String testCaseNameForMillis() {
+            var zoneIdName = zoneIdString == null ? "random" : zoneIdString;
+            return "period, millis; " + period + ", " + zoneIdName + ", " + inputDate;
+        }
+
+        public String testCaseNameForNanos() {
+            var zoneIdName = zoneIdString == null ? "random" : zoneIdString;
+            return "period, nanos; " + period + ", " + zoneIdName + ", " + inputDate;
+        }
+
         public ZoneId zoneId() {
             return zoneIdString == null ? randomZone() : ZoneId.of(zoneIdString);
         }
@@ -65,6 +75,16 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
     }
 
     public record DurationTestCaseData(Duration duration, String inputDate, @Nullable String zoneIdString, String expectedDate) {
+        public String testCaseNameForMillis() {
+            var zoneIdName = zoneIdString == null ? "random" : zoneIdString;
+            return "duration, millis; " + duration + ", " + zoneIdName + ", " + inputDate;
+        }
+
+        public String testCaseNameForNanos() {
+            var zoneIdName = zoneIdString == null ? "random" : zoneIdString;
+            return "duration, nanos; " + duration + ", " + zoneIdName + ", " + inputDate;
+        }
+
         public ZoneId zoneId() {
             return zoneIdString == null ? randomZone() : ZoneId.of(zoneIdString);
         }
@@ -78,24 +98,24 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         String ts = "2023-02-17T10:25:33.38Z";
         return List.of(
             ///
-            /// Timezone agnostic (<2h intervals)
+            /// Timezone agnostic (<=1m intervals)
             ///
             new DurationTestCaseData(Duration.ofMillis(100), ts, null, "2023-02-17T10:25:33.30Z"),
             new DurationTestCaseData(Duration.ofSeconds(1), ts, null, "2023-02-17T10:25:33Z"),
             new DurationTestCaseData(Duration.ofMinutes(1), ts, null, "2023-02-17T10:25:00Z"),
-            new DurationTestCaseData(Duration.ofHours(1), ts, null, "2023-02-17T10:00:00Z"),
             new DurationTestCaseData(Duration.ofSeconds(30), ts, null, "2023-02-17T10:25:30Z"),
-            new DurationTestCaseData(Duration.ofMinutes(15), ts, null, "2023-02-17T10:15:00Z"),
 
             ///
-            /// Timezone dependent (>=2h intervals)
+            /// Timezone dependent (>1m intervals)
             ///
+            new DurationTestCaseData(Duration.ofHours(1), ts, "UTC", "2023-02-17T10:00:00Z"),
+            new DurationTestCaseData(Duration.ofMinutes(15), ts, "UTC", "2023-02-17T10:15:00Z"),
             new DurationTestCaseData(Duration.ofHours(3), ts, "UTC", "2023-02-17T09:00:00Z"),
             new DurationTestCaseData(Duration.ofHours(3), ts, "-02:00", "2023-02-17T08:00:00Z"),
             new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "UTC", "2020-01-01T03:00:00Z"),
             new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
             new DurationTestCaseData(Duration.ofMinutes(3 * 60), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
-            new DurationTestCaseData(Duration.ofHours(5), "2020-01-01T05:30:00Z", "+01", "2020-01-01T05:00:00Z"),
+            new DurationTestCaseData(Duration.ofHours(5), "2020-01-01T05:30:00Z", "+01", "2020-01-01T01:00:00Z"),
 
             ///
             /// Daylight savings
@@ -114,7 +134,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             // Bigger intervals
             new DurationTestCaseData(Duration.ofHours(12), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
             new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
-            new DurationTestCaseData(Duration.ofHours(48), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
+            new DurationTestCaseData(Duration.ofHours(48), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-25T00:00:00+02:00"),
 
             ///
             /// Partial hours timezones
@@ -172,7 +192,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
     private static List<TestCaseSupplier> ofDatePeriod(PeriodTestCaseData data) {
         return List.of(
             new TestCaseSupplier(
-                "period, millis; " + data.period() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                data.testCaseNameForMillis(),
                 List.of(DataType.DATE_PERIOD, DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
@@ -185,7 +205,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             ),
             new TestCaseSupplier(
-                "period, nanos; " + data.period() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                data.testCaseNameForNanos(),
                 List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
@@ -203,7 +223,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
     private static List<TestCaseSupplier> ofDuration(DurationTestCaseData data) {
         return List.of(
             new TestCaseSupplier(
-                "period, millis; " + data.duration() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                data.testCaseNameForMillis(),
                 List.of(DataType.TIME_DURATION, DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
@@ -216,7 +236,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             ),
             new TestCaseSupplier(
-                "period, nanos; " + data.duration() + ", " + data.zoneIdString() + ", " + data.inputDate(),
+                data.testCaseNameForNanos(),
                 List.of(DataType.TIME_DURATION, DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(

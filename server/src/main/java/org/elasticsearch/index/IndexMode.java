@@ -42,13 +42,15 @@ import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
  * "Mode" that controls which behaviors and settings an index supports.
@@ -139,16 +141,7 @@ public enum IndexMode {
                 throw new IllegalArgumentException(error(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING));
             }
 
-            Settings settingsWithIndexMode;
-            if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-                settingsWithIndexMode = Settings.builder()
-                    .put(IndexSettings.MODE.getKey(), getName())
-                    // Default values of some index sort settings depend of the feature flag and USE_SYNTHETIC_ID setting
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), (Boolean) settings.get(IndexSettings.USE_SYNTHETIC_ID))
-                    .build();
-            } else {
-                settingsWithIndexMode = Settings.builder().put(IndexSettings.MODE.getKey(), getName()).build();
-            }
+            var settingsWithIndexMode = Settings.builder().put(IndexSettings.MODE.getKey(), getName()).build();
 
             for (Setting<?> unsupported : TIME_SERIES_UNSUPPORTED) {
                 if (false == Objects.equals(unsupported.getDefault(settingsWithIndexMode), settings.get(unsupported))) {
@@ -467,22 +460,20 @@ public enum IndexMode {
         IndexSortConfig.INDEX_SORT_MISSING_SETTING
     );
 
-    static final List<Setting<?>> VALIDATE_WITH_SETTINGS;
-    static {
-        var settings = new HashSet<Setting<?>>();
-        settings.add(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING);
-        settings.add(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING);
-        settings.add(IndexMetadata.INDEX_ROUTING_PATH);
-        settings.add(IndexMetadata.INDEX_DIMENSIONS);
-        settings.add(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS);
-        settings.add(IndexSettings.TIME_SERIES_START_TIME);
-        settings.add(IndexSettings.TIME_SERIES_END_TIME);
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settings.add(IndexSettings.USE_SYNTHETIC_ID);
-        }
-        settings.addAll(TIME_SERIES_UNSUPPORTED);
-        VALIDATE_WITH_SETTINGS = List.copyOf(settings);
-    }
+    static final List<Setting<?>> VALIDATE_WITH_SETTINGS = List.copyOf(
+        Stream.concat(
+            Stream.of(
+                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
+                IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
+                IndexMetadata.INDEX_ROUTING_PATH,
+                IndexMetadata.INDEX_DIMENSIONS,
+                IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
+                IndexSettings.TIME_SERIES_START_TIME,
+                IndexSettings.TIME_SERIES_END_TIME
+            ),
+            TIME_SERIES_UNSUPPORTED.stream()
+        ).collect(toSet())
+    );
 
     private final String name;
 

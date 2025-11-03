@@ -72,7 +72,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -1033,7 +1032,7 @@ public class WildcardFieldMapper extends FieldMapper {
         this.indexVersionCreated = builder.indexCreatedVersion;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
-        this.originalName = storeIgnored ? fullPath() + TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX : null;
+        this.originalName = storeIgnored ? fullPath() + KeywordFieldMapper.FALLBACK_FIELD_NAME_SUFFIX : null;
     }
 
     @Override

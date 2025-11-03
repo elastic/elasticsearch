@@ -88,13 +88,17 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlParams;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.joni.exception.SyntaxException;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -116,6 +120,9 @@ import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
  * which change the grammar will need to make changes here as well.
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
+
+    private static final String TIME = "time", START = "start", END = "end", STEP = "step";
+    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP);
 
     /**
      * Maximum number of commands allowed per query
@@ -1219,52 +1226,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
         Source source = source(ctx);
-        Map<String, Expression> params = new HashMap<>();
-        String TIME = "time", START = "start", END = "end", STEP = "step";
-        Set<String> allowed = Set.of(TIME, START, END, STEP);
-
-        if (ctx.promqlParam().isEmpty()) {
-            throw new ParsingException(source(ctx), "Parameter [{}] or [{}] is required", STEP, TIME);
-        }
-
-        for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
-            var paramNameCtx = paramCtx.name;
-            String name = paramNameCtx.getText();
-            if (params.containsKey(name)) {
-                throw new ParsingException(source(paramNameCtx), "[{}] already specified", name);
-            }
-            if (allowed.contains(name) == false) {
-                String message = "Unknown parameter [{}]";
-                List<String> similar = StringUtils.findSimilar(name, allowed);
-                if (CollectionUtils.isEmpty(similar) == false) {
-                    message += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
-                }
-                throw new ParsingException(source(paramNameCtx), message, name);
-            }
-            String value = paramCtx.value.getText();
-            // TODO: validate and convert the value
-
-        }
-
-        // Validation logic for time parameters
-        Expression time = params.get(TIME);
-        Expression start = params.get(START);
-        Expression end = params.get(END);
-        Expression step = params.get(STEP);
-
-        if (time != null && (start != null || end != null || step != null)) {
-            throw new ParsingException(
-                source,
-                "Specify either [{}] for instant query or [{}}], [{}] or [{}}] for a range query",
-                TIME,
-                STEP,
-                START,
-                END
-            );
-        }
-        if ((start != null || end != null) && step == null) {
-            throw new ParsingException(source, "[{}}] is required alongside [{}}] or [{}}]", STEP, START, END);
-        }
+        PromqlParams params = parsePromqlParams(ctx, source);
 
         // TODO: Perform type and value validation
         var queryCtx = ctx.promqlQueryPart();
@@ -1292,9 +1254,95 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
-        return plan -> time != null
-            ? new PromqlCommand(source, plan, promqlPlan, time)
-            : new PromqlCommand(source, plan, promqlPlan, start, end, step);
+        return plan -> new PromqlCommand(source, plan, promqlPlan, params);
     }
 
+    private static PromqlParams parsePromqlParams(EsqlBaseParser.PromqlCommandContext ctx, Source source) {
+        Instant time = null;
+        Instant start = null;
+        Instant end = null;
+        Duration step = null;
+
+        Set<String> paramsSeen = new HashSet<>();
+        for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
+            String name = param(paramCtx.name);
+            if (paramsSeen.add(name) == false) {
+                throw new ParsingException(source(paramCtx.name), "[{}] already specified", name);
+            }
+            Source valueSource = source(paramCtx.value);
+            String valueString = param(paramCtx.value);
+            switch (name) {
+                case TIME -> time = PromqlParserUtils.parseDate(valueSource, valueString);
+                case START -> start = PromqlParserUtils.parseDate(valueSource, valueString);
+                case END -> end = PromqlParserUtils.parseDate(valueSource, valueString);
+                case STEP -> {
+                    try {
+                        step = Duration.ofSeconds(Integer.parseInt(valueString));
+                    } catch (NumberFormatException ignore) {
+                        step = PromqlParserUtils.parseDuration(valueSource, valueString);
+                    }
+                }
+                default -> {
+                    String message = "Unknown parameter [{}]";
+                    List<String> similar = StringUtils.findSimilar(name, PROMQL_ALLOWED_PARAMS);
+                    if (CollectionUtils.isEmpty(similar) == false) {
+                        message += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
+                    }
+                    throw new ParsingException(source(paramCtx.name), message, name);
+                }
+            }
+        }
+
+        // Validation logic for time parameters
+        if (time != null) {
+            if (start != null || end != null || step != null) {
+                throw new ParsingException(
+                    source,
+                    "Specify either [{}] for instant query or [{}}], [{}] or [{}}] for a range query",
+                    TIME,
+                    STEP,
+                    START,
+                    END
+                );
+            }
+        } else if (step != null) {
+            if (start != null || end != null) {
+                if (start == null || end == null) {
+                    throw new ParsingException(
+                        source,
+                        "Parameters [{}] and [{}] must either both be specified or both be omitted for a range query",
+                        START,
+                        END
+                    );
+                }
+                if (end.isBefore(start)) {
+                    throw new ParsingException(
+                        source,
+                        "invalid parameter \"end\": end timestamp must not be before start time",
+                        end,
+                        start
+                    );
+                }
+            }
+            if (step.isPositive() == false) {
+                throw new ParsingException(
+                    source,
+                    "invalid parameter \"step\": zero or negative query resolution step widths are not accepted. "
+                        + "Try a positive integer",
+                    step
+                );
+            }
+        } else {
+            throw new ParsingException(source, "Parameter [{}] or [{}] is required", STEP, TIME);
+        }
+        return new PromqlParams(time, start, end, step);
+    }
+
+    private static String param(EsqlBaseParser.PromqlParamContentContext paramCtx) {
+        if (paramCtx.QUOTED_IDENTIFIER() != null) {
+            return AbstractBuilder.unquote(paramCtx.QUOTED_IDENTIFIER().getText());
+        } else {
+            return paramCtx.getText();
+        }
+    }
 }

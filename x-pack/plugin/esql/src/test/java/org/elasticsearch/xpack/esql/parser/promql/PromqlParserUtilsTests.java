@@ -24,7 +24,7 @@ import static java.time.Duration.ofSeconds;
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.containsString;
 
-public class ParsingUtilTests extends ESTestCase {
+public class PromqlParserUtilsTests extends ESTestCase {
 
     private Duration parseTimeValue(String value) {
         return PromqlParserUtils.parseDuration(new Source(0, 0, value), value);
@@ -53,24 +53,14 @@ public class ParsingUtilTests extends ESTestCase {
         assertEquals(ofDays(365).plus(ofSeconds(6)), parseTimeValue("1y6s"));
         assertEquals(ofDays(365).plus(ofMillis(7)), parseTimeValue("1y7ms"));
 
-        assertEquals(
-            ofDays(365).plus(ofDays(14)).plus(ofDays(3)),
-            parseTimeValue("1y2w3d")
-        );
+        assertEquals(ofDays(365).plus(ofDays(14)).plus(ofDays(3)), parseTimeValue("1y2w3d"));
+
+        assertEquals(ofDays(365).plus(ofDays(3)).plus(ofHours(4)), parseTimeValue("1y3d4h"));
+
+        assertEquals(ofDays(365).plus(ofMinutes(5)).plus(ofSeconds(6)), parseTimeValue("1y5m6s"));
 
         assertEquals(
-            ofDays(365).plus(ofDays(3)).plus(ofHours(4)),
-            parseTimeValue("1y3d4h")
-        );
-
-        assertEquals(
-            ofDays(365).plus(ofMinutes(5)).plus(ofSeconds(6)),
-            parseTimeValue("1y5m6s")
-        );
-
-        assertEquals(
-            ofDays(365).plus(ofDays(7)).plus(ofDays(1)).plus(ofHours(1))
-                .plus(ofMinutes(1)).plus(ofSeconds(1)).plus(ofMillis(1)),
+            ofDays(365).plus(ofDays(7)).plus(ofDays(1)).plus(ofHours(1)).plus(ofMinutes(1)).plus(ofSeconds(1)).plus(ofMillis(1)),
             parseTimeValue("1y1w1d1h1m1s1ms")
         );
 

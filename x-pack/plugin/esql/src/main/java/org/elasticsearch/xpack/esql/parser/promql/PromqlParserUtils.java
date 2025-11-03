@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -271,5 +273,21 @@ public class PromqlParserUtils {
     private static int adjustColumn(int lineNumber, int columnNumber, int startColumn) {
         // the column offset only applies to the first line of the PROMQL command
         return lineNumber == 1 ? columnNumber + startColumn - 1 : columnNumber;
+    }
+
+    /*
+     * Parses a Prometheus date which can be either a float representing epoch seconds or an RFC3339 date string.
+     */
+    public static Instant parseDate(Source source, String value) {
+        try {
+            return Instant.ofEpochMilli((long) (Double.parseDouble(value) * 1000));
+        } catch (NumberFormatException ignore) {
+            // Not a float, try parsing as date string
+        }
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new ParsingException(source, "Invalid date format [{}]", value);
+        }
     }
 }

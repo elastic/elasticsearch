@@ -8,12 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -22,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -33,34 +31,27 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
 
     private final LogicalPlan promqlPlan;
-    private final Expression start, end, step;
-
-    // Instant query constructor - shortcut for a range constructor
-    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, Expression time) {
-        this(source, child, promqlPlan, time, time, Literal.timeDuration(source, Duration.ZERO));
-    }
+    private final PromqlParams params;
 
     // Range query constructor
-    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, Expression start, Expression end, Expression step) {
+    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, PromqlParams params) {
         super(source, child);
         this.promqlPlan = promqlPlan;
-        this.start = start;
-        this.end = end;
-        this.step = step;
+        this.params = params;
     }
 
     @Override
     protected NodeInfo<PromqlCommand> info() {
-        return NodeInfo.create(this, PromqlCommand::new, child(), promqlPlan(), start(), end(), step());
+        return NodeInfo.create(this, PromqlCommand::new, child(), promqlPlan(), params());
     }
 
     @Override
     public PromqlCommand replaceChild(LogicalPlan newChild) {
-        return new PromqlCommand(source(), newChild, promqlPlan(), start(), end(), step());
+        return new PromqlCommand(source(), newChild, promqlPlan(), params());
     }
 
     public PromqlCommand withPromqlPlan(LogicalPlan newPromqlPlan) {
-        return new PromqlCommand(source(), child(), newPromqlPlan, start(), end(), step());
+        return new PromqlCommand(source(), child(), newPromqlPlan, params());
     }
 
     @Override
@@ -87,21 +78,37 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         return promqlPlan;
     }
 
-    public Expression start() {
-        return start;
+    public PromqlParams params() {
+        return params;
     }
 
-    public Expression end() {
-        return end;
+    public Instant start() {
+        return params().start();
     }
 
-    public Expression step() {
-        return step;
+    public Instant end() {
+        return params().end();
+    }
+
+    public Instant time() {
+        return params().time();
+    }
+
+    public Duration step() {
+        return params().step();
+    }
+
+    public boolean isInstantQuery() {
+        return params().isInstantQuery();
+    }
+
+    public boolean isRangeQuery() {
+        return params().isRangeQuery();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), start, end, step, promqlPlan);
+        return Objects.hash(child(), params, promqlPlan);
     }
 
     @Override
@@ -119,11 +126,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     public String nodeString() {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
-        if (start == end) {
-            sb.append("time=").append(start);
-        } else {
-            sb.append("start=").append(start).append(", end=").append(end).append(", step=").append(step);
-        }
+        sb.append("params=");
+        sb.append(params.toString());
         sb.append(" promql=[<>\n");
         sb.append(promqlPlan.toString());
         sb.append("\n<>]]");

@@ -178,10 +178,11 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD ->
                 /*
-                 * single_value_match is here because there are extra documents hiding in the index
-                 * that don't have the `foo` field.
+                 * FieldExistsQuery is because there are extra documents hiding in the index
+                 * that don't have the `foo` field. "*:*" is because sometimes we end up on
+                 * a shard where all `foo = 1`.
                  */
-                List.of("FieldExistsQuery [field=foo]", "foo:[1 TO 1]");
+                List.of("FieldExistsQuery [field=foo]", "foo:[1 TO 1]", "*:*");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;

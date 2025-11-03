@@ -698,14 +698,7 @@ public class ModelRegistry implements ClusterStateListener {
 
             var failureItem = firstFailureResponse.get();
             if (ExceptionsHelper.unwrapCause(failureItem.failureCause()) instanceof VersionConflictEngineException) {
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Inference endpoint [{}] already exists",
-                        RestStatus.BAD_REQUEST,
-                        failureItem.failureCause(),
-                        failureItem.inferenceId()
-                    )
-                );
+                delegate.onFailure(new ResourceAlreadyExistsException("Inference endpoint [{}] already exists", failureItem.inferenceId()));
                 return;
             }
 

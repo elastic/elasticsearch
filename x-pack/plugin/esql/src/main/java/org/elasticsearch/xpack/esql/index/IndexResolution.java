@@ -36,6 +36,10 @@ public final class IndexResolution {
         return valid(index, index.concreteIndices(), Map.of());
     }
 
+    public static IndexResolution empty(String indexPattern) {
+        return valid(new EsIndex(indexPattern, Map.of(), Map.of(), Set.of()));
+    }
+
     public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
         return new IndexResolution(null, invalid, Set.of(), Map.of());

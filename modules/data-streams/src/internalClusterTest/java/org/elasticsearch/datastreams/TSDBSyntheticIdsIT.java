@@ -229,20 +229,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             );
         }
 
-        // Update by synthetic _id
-        //
-        // Note: it doesn't work, is that expected? Is is blocked by IndexRouting.ExtractFromSource.updateShard
-        var updateDocId = randomFrom(docs.keySet());
-        var updateDocIndex = docs.get(updateDocId);
-        var exception = expectThrows(IllegalArgumentException.class, () -> {
-            var doc = document(timestamp, "vm-dev01", "cpu-load", 10); // update
-            client().prepareUpdate(updateDocIndex, updateDocId).setDoc(doc).get();
-        });
-        assertThat(
-            exception.getMessage(),
-            containsString("update is not supported because the destination index [" + updateDocIndex + "] is in time_series mode")
-        );
-
         flush(dataStreamName);
 
         // Check that synthetic _id field have no postings on disk

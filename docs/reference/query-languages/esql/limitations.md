@@ -46,6 +46,10 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `geo_shape`
     * `point`
     * `shape`
+* TSDB metrics {preview}`9.2`
+   * `counter` 
+   * `gauge` 
+   * `aggregate_metric_double`
 
 
 
@@ -53,12 +57,17 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
 {{esql}} does not yet support the following field types:
 
+::::{tab-set}
+:::{tab-item} 9.0-9.1
 * TSDB metrics
-
-    * `counter`
-    * `position`
-    * `aggregate_metric_double`
-
+   * `counter` 
+   * `gauge` 
+   * `aggregate_metric_double`
+:::
+:::{tab-item} 9.2+
+This limitation no longer exists and TSDB metrics are now supported (preview).
+:::
+::::
 * Date/time
 
     * `date_range`
@@ -188,11 +197,16 @@ As discussed in more detail in [Using {{esql}} to query multiple indices](/refer
 * All underlying indexes and shards must be active. Using admin commands or UI, it is possible to pause an index or shard, for example by disabling a frozen tier instance, but then any {{esql}} query that includes that index or shard will fail, even if the query uses [`WHERE`](/reference/query-languages/esql/commands/where.md) to filter out the results from the paused index. If you see an error of type `search_phase_execution_exception`, with the message `Search rejected due to missing shards`, you likely have an index or shard in `UNASSIGNED` state.
 * The same field must have the same type across all indexes. If the same field is mapped to different types it is still possible to query the indexes, but the field must be [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
+## Time series data streams [esql-tsdb]
 
-## Time series data streams are not supported [esql-tsdb]
-
+::::{tab-set}
+:::{tab-item} 9.0-9.1
 {{esql}} does not support querying time series data streams (TSDS).
-
+:::
+:::{tab-item} 9.2+
+This limitation no longer exists and time series data streams (TSDS) are now supported (preview).
+:::
+::::
 
 ## Date math limitations [esql-limitations-date-math]
 

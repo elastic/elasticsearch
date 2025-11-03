@@ -325,6 +325,23 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         flushAndRefresh(dataStreamName);
 
+        // Get by synthetic _id
+        //
+        // Here we exercise the get-from-searcher and VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion paths.
+        randomDocs = randomSubsetOf(randomIntBetween(1, results.length), results);
+        for (var doc : randomDocs) {
+            var getResponse = client().prepareGet(doc.getIndex(), doc.getId())
+                .setRealtime(randomBoolean())
+                .setFetchSource(true)
+                .execute()
+                .actionGet();
+            assertThat(getResponse.isExists(), equalTo(true));
+            assertThat(getResponse.getVersion(), equalTo(1L));
+
+            var source = asInstanceOf(Map.class, getResponse.getSourceAsMap().get("metric"));
+            assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(metricOffset + doc.getItemId()));
+        }
+
         // Check that synthetic _id field have no postings on disk
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {

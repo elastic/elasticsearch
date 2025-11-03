@@ -91,7 +91,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         @Name("elementType") ElementType elementType,
         @Name("similarity") DenseVectorFieldMapper.VectorSimilarity similarity,
         @Name("index") boolean index,
-        @Name("synthetic") VectorSourceOptions sourceOptions
+        @Name("sourceOptions") VectorSourceOptions sourceOptions
     ) {
         this.elementType = elementType;
         this.similarity = similarity;
@@ -248,14 +248,14 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                             }
                             final ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * numDims);
                             buffer.asFloatBuffer().put(array);
-                            yield Base64.getEncoder().encode(buffer.array());
+                            yield Base64.getEncoder().encodeToString(buffer.array());
                         }
                         case BYTE, BIT -> {
                             byte[] array = new byte[numDims];
                             for (int k = 0; k < numDims; k++) {
                                 array[k] = vector.get(k).byteValue();
                             }
-                            yield randomBoolean() ? Base64.getEncoder().encode(array) : HexFormat.of().formatHex(array);
+                            yield randomBoolean() ? Base64.getEncoder().encodeToString(array) : HexFormat.of().formatHex(array);
                         }
                     };
                 }

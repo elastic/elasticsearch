@@ -815,15 +815,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return parseStringValue(s, dimChecker, similarity, Base64.getDecoder()::decode);
         }
 
-        VectorData parseBase64BinaryEncodedVector(byte[] binaryValue, IntBooleanConsumer dimChecker, VectorSimilarity similarity) {
-            byte[] decodedVector = Base64.getDecoder().decode(binaryValue);
-            dimChecker.accept(decodedVector.length, true);
-            VectorData vectorData = VectorData.fromBytes(decodedVector);
-            double squaredMagnitude = computeSquaredMagnitude(vectorData);
-            checkVectorMagnitude(similarity, errorElementsAppender(decodedVector), (float) squaredMagnitude);
-            return vectorData;
-        }
-
         @Override
         public VectorData parseKnnVector(
             DocumentParserContext context,
@@ -834,7 +825,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentParser.Token token = context.parser().currentToken();
             return switch (token) {
                 case START_ARRAY -> parseVectorArray(context, dims, dimChecker, similarity);
-                case VALUE_EMBEDDED_OBJECT -> parseBase64BinaryEncodedVector(context.parser().binaryValue(), dimChecker, similarity);
                 case VALUE_STRING -> {
                     String s = context.parser().text();
                     if (s.length() == dims * 2) {
@@ -886,7 +876,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public int parseDimensionCount(DocumentParserContext context) throws IOException {
             XContentParser.Token currentToken = context.parser().currentToken();
             return switch (currentToken) {
-                case VALUE_EMBEDDED_OBJECT -> Base64.getDecoder().decode(context.parser().binaryValue()).length;
                 case START_ARRAY -> {
                     int index = 0;
                     for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
@@ -896,8 +885,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 case VALUE_STRING -> {
                     String v = context.parser().text();
-                    // Base64 is always divisible by 4, so if it's not, assume hex
-                    if (v.length() % 4 != 0 || isMaybeHexString(v)) {
+                    // Base64 is always divisible by 4, so if it's not try hex
+                    if (v.length() % 4 != 0) {
                         try {
                             yield HexFormat.of().parseHex(v).length;
                         } catch (IllegalArgumentException e) {
@@ -1046,20 +1035,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                     yield index;
                 }
-                case VALUE_EMBEDDED_OBJECT -> {
-                    byte[] vector = Base64.getDecoder().decode(context.parser().binaryValue());
-                    if (vector.length % Float.BYTES != 0) {
-                        throw new ParsingException(
-                            context.parser().getTokenLocation(),
-                            "Failed to parse object: Embedded vector byte length ["
-                                + vector.length
-                                + "] is not a multiple of ["
-                                + Float.BYTES
-                                + "]"
-                        );
-                    }
-                    yield vector.length / Float.BYTES;
-                }
                 case VALUE_STRING -> {
                     byte[] decodedVectorBytes = Base64.getDecoder().decode(context.parser().text());
                     if (decodedVectorBytes.length % Float.BYTES != 0) {
@@ -1138,7 +1113,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentParser.Token token = context.parser().currentToken();
             return switch (token) {
                 case START_ARRAY -> parseVectorArray(context, dimChecker, dims);
-                case VALUE_EMBEDDED_OBJECT -> parseBase64BinaryEncodedVector(context, dimChecker, dims);
                 case VALUE_STRING -> parseBase64EncodedVector(context, dimChecker, dims);
                 default -> throw new ParsingException(
                     context.parser().getTokenLocation(),
@@ -1161,31 +1135,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             dimChecker.accept(index, true);
             return new VectorDataAndMagnitude(VectorData.fromFloats(vector), squaredMagnitude);
-        }
-
-        VectorDataAndMagnitude parseBase64BinaryEncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, int dims)
-            throws IOException {
-            // BIG_ENDIAN is the default, but just being explicit here
-            byte[] binaryValue = context.parser().binaryValue();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getDecoder().decode(binaryValue)).order(ByteOrder.BIG_ENDIAN);
-            if (byteBuffer.remaining() != dims * Float.BYTES) {
-                throw new ParsingException(
-                    context.parser().getTokenLocation(),
-                    "Failed to parse object: Embedded vector byte length ["
-                        + byteBuffer.remaining()
-                        + "] does not match the expected length of ["
-                        + (dims * Float.BYTES)
-                        + "] for dimension count ["
-                        + dims
-                        + "]"
-                );
-            }
-            float[] decodedVector = new float[dims];
-            byteBuffer.asFloatBuffer().get(decodedVector);
-            dimChecker.accept(decodedVector.length, true);
-            VectorData vectorData = VectorData.fromFloats(decodedVector);
-            float squaredMagnitude = (float) computeSquaredMagnitude(vectorData);
-            return new VectorDataAndMagnitude(vectorData, squaredMagnitude);
         }
 
         VectorDataAndMagnitude parseBase64EncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, int dims)
@@ -1292,13 +1241,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Function<String, byte[]> decoder
         ) {
             byte[] decodedVector = decoder.apply(s);
-            dimChecker.accept(decodedVector.length * Byte.SIZE, true);
-            return VectorData.fromBytes(decodedVector);
-        }
-
-        @Override
-        VectorData parseBase64BinaryEncodedVector(byte[] binaryValue, IntBooleanConsumer dimChecker, VectorSimilarity similarity) {
-            byte[] decodedVector = Base64.getDecoder().decode(binaryValue);
             dimChecker.accept(decodedVector.length * Byte.SIZE, true);
             return VectorData.fromBytes(decodedVector);
         }
@@ -2514,16 +2456,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         if (sourceValue == null) {
                             return List.of();
                         }
-                        try {
-                            switch (sourceValue) {
-                                case List<?> v -> values.addAll(v);
-                                case String s -> values.add(s);
-                                default -> ignoredValues.add(sourceValue);
-                            }
-                        } catch (Exception e) {
-                            // if parsing fails here then it would have failed at index time
-                            // as well, meaning that we must be ignoring malformed values.
-                            ignoredValues.add(sourceValue);
+                        switch (sourceValue) {
+                            case List<?> v -> values.addAll(v);
+                            case String s -> values.add(s);
+                            default -> ignoredValues.add(sourceValue);
                         }
                     }
                     values.trimToSize();

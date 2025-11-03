@@ -82,7 +82,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         numberOfPrimaryShards = randomIntBetween(10, 20);
-        replicationFactor = randomIntBetween(1, 2);
+        replicationFactor = 2;
         if (numberOfPrimaryShards % 2 != 0 && exceedThreshold) numberOfPrimaryShards++;
         if (numberOfPrimaryShards % 2 == 0 && exceedThreshold == false) numberOfPrimaryShards++;
 

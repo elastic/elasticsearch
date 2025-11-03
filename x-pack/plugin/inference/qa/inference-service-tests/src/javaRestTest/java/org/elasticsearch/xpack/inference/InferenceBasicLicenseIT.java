@@ -44,7 +44,7 @@ public class InferenceBasicLicenseIT extends InferenceLicenseBaseRestTest {
         var modelConfig = mockSparseServiceModelConfig(null, true);
         sendRestrictedRequest("PUT", endpoint, modelConfig);
     }
-    
+
     public void testGetServices_NonRestrictedWithBasicLicense() throws Exception {
         var endpoint = "_inference/_services";
         sendNonRestrictedRequest("GET", endpoint, null, 200, false);

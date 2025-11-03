@@ -372,7 +372,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final String sessionId;
 
     private final Tracer tracer;
-    private Map<ShardId, Set<ReaderContext>> relocatingContexts = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private Map<ShardId, Set<Supplier<ReaderContext>>> relocatingContexts = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     public SearchService(
         ClusterService clusterService,
@@ -1379,7 +1379,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public void addRelocatingContext(ShardId shardId, ReaderContext readerContext) {
+    public void addRelocatingContext(ShardId shardId, Supplier<ReaderContext> readerContext) {
         this.relocatingContexts.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentSet()).add(readerContext);
     }
 
@@ -1426,12 +1426,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         logger.debug("afterIndexShardStarted [{}]", indexShard);
         ShardId shardId = indexShard.shardId();
         if (relocatingContexts.containsKey(shardId)) {
-            Set<ReaderContext> readerContexts = relocatingContexts.get(shardId);
-            for (ReaderContext readerContext : readerContexts) {
-                putReaderContext(readerContext);
-                logger.debug("added context [{}] to active readers", readerContext.id());
-                relocatingContexts.remove(shardId);
+            Set<Supplier<ReaderContext>> readerContexts = relocatingContexts.get(shardId);
+            for (Supplier<ReaderContext> readerContext : readerContexts) {
+                ReaderContext newReaderContext = readerContext.get();
+                logger.debug("added context [{}] to active readers", newReaderContext.id());
             }
+            relocatingContexts.remove(shardId);
         }
     }
 
@@ -1984,14 +1984,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     freeReaderContext(context.id());
                 }
             }
-            for (Set<ReaderContext> contexts : relocatingContexts.values()) {
-                for (ReaderContext context : contexts) {
-                    if (context.isExpired()) {
-                        logger.debug("freeing relocating search context [{}]", context.id());
-                        freeReaderContext(context.id());
-                    }
-                }
-            }
+            // TODO clean up pending relocating contexts. How long to wait for a relocation to complete?
+//            for (Set<Supplier<ReaderContext>> contexts : relocatingContexts.values()) {
+//                for (Supplier<ReaderContext> context : contexts) {
+//                    if (context.isExpired()) {
+//                        logger.debug("freeing relocating search context [{}]", context.id());
+//                        freeReaderContext(context.id());
+//                    }
+//                }
+//            }<
         }
 
         @Override

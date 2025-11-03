@@ -57,10 +57,16 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     static final String NUM_CHUNKS = "num_chunks";
     static final String CHUNK_SIZE = "chunk_size";
-    static final  String QUERY = "query";
+    static final String QUERY = "query";
 
-    public static final Map<String, DataType> ALLOWED_OPTIONS =
-        Map.of(NUM_CHUNKS, DataType.INTEGER, CHUNK_SIZE, DataType.INTEGER, QUERY, DataType.KEYWORD);
+    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(
+        NUM_CHUNKS,
+        DataType.INTEGER,
+        CHUNK_SIZE,
+        DataType.INTEGER,
+        QUERY,
+        DataType.KEYWORD
+    );
 
     @FunctionInfo(
         returnType = "keyword",
@@ -99,14 +105,10 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                     type = "integer",
                     description = "The size of sentence-based chunks to use. Defaults to " + DEFAULT_CHUNK_SIZE
                 ),
-                @MapParam.MapParamEntry(
-                    name = "query",
-                    type = "keyword",
-                    description = """
-                            The query to use when scoring, to return the best chunks associated with this query.
-                            If query is not provided or if no meaningful chunks can be found, chunks will be returned consecutively
-                            from the start of the document."""
-                ),},
+                @MapParam.MapParamEntry(name = "query", type = "keyword", description = """
+                    The query to use when scoring, to return the best chunks associated with this query.
+                    If query is not provided or if no meaningful chunks can be found, chunks will be returned consecutively
+                    from the start of the document."""), },
             description = "Options to customize chunking behavior.",
             optional = true
         ) Expression options
@@ -247,8 +249,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         Chunk chunk = (Chunk) o;
-        return Objects.equals(field(), chunk.field())
-            && Objects.equals(options(), chunk.options());
+        return Objects.equals(field(), chunk.field()) && Objects.equals(options(), chunk.options());
     }
 
     @Override
@@ -269,20 +270,9 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
         if (optionsMap.containsKey(QUERY)) {
             String query = ((String) optionsMap.get(QUERY));
-            return new ChunkBytesRefRescoreEvaluator.Factory(
-                source(),
-                toEvaluator.apply(field()),
-                query,
-                numChunks,
-                chunkSize
-            );
+            return new ChunkBytesRefRescoreEvaluator.Factory(source(), toEvaluator.apply(field()), query, numChunks, chunkSize);
         }
 
-        return new ChunkBytesRefEvaluator.Factory(
-            source(),
-            toEvaluator.apply(field()),
-            numChunks,
-            chunkSize
-        );
+        return new ChunkBytesRefEvaluator.Factory(source(), toEvaluator.apply(field()), numChunks, chunkSize);
     }
 }

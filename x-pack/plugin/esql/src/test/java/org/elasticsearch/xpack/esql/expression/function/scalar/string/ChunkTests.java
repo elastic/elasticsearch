@@ -166,15 +166,16 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
     }
 
     private List<String> process(String str, String query, Integer numChunks, Integer chunkSize) {
-        MapExpression optionsMap =
-            (numChunks == null && chunkSize == null && query == null) ? null : createOptionsMap(numChunks, chunkSize, query);
+        MapExpression optionsMap = (numChunks == null && chunkSize == null && query == null)
+            ? null
+            : createOptionsMap(numChunks, chunkSize, query);
 
         List<Object> rowData = query != null ? List.of(new BytesRef(str), new BytesRef(query)) : List.of(new BytesRef(str));
 
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
-                new Chunk(Source.EMPTY, field("str", DataType.KEYWORD), optionsMap)
-            ).get(driverContext());
+            EvalOperator.ExpressionEvaluator eval = evaluator(new Chunk(Source.EMPTY, field("str", DataType.KEYWORD), optionsMap)).get(
+                driverContext()
+            );
             Block block = eval.eval(row(rowData))
         ) {
             if (block.isNull(0)) {

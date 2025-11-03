@@ -103,6 +103,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
+    public static final String FALLBACK_FIELD_NAME_SUFFIX = "._original";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -571,7 +572,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isSyntheticSource = isSyntheticSource;
             this.indexSortConfig = builder.indexSortConfig;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
-            this.originalName = isSyntheticSource ? name + "._original" : null;
+            this.originalName = isSyntheticSource ? name + FALLBACK_FIELD_NAME_SUFFIX : null;
         }
 
         public KeywordFieldType(String name) {

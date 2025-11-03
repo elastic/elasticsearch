@@ -374,17 +374,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             requestDispatcher.execute();
 
             /*
-             * We need to run the Cross Project Search reconciliation but only after we're heard back from all the linked projects.
+             * We need to run the Cross Project Search reconciliation but only after we've heard back from all the linked projects.
              * It is also possible that some linked projects may respond back with an error instead of a valid response. To facilitate
              * this, we use `CountDown` and track each response, irrespective of whether it's valid or not, and then perform the
              * reconciliation when it has counted down and the request is a resolvable CPS request.
              */
             Runnable crossProjectReconciler;
             Map<String, ResolvedIndexExpressions> linkedProjectsResponses = ConcurrentCollections.newConcurrentMap();
-            if (remoteClusterIndices.size() > 0) {
+            // Run the reconciler only if there are linked projects and CPS is enabled.
+            if (remoteClusterIndices.isEmpty() == false && crossProjectEnabled) {
                 CountDown countDownResponses = new CountDown(remoteClusterIndices.size());
                 crossProjectReconciler = () -> {
-                    if (countDownResponses.countDown() && crossProjectEnabled) {
+                    if (countDownResponses.countDown()) {
                         /*
                          * This happens when one or more linked projects respond with an error instead of a valid response -- say
                          * networking error.

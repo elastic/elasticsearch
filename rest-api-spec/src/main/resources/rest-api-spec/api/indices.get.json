@@ -62,7 +62,7 @@
           "mappings",
           "settings"
         ],
-        "default": "aliases,mappings,settings",
+        "default": "['aliases', 'mappings', 'settings']",
         "description": "Return only information on specified index features"
       },
       "flat_settings": {

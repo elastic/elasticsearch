@@ -65,7 +65,35 @@
       "h": {
         "type": "list",
         "default": "ip,hp,rp,r,m,n,cpu,l",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "index",
+          "shard",
+          "start_time",
+          "start_time_millis",
+          "stop_time",
+          "stop_time_millis",
+          "time",
+          "type",
+          "stage",
+          "source_host",
+          "source_node",
+          "target_host",
+          "target_node",
+          "repository",
+          "snapshot",
+          "files",
+          "files_recovered",
+          "files_percent",
+          "files_total",
+          "bytes",
+          "bytes_recovered",
+          "bytes_percent",
+          "bytes_total",
+          "translog_ops",
+          "translog_ops_recovered",
+          "translog_ops_percent"
+        ]
       },
       "help": {
         "type": "boolean",

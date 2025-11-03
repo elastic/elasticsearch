@@ -30,7 +30,24 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "epoch",
+          "timestamp",
+          "cluster",
+          "status",
+          "node.total",
+          "node.data",
+          "shards",
+          "pri",
+          "relo",
+          "init",
+          "unassign",
+          "unassign.pri",
+          "pending_tasks",
+          "max_task_wait_time",
+          "active_shards_percent"
+        ]
       },
       "help": {
         "type": "boolean",

@@ -128,7 +128,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         final var computer = new DesiredBalanceComputer(
             clusterSettings,
-             TimeProviderUtils.create(timeInMillis::incrementAndGet),
+            TimeProviderUtils.create(timeInMillis::incrementAndGet),
             new BalancedShardsAllocator(Settings.EMPTY),
             TEST_ONLY_EXPLAINER
         );
@@ -1409,7 +1409,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should report long computation based on time",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [1m] and [60] iterations, "
+                "Desired balance computation for [*] is still not converged after [59s] and [59] iterations, "
                     + "last convergence was [1m] ago"
             )
         );
@@ -1469,7 +1469,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
     public void testLoggingOfComputeCallsAndIterationsSinceConvergence() {
         final var clusterSettings = new ClusterSettings(
-            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1L)).build(),
+            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(5L)).build(),
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
         );
         final var timeInMillis = new AtomicLong(-1L);
@@ -1572,7 +1572,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // This INFO is triggered from the interval since last convergence timestamp.
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 6),
-            getLogExpectation.apply(new LogExpectationData(false, "5ms", 4, 0, 0, "4ms"))
+            getLogExpectation.apply(new LogExpectationData(false, "6ms", 5, 0, 0, "5ms"))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT);
         assertLastConvergenceInfo.accept(new ExpectedLastConvergenceInfo(1, 6, lastConvergenceTimestampMillis));
@@ -1581,16 +1581,15 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // The next INFO is triggered from the interval since last INFO message logged, and then another after the interval period.
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 8),
-            getLogExpectation.apply(new LogExpectationData(false, "10ms", 8, 2, 2, "2ms")),
-            getLogExpectation.apply(new LogExpectationData(false, "15ms", 13, 2, 7, "7ms"))
+            getLogExpectation.apply(new LogExpectationData(false, "11ms", 9, 2, 3, "3ms"))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT);
         assertLastConvergenceInfo.accept(new ExpectedLastConvergenceInfo(2, 14, lastConvergenceTimestampMillis));
 
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
-            getLogExpectation.apply(new LogExpectationData(false, "20ms", 17, 3, 3, "3ms")),
-            getLogExpectation.apply(new LogExpectationData(false, "25ms", 22, 3, 8, "8ms")),
+            getLogExpectation.apply(new LogExpectationData(false, "18ms", 15, 3, 1, "1ms")),
+            getLogExpectation.apply(new LogExpectationData(false, "23ms", 20, 3, 6, "6ms")),
             getLogExpectation.apply(new LogExpectationData(true, "27ms", 24, 3, 10, "10ms"))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.CONVERGED);
@@ -1598,8 +1597,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // First INFO is triggered from interval since last converged, second is triggered from the inverval since the last INFO log.
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
-            getLogExpectation.apply(new LogExpectationData(false, "5ms", 4, 0, 0, "4ms")),
-            getLogExpectation.apply(new LogExpectationData(false, "10ms", 9, 0, 0, "9ms")),
+            getLogExpectation.apply(new LogExpectationData(false, "6ms", 5, 0, 0, "5ms")),
             getLogExpectation.apply(new LogExpectationData(true, "11ms", 10, 0, 0, "10ms"))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.CONVERGED);
@@ -1608,10 +1606,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         final var index = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(TEST_INDEX).getIndex();
         final var expectedAssignmentsMap = Map.of(new ShardId(index, 0), new ShardAssignment(Set.of("node-0"), 1, 0, 0));
         assertDesiredAssignments(desiredBalance.get(), expectedAssignmentsMap);
-
-        clusterSettings.applySettings(
-            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(3L)).build()
-        );
 
         // Verify that if some time elapses and then another computation starts then we do not count the idle time
         timeInMillis.addAndGet(100L);
@@ -1625,6 +1619,19 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 Level.INFO,
                 "* still not converged after *"
             )
+        );
+
+        // test a non-convergence and convergence message with a significant time delta,
+        // to check the time-since-convergence and time-since-last-compute order
+        iterationCounter.set(0);
+        timeInMillis.addAndGet(100L);
+        getComputeRunnableForIsFreshPredicate.apply(ignored -> false).run();
+        timeInMillis.addAndGet(100L);
+
+        assertLoggerExpectationsFor(
+            getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
+            getLogExpectation.apply(new LogExpectationData(false, "204ms", 2, 2, 1, "1ms")),
+            getLogExpectation.apply(new LogExpectationData(true, "205ms", 3, 2, 2, "2ms"))
         );
     }
 

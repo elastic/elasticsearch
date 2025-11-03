@@ -1,0 +1,106 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.action;
+
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResultsTests;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests.generateRandomChunkingSettings;
+
+public class GetInferenceFieldsActionResponseTests extends AbstractWireSerializingTestCase<GetInferenceFieldsAction.Response> {
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
+    }
+
+    @Override
+    protected Writeable.Reader<GetInferenceFieldsAction.Response> instanceReader() {
+        return GetInferenceFieldsAction.Response::new;
+    }
+
+    @Override
+    protected GetInferenceFieldsAction.Response createTestInstance() {
+        return new GetInferenceFieldsAction.Response(randomInferenceFieldsMap(), randomInferenceResultsMap());
+    }
+
+    @Override
+    protected GetInferenceFieldsAction.Response mutateInstance(GetInferenceFieldsAction.Response instance) throws IOException {
+        return switch (between(0, 1)) {
+            case 0 -> new GetInferenceFieldsAction.Response(
+                randomValueOtherThan(instance.getInferenceFieldsMap(), GetInferenceFieldsActionResponseTests::randomInferenceFieldsMap),
+                instance.getInferenceResultsMap()
+            );
+            case 1 -> new GetInferenceFieldsAction.Response(
+                instance.getInferenceFieldsMap(),
+                randomValueOtherThan(instance.getInferenceResultsMap(), GetInferenceFieldsActionResponseTests::randomInferenceResultsMap)
+            );
+            default -> throw new AssertionError("Invalid value");
+        };
+    }
+
+    private static Map<String, List<InferenceFieldMetadata>> randomInferenceFieldsMap() {
+        Map<String, List<InferenceFieldMetadata>> map = new HashMap<>();
+        int numIndices = randomIntBetween(0, 5);
+        for (int i = 0; i < numIndices; i++) {
+            String indexName = randomIdentifier();
+            List<InferenceFieldMetadata> fields = new ArrayList<>();
+            int numFields = randomIntBetween(0, 5);
+            for (int j = 0; j < numFields; j++) {
+                fields.add(randomInferenceFieldMetadata());
+            }
+            map.put(indexName, fields);
+        }
+        return map;
+    }
+
+    private static InferenceFieldMetadata randomInferenceFieldMetadata() {
+        return new InferenceFieldMetadata(
+            randomIdentifier(),
+            randomIdentifier(),
+            randomIdentifier(),
+            randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new),
+            generateRandomChunkingSettings()
+        );
+    }
+
+    private static Map<String, InferenceResults> randomInferenceResultsMap() {
+        Map<String, InferenceResults> map = new HashMap<>();
+        int numResults = randomIntBetween(0, 5);
+        for (int i = 0; i < numResults; i++) {
+            String inferenceId = randomIdentifier();
+            map.put(inferenceId, randomInferenceResults());
+        }
+        return map;
+    }
+
+    private static InferenceResults randomInferenceResults() {
+        return randomFrom(
+            MlDenseEmbeddingResultsTests.createRandomResults(),
+            TextExpansionResultsTests.createRandomResults(),
+            WarningInferenceResultsTests.createRandomResults(),
+            ErrorInferenceResultsTests.createRandomResults()
+        );
+    }
+}

@@ -275,7 +275,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         }
 
         private void addToBloomFilter(FieldInfo info, BytesRef value) {
-            assert info.getName().equals(bloomFilterFieldName): "Expected " + bloomFilterFieldName + " but got " + info;
+            assert info.getName().equals(bloomFilterFieldName) : "Expected " + bloomFilterFieldName + " but got " + info;
             bloomFilterFieldInfo = info;
             var termHashes = hashTerm(value, hashes);
             for (int hash : termHashes) {
@@ -338,7 +338,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         }
     }
 
-    public static class Reader extends StoredFieldsReader {
+    private static class Reader extends StoredFieldsReader implements BloomFilterProvider {
         @Nullable
         private final BloomFilterFieldReader bloomFilterFieldReader;
         private final StoredFieldsReader delegateReader;
@@ -386,8 +386,8 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
             delegateReader.document(docID, visitor);
         }
 
-        @Nullable
-        BloomFilterFieldReader getBloomFilterFieldReader() {
+        @Override
+        public BloomFilter getBloomFilter() throws IOException {
             return bloomFilterFieldReader;
         }
     }
@@ -418,7 +418,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         }
     }
 
-    public static class BloomFilterFieldReader implements Closeable {
+    static class BloomFilterFieldReader implements BloomFilter {
         private final FieldInfo fieldInfo;
         private final IndexInput bloomFilterData;
         private final RandomAccessInput bloomFilterIn;
@@ -426,13 +426,8 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         private final int[] hashes;
 
         @Nullable
-        public static BloomFilterFieldReader open(
-            Directory directory,
-            SegmentInfo si,
-            FieldInfos fn,
-            IOContext context,
-            String segmentSuffix
-        ) throws IOException {
+        static BloomFilterFieldReader open(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context, String segmentSuffix)
+            throws IOException {
             List<Closeable> toClose = new ArrayList<>();
             boolean success = false;
             try (var metaInput = directory.openChecksumInput(bloomFilterMetadataFileName(si, segmentSuffix))) {
@@ -486,7 +481,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
             }
         }
 
-        public BloomFilterFieldReader(
+        BloomFilterFieldReader(
             FieldInfo fieldInfo,
             RandomAccessInput bloomFilterIn,
             int bloomFilterSizeInBits,
@@ -550,5 +545,21 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
 
     private static String bloomFilterFileName(SegmentInfo segmentInfo, String segmentSuffix) {
         return IndexFileNames.segmentFileName(segmentInfo.name, segmentSuffix, STORED_FIELDS_BLOOM_FILTER_EXTENSION);
+    }
+
+    public interface BloomFilter extends Closeable {
+        /**
+         * Tests whether the given term may exist in the specified field.
+         *
+         * @param field the field name to check
+         * @param term the term to test for membership
+         * @return true if term may be present, false if definitely absent
+         */
+        boolean mayContainTerm(String field, BytesRef term) throws IOException;
+    }
+
+    public interface BloomFilterProvider extends Closeable {
+        @Nullable
+        BloomFilter getBloomFilter() throws IOException;
     }
 }

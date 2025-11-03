@@ -139,9 +139,9 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                         "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
                         "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
                         Strings.format(
-                            "This index was created in version [%s] and requires action before upgrading to %d.0. The following transforms are "
-                                + "configured to write to this index: [%s]. Refer to the migration guide to learn more about how to prepare "
-                                + "transforms destination indices for your upgrade.",
+                            "This index was created in version [%s] and requires action before upgrading to %d.0. The following "
+                                + "transforms are configured to write to this index: [%s]. Refer to the migration guide to learn more "
+                                + "about how to prepare transforms destination indices for your upgrade.",
                             currentCompatibilityVersion.toReleaseVersion(),
                             Version.CURRENT.major,
                             String.join(", ", transforms)

@@ -487,7 +487,6 @@ public class EsqlFunctionRegistry {
                 def(ToGeoShape.class, ToGeoShape::new, "to_geoshape"),
                 def(ToIp.class, ToIp::new, "to_ip"),
                 def(ToInteger.class, ToInteger::new, "to_integer", "to_int"),
-                // def(ToLong.class, ToLong::new, "to_long"),
                 def(ToLongSurrogate.class, ToLongSurrogate::new, "to_long"),
                 def(ToRadians.class, ToRadians::new, "to_radians"),
                 def(ToString.class, ToString::new, "to_string", "to_str"),

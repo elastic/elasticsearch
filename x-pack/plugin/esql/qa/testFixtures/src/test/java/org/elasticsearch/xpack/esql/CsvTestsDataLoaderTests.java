@@ -11,12 +11,18 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.ConnectException;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CsvTestsDataLoaderTests extends ESTestCase {
 
     public void testCsvTestsDataLoaderExecution() {
-        ConnectException ce = expectThrows(ConnectException.class, () -> CsvTestsDataLoader.main(new String[] {}));
-        assertThat(ce.getMessage(), startsWith("Connection refused"));
+        Throwable cause = expectThrows(AssertionError.class, () -> CsvTestsDataLoader.main(new String[] {}));
+        // find the root cause
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        assertThat(cause, instanceOf(ConnectException.class));
+        assertThat(cause.getMessage(), startsWith("Connection refused"));
     }
 }

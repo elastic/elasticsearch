@@ -159,7 +159,7 @@ public class LookupIndexModeIT extends ESIntegTestCase {
         );
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().execute(TransportResizeAction.TYPE, split).actionGet()
+            () -> client().execute(TransportResizeAction.TYPE, split).actionGet()
         );
         assertThat(
             error.getMessage(),

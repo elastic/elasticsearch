@@ -32,6 +32,16 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testPromqlStepAndRangeMisaligned() {
+        assertThat(
+            error("""
+                TS test | PROMQL step 1m (
+                  avg(rate(network.bytes_in[5m]))
+                )""", tsdb),
+            equalTo("2:29: the duration for range vector selector [5m] must be equal to the query's step for range queries at this time")
+        );
+    }
+
     public void testPromqlIllegalNameLabelMatcher() {
         assertThat(
             error("TS test | PROMQL step 5m (avg({__name__=~\"*.foo.*\"}))", tsdb),
@@ -39,13 +49,15 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    @Ignore
     public void testPromqlSubquery() {
-        // TODO doesn't parse
-        // line 1:36: Invalid query 'network.bytes_in'[ValueExpressionContext] given; expected Expression but found
-        // InstantSelector
-        assertThat(error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m:])))", tsdb), equalTo(""));
-        assertThat(error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m:1m])))", tsdb), equalTo(""));
+        assertThat(
+            error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m:])))", tsdb),
+            equalTo("1:36: subqueries are not supported at this time [network.bytes_in[5m:]]")
+        );
+        assertThat(
+            error("TS test | PROMQL step 5m (avg(rate(network.bytes_in[5m:1m])))", tsdb),
+            equalTo("1:36: subqueries are not supported at this time [network.bytes_in[5m:1m]]")
+        );
     }
 
     @Ignore

@@ -11,6 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,21 +46,38 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     private final List<FieldCapabilitiesFailure> failures;
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
     private final TransportVersion minTransportVersion;
+    private final ResolvedIndexExpressions resolvedIndexExpressions;
 
     public FieldCapabilitiesResponse(
         String[] indices,
         Map<String, Map<String, FieldCapabilities>> fields,
         List<FieldCapabilitiesFailure> failures
     ) {
-        this(indices, fields, Collections.emptyList(), failures, null);
+        this(indices, fields, Collections.emptyList(), failures, null, null);
     }
 
     public FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> fields) {
-        this(indices, fields, Collections.emptyList(), Collections.emptyList(), null);
+        this(indices, fields, Collections.emptyList(), Collections.emptyList(), null, null);
     }
 
     public FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
-        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures, null);
+        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures, null, null);
+    }
+
+    private FieldCapabilitiesResponse(
+        String[] indices,
+        Map<String, Map<String, FieldCapabilities>> fields,
+        List<FieldCapabilitiesIndexResponse> indexResponses,
+        List<FieldCapabilitiesFailure> failures,
+        TransportVersion minTransportVersion,
+        @Nullable ResolvedIndexExpressions resolvedIndexExpressions
+    ) {
+        this.fields = Objects.requireNonNull(fields);
+        this.indexResponses = Objects.requireNonNull(indexResponses);
+        this.indices = indices;
+        this.failures = failures;
+        this.minTransportVersion = minTransportVersion;
+        this.resolvedIndexExpressions = resolvedIndexExpressions;
     }
 
     private FieldCapabilitiesResponse(
@@ -69,11 +87,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         List<FieldCapabilitiesFailure> failures,
         TransportVersion minTransportVersion
     ) {
-        this.fields = Objects.requireNonNull(fields);
-        this.indexResponses = Objects.requireNonNull(indexResponses);
-        this.indices = indices;
-        this.failures = failures;
-        this.minTransportVersion = minTransportVersion;
+        this(indices, fields, indexResponses, failures, minTransportVersion, null);
     }
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
@@ -84,6 +98,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         this.minTransportVersion = in.getTransportVersion().supports(MIN_TRANSPORT_VERSION)
             ? in.readOptional(TransportVersion::readVersion)
             : null;
+        this.resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
     }
 
     /**
@@ -172,6 +187,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         if (out.getTransportVersion().supports(MIN_TRANSPORT_VERSION)) {
             out.writeOptional((Writer<TransportVersion>) (o, v) -> TransportVersion.writeVersion(v, o), minTransportVersion);
         }
+        out.writeOptionalWriteable(this.resolvedIndexExpressions);
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
@@ -267,5 +283,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         public FieldCapabilitiesResponse build() {
             return new FieldCapabilitiesResponse(indices, fields, indexResponses, failures, minTransportVersion);
         }
+    }
+
+    @Nullable
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 }

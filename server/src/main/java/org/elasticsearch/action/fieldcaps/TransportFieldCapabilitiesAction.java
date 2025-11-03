@@ -21,6 +21,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.AbstractThreadedActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -38,6 +39,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
@@ -49,7 +52,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -64,6 +69,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -72,6 +78,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -182,6 +189,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         LinkedRequestExecutor<R> linkedRequestExecutor,
         ActionListener<R> listener
     ) {
+        final boolean crossProjectEnabled = crossProjectModeDecider.resolvesCrossProject(request);
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
@@ -309,6 +317,44 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             );
             requestDispatcher.execute();
 
+            /*
+             * We need to run the Cross Project Search reconciliation but only after we're heard back from all the linked projects.
+             * It is also possible that some linked projects may respond back with an error instead of a valid response. To facilitate
+             * this, we track each response, irrespective of whether it's valid or not, and then perform the reconciliation.
+             */
+            CountDown countDownResponses = new CountDown(remoteClusterIndices.size());
+            Map<String, ResolvedIndexExpressions> linkedProjectsResponses = ConcurrentCollections.newConcurrentMap();
+            Runnable crossProjectReconciler = () -> {
+                if (countDownResponses.countDown() && crossProjectEnabled) {
+                    /*
+                     * This happens when one or more linked projects respond with an error instead of a valid response -- say, networking
+                     * error.
+                     */
+                    if (linkedProjectsResponses.size() != remoteClusterIndices.size()) {
+                        listener.onFailure(
+                            new IllegalArgumentException(
+                                "Invalid number of responses received: "
+                                    + linkedProjectsResponses.size()
+                                    + " vs expected "
+                                    + remoteClusterIndices.size()
+                            )
+                        );
+                        return;
+                    }
+
+                    Exception validationEx = CrossProjectIndexResolutionValidator.validate(
+                        request.indicesOptions(),
+                        null,
+                        request.getResolvedIndexExpressions(),
+                        linkedProjectsResponses
+                    );
+
+                    if (validationEx != null) {
+                        listener.onFailure(validationEx);
+                    }
+                }
+            };
+
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
             // send us back all individual index results.
             for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
@@ -322,6 +368,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     crossProjectModeDecider
                 );
                 ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
+                    assert response.getResolvedIndexExpressions() != null
+                        : "Resolved index expressions from [" + clusterAlias + "] are null";
+                    linkedProjectsResponses.put(clusterAlias, response.getResolvedIndexExpressions());
+
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                         String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
                         handleIndexResponse.accept(
@@ -346,10 +396,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         }
                         return TransportVersion.min(lhs, rhs);
                     });
+                    crossProjectReconciler.run();
                 }, ex -> {
                     for (String index : originalIndices.indices()) {
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                     }
+                    crossProjectReconciler.run();
                 });
 
                 SubscribableListener<Transport.Connection> connectionListener = new SubscribableListener<>();

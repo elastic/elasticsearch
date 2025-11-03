@@ -463,7 +463,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
             // Slow scan to the first document matching the _tsid
             final int startDocID = docValues.slowScanToFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
-            assert 0 <= startDocID : startDocID;
+            assert startDocID >= 0 : startDocID;
 
             int docID = startDocID;
             int docTsIdOrd = tsIdOrd;

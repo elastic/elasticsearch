@@ -347,7 +347,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     "The index was created before 8.19 and contains mappings that must be reindexed due to containing percolator fields. "
                         + String.join(", ", percolatorIncompatibleFieldMappings),
                     false,
-                    Map.of("reindex_required", true, "excludedActions", List.of("readOnly"))
+                    Map.of("reindex_required", true, "excluded_actions", List.of("readOnly"))
                 );
             }
         }

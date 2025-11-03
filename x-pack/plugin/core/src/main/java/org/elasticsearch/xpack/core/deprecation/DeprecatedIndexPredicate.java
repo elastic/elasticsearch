@@ -94,9 +94,7 @@ public class DeprecatedIndexPredicate {
         return MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()) == filterToBlockedStatus;
     }
 
-    //private static final TransportVersion REINDEX_MINIMUM = TransportVersion.fromId(8841000);
     private static boolean transportVersionBeforeCurrentMajorRelease(IndexMetadata indexMetadata) {
-        return true;
-        //return IndexMetadata.SETTING_INDEX_TRANSPORT_VERSION_CREATED.get(indexMetadata.getSettings()).id() < REINDEX_MINIMUM.id();
+        return IndexMetadata.SETTING_INDEX_TRANSPORT_VERSION_CREATED.get(indexMetadata.getSettings()).id() / 1000 < TransportVersion.current().id() / 1000;
     }
 }

@@ -61,7 +61,7 @@ public class PercolatorFieldIndexMigrationIT extends ESRestTestCase {
     }
 
     private static void startKibana() {
-        new GenericContainer<>("docker.elastic.co/kibana/kibana:8.19.6-SNAPSHOT").withEnv(
+        new GenericContainer<>("docker.elastic.co/kibana/kibana:8.19.7-SNAPSHOT").withEnv(
             "ELASTICSEARCH_HOSTS",
             "[\"http://" + cluster.getHttpAddresses() + "\"]"
         ).withNetworkMode("host").start();

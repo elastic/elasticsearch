@@ -748,6 +748,22 @@ public final class ServiceUtils {
         return extractOptionalInteger(map, settingName, scope, validationException, true);
     }
 
+    public static Integer extractOptionalPositiveIntegerLessThanOrEqualToMax(
+        Map<String, Object> map,
+        String settingName,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer optionalField = extractOptionalPositiveInteger(map, settingName, scope, validationException);
+
+        if (optionalField != null && optionalField > maxValue) {
+            validationException.addValidationError(mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, optionalField, maxValue));
+        }
+
+        return optionalField;
+    }
+
     public static Integer extractOptionalInteger(
         Map<String, Object> map,
         String settingName,

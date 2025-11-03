@@ -23,6 +23,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -155,11 +156,13 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
         );
 
         assertThat("update should create a new instance", updatedInstance, not(equalTo(testInstance)));
-        assertThat(updatedInstance.getNumAllocations(), equalTo(expectedNumAllocations));
-        assertThat(updatedInstance.getAdaptiveAllocationsSettings(), nullValue());
-        assertThat(updatedInstance.getNumThreads(), equalTo(testInstance.getNumThreads()));
-        assertThat(updatedInstance.getDeploymentId(), equalTo(testInstance.getDeploymentId()));
-        assertThat(updatedInstance.modelId(), equalTo(testInstance.modelId()));
+        assertThat(updatedInstance, instanceOf(ElasticsearchInternalServiceSettings.class));
+        var updatedElasticSearchInternalServiceSettings = (ElasticsearchInternalServiceSettings) updatedInstance;
+        assertThat(updatedElasticSearchInternalServiceSettings.getNumAllocations(), equalTo(expectedNumAllocations));
+        assertThat(updatedElasticSearchInternalServiceSettings.getAdaptiveAllocationsSettings(), nullValue());
+        assertThat(updatedElasticSearchInternalServiceSettings.getNumThreads(), equalTo(testInstance.getNumThreads()));
+        assertThat(updatedElasticSearchInternalServiceSettings.getDeploymentId(), equalTo(testInstance.getDeploymentId()));
+        assertThat(updatedElasticSearchInternalServiceSettings.modelId(), equalTo(testInstance.modelId()));
 
     }
 
@@ -171,11 +174,13 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
         );
 
         assertThat("update should create a new instance", updatedInstance, not(equalTo(testInstance)));
-        assertThat(updatedInstance.getNumAllocations(), nullValue());
-        assertThat(updatedInstance.getAdaptiveAllocationsSettings(), equalTo(expectedAdaptiveAllocations));
-        assertThat(updatedInstance.getNumThreads(), equalTo(testInstance.getNumThreads()));
-        assertThat(updatedInstance.getDeploymentId(), equalTo(testInstance.getDeploymentId()));
-        assertThat(updatedInstance.modelId(), equalTo(testInstance.modelId()));
+        assertThat(updatedInstance, instanceOf(ElasticsearchInternalServiceSettings.class));
+        var updatedElasticSearchInternalServiceSettings = (ElasticsearchInternalServiceSettings) updatedInstance;
+        assertThat(updatedElasticSearchInternalServiceSettings.getNumAllocations(), nullValue());
+        assertThat(updatedElasticSearchInternalServiceSettings.getAdaptiveAllocationsSettings(), equalTo(expectedAdaptiveAllocations));
+        assertThat(updatedElasticSearchInternalServiceSettings.getNumThreads(), equalTo(testInstance.getNumThreads()));
+        assertThat(updatedElasticSearchInternalServiceSettings.getDeploymentId(), equalTo(testInstance.getDeploymentId()));
+        assertThat(updatedElasticSearchInternalServiceSettings.modelId(), equalTo(testInstance.modelId()));
     }
 
     private static AdaptiveAllocationsSettings adaptiveAllocationSettings(AdaptiveAllocationsSettings base) {

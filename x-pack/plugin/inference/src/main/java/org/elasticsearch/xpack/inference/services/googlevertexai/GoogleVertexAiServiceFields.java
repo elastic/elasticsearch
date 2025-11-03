@@ -15,10 +15,11 @@ public class GoogleVertexAiServiceFields {
     public static final String URL_SETTING_NAME = "url";
     public static final String STREAMING_URL_SETTING_NAME = "streaming_url";
     public static final String PROVIDER_SETTING_NAME = "provider";
+    public static final String MAX_BATCH_SIZE = "max_batch_size";
 
     /**
      * According to https://cloud.google.com/vertex-ai/docs/quotas#text-embedding-limits the limit is `250`.
      */
-    static final int EMBEDDING_MAX_BATCH_SIZE = 250;
+    public static final int EMBEDDING_MAX_BATCH_SIZE = 250;
 
 }

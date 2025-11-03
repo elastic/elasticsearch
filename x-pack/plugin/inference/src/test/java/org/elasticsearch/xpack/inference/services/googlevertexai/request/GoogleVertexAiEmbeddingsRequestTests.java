@@ -267,6 +267,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
                 null,
                 dimensions,
                 null,
+                null,
                 null
             ),
             new GoogleVertexAiEmbeddingsTaskSettings(null, null),

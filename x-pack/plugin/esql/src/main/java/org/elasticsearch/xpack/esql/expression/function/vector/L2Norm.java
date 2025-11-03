@@ -40,7 +40,7 @@ public class L2Norm extends VectorSimilarityFunction {
 
         @Override
         public String toString() {
-            return "L1Norm";
+            return "L2Norm";
         }
     };
 

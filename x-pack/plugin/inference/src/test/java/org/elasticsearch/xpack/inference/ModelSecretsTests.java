@@ -51,7 +51,7 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
 
     @Override
     protected ModelSecrets mutateInstance(ModelSecrets instance) {
-        return randomValueOtherThan(instance, ModelSecretsTests::createRandomInstance);
+        return new ModelSecrets(randomValueOtherThan(instance.getSecretSettings(), ModelSecretsTests::randomSecretSettings));
     }
 
     public record FakeSecretSettings(String apiKey) implements SecretSettings {

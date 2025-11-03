@@ -178,6 +178,9 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
         }
 
+        /**
+         * Fill the cache for all ords. We skip values {@code -1} which represent "no data".
+         */
         private void fillCache(BlockFactory factory, int[] ords) throws IOException {
             factory.adjustBreaker(RamUsageEstimator.sizeOf(ords));
             try {
@@ -196,6 +199,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
         }
 
+        /**
+         * Build the results for a list of documents directly from the cache. We use this
+         * if we're sure that all ordinals we're going to load are already cached.
+         */
         private Block buildFromFilledCache(BlockFactory factory, Docs docs, int offset) throws IOException {
             int count = docs.count() - offset;
             try (IntBuilder builder = factory.ints(count)) {
@@ -211,6 +218,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
         }
 
+        /**
+         * Get the count of code points at the ord, reading from the cache if possible.
+         * The {@code ord} must be {@code >= 0} or this will fail.
+         */
         private int codePointsAtOrd(int ord) throws IOException {
             if (cache[ord] >= 0) {
                 return cache[ord];
@@ -253,7 +264,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return buildFromFilledCache(factory, docs, offset);
             }
 
-            int[] ords = readOrds(factory, docs, offset);
+            int[] ords = readOrds(ordinals, warnings, factory, docs, offset);
             try {
                 fillCache(factory, ords);
                 return buildFromCache(factory, cache, ords);
@@ -297,36 +308,9 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             return factory.constantNulls(1);
         }
 
-        private int[] readOrds(BlockFactory factory, Docs docs, int offset) throws IOException {
-            int count = docs.count() - offset;
-            long size = sizeOfArray(count);
-            factory.adjustBreaker(size);
-            int[] ords = null;
-            try {
-                ords = new int[docs.count() - offset];
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    if (ordinals.advanceExact(doc) == false) {
-                        ords[i] = -1;
-                        continue;
-                    }
-                    if (ordinals.docValueCount() != 1) {
-                        registerSingleValueWarning(warnings);
-                        ords[i] = -1;
-                        continue;
-                    }
-                    ords[i] = Math.toIntExact(ordinals.nextOrd());
-                }
-                int[] result = ords;
-                ords = null;
-                return result;
-            } finally {
-                if (ords != null) {
-                    factory.adjustBreaker(-size);
-                }
-            }
-        }
-
+        /**
+         * Fill the cache for all ords. We skip values {@code -1} which represent "no data".
+         */
         private void fillCache(BlockFactory factory, int[] ords) throws IOException {
             factory.adjustBreaker(RamUsageEstimator.sizeOf(ords));
             try {
@@ -345,6 +329,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
         }
 
+        /**
+         * Build the results for a list of documents directly from the cache. We use this
+         * if we're sure that all ordinals we're going to load are already cached.
+         */
         private Block buildFromFilledCache(BlockFactory factory, Docs docs, int offset) throws IOException {
             int count = docs.count() - offset;
             try (IntBuilder builder = factory.ints(count)) {
@@ -365,6 +353,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
         }
 
+        /**
+         * Get the count of code points at the ord, reading from the cache if possible.
+         * The {@code ord} must be {@code >= 0} or this will fail.
+         */
         private int codePointsAtOrd(int ord) throws IOException {
             if (cache[ord] >= 0) {
                 return cache[ord];
@@ -395,11 +387,32 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             if (docs.count() - offset == 1) {
                 return blockForSingleDoc(factory, docs.get(offset));
             }
-            try (IntBuilder builder = factory.ints(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    read(docs.get(i), builder);
+
+            int[] ords = readOrds(ordinals, warnings, factory, docs, offset);
+            int[] sortedOrds = null;
+            int[] counts = null;
+            try {
+                sortedOrds = sortedOrds(factory, ords);
+                int compactedLength = compactSorted(sortedOrds);
+                counts = counts(factory, sortedOrds, compactedLength);
+                try (IntBuilder builder = factory.ints(ords.length)) {
+                    for (int ord : ords) {
+                        if (ord >= 0) {
+                            builder.appendInt(counts[Arrays.binarySearch(sortedOrds, 0, compactedLength, ord)]);
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                    return builder.build();
                 }
-                return builder.build();
+            } finally {
+                factory.adjustBreaker(-RamUsageEstimator.shallowSizeOf(ords));
+                if (sortedOrds != null) {
+                    factory.adjustBreaker(-RamUsageEstimator.shallowSizeOf(sortedOrds));
+                }
+                if (counts != null) {
+                    factory.adjustBreaker(-RamUsageEstimator.shallowSizeOf(counts));
+                }
             }
         }
 
@@ -442,8 +455,90 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             return factory.constantNulls(1);
         }
 
+        /**
+         * Builds a sorted copy of the loaded ordinals.
+         */
+        private int[] sortedOrds(BlockFactory factory, int[] ords) {
+            factory.adjustBreaker(RamUsageEstimator.sizeOf(ords));
+            int[] sortedOrds = ords.clone();
+            Arrays.sort(sortedOrds);
+            return sortedOrds;
+        }
+
+        /**
+         * Compacts the array of sorted ordinals into an array of populated ({@code >= 0}), unique ordinals.
+         * @return the length of the unique array
+         */
+        private int compactSorted(int[] sortedOrds) {
+            int c = 0;
+            int i = 0;
+            while (i < sortedOrds.length && sortedOrds[i] < 0) {
+                i++;
+            }
+            while (i < sortedOrds.length) {
+                if (false == (i > 0 && sortedOrds[i - 1] == sortedOrds[i])) {
+                    sortedOrds[c++] = sortedOrds[i];
+                }
+                i++;
+            }
+            return c;
+        }
+
+        private int[] counts(BlockFactory factory, int[] compactedSortedOrds, int compactedLength) throws IOException {
+            long size = sizeOfArray(compactedLength);
+            factory.adjustBreaker(size);
+            int[] counts = new int[compactedLength];
+            for (int i = 0; i < counts.length; i++) {
+                counts[i] = codePointsAtOrd(compactedSortedOrds[i]);
+            }
+            return counts;
+        }
+
+        /**
+         * Get the count of code points at the ord.
+         * The {@code ord} must be {@code >= 0} or this will fail.
+         */
         private int codePointsAtOrd(long ord) throws IOException {
             return UnicodeUtil.codePointCount(ordinals.lookupOrd(ord));
+        }
+    }
+
+    /**
+     * Load an ordinal for each position. Three cases:
+     * <ul>
+     *     <li>There is a single ordinal at this position - load the ordinals value in to the array</li>
+     *     <li>There are no values at this position - load a -1 - we'll skip loading that later</li>
+     *     <li>There are <strong>many</strong> values at this position - load a -1 which we'll skip like above - and emit a warning</li>
+     * </ul>
+     */
+    private static int[] readOrds(SortedSetDocValues ordinals, Warnings warnings, BlockFactory factory, Docs docs, int offset)
+        throws IOException {
+        int count = docs.count() - offset;
+        long size = sizeOfArray(count);
+        factory.adjustBreaker(size);
+        int[] ords = null;
+        try {
+            ords = new int[docs.count() - offset];
+            for (int i = offset; i < docs.count(); i++) {
+                int doc = docs.get(i);
+                if (ordinals.advanceExact(doc) == false) {
+                    ords[i] = -1;
+                    continue;
+                }
+                if (ordinals.docValueCount() != 1) {
+                    registerSingleValueWarning(warnings);
+                    ords[i] = -1;
+                    continue;
+                }
+                ords[i] = Math.toIntExact(ordinals.nextOrd());
+            }
+            int[] result = ords;
+            ords = null;
+            return result;
+        } finally {
+            if (ords != null) {
+                factory.adjustBreaker(-size);
+            }
         }
     }
 

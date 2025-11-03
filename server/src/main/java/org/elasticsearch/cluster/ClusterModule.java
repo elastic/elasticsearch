@@ -413,6 +413,13 @@ public class ClusterModule extends AbstractModule {
                 StreamsMetadata::fromXContent
             )
         );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(RegisteredPolicySnapshots.TYPE),
+                RegisteredPolicySnapshots::parse
+            )
+        );
         return entries;
     }
 

@@ -196,13 +196,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
 
             LogicalPlan p = childResult.plan;
             p = new Eval(tbucket.source(), p, List.of(tbucket));
-            p = new TimeSeriesAggregate(
-                acrossAggregate.source(),
-                p,
-                groupings,
-                aggs,
-                null
-            );
+            p = new TimeSeriesAggregate(acrossAggregate.source(), p, groupings, aggs, null);
             result = new MapResult(p, extras);
         } else {
             throw new QlIllegalArgumentException("Unsupported PromQL function call: {}", functionCall);

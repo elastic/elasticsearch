@@ -276,7 +276,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     try {
                         settings = metadataDataStreamsService.getEffectiveSettings(state.metadata(), dataStream);
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        throw new RuntimeException("Failed to get effective settings for data stream: " + dataStream.getName(), e);
                     }
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
                     if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
@@ -289,7 +289,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                                 dataStream.getEffectiveIndexTemplate(state.metadata())
                             );
                         } catch (IOException e) {
-                            throw new RuntimeException(e);
+                            throw new RuntimeException("Failed to determine indexMode for data stream: " + dataStream.getName(), e);
                         }
                     }
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);

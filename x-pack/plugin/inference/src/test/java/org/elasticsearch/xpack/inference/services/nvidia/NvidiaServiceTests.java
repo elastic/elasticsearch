@@ -91,8 +91,8 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettingsTests.buildServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests.createChatCompletionModel;
+import static org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettingsTests.buildServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
@@ -243,7 +243,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 512,
                 new RateLimitSettings(10_000)
             ),
-            null,
+            NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS,
             ChunkingSettingsTests.createRandomChunkingSettings(),
             new DefaultSecretSettings(new SecureString("secret".toCharArray()))
         );
@@ -367,25 +367,18 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
         String responseJson = """
             data: {\
                 "id": "chatcmpl-8425dd3d-78f3-4143-93cb-dd576ab8ae26",\
+                "object": "chat.completion.chunk",\
+                "created": 1750158492,\
+                "model": "microsoft/phi-3-mini-128k-instruct",\
                 "choices": [{\
+                        "index": 0,\
                         "delta": {\
-                            "content": "Deep",\
-                            "function_call": null,\
-                            "refusal": null,\
-                            "role": "assistant",\
-                            "tool_calls": null\
+                            "content": "Deep"\
                         },\
                         "finish_reason": null,\
-                        "index": 0,\
                         "logprobs": null\
                     }\
-                ],\
-                "created": 1750158492,\
-                "model": "llama3.2:3b",\
-                "object": "chat.completion.chunk",\
-                "service_tier": null,\
-                "system_fingerprint": "fp_ollama",\
-                "usage": null\
+                ]\
             }
 
             """;
@@ -410,13 +403,12 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                     "id": "chatcmpl-8425dd3d-78f3-4143-93cb-dd576ab8ae26",
                     "choices": [{
                             "delta": {
-                                "content": "Deep",
-                                "role": "assistant"
+                                "content": "Deep"
                             },
                             "index": 0
                         }
                     ],
-                    "model": "llama3.2:3b",
+                    "model": "microsoft/phi-3-mini-128k-instruct",
                     "object": "chat.completion.chunk"
                 }
                 """));
@@ -424,12 +416,10 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testUnifiedCompletionNonStreamingNotFoundError() throws Exception {
-        String responseJson = """
-            {
-                "detail": "Not Found"
-            }
+        String response = """
+            404 page not found
             """;
-        webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
+        webServer.enqueue(new MockResponse().setResponseCode(404).setBody(response));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
@@ -458,7 +448,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                               "error" : {
                                 "code" : "not_found",
                                 "message" : "Resource not found at [%s] for request from inference entity id [inferenceEntityId] status \
-                            [404]. Error message: [{\\n    \\"detail\\": \\"Not Found\\"\\n}\\n]",
+                            [404]. Error message: [404 page not found\\n]",
                                 "type" : "nvidia_error"
                               }
                             }"""), getUrl(webServer))));
@@ -473,7 +463,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
     public void testMidStreamUnifiedCompletionError() throws Exception {
         String responseJson = """
-            data: {"error": {"message": "400: Invalid value: Model 'llama3.12:3b' not found"}}
+            data: {"error": {"message": "midstream error"}}
 
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -481,7 +471,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             {
                   "error": {
                       "message": "Received an error response for request from inference entity id [inferenceEntityId].\
-             Error message: [{\\"error\\": {\\"message\\": \\"400: Invalid value: Model 'llama3.12:3b' not found\\"}}]",
+             Error message: [{\\"error\\": {\\"message\\": \\"midstream error\\"}}]",
                       "type": "nvidia_error"
                   }
               }
@@ -494,11 +484,10 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 "id": "chatcmpl-2c57e3888b1a4e80a0c708889546288e",\
                 "object": "chat.completion.chunk",\
                 "created": 1760082951,\
-                "model": "llama-31-8b-instruct",\
+                "model": "microsoft/phi-3-mini-128k-instruct",\
                 "choices": [{\
                         "index": 0,\
                         "delta": {\
-                            "role": "assistant",\
                             "content": "Deep"\
                         },\
                         "logprobs": null,\
@@ -551,36 +540,28 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
     public void testInfer_StreamRequest_ErrorResponse() {
         String responseJson = """
-            {
-                "detail": "Not Found"
-            }""";
+            404 page not found""";
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
 
         var e = assertThrows(ElasticsearchStatusException.class, this::streamCompletion);
         assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(e.getMessage(), equalTo(String.format(Locale.ROOT, """
-            Resource not found at [%s] for request from inference entity id [inferenceEntityId] status [404]. Error message: [{
-                "detail": "Not Found"
-            }]""", getUrl(webServer))));
+            Resource not found at [%s] for request from inference entity id [inferenceEntityId] status [404]. \
+            Error message: [404 page not found]""", getUrl(webServer))));
     }
 
     public void testInfer_StreamRequestRetry() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(503).setBody("""
-            {
-              "error": {
-                "message": "server busy"
-              }
-            }"""));
+            failed to decode json body: json: bool unexpected end of JSON input"""));
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""
             data: {\
                 "id": "chatcmpl-2c57e3888b1a4e80a0c708889546288e",\
                 "object": "chat.completion.chunk",\
                 "created": 1760082951,\
-                "model": "llama-31-8b-instruct",\
+                "model": "microsoft/phi-3-mini-128k-instruct",\
                 "choices": [{\
                         "index": 0,\
                         "delta": {\
-                            "role": "assistant",\
                             "content": "Deep"\
                         },\
                         "logprobs": null,\
@@ -643,10 +624,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
             String responseJson = """
                 {
-                    "id": "embd-45e6d99b97a645c0af96653598069cd9",
                     "object": "list",
-                    "created": 1760085467,
-                    "model": "gritlm-7b",
                     "data": [
                         {
                             "index": 0,
@@ -665,11 +643,11 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                             ]
                         }
                     ],
+                    "model": "baai/bge-m3",
                     "usage": {
+                        "num_images": 0,
                         "prompt_tokens": 7,
-                        "total_tokens": 7,
-                        "completion_tokens": 0,
-                        "prompt_tokens_details": null
+                        "total_tokens": 7
                     }
                 }
                 """;
@@ -723,9 +701,11 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer api_key"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(2));
+            assertThat(requestMap.size(), Matchers.is(4));
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc", "def")));
             assertThat(requestMap.get("model"), Matchers.is("model"));
+            assertThat(requestMap.get("input_type"), Matchers.is("passage"));
+            assertThat(requestMap.get("truncate"), Matchers.is("none"));
         }
     }
 

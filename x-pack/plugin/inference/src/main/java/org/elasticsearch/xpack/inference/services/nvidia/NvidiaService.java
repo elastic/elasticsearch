@@ -391,7 +391,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        // As Nvidia does not publish the max input length for their reranking models, we use a conservative default.
+        // Nvidia reranking models have a max window size of 512 input tokens, so use a conservative default of 300 words
         return CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 

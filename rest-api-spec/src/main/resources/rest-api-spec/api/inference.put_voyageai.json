@@ -23,8 +23,12 @@
           ],
           "parts": {
             "task_type": {
-              "type": "string",
-              "description": "The task type"
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "text_embedding",
+                "rerank"
+              ]
             },
             "voyageai_inference_id": {
               "type": "string",

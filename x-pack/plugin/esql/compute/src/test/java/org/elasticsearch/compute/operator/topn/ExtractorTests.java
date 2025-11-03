@@ -13,7 +13,6 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -30,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.compute.test.BlockTestUtils.randomAggregateMetricDoubleLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -54,15 +54,15 @@ public class ExtractorTests extends ESTestCase {
                             "regular aggregate_metric_double",
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
-                            () -> randomAggregateMetricDouble(true)
+                            () -> randomAggregateMetricDoubleLiteral(true)
                         )
                     );
                     cases.add(
                         valueTestCase(
-                            "aggregate_metric_double with nulls",
+                            "aggregate_metric_double that can have nulls",
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
-                            () -> randomAggregateMetricDouble(false)
+                            () -> randomAggregateMetricDoubleLiteral(false)
                         )
                     );
                 }
@@ -246,17 +246,5 @@ public class ExtractorTests extends ESTestCase {
         assertThat(values.length, equalTo(0));
 
         assertThat(result.build(), equalTo(value));
-    }
-
-    public static AggregateMetricDoubleLiteral randomAggregateMetricDouble(boolean allMetrics) {
-        if (allMetrics) {
-            return new AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomInt());
-        }
-        return new AggregateMetricDoubleLiteral(
-            randomBoolean() ? randomDouble() : null,
-            randomBoolean() ? randomDouble() : null,
-            randomBoolean() ? randomDouble() : null,
-            randomBoolean() ? randomInt() : null
-        );
     }
 }

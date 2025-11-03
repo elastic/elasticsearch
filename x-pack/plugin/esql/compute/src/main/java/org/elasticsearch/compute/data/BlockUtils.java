@@ -303,11 +303,15 @@ public final class BlockUtils {
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from composite blocks");
             case AGGREGATE_METRIC_DOUBLE -> {
                 AggregateMetricDoubleBlock aggBlock = (AggregateMetricDoubleBlock) block;
+                boolean minAvailable = aggBlock.minBlock().isNull(offset) == false;
+                boolean maxAvailable = aggBlock.maxBlock().isNull(offset) == false;
+                boolean sumAvailable = aggBlock.sumBlock().isNull(offset) == false;
+                boolean countAvailable = aggBlock.countBlock().isNull(offset) == false;
                 yield new AggregateMetricDoubleLiteral(
-                    aggBlock.minBlock().getDouble(offset),
-                    aggBlock.maxBlock().getDouble(offset),
-                    aggBlock.sumBlock().getDouble(offset),
-                    aggBlock.countBlock().getInt(offset)
+                    minAvailable ? aggBlock.minBlock().getDouble(offset) : null,
+                    maxAvailable ? aggBlock.maxBlock().getDouble(offset) : null,
+                    sumAvailable ? aggBlock.sumBlock().getDouble(offset) : null,
+                    countAvailable ? aggBlock.countBlock().getInt(offset) : null
                 );
             }
             case EXPONENTIAL_HISTOGRAM -> {

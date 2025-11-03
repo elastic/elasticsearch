@@ -10,6 +10,7 @@ package org.elasticsearch.compute.test;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -65,12 +66,7 @@ public class BlockTestUtils {
             case DOUBLE -> randomDouble();
             case BYTES_REF -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 5));   // TODO: also test spatial WKB
             case BOOLEAN -> randomBoolean();
-            case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                randomDouble(),
-                randomDouble(),
-                randomDouble(),
-                randomNonNegativeInt()
-            );
+            case AGGREGATE_METRIC_DOUBLE -> randomAggregateMetricDoubleLiteral(false);
             case DOC -> new BlockUtils.Doc(
                 randomIntBetween(0, 255), // Shard ID should be small and non-negative.
                 randomInt(),
@@ -214,10 +210,7 @@ public class BlockTestUtils {
         }
         if (builder instanceof AggregateMetricDoubleBlockBuilder b
             && value instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
-            b.min().appendDouble(aggMetric.min());
-            b.max().appendDouble(aggMetric.max());
-            b.sum().appendDouble(aggMetric.sum());
-            b.count().appendInt(aggMetric.count());
+            b.appendLiteral(aggMetric);
             return;
         }
         if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
@@ -398,6 +391,15 @@ public class BlockTestUtils {
             rawValues
         );
         return histo;
+    }
+
+    public static AggregateMetricDoubleLiteral randomAggregateMetricDoubleLiteral(boolean allMetrics) {
+        return new AggregateMetricDoubleLiteral(
+            allMetrics || randomBoolean() ? randomDouble() : null,
+            allMetrics || randomBoolean() ? randomDouble() : null,
+            allMetrics || randomBoolean() ? randomDouble() : null,
+            allMetrics || randomBoolean() ? randomNonNegativeInt() : null
+        );
     }
 
     private static int dedupe(Map<BytesRef, Integer> dedupe, BytesRefVector.Builder bytes, BytesRef v) {

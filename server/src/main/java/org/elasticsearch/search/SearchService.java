@@ -26,6 +26,7 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
@@ -1982,6 +1983,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void canMatch(CanMatchNodeRequest request, ActionListener<CanMatchNodeResponse> listener) {
         var shardLevelRequests = request.getShardLevelRequests();
         final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardLevelRequests.size());
+        Map<String, Object> searchRequestAttributes = null;
         for (var shardLevelRequest : shardLevelRequests) {
             long shardCanMatchStartTimeInNanos = System.nanoTime();
             ShardSearchRequest shardSearchRequest = request.createShardSearchRequest(shardLevelRequest);
@@ -1992,7 +1994,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 CanMatchContext canMatchContext = createCanMatchContext(shardSearchRequest);
                 CanMatchShardResponse canMatchShardResponse = canMatch(canMatchContext, true);
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatchShardResponse));
-                indexShard.getSearchOperationListener().onCanMatchPhase(System.nanoTime() - shardCanMatchStartTimeInNanos);
+
+                if (searchRequestAttributes == null) {
+                    // All of the shards in the request are for the same search, so the attributes will be the same for all shards.
+                    searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
+                        shardSearchRequest,
+                        canMatchContext.getTimeRangeFilterFromMillis(),
+                        shardSearchRequest.nowInMillis()
+                    );
+                }
+
+                indexShard.getSearchOperationListener()
+                    .onCanMatchPhase(searchRequestAttributes, System.nanoTime() - shardCanMatchStartTimeInNanos);
             } catch (Exception e) {
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(e));
             }

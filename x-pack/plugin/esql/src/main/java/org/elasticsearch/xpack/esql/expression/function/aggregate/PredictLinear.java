@@ -57,8 +57,8 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
         this(source, field, Literal.TRUE, timestamp, t);
     }
 
-    public PredictLinear(Source source, Expression field, Expression filter, Expression timestamp, Expression t) {
-        super(source, field, filter, NO_WINDOW, List.of(timestamp, t));
+    public PredictLinear(Source source, Expression field, Expression filter, Expression window, Expression timestamp, Expression t) {
+        super(source, field, filter, window, List.of(timestamp, t));
         this.timestamp = timestamp;
         this.t = t;
     }
@@ -66,6 +66,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
     private PredictLinear(org.elasticsearch.common.io.stream.StreamInput in) throws java.io.IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
@@ -80,7 +81,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new PredictLinear(source(), field(), filter, timestamp, t);
+        return new PredictLinear(source(), field(), filter, window(), timestamp, t);
     }
 
     @Override
@@ -95,7 +96,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, PredictLinear::new, field(), filter(), timestamp, t);
+        return NodeInfo.create(this, PredictLinear::new, field(), filter(), window(), timestamp, t);
     }
 
     @Override

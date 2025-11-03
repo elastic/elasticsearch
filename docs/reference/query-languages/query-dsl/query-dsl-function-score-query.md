@@ -371,7 +371,7 @@ The `DECAY_FUNCTION` determines the shape of the decay:
 
 
 :::{math}
-S(doc) = exp ( - \dfrac{max(0, | fieldvalue_{doc} - origin| - offset)^2)}{ 2\sigma^2 } )
+S(doc) = exp \left( - \dfrac{max(0, | fieldvalue_{doc} - origin| - offset)^2)}{ 2\sigma^2 } \right)
 :::
 
 where $\sigma$ is computed to assure that the score takes the value `decay` at distance `scale` from `origin ± offset`
@@ -405,7 +405,7 @@ See [Exponential decay, keyword `exp`](#exp-decay) for graphs demonstrating the 
 
 
 :::{math}
-S(doc) = max ( \dfrac{s - max(0, | fieldvalue_{doc} - origin| - offset)^2)}{ s }, 0 )
+S(doc) = max \left( \dfrac{s - max(0, | fieldvalue_{doc} - origin| - offset)^2)}{ s }, 0 \right)
 :::
 
 where again the parameter `s` is computed to assure that the score takes the value `decay` at distance `scale` from `origin ± offset`

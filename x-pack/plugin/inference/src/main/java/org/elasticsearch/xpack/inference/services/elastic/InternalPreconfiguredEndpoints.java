@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -30,20 +29,20 @@ public class InternalPreconfiguredEndpoints {
 
     // rainbow-sprinkles
     public static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
-    public static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
+    public static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = ".rainbow-sprinkles-elastic";
 
     // elser-2
     public static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
-    public static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
+    public static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = ".elser-2-elastic";
 
     // multilingual-text-embed
     public static final Integer DENSE_TEXT_EMBEDDINGS_DIMENSIONS = 1024;
-    public static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
-    public static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
+    public static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "jina-embeddings-v3";
+    public static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = ".jina-embeddings-v3";
 
     // rerank-v1
-    public static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
-    public static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
+    public static final String DEFAULT_RERANK_MODEL_ID_V1 = "elastic-rerank-v1";
+    public static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = ".elastic-rerank-v1";
 
     public record MinimalModel(
         ModelConfigurations configurations,
@@ -119,14 +118,6 @@ public class InternalPreconfiguredEndpoints {
 
     public static SimilarityMeasure defaultDenseTextEmbeddingsSimilarity() {
         return SimilarityMeasure.COSINE;
-    }
-
-    public static String defaultEndpointId(String modelId) {
-        return Strings.format(".%s-elastic", modelId);
-    }
-
-    public static boolean containsModelName(String modelName) {
-        return MODEL_NAME_TO_MINIMAL_MODEL.containsKey(modelName);
     }
 
     public static MinimalModel getWithModelName(String modelName) {

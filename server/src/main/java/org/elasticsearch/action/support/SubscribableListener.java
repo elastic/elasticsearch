@@ -112,7 +112,9 @@ import java.util.concurrent.Executor;
  *         SubscribableListener.newForked(l1 -> step1(l1)).andThen(l2 -> step2(l2))...
  *     }</pre>
  *     ... if {@code step1} sometimes completes quickly then it may complete {@code l1} before even invoking the {@link #andThen}, which
- *     could cause a use-after-release bug. The caller must take steps to keep responses alive until they are no longer needed.
+ *     could cause a use-after-release bug when combined with the usual refcounting discipline which releases a reference to the response
+ *     after the waiting listener's {@link ActionListener#onResponse} returns. The caller must take steps to keep responses alive until
+ *     they are no longer needed.
  *     </li>
  * </ul>
  */

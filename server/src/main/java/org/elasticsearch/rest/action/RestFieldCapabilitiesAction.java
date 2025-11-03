@@ -62,8 +62,8 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
         final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         if (crossProjectModeDecider.crossProjectEnabled()) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
+            // accept project_routing param and set includeResolved to true
+            fieldRequest.projectRouting(request.param("project_routing", null));
             fieldRequest.includeResolvedTo(true);
         }
 

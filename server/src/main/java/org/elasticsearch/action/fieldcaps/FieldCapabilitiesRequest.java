@@ -60,6 +60,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private transient boolean includeIndices = false;
 
     private boolean includeResolvedTo = false;
+    private String projectRouting;
 
     /**
      * Controls whether all local indices should be returned if no remotes matched
@@ -262,6 +263,15 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     @Override
     public boolean allowsCrossProject() {
         return true;
+    }
+
+    public void projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
     }
 
     @Override

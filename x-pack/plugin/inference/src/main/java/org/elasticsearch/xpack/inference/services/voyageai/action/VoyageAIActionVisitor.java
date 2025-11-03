@@ -8,13 +8,19 @@
 package org.elasticsearch.xpack.inference.services.voyageai.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual.VoyageAIContextualEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
 
 import java.util.Map;
 
 public interface VoyageAIActionVisitor {
     ExecutableAction create(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings);
+
+    ExecutableAction create(VoyageAIMultimodalEmbeddingsModel model, Map<String, Object> taskSettings);
+
+    ExecutableAction create(VoyageAIContextualEmbeddingsModel model, Map<String, Object> taskSettings);
 
     ExecutableAction create(VoyageAIRerankModel model, Map<String, Object> taskSettings);
 }

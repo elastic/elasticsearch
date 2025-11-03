@@ -20,15 +20,16 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIMultimodalEmbeddingsRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType.toLowerCase;
+import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingType.toLowerCase;
 
 public class VoyageAIEmbeddingsResponseEntity {
     private static final String VALID_EMBEDDING_TYPES_STRING = supportedEmbeddingTypes();
@@ -160,7 +161,17 @@ public class VoyageAIEmbeddingsResponseEntity {
      */
     public static InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        VoyageAIEmbeddingType embeddingType = ((VoyageAIEmbeddingsRequest) request).getServiceSettings().getEmbeddingType();
+        VoyageAIEmbeddingType embeddingType;
+
+        if (request instanceof VoyageAIEmbeddingsRequest embeddingsRequest) {
+            embeddingType = embeddingsRequest.getServiceSettings().getEmbeddingType();
+        } else if (request instanceof VoyageAIMultimodalEmbeddingsRequest multimodalRequest) {
+            // Convert multimodal embedding type to text embedding type (both use the same enum values)
+            var multimodalType = multimodalRequest.getServiceSettings().getEmbeddingType();
+            embeddingType = multimodalType != null ? VoyageAIEmbeddingType.valueOf(multimodalType.name()) : null;
+        } else {
+            throw new IllegalArgumentException("Unsupported request type: " + request.getClass().getName());
+        }
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             if (embeddingType == null || embeddingType == VoyageAIEmbeddingType.FLOAT) {

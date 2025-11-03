@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +33,8 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -450,19 +453,23 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
             queryRewriteContext.registerRemoteAsyncAction(
                 clusterAlias,
-                (client, listener) -> client.execute(
-                    GetInferenceFieldsAction.REMOTE_TYPE,
-                    request,
-                    listener.delegateFailureAndWrap((l, r) -> {
-                        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = r.getInferenceResultsMap()
-                            .entrySet()
-                            .stream()
-                            .collect(Collectors.toMap(e -> new FullyQualifiedInferenceId(clusterAlias, e.getKey()), Map.Entry::getValue));
+                (client, listener) -> client.execute(GetInferenceFieldsAction.REMOTE_TYPE, request, ActionListener.wrap(r -> {
+                    Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = r.getInferenceResultsMap()
+                        .entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(e -> new FullyQualifiedInferenceId(clusterAlias, e.getKey()), Map.Entry::getValue));
 
-                        gal.onResponse(inferenceResultsMap);
-                        l.onResponse(null);
-                    })
-                )
+                    gal.onResponse(inferenceResultsMap);
+                    listener.onResponse(null);
+                }, e -> {
+                    Exception failure = e;
+                    if (e.getCause() instanceof ActionNotFoundTransportException actionNotFoundTransportException
+                        && actionNotFoundTransportException.action().equals(GetInferenceFieldsAction.NAME)) {
+                        failure = new ElasticsearchStatusException("Remote cluster is too old to support CCS", RestStatus.BAD_REQUEST, e);
+                    }
+
+                    listener.onFailure(failure);
+                }))
             );
         }
     }

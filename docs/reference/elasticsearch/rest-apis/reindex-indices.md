@@ -809,7 +809,7 @@ GET _tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 ```
 % TEST[catch:missing]
 
-To view all currently running reindex tasks:
+To view all currently running reindex tasks (where this API is available):
 ```console
 GET _tasks?actions=*reindex
 ```
@@ -818,6 +818,13 @@ You can also cancel a running reindex task:
 ```console
 POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 ```
+If this API is not available, you can achieve a similar effect by deleting the
+target index:
+```console
+DELETE dest
+```
+This will cause the reindex task to fail with a `index_not_found_exception`
+error.
 
 ## Diagnose node failures [diagnose-node-failures]
 

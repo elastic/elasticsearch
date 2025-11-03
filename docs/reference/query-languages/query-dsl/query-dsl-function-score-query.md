@@ -369,6 +369,7 @@ The `DECAY_FUNCTION` determines the shape of the decay:
 `gauss`
 :   Normal decay, computed as:
 
+
 :::{math}
 S(doc) = exp \Big{(} - \dfrac{max(0, | fieldvalue_{doc} - origin| - offset)^2)}{ 2\sigma^2 } \Big{)}
 :::
@@ -401,6 +402,7 @@ See [Exponential decay, keyword `exp`](#exp-decay) for graphs demonstrating the 
 
 `linear`
 :   Linear decay, computed as:
+
 
 :::{math}
 S(doc) = max \Big{(} \dfrac{s - max(0, | fieldvalue_{doc} - origin| - offset)^2)}{ s }, 0 \Big{)}

@@ -514,7 +514,7 @@ public class MetadataDataStreamsService {
         return dataStream.copy().setSettings(mergedDataStreamSettings).build();
     }
 
-    public Settings addSettingsFromIndexSettingProviders(
+    private Settings addSettingsFromIndexSettingProviders(
         String dataStreamName,
         CompressedXContent effectiveMappings,
         ProjectMetadata projectMetadata,
@@ -580,10 +580,31 @@ public class MetadataDataStreamsService {
         return dataStream.copy().setMappings(mappingsOverrides).build();
     }
 
+    /**
+     * This method gets the effective settings for the given data stream. The effective settings include the combination of template
+     * settings, data stream settings overrides, and the implicit settings provide by IndexSettingsProviders.
+     * @param projectMetadata The project metadata
+     * @param dataStream The data stream
+     * @return The effective settings for the data stream, which are a the combination of template settings, data stream settings overrides,
+     * and the implicit settings provide by IndexSettingsProviders
+     * @throws IOException
+     */
     public Settings getEffectiveSettings(ProjectMetadata projectMetadata, DataStream dataStream) throws IOException {
         return getEffectiveSettings(projectMetadata, dataStream, dataStream.getMappings());
     }
 
+    /**
+     * This method gets the effective settings for the given data stream, using the passed-in mappingOverrides rather than the data stream's
+     * mapping overrides. This can be used to evaluate the validity of the settings and mappings before applying the mapping overrides to
+     * the data stream. The effective settings include the combination of template settings, data stream settings overrides, and the
+     * implicit settings provide by IndexSettingsProviders.
+     * @param projectMetadata The project metadata
+     * @param dataStream The data stream
+     * @param mappingOverrides The mapping overrides to be used in place of the mapping overrides on the data strea currently
+     * @return The effective settings for the data stream, which are a the combination of template settings, data stream settings overrides,
+     * and the implicit settings provide by IndexSettingsProviders
+     * @throws IOException
+     */
     public Settings getEffectiveSettings(ProjectMetadata projectMetadata, DataStream dataStream, CompressedXContent mappingOverrides)
         throws IOException {
         ComposableIndexTemplate template = lookupTemplateForDataStream(dataStream.getName(), projectMetadata);

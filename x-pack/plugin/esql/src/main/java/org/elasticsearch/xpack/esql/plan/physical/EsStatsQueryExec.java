@@ -46,7 +46,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
-    public record ByStat(List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {
+    public record ByStat(AggregateExec aggExec, List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {
         public QueryBuilder filter(QueryBuilder sourceQuery) {
             throw new AssertionError("TODO(gal) NOCOMMIT");
         }
@@ -99,6 +99,10 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public List<Attribute> output() {
+        // FIXME(gal, NOCOMMIT) hack
+        if (stats.size() == 1 && stats.get(0) instanceof ByStat byStat) {
+            return byStat.aggExec.output();
+        }
         return attrs;
     }
 

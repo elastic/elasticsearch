@@ -195,13 +195,17 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     }
 
     /**
-     * Potentially samples the given indexRequest, depending on the existing sampling configuration.
+     * Potentially samples the given indexRequest, depending on the existing sampling configuration. The request will be sampled against
+     * the sampling configurations of all indices it has been rerouted to (if it has been rerouted).
      * @param projectMetadata Used to get the sampling configuration
      * @param indexRequest The raw request to potentially sample
      * @param ingestDocument The IngestDocument used for evaluating any conditionals that are part of the sample configuration
      */
-    public void maybeSample(ProjectMetadata projectMetadata, String indexName, IndexRequest indexRequest, IngestDocument ingestDocument) {
-        maybeSample(projectMetadata, indexName, indexRequest, () -> ingestDocument);
+    public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) {
+        // The index history gives us the initially-requested index, as well as any indices it has been rerouted through
+        for (String index : ingestDocument.getIndexHistory()) {
+            maybeSample(projectMetadata, index, indexRequest, () -> ingestDocument);
+        }
     }
 
     private void maybeSample(

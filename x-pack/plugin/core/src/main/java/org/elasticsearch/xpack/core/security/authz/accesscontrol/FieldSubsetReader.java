@@ -76,11 +76,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * @param filter   fields to filter.
      * @param isMapped whether a field is mapped or not.
      */
-    public static DirectoryReader wrap(
-        DirectoryReader in,
-        CharacterRunAutomaton filter,
-        Function<String, Boolean> isMapped
-    ) throws IOException {
+    public static DirectoryReader wrap(DirectoryReader in, CharacterRunAutomaton filter, Function<String, Boolean> isMapped)
+        throws IOException {
         return new FieldSubsetDirectoryReader(in, filter, isMapped);
     }
 
@@ -90,11 +87,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         private final CharacterRunAutomaton filter;
         private final Function<String, Boolean> isMapped;
 
-        FieldSubsetDirectoryReader(
-            DirectoryReader in,
-            final CharacterRunAutomaton filter,
-            Function<String, Boolean> isMapped
-        ) throws IOException {
+        FieldSubsetDirectoryReader(DirectoryReader in, final CharacterRunAutomaton filter, Function<String, Boolean> isMapped)
+            throws IOException {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -148,11 +142,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /**
      * Wrap a single segment, exposing a subset of its fields.
      */
-    FieldSubsetReader(
-        LeafReader in,
-        CharacterRunAutomaton filter,
-        Function<String, Boolean> isMapped
-    ) throws IOException {
+    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter, Function<String, Boolean> isMapped) throws IOException {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {

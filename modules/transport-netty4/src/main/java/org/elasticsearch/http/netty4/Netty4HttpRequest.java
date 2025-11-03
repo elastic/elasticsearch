@@ -215,8 +215,8 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public String getSpanId() {
-        if (nettyRequest instanceof TracedHttpRequest) {
-            return ((TracedHttpRequest) nettyRequest).getSpanId();
+        if (nettyRequest instanceof TraceableHttpRequest) {
+            return ((TraceableHttpRequest) nettyRequest).getSpanId();
         }
         return "";
     }

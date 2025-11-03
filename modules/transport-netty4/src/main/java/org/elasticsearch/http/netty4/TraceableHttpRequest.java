@@ -18,12 +18,12 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.telemetry.tracing.Traceable;
 
-public class TracedHttpRequest implements Traceable, HttpRequest {
+public class TraceableHttpRequest implements Traceable, HttpRequest {
 
     private HttpRequest delegate;
     private String spanId;
 
-    public TracedHttpRequest(HttpRequest request) {
+    public TraceableHttpRequest(HttpRequest request) {
         this.delegate = request;
         this.spanId = UUIDs.randomBase64UUID(Randomness.get());
     }

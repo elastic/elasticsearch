@@ -22,13 +22,10 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.Transports;
 
-import java.time.Instant;
 import java.util.ArrayDeque;
-import java.util.HashMap;
 
 public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
 
@@ -57,12 +54,8 @@ public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
         if (httpObject.decoderResult().isFailure()) {
             ctx.fireChannelRead(httpObject); // pass-through for decoding failures
         } else if (msg instanceof HttpRequest httpRequest) {
-            final TracedHttpRequest request = new TracedHttpRequest(httpRequest);
-            try (var ignored = threadContext.clearTraceContext()) {
-                threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(System.currentTimeMillis()));
-                tracer.startTrace(threadContext, request, httpRequest.uri(), new HashMap<>());
-                validate(ctx, request);
-            }
+            final TraceableHttpRequest request = new TraceableHttpRequest(httpRequest);
+            validate(ctx, request);
         } else if (state == State.PASSING) {
             assert msg instanceof HttpContent;
             ctx.fireChannelRead(msg);

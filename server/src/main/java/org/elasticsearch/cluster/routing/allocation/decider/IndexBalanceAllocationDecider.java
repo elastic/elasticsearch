@@ -112,11 +112,9 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
         if (currentAllocation >= threshold) {
             String explanation = Strings.format(
-                """
-                    There are [%d] eligible nodes in the [%s] tier for assignment of [%d] shards in index [%s]. Ideally no more than [%.0f]
-                    shard would be assigned per node (the index balance skew setting is [%d]). This node is already assigned [%d] shards of
-                    the index.
-                    """,
+                "There are [%d] eligible nodes in the [%s] tier for assignment of [%d] shards in index [%s]. Ideally no more than [%.0f] "
+                    + "shard would be assigned per node (the index balance skew setting is [%d]). This node is already assigned [%d] shards of "
+                    + "the index.",
                 eligibleNodes.size(),
                 nomenclature,
                 totalShards,

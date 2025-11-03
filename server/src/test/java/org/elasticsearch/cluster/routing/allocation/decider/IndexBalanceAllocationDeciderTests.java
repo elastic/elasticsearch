@@ -82,7 +82,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         numberOfPrimaryShards = randomIntBetween(10, 20);
-        replicationFactor = 2;
+        replicationFactor = randomIntBetween(1, 2);
         if (numberOfPrimaryShards % 2 != 0 && exceedThreshold) numberOfPrimaryShards++;
         if (numberOfPrimaryShards % 2 == 0 && exceedThreshold == false) numberOfPrimaryShards++;
 
@@ -298,14 +298,11 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             Decision.Type.NOT_PREFERRED,
             "There are [2] eligible nodes in the [primary shards] tier for assignment of ["
                 + numberOfPrimaryShards
-                + "] shards "
-                + "in index [[IndexBalanceAllocationDeciderIndex]]. Ideally no more than ["
+                + "] shards in index [[IndexBalanceAllocationDeciderIndex]]. Ideally no more than ["
                 + ideal
-                + "]\n"
-                + "shard would be assigned per node (the index balance skew setting is [0]). This node is already assigned ["
+                + "] shard would be assigned per node (the index balance skew setting is [0]). This node is already assigned ["
                 + current
-                + "] shards of\n"
-                + "the index.\n"
+                + "] shards of the index."
         );
 
         int total = numberOfPrimaryShards * replicationFactor;
@@ -318,14 +315,11 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             Decision.Type.NOT_PREFERRED,
             "There are [2] eligible nodes in the [replicas] tier for assignment of ["
                 + total
-                + "] "
-                + "shards in index [[IndexBalanceAllocationDeciderIndex]]. Ideally no more than ["
+                + "] shards in index [[IndexBalanceAllocationDeciderIndex]]. Ideally no more than ["
                 + ideal
-                + "]\n"
-                + "shard would be assigned per node (the index balance skew setting is [0]). This node is already assigned ["
+                + "] shard would be assigned per node (the index balance skew setting is [0]). This node is already assigned ["
                 + current
-                + "] shards of\n"
-                + "the index.\n"
+                + "] shards of the index."
         );
     }
 

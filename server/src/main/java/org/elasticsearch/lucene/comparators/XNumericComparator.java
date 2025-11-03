@@ -55,8 +55,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
     protected boolean queueFull;
     protected Pruning pruning;
 
-    protected XNumericComparator(
-        String field, T missingValue, boolean reverse, Pruning pruning, int bytesCount) {
+    protected XNumericComparator(String field, T missingValue, boolean reverse, Pruning pruning, int bytesCount) {
         this.field = field;
         this.missingValue = missingValue;
         this.missingValueAsLong = missingValueAsComparableLong();
@@ -129,8 +128,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
          * @return numeric doc values for the field in this segment.
          * @throws IOException If there is a low-level I/O error
          */
-        protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)
-            throws IOException {
+        protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
             return DocValues.getNumeric(context.reader(), field);
         }
 
@@ -217,8 +215,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
 
             updateCounter++;
             // Start sampling if we get called too much
-            if (updateCounter > 256
-                && (updateCounter & (currentSkipInterval - 1)) != currentSkipInterval - 1) {
+            if (updateCounter > 256 && (updateCounter & (currentSkipInterval - 1)) != currentSkipInterval - 1) {
                 return;
             }
 
@@ -262,18 +259,12 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         private void encodeTop() {
             if (reverse == false) {
                 minValueAsLong = leafComparator.topAsComparableLong();
-                if (singleSort
-                    && pruning == Pruning.GREATER_THAN_OR_EQUAL_TO
-                    && queueFull
-                    && minValueAsLong != Long.MAX_VALUE) {
+                if (singleSort && pruning == Pruning.GREATER_THAN_OR_EQUAL_TO && queueFull && minValueAsLong != Long.MAX_VALUE) {
                     minValueAsLong++;
                 }
             } else {
                 maxValueAsLong = leafComparator.topAsComparableLong();
-                if (singleSort
-                    && pruning == Pruning.GREATER_THAN_OR_EQUAL_TO
-                    && queueFull
-                    && maxValueAsLong != Long.MIN_VALUE) {
+                if (singleSort && pruning == Pruning.GREATER_THAN_OR_EQUAL_TO && queueFull && maxValueAsLong != Long.MIN_VALUE) {
                     maxValueAsLong--;
                 }
             }
@@ -286,10 +277,9 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
                 int result = Long.compare(missingValueAsLong, leafComparator.bottomAsComparableLong());
                 // in reverse (desc) sort missingValue is competitive when it's greater or equal to bottom,
                 // in asc sort missingValue is competitive when it's smaller or equal to bottom
-                final boolean competitive =
-                    reverse
-                        ? (pruning == Pruning.GREATER_THAN_OR_EQUAL_TO ? result > 0 : result >= 0)
-                        : (pruning == Pruning.GREATER_THAN_OR_EQUAL_TO ? result < 0 : result <= 0);
+                final boolean competitive = reverse
+                    ? (pruning == Pruning.GREATER_THAN_OR_EQUAL_TO ? result > 0 : result >= 0)
+                    : (pruning == Pruning.GREATER_THAN_OR_EQUAL_TO ? result < 0 : result <= 0);
                 if (competitive == false) {
                     return false;
                 }
@@ -323,12 +313,10 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
             FieldInfo info = context.reader().getFieldInfos().fieldInfo(field);
             if (info == null || info.getPointDimensionCount() == 0) {
                 throw new IllegalStateException(
-                    "Field "
-                        + field
-                        + " doesn't index points according to FieldInfos yet returns non-null PointValues");
+                    "Field " + field + " doesn't index points according to FieldInfos yet returns non-null PointValues"
+                );
             } else if (info.getPointDimensionCount() > 1) {
-                throw new IllegalArgumentException(
-                    "Field " + field + " is indexed with multiple dimensions, sorting is not supported");
+                throw new IllegalArgumentException("Field " + field + " is indexed with multiple dimensions, sorting is not supported");
             } else if (info.getPointNumBytes() != bytesCount) {
                 throw new IllegalArgumentException(
                     "Field "
@@ -338,7 +326,8 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
                         + " bytes per dimension, but "
                         + this
                         + " expected "
-                        + bytesCount);
+                        + bytesCount
+                );
             }
             this.pointValues = pointValues;
             postInitializeCompetitiveIterator();
@@ -348,8 +337,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         void setScorer(Scorable scorer) throws IOException {
             if (iteratorCost == -1) {
                 if (scorer instanceof Scorer) {
-                    iteratorCost =
-                        ((Scorer) scorer).iterator().cost(); // starting iterator cost is the scorer's cost
+                    iteratorCost = ((Scorer) scorer).iterator().cost(); // starting iterator cost is the scorer's cost
                 } else {
                     iteratorCost = maxDoc;
                 }
@@ -384,78 +372,75 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         @Override
         protected void doUpdateCompetitiveIterator() throws IOException {
             DocIdSetBuilder result = new DocIdSetBuilder(maxDoc);
-            PointValues.IntersectVisitor visitor =
-                new PointValues.IntersectVisitor() {
-                    DocIdSetBuilder.BulkAdder adder;
+            PointValues.IntersectVisitor visitor = new PointValues.IntersectVisitor() {
+                DocIdSetBuilder.BulkAdder adder;
 
-                    @Override
-                    public void grow(int count) {
-                        adder = result.grow(count);
+                @Override
+                public void grow(int count) {
+                    adder = result.grow(count);
+                }
+
+                @Override
+                public void visit(int docID) {
+                    if (docID <= maxDocVisited) {
+                        return; // Already visited or skipped
+                    }
+                    adder.add(docID);
+                }
+
+                @Override
+                public void visit(int docID, byte[] packedValue) {
+                    if (docID <= maxDocVisited) {
+                        return; // already visited or skipped
+                    }
+                    long l = sortableBytesToLong(packedValue);
+                    if (l >= minValueAsLong && l <= maxValueAsLong) {
+                        adder.add(docID); // doc is competitive
+                    }
+                }
+
+                @Override
+                public void visit(DocIdSetIterator iterator) throws IOException {
+                    if (iterator.advance(maxDocVisited + 1) != DocIdSetIterator.NO_MORE_DOCS) {
+                        adder.add(iterator.docID());
+                        adder.add(iterator);
+                    }
+                }
+
+                @Override
+                public void visit(IntsRef ref) {
+                    adder.add(ref, maxDocVisited + 1);
+                }
+
+                @Override
+                public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+                    long min = sortableBytesToLong(minPackedValue);
+                    long max = sortableBytesToLong(maxPackedValue);
+
+                    if (min > maxValueAsLong || max < minValueAsLong) {
+                        // 1. cmp ==0 and pruning==Pruning.GREATER_THAN_OR_EQUAL_TO : if the sort is
+                        // ascending then maxValueAsLong is bottom's next less value, so it is competitive
+                        // 2. cmp ==0 and pruning==Pruning.GREATER_THAN: maxValueAsLong equals to
+                        // bottom, but there are multiple comparators, so it could be competitive
+                        return PointValues.Relation.CELL_OUTSIDE_QUERY;
                     }
 
-                    @Override
-                    public void visit(int docID) {
-                        if (docID <= maxDocVisited) {
-                            return; // Already visited or skipped
-                        }
-                        adder.add(docID);
+                    if (min < minValueAsLong || max > maxValueAsLong) {
+                        return PointValues.Relation.CELL_CROSSES_QUERY;
                     }
-
-                    @Override
-                    public void visit(int docID, byte[] packedValue) {
-                        if (docID <= maxDocVisited) {
-                            return; // already visited or skipped
-                        }
-                        long l = sortableBytesToLong(packedValue);
-                        if (l >= minValueAsLong && l <= maxValueAsLong) {
-                            adder.add(docID); // doc is competitive
-                        }
-                    }
-
-                    @Override
-                    public void visit(DocIdSetIterator iterator) throws IOException {
-                        if (iterator.advance(maxDocVisited + 1) != DocIdSetIterator.NO_MORE_DOCS) {
-                            adder.add(iterator.docID());
-                            adder.add(iterator);
-                        }
-                    }
-
-                    @Override
-                    public void visit(IntsRef ref) {
-                        adder.add(ref, maxDocVisited + 1);
-                    }
-
-                    @Override
-                    public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                        long min = sortableBytesToLong(minPackedValue);
-                        long max = sortableBytesToLong(maxPackedValue);
-
-                        if (min > maxValueAsLong || max < minValueAsLong) {
-                            // 1. cmp ==0 and pruning==Pruning.GREATER_THAN_OR_EQUAL_TO : if the sort is
-                            // ascending then maxValueAsLong is bottom's next less value, so it is competitive
-                            // 2. cmp ==0 and pruning==Pruning.GREATER_THAN: maxValueAsLong equals to
-                            // bottom, but there are multiple comparators, so it could be competitive
-                            return PointValues.Relation.CELL_OUTSIDE_QUERY;
-                        }
-
-                        if (min < minValueAsLong || max > maxValueAsLong) {
-                            return PointValues.Relation.CELL_CROSSES_QUERY;
-                        }
-                        return PointValues.Relation.CELL_INSIDE_QUERY;
-                    }
-                };
+                    return PointValues.Relation.CELL_INSIDE_QUERY;
+                }
+            };
 
             final long threshold = iteratorCost >>> 3;
 
-            if (PointValues.isEstimatedPointCountGreaterThanOrEqualTo(
-                visitor, getPointTree(), threshold)) {
+            if (PointValues.isEstimatedPointCountGreaterThanOrEqualTo(visitor, getPointTree(), threshold)) {
                 // the new range is not selective enough to be worth materializing, it doesn't reduce number
                 // of docs at least 8x
                 updateSkipInterval(false);
                 if (pointValues.getDocCount() < iteratorCost) {
                     // Use the set of doc with values to help drive iteration
-                    competitiveIterator.update(
-                        leafComparator.getNumericDocValues(leafComparator.context, field));
+                    competitiveIterator.update(leafComparator.getNumericDocValues(leafComparator.context, field));
                     iteratorCost = pointValues.getDocCount();
                 }
                 return;
@@ -495,25 +480,22 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         private final DocValuesSkipper skipper;
         private final TwoPhaseIterator innerTwoPhase;
 
-        DVSkipperCompetitiveDISIBuilder(
-            DocValuesSkipper skipper, NumericLeafComparator leafComparator) throws IOException {
+        DVSkipperCompetitiveDISIBuilder(DocValuesSkipper skipper, NumericLeafComparator leafComparator) throws IOException {
             super(leafComparator);
             this.skipper = skipper;
-            NumericDocValues docValues =
-                leafComparator.getNumericDocValues(leafComparator.context, field);
-            innerTwoPhase =
-                new TwoPhaseIterator(docValues) {
-                    @Override
-                    public boolean matches() throws IOException {
-                        final long value = docValues.longValue();
-                        return value >= minValueAsLong && value <= maxValueAsLong;
-                    }
+            NumericDocValues docValues = leafComparator.getNumericDocValues(leafComparator.context, field);
+            innerTwoPhase = new TwoPhaseIterator(docValues) {
+                @Override
+                public boolean matches() throws IOException {
+                    final long value = docValues.longValue();
+                    return value >= minValueAsLong && value <= maxValueAsLong;
+                }
 
-                    @Override
-                    public float matchCost() {
-                        return 2; // 2 comparisons
-                    }
-                };
+                @Override
+                public float matchCost() {
+                    return 2; // 2 comparisons
+                }
+            };
             postInitializeCompetitiveIterator();
         }
 
@@ -539,10 +521,8 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
 
         @Override
         protected void doUpdateCompetitiveIterator() {
-            TwoPhaseIterator twoPhaseIterator =
-                new DocValuesRangeIterator(innerTwoPhase, skipper, minValueAsLong, maxValueAsLong, false);
+            TwoPhaseIterator twoPhaseIterator = new DocValuesRangeIterator(innerTwoPhase, skipper, minValueAsLong, maxValueAsLong, false);
             competitiveIterator.update(TwoPhaseIterator.asDocIdSetIterator(twoPhaseIterator));
         }
     }
 }
-

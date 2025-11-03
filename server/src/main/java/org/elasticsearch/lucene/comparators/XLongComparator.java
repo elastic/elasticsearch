@@ -23,8 +23,7 @@ public class XLongComparator extends XNumericComparator<Long> {
     protected long topValue;
     protected long bottom;
 
-    public XLongComparator(
-        int numHits, String field, Long missingValue, boolean reverse, Pruning pruning) {
+    public XLongComparator(int numHits, String field, Long missingValue, boolean reverse, Pruning pruning) {
         super(field, missingValue != null ? missingValue : 0L, reverse, pruning, Long.BYTES);
         values = new long[numHits];
     }
@@ -68,7 +67,8 @@ public class XLongComparator extends XNumericComparator<Long> {
         }
 
         @Override
-        protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context) throws IOException {
+        protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
+            throws IOException {
             return super.buildCompetitiveDISIBuilder(context);
         }
 

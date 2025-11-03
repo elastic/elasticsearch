@@ -176,8 +176,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             // we introduced INT sort type in 8.19 and from 9.1
             || indexCreatedVersion.onOrAfter(IndexVersions.INDEX_INT_SORT_INT_TYPE)
             || indexCreatedVersion.between(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, UPGRADE_TO_LUCENE_10_0_0)) {
-            return sortField;
-        }
+                return sortField;
+            }
         if ((sortField instanceof SortedNumericSortField) == false) {
             return sortField;
         }

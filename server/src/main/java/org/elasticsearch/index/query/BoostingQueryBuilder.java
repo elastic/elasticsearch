@@ -51,7 +51,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     private float negativeBoost = -1;
 
-    private final List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = new ArrayList<>();
 
     /**
      * Create a new {@link BoostingQueryBuilder}
@@ -79,7 +79,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         negativeQuery = in.readNamedWriteable(QueryBuilder.class);
         negativeBoost = in.readFloat();
         if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
-            prefilters.addAll(in.readNamedWriteableCollectionAsList(QueryBuilder.class));
+            prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
 
@@ -249,7 +249,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     public BoostingQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
-        prefilters.addAll(prefilters);
+        this.prefilters = prefilters;
         return this;
     }
 

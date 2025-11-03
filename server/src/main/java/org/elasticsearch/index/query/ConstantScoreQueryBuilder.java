@@ -39,7 +39,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     private final QueryBuilder filterBuilder;
 
-    private final List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = new ArrayList<>();
 
     /**
      * A query that wraps another query and simply returns a constant score equal to the
@@ -61,7 +61,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         super(in);
         filterBuilder = in.readNamedWriteable(QueryBuilder.class);
         if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
-            prefilters.addAll(in.readNamedWriteableCollectionAsList(QueryBuilder.class));
+            prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
 
@@ -183,7 +183,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     @Override
     public ConstantScoreQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
-        this.prefilters.addAll(prefilters);
+        this.prefilters = prefilters;
         return this;
     }
 

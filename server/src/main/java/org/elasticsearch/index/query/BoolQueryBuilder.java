@@ -61,7 +61,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     private String minimumShouldMatch;
 
-    private final List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = new ArrayList<>();
 
     /**
      * Build an empty bool query.
@@ -80,7 +80,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
         adjustPureNegative = in.readBoolean();
         minimumShouldMatch = in.readOptionalString();
         if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
-            prefilters.addAll(in.readNamedWriteableCollectionAsList(QueryBuilder.class));
+            prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
 
@@ -468,7 +468,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     @Override
     public BoolQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
-        this.prefilters.addAll(prefilters);
+        this.prefilters = prefilters;
         return this;
     }
 

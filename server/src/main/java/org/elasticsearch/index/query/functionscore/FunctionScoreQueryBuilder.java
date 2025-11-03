@@ -78,7 +78,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     private final FilterFunctionBuilder[] filterFunctionBuilders;
 
-    private final List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = new ArrayList<>();
 
     /**
      * Creates a function_score query without functions
@@ -151,7 +151,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);
         scoreMode = FunctionScoreQuery.ScoreMode.readFromStream(in);
         if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
-            prefilters.addAll(in.readNamedWriteableCollectionAsList(QueryBuilder.class));
+            prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
 
@@ -336,7 +336,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     @Override
     public FunctionScoreQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
-        this.prefilters.addAll(prefilters);
+        this.prefilters = prefilters;
         return this;
     }
 

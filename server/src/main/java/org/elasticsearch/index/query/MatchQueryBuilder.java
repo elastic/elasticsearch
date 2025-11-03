@@ -83,7 +83,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
-    private final List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = new ArrayList<>();
 
     /**
      * Constructs a new match query.
@@ -123,7 +123,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
         if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
-            prefilters.addAll(in.readNamedWriteableCollectionAsList(QueryBuilder.class));
+            prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
 
@@ -583,7 +583,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
 
     @Override
     public MatchQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
-        this.prefilters.addAll(prefilters);
+        this.prefilters = prefilters;
         return this;
     }
 

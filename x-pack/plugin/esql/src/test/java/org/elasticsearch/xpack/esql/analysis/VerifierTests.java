@@ -3275,7 +3275,7 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.isEnabled()) {
             assertThat(
                 error(
-                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": null, \"chunk_size\": 20})",
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": null, \"chunk_size\": 20, \"query\": \"puggles\"})",
                     fullTextAnalyzer,
                     ParsingException.class
                 ),
@@ -3283,15 +3283,7 @@ public class VerifierTests extends ESTestCase {
             );
             assertThat(
                 error(
-                    "from test | EVAL chunks = CHUNK(body, \"puggles\", {\"num_chunks\": null, \"chunk_size\": 20})",
-                    fullTextAnalyzer,
-                    ParsingException.class
-                ),
-                equalTo("1:50: Invalid named parameter [\"num_chunks\":null], NULL is not supported")
-            );
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": 3, \"chunk_size\": null})",
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": 3, \"chunk_size\": null, \"query\": \"puggles\"})",
                     fullTextAnalyzer,
                     ParsingException.class
                 ),
@@ -3299,40 +3291,22 @@ public class VerifierTests extends ESTestCase {
             );
             assertThat(
                 error(
-                    "from test | EVAL chunks = CHUNK(body, \"puggles\", {\"num_chunks\": 3, \"chunk_size\": null})",
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": 3, \"chunk_size\": 20, \"query\": null})",
                     fullTextAnalyzer,
                     ParsingException.class
                 ),
-                equalTo("1:50: Invalid named parameter [\"chunk_size\":null], NULL is not supported")
+                equalTo("1:39: Invalid named parameter [\"query\":null], NULL is not supported")
             );
             assertThat(
                 error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":\"foo\"})", fullTextAnalyzer),
                 equalTo("1:27: Invalid option [num_chunks] in [CHUNK(body, {\"num_chunks\":\"foo\"})], cannot cast [foo] to [integer]")
             );
             assertThat(
-                error("from test | EVAL chunks = CHUNK(body, \"puggles\", {\"num_chunks\":\"foo\"})", fullTextAnalyzer),
-                equalTo(
-                    "1:27: Invalid option [num_chunks] in [CHUNK(body, \"puggles\", {\"num_chunks\":\"foo\"})], "
-                        + "cannot cast [foo] to [integer]"
-                )
-            );
-            assertThat(
                 error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":\"foo\"})", fullTextAnalyzer),
                 equalTo("1:27: Invalid option [chunk_size] in [CHUNK(body, {\"chunk_size\":\"foo\"})], cannot cast [foo] to [integer]")
             );
             assertThat(
-                error("from test | EVAL chunks = CHUNK(body, \"puggles\", {\"chunk_size\":\"foo\"})", fullTextAnalyzer),
-                equalTo(
-                    "1:27: Invalid option [chunk_size] in [CHUNK(body, \"puggles\", {\"chunk_size\":\"foo\"})], "
-                        + "cannot cast [foo] to [integer]"
-                )
-            );
-            assertThat(
                 error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":-1})", fullTextAnalyzer),
-                equalTo("1:27: [num_chunks] cannot be negative, found [-1]")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, \"puggles\", {\"num_chunks\":-1})", fullTextAnalyzer),
                 equalTo("1:27: [num_chunks] cannot be negative, found [-1]")
             );
             assertThat(
@@ -3340,14 +3314,13 @@ public class VerifierTests extends ESTestCase {
                 equalTo("1:27: [chunk_size] cannot be negative, found [-1]")
             );
             assertThat(
-                error("from test | EVAL chunks = CHUNK(body, \"puggles\", {\"chunk_size\":-1})", fullTextAnalyzer),
-                equalTo("1:27: [chunk_size] cannot be negative, found [-1]")
+                error("from test | EVAL chunks = CHUNK(body, 123)", fullTextAnalyzer),
+                equalTo("1:27: second argument of [CHUNK(body, 123)] must be a map expression, received [123]")
             );
             assertThat(
-                error("from test | EVAL chunks = CHUNK(body, 123)", fullTextAnalyzer),
-                equalTo("1:27: second argument of [CHUNK(body, 123)] must be [string], found value [123] type [integer]")
+                error("from test | EVAL chunks = CHUNK(body, \"puggles\")", fullTextAnalyzer),
+                equalTo("1:27: second argument of [CHUNK(body, \"puggles\")] must be a map expression, received [\"puggles\"]")
             );
-
         }
     }
 

@@ -568,7 +568,7 @@ public class EsqlFunctionRegistry {
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(Hamming.class, Hamming::new, "v_hamming"),
-                def(Chunk.class, tri(Chunk::new), "chunk") } };
+                def(Chunk.class, bi(Chunk::new), "chunk") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

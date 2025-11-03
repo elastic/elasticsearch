@@ -8,3 +8,8 @@
 `chunk_size`
 :   (integer) The size of sentence-based chunks to use. Defaults to 300
 
+`query`
+:   (keyword) The query to use when scoring, to return the best chunks associated with this query.
+If query is not provided or if no meaningful chunks can be found, chunks will be returned consecutively
+from the start of the document.
+

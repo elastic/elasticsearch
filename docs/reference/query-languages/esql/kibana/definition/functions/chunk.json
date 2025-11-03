@@ -31,8 +31,8 @@
   ],
   "examples" : [
     "FROM books\n| EVAL chunks = CHUNK(description)",
-    "FROM books\n| EVAL chunks = CHUNK(description, \"Hobbit\")",
-    "FROM books\n| EVAL chunks = CHUNK(description, \"Hobbit\", {\"num_chunks\":1, \"chunk_size\":20})"
+    "FROM books\n| EVAL chunks = CHUNK(description, { \"query\": \"Hobbit\"})",
+    "FROM books\n| EVAL chunks = CHUNK(description, {\"num_chunks\":1, \"chunk_size\":20, \"query\": \"Hobbit\"})"
   ],
   "preview" : true,
   "snapshot_only" : true

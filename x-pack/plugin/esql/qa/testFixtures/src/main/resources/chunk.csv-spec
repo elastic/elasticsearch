@@ -152,7 +152,7 @@ required_capability: chunk_function_v2
 
 // tag::chunk-with-query[]
 FROM books
-| EVAL chunks = CHUNK(description, "Hobbit")
+| EVAL chunks = CHUNK(description, { "query": "Hobbit"})
 // end::chunk-with-query[]
 | KEEP book_no, title, chunks
 | SORT book_no
@@ -174,7 +174,7 @@ required_capability: chunk_function_v2
 
 // tag::chunk-with-query-and-options[]
 FROM books
-| EVAL chunks = CHUNK(description, "Hobbit", {"num_chunks":1, "chunk_size":20})
+| EVAL chunks = CHUNK(description, {"num_chunks":1, "chunk_size":20, "query": "Hobbit"})
 // end::chunk-with-query-and-options[]
 | KEEP book_no, title, chunks
 | SORT book_no
@@ -197,7 +197,7 @@ required_capability: chunk_function_v2
 
 FROM books 
 | WHERE MATCH(title, "Return")
-| EVAL chunks = CHUNK(description, "Hobbit", {"num_chunks":3, "chunk_size":20})
+| EVAL chunks = CHUNK(description, {"num_chunks":3, "chunk_size":20, "query": "Hobbit"})
 | MV_EXPAND chunks
 | KEEP book_no, title, chunks;
 ignoreOrder:true
@@ -214,7 +214,7 @@ chunkExampleWithNoHitQuery
 required_capability: chunk_function_v2
 
 FROM books
-| EVAL chunks = CHUNK(description, "SomeSearchTermThatWillNeverExistInSourceDocuments", {"num_chunks":1, "chunk_size":20})
+| EVAL chunks = CHUNK(description, {"num_chunks":1, "chunk_size":20, "query": "SomeSearchTermThatWillNeverExistInSourceDocuments"})
 | KEEP book_no, title, chunks
 | SORT book_no
 | LIMIT 5
@@ -233,7 +233,7 @@ required_capability: chunk_function_v2
 
 FROM books 
 | WHERE MATCH(title, "Return")
-| EVAL chunks = CHUNK(description, "Hobbit", {"num_chunks":3, "chunk_size":20})
+| EVAL chunks = CHUNK(description, {"num_chunks":3, "chunk_size":20, "query": "Hobbit"})
 | MV_EXPAND chunks
 | KEEP book_no, title, chunks;
 ignoreOrder:true

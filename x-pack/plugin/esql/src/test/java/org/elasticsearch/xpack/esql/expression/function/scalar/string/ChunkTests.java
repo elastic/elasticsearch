@@ -33,6 +33,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.CHUNK_SIZE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.NUM_CHUNKS;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.QUERY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ChunkTests extends AbstractScalarFunctionTestCase {
@@ -71,11 +72,11 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str")),
-                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], numChunks=LiteralsEvaluator[lit="
+                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], numChunks="
                         + Chunk.DEFAULT_NUM_CHUNKS
-                        + "], chunkSize=LiteralsEvaluator[lit="
+                        + ", chunkSize="
                         + Chunk.DEFAULT_CHUNK_SIZE
-                        + "]]",
+                        + "]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
@@ -90,11 +91,11 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataType.TEXT, "str")),
-                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], numChunks=LiteralsEvaluator[lit="
+                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], numChunks="
                         + Chunk.DEFAULT_NUM_CHUNKS
-                        + "], chunkSize=LiteralsEvaluator[lit="
+                        + ", chunkSize="
                         + Chunk.DEFAULT_CHUNK_SIZE
-                        + "]]",
+                        + "]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
@@ -102,7 +103,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static MapExpression createOptionsMap(Integer numChunks, Integer chunkSize) {
+    private static MapExpression createOptionsMap(Integer numChunks, Integer chunkSize, String query) {
         List<Expression> keyValuePairs = new ArrayList<>();
 
         if (Objects.nonNull(numChunks)) {
@@ -115,14 +116,18 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
             keyValuePairs.add(new Literal(Source.EMPTY, chunkSize, DataType.INTEGER));
         }
 
+        if (Objects.nonNull(query)) {
+            keyValuePairs.add(Literal.keyword(Source.EMPTY, QUERY));
+            keyValuePairs.add(new Literal(Source.EMPTY, query, DataType.KEYWORD));
+        }
+
         return new MapExpression(Source.EMPTY, keyValuePairs);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Expression query = args.size() < 2 ? null : args.get(1);
-        Expression options = args.size() < 3 ? null : args.get(2);
-        return new Chunk(source, args.get(0), query, options);
+        Expression options = args.size() < 2 ? null : args.get(1);
+        return new Chunk(source, args.get(0), options);
     }
 
     public void testDefaults() {
@@ -161,14 +166,14 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
     }
 
     private List<String> process(String str, String query, Integer numChunks, Integer chunkSize) {
-        MapExpression optionsMap = (numChunks == null && chunkSize == null) ? null : createOptionsMap(numChunks, chunkSize);
+        MapExpression optionsMap =
+            (numChunks == null && chunkSize == null && query == null) ? null : createOptionsMap(numChunks, chunkSize, query);
 
-        Expression queryExpr = query != null ? field("query", DataType.KEYWORD) : null;
         List<Object> rowData = query != null ? List.of(new BytesRef(str), new BytesRef(query)) : List.of(new BytesRef(str));
 
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
-                new Chunk(Source.EMPTY, field("str", DataType.KEYWORD), queryExpr, optionsMap)
+                new Chunk(Source.EMPTY, field("str", DataType.KEYWORD), optionsMap)
             ).get(driverContext());
             Block block = eval.eval(row(rowData))
         ) {

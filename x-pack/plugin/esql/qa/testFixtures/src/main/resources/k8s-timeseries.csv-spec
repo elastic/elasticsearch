@@ -770,6 +770,7 @@ max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
 
 predict_linear_with_long
 required_capability: ts_command_v0
+required_capability: TS_LINREG_PREDICT
 
 TS k8s
 | STATS predicted_cost = values(round(predict_linear(to_double(network.total_cost), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -788,6 +789,7 @@ predicted_cost:double                                                  | time_bu
 
 predict_linear_with_timedelta
 required_capability: ts_command_v0
+required_capability: TS_LINREG_PREDICT
 
 TS k8s
 | STATS predicted_cost = values(round(predict_linear(to_double(network.total_cost), 10 minutes), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -806,6 +808,7 @@ predicted_cost:double                                                  | time_bu
 
 predict_linear_with_int_and_timedelta
 required_capability: ts_command_v0
+required_capability: TS_LINREG_PREDICT
 
 TS k8s
 | STATS predicted_cost_int = values(round(predict_linear(to_long(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster

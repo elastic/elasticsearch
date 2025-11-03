@@ -287,7 +287,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 m -> ((KeywordFieldMapper) m).isNormalizerSkipStoreOriginalValue(),
                 () -> "lowercase".equals(normalizer.getValue())
                     && indexAnalyzers.getNormalizer(normalizer.getValue()).analyzer() instanceof LowercaseNormalizer
-            ).setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
+            );
 
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
@@ -358,6 +358,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public boolean hasNormalizer() {
             return this.normalizer.get() != null;
+        }
+
+        public boolean isNormalizerSkipStoreOriginalValue() {
+            return this.normalizerSkipStoreOriginalValue.getValue();
         }
 
         Builder nullValue(String nullValue) {
@@ -1407,7 +1411,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // if ignore_above is set, then there is a chance that this field will be ignored. In such cases, we save an
         // extra copy of the field for supporting synthetic source. This layer will check that copy.
-        if (fieldType().ignoreAbove.isSet()) {
+        if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
                 @Override

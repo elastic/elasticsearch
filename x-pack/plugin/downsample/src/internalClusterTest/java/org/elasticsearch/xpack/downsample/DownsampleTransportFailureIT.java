@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -264,6 +265,10 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         assertEquals("no such index [" + indexName + "]", targetIndexNotFoundException.getMessage());
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.downsample.TransportDownsampleAction:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/137148"
+    )
     public void testNoDisruption() {
         // GIVEN
 
@@ -278,6 +283,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         // WHEN nothing happens
 
         // THEN
+        logger.info("Executing downsample action from [{}] to [{}]", SOURCE_INDEX_NAME, TARGET_INDEX_NAME);
         final AcknowledgedResponse downsampleResponse = testCluster.masterClient()
             .execute(DownsampleAction.INSTANCE, downsampleRequest)
             .actionGet(TimeValue.timeValueMillis(DOWNSAMPLE_ACTION_TIMEOUT_MILLIS));

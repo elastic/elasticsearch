@@ -314,6 +314,9 @@ public class Methods {
         if (elementType.equals(TypeName.FLOAT)) {
             return "getFloat";
         }
+        if (elementType.equals(Types.EXPONENTIAL_HISTOGRAM)) {
+            return "getExponentialHistogram";
+        }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }
 

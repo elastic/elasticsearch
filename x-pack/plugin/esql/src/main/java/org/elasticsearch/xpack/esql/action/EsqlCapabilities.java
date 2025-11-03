@@ -1581,6 +1581,8 @@ public class EsqlCapabilities {
 
         /**
          * Fix for ClassCastException in STATS
+         * https://github.com/elastic/elasticsearch/issues/133992
+         * https://github.com/elastic/elasticsearch/issues/136598
          */
         FIX_STATS_CLASSCAST_EXCEPTION,
 

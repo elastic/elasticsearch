@@ -255,6 +255,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     public List<QueryBuilder> getPrefilters() {
-        return Stream.concat(prefilters.stream(), List.of(positiveQuery).stream()).toList();
+        return prefilters;
     }
 }

@@ -300,7 +300,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             String model = (String) map.remove("model_id");
 
             if (model == null) {
-                validationException.addValidationError("missing model");
+                model = (String) map.remove("model");
+                if (model == null) {
+                    validationException.addValidationError("missing model");
+                }
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

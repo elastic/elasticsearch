@@ -40,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -130,7 +131,9 @@ public class ES93BloomFilterStoredFieldsFormatTests extends BaseStoredFieldsForm
                         // The _id field is not actually stored, just used to build the bloom filter
                         assertThat(document.get(IdFieldMapper.NAME), nullValue());
                         assertThat(document.get("host"), not(nullValue()));
+                        assertThat(document.get("host"), is(equalTo("host-" + docId)));
                         assertThat(document.get("counter"), not(nullValue()));
+                        assertThat(document.getField("counter").storedValue().getLongValue(), is(equalTo((long) docId)));
                     }
                 }
             }

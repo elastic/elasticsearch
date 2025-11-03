@@ -45,9 +45,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
 
     private final String[] indices;
-    // Locally resolved index expressions for the current project.
-    // This is sent over the wire from linked projects to the coordinating project of a request to
-    // inform the coordinating project of the local resolution state (for each remote).
+
+    // Index expressions resolved in the context of the node that creates this response.
+    // If created on a linked project, "local" refers to that linked project.
+    // If created on the coordinating node, "local" refers to the coordinator itself.
+    // This data is sent from linked projects to the coordinator to inform it of each remote's local resolution state.
     private final ResolvedIndexExpressions resolvedLocally;
     // Remotely resolved index expressions, keyed by project alias.
     // This is only populated by the coordinating node with the `resolvedLocally` data structure it receives

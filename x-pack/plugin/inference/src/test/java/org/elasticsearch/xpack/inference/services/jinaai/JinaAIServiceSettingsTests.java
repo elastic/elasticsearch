@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -57,7 +58,7 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(serviceSettings, is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null)));
+        MatcherAssert.assertThat(serviceSettings, is(new JinaAIServiceSettings(createUri(url), model, null)));
     }
 
     public void testFromMap_WithRateLimit() {
@@ -77,10 +78,7 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, new RateLimitSettings(3)))
-        );
+        MatcherAssert.assertThat(serviceSettings, is(new JinaAIServiceSettings(createUri(url), model, new RateLimitSettings(3))));
     }
 
     public void testFromMap_WhenUsingModelId() {
@@ -91,7 +89,7 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
             ConfigurationParseContext.PERSISTENT
         );
 
-        MatcherAssert.assertThat(serviceSettings, is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null)));
+        MatcherAssert.assertThat(serviceSettings, is(new JinaAIServiceSettings(createUri(url), model, null)));
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
@@ -157,7 +155,17 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected JinaAIServiceSettings mutateInstance(JinaAIServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, JinaAIServiceSettingsTests::createRandom);
+        var uri = instance.uri();
+        var modelId = instance.modelId();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(2)) {
+            case 0 -> uri = randomValueOtherThan(uri, () -> randomFrom(createUri(randomAlphaOfLength(15)), null));
+            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(15));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new JinaAIServiceSettings(uri, modelId, rateLimitSettings);
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, String model) {

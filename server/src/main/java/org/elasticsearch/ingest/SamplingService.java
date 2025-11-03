@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.action.index.IndexRequest;
@@ -24,10 +25,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -191,13 +195,17 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     }
 
     /**
-     * Potentially samples the given indexRequest, depending on the existing sampling configuration.
+     * Potentially samples the given indexRequest, depending on the existing sampling configuration. The request will be sampled against
+     * the sampling configurations of all indices it has been rerouted to (if it has been rerouted).
      * @param projectMetadata Used to get the sampling configuration
      * @param indexRequest The raw request to potentially sample
      * @param ingestDocument The IngestDocument used for evaluating any conditionals that are part of the sample configuration
      */
-    public void maybeSample(ProjectMetadata projectMetadata, String indexName, IndexRequest indexRequest, IngestDocument ingestDocument) {
-        maybeSample(projectMetadata, indexName, indexRequest, () -> ingestDocument);
+    public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) {
+        // The index history gives us the initially-requested index, as well as any indices it has been rerouted through
+        for (String index : ingestDocument.getIndexHistory()) {
+            maybeSample(projectMetadata, index, indexRequest, () -> ingestDocument);
+        }
     }
 
     private void maybeSample(
@@ -210,16 +218,24 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
             return;
         }
         long startTime = statsTimeSupplier.getAsLong();
-        SamplingConfiguration samplingConfig = getSamplingConfiguration(projectMetadata, indexName);
-        if (samplingConfig == null) {
-            return;
-        }
-        SoftReference<SampleInfo> sampleInfoReference = samples.compute(
-            new ProjectIndex(projectMetadata.id(), indexName),
-            (k, v) -> v == null || v.get() == null ? new SoftReference<>(new SampleInfo(samplingConfig.maxSamples())) : v
-        );
+        SoftReference<SampleInfo> sampleInfoReference = samples.compute(new ProjectIndex(projectMetadata.id(), indexName), (k, v) -> {
+            if (v == null || v.get() == null) {
+                SamplingConfiguration samplingConfig = getSamplingConfiguration(projectMetadata, indexName);
+                if (samplingConfig == null) {
+                    /*
+                     * Calls to getSamplingConfiguration() are relatively expensive. So we store the NONE object here to indicate that there
+                     * was no sampling configuration. This way we don't have to do the lookup every single time for every index that has no
+                     * sampling configuration. If a sampling configuration is added for this index, this NONE sample will be removed by
+                     * the cluster state change listener.
+                     */
+                    return new SoftReference<>(SampleInfo.NONE);
+                }
+                return new SoftReference<>(new SampleInfo(samplingConfig.maxSamples()));
+            }
+            return v;
+        });
         SampleInfo sampleInfo = sampleInfoReference.get();
-        if (sampleInfo == null) {
+        if (sampleInfo == null || sampleInfo == SampleInfo.NONE) {
             return;
         }
         SampleStats stats = sampleInfo.stats;
@@ -228,6 +244,10 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
             if (sampleInfo.isFull) {
                 stats.samplesRejectedForMaxSamplesExceeded.increment();
                 return;
+            }
+            SamplingConfiguration samplingConfig = getSamplingConfiguration(projectMetadata, indexName);
+            if (samplingConfig == null) {
+                return; // it was not null above, but has since become null because the index was deleted asynchronously
             }
             if (sampleInfo.getSizeInBytes() + indexRequest.source().length() > samplingConfig.maxSize().getBytes()) {
                 stats.samplesRejectedForSize.increment();
@@ -325,6 +345,23 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
         }
         SampleInfo sampleInfo = sampleInfoReference.get();
         return sampleInfo == null ? new SampleStats() : sampleInfo.stats;
+    }
+
+    /*
+     * Throws an IndexNotFoundException if the first index in the IndicesRequest is not a data stream or a single index that exists
+     */
+    public static void throwIndexNotFoundExceptionIfNotDataStreamOrIndex(
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
+        ClusterState state,
+        IndicesRequest request
+    ) {
+        assert request.indices().length == 1 : "Expected IndicesRequest to have a single index but found " + request.indices().length;
+        assert request.includeDataStreams() : "Expected IndicesRequest to include data streams but it did not";
+        boolean isDataStream = projectResolver.getProjectMetadata(state).dataStreams().containsKey(request.indices()[0]);
+        if (isDataStream == false) {
+            indexNameExpressionResolver.concreteIndexNames(state, request);
+        }
     }
 
     public boolean atLeastOneSampleConfigured(ProjectMetadata projectMetadata) {
@@ -475,7 +512,12 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                 if (oldSampleConfigsMap.containsKey(indexName) && entry.getValue().equals(oldSampleConfigsMap.get(indexName)) == false) {
                     logger.debug("Removing sample info for {} because its configuration has changed", indexName);
                     samples.remove(new ProjectIndex(projectId, indexName));
-                }
+                } else if (oldSampleConfigsMap.containsKey(indexName) == false
+                    && samples.containsKey(new ProjectIndex(projectId, indexName))) {
+                        // There had previously been a NONE sample here. There is a real config now, so delete the NONE sample
+                        logger.debug("Removing sample info for {} because its configuration has been created", indexName);
+                        samples.remove(new ProjectIndex(projectId, indexName));
+                    }
             }
         }
     }
@@ -501,6 +543,22 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                     if (samplingConfiguration != null) {
                         logger.debug("Deleting sample configuration for {} because the index has been deleted", indexName);
                         deleteSampleConfiguration(projectId, indexName);
+                    }
+                }
+            }
+        }
+        if (currentProject.dataStreams() != previousProject.dataStreams()) {
+            for (DataStream dataStream : previousProject.dataStreams().values()) {
+                DataStream current = currentProject.dataStreams().get(dataStream.getName());
+                if (current == null) {
+                    String dataStreamName = dataStream.getName();
+                    SamplingConfiguration samplingConfiguration = getSamplingConfiguration(
+                        event.state().projectState(projectId).metadata(),
+                        dataStreamName
+                    );
+                    if (samplingConfiguration != null) {
+                        logger.debug("Deleting sample configuration for {} because the data stream has been deleted", dataStreamName);
+                        deleteSampleConfiguration(projectId, dataStreamName);
                     }
                 }
             }
@@ -1003,6 +1061,7 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
      * This is used internally to store information about a sample in the samples Map.
      */
     private static final class SampleInfo {
+        public static final SampleInfo NONE = new SampleInfo(0);
         private final RawDocument[] rawDocuments;
         /*
          * This stores the maximum index in rawDocuments that has data currently. This is incremented speculatively before writing data to

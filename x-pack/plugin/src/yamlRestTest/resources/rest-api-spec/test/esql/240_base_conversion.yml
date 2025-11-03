@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: ["gte_v8.11.0"]
-      reason: "ESQL is available in 8.11+"
+      cluster_features: ["gte_v9.3.0"]
+      reason: "to_long base conversion is available in 9.3+"
       test_runner_features: [ allowed_warnings_regex, contains, warnings_regex ]
 
   # Common types - https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/field-data-types#_core_datatypes

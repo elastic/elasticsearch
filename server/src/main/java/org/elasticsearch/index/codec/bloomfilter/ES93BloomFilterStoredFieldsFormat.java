@@ -275,6 +275,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         }
 
         private void addToBloomFilter(FieldInfo info, BytesRef value) {
+            assert info.getName().equals(bloomFilterFieldName): "Expected " + bloomFilterFieldName + " but got " + info;
             bloomFilterFieldInfo = info;
             var termHashes = hashTerm(value, hashes);
             for (int hash : termHashes) {

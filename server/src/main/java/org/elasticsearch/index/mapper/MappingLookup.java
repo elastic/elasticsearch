@@ -534,7 +534,7 @@ public final class MappingLookup {
      * If this mapping contains a timestamp field that is of type date, has doc values, and is either indexed or uses a doc values
      * skipper, this returns the field type for it.
      */
-    public DateFieldType getTimestampFieldType() {
+    public @Nullable DateFieldType getTimestampFieldType() {
         final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TIMESTAMP_FIELD_NAME);
         if (mappedFieldType instanceof DateFieldType dateMappedFieldType) {
             IndexType indexType = dateMappedFieldType.indexType();

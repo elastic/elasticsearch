@@ -22,6 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -64,6 +65,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -1696,5 +1698,69 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * field doesn't support fields scripts.
          */
         abstract ScriptFactory nonEmptyFieldScript();
+    }
+
+    /**
+     * Return a list of scenarios where sorts on this field should or should not produce
+     * competitive iterators.  Field types that do not support sorting should return an
+     * empty List.
+     */
+    protected abstract List<SortShortcutSupport> getSortShortcutSupport();
+
+    public record SortShortcutSupport(
+        IndexVersion indexVersion,
+        Settings settings,
+        CheckedConsumer<XContentBuilder, IOException> mappings,
+        CheckedConsumer<XContentBuilder, IOException> document,
+        boolean supportsShortcut
+    ) {
+        public SortShortcutSupport(
+            CheckedConsumer<XContentBuilder, IOException> mappings,
+            CheckedConsumer<XContentBuilder, IOException> document,
+            boolean supportsShortcut
+        ) {
+            this(IndexVersion.current(), SETTINGS, mappings, document, supportsShortcut);
+        }
+
+        public SortShortcutSupport(
+            IndexVersion indexVersion,
+            CheckedConsumer<XContentBuilder, IOException> mappings,
+            CheckedConsumer<XContentBuilder, IOException> document,
+            boolean supportsShortcut
+        ) {
+            this(indexVersion, SETTINGS, mappings, document, supportsShortcut);
+        }
+    }
+
+    public final void testSortShortcuts() throws IOException {
+        List<SortShortcutSupport> tests = getSortShortcutSupport();
+        assumeTrue("Sort shortcuts not supported", tests != null && tests.isEmpty() == false);
+
+        for (SortShortcutSupport sortShortcutSupport : tests) {
+            MapperService mapperService = createMapperService(sortShortcutSupport.indexVersion(), sortShortcutSupport.settings, () -> true);
+            merge(mapperService, fieldMapping(sortShortcutSupport.mappings));
+            withLuceneIndex(mapperService, iw -> {
+                iw.addDocument(
+                    mapperService.documentParser()
+                        .parseDocument(source(sortShortcutSupport.document()), mapperService.mappingLookup())
+                        .rootDoc()
+                );
+            }, reader -> {
+                IndexSearcher searcher = newSearcher(reader);
+                MappedFieldType ft = mapperService.fieldType("field");
+                SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
+                    throw new UnsupportedOperationException();
+                }, Set::of, MappedFieldType.FielddataOperation.SEARCH))
+                    .build(null, null)
+                    .sortField(getVersion(), null, MultiValueMode.MIN, null, false);
+                var comparator = sortField.getComparator(10, Pruning.GREATER_THAN_OR_EQUAL_TO);
+                var leafComparator = comparator.getLeafComparator(searcher.getLeafContexts().getFirst());
+                if (sortShortcutSupport.supportsShortcut) {
+                    assertNotNull(leafComparator.competitiveIterator());
+                } else {
+                    assertNull(leafComparator.competitiveIterator());
+                }
+            });
+        }
     }
 }

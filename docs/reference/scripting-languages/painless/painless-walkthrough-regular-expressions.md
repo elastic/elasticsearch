@@ -9,7 +9,7 @@ products:
 # Regular expressions [modules-scripting-painless-regex]
 
 ::::{note}
-Regexes are enabled by default as the Setting `script.painless.regex.enabled` has a new option, `limited`, the default. This defaults to using regular expressions but limiting the complexity of the regular expressions. Innocuous looking regexes can have staggering performance and stack depth behavior. But still, they remain an amazingly powerful tool. In addition, to `limited`, the setting can be set to `true`, as before, which enables regular expressions without limiting them.To enable them yourself set `script.painless.regex.enabled: true` in `elasticsearch.yml`.
+Regexes are enabled by default by the setting `script.painless.regex.enabled` which has a default value of `limited` the default. This enables the use of regular expressions but limits their complexity. Innocuous looking regexes can have sometimes have adverse performance and stack depth behavior, but they still remain a powerful tool. In addition to `limited`, you can set `script.painless.regex.enabled` to `true` in `elasticsearch.yml` to enable regular expressions without limiting them.
 ::::
 
 

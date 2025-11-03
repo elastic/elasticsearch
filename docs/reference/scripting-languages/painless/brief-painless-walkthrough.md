@@ -19,7 +19,7 @@ If you're new to Painless scripting or need step-by-step guidance, start with [H
 
 # A brief painless walkthrough [painless-walkthrough]
 
-To illustrate how Painless works, let’s load some hockey stats into an Elasticsearch index:
+To illustrate how Painless works, let’s load some hockey stats into an {{es}} index:
 
 ```console
 PUT hockey/_bulk?refresh
@@ -48,3 +48,10 @@ PUT hockey/_bulk?refresh
 ```
 % TESTSETUP
 
+With the hockey data ingested, try out some basic operations that you can do in Painless:
+
+- [](/reference/scripting-languages/painless/painless-walkthrough-access-doc-values.md)
+- [](/reference/scripting-languages/painless/painless-walkthrough-missing-keys-or-values.md)
+- [](/reference/scripting-languages/painless/painless-walkthrough-updating-fields.md)
+- [](/reference/scripting-languages/painless/painless-walkthrough-dates.md)
+- [](/reference/scripting-languages/painless/painless-walkthrough-regular-expressions.md)

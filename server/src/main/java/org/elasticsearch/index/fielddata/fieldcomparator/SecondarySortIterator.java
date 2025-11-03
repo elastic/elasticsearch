@@ -46,11 +46,11 @@ class SecondarySortIterator extends DocIdSetIterator {
         this.valueSkipper = valueSkipper;
         this.primaryFieldSkipper = primaryFieldSkipper;
         this.minValue = minValue;
-            this.maxValue = maxValue;
+        this.maxValue = maxValue;
 
-            valueFieldUpTo = valueSkipper.maxDocID(0);
-            primaryFieldUpTo = primaryFieldSkipper.maxDocID(0);
-        }
+        valueFieldUpTo = valueSkipper.maxDocID(0);
+        primaryFieldUpTo = primaryFieldSkipper.maxDocID(0);
+    }
 
     @Override
     public int docID() {

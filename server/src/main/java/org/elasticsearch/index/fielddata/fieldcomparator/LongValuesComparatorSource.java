@@ -224,7 +224,11 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
             @Override
             public int advance(int target) throws IOException {
-                throw new UnsupportedOperationException();
+                // All documents are guaranteed to have a value, as all invocations of getLongValues
+                // always return `true` from `advanceExact()`
+                boolean hasValue = longValues.advanceExact(target);
+                assert hasValue : "LongValuesComparatorSource#wrap called with a LongValues that has missing values";
+                return target;
             }
 
             @Override

@@ -317,8 +317,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         // helps to be conservative about increasing the sampling interval
         private int tryUpdateFailCount = 0;
 
-        @SuppressWarnings("checkstyle:RedundantModifier")
-        public PointsCompetitiveDISIBuilder(PointValues pointValues, NumericLeafComparator comparator) {
+        PointsCompetitiveDISIBuilder(PointValues pointValues, NumericLeafComparator comparator) {
             super(comparator);
             LeafReaderContext context = comparator.context;
             FieldInfo info = context.reader().getFieldInfos().fieldInfo(field);

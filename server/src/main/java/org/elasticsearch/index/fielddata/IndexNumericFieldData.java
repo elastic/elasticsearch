@@ -88,6 +88,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * match the field's <code>numericType</code>.
      */
     public final SortField sortField(
+        boolean isIndexSort,
         NumericType targetNumericType,
         Object missingValue,
         MultiValueMode sortMode,
@@ -108,6 +109,9 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             || targetNumericType != getNumericType();
         boolean canUseOptimizedSort = canUseOptimizedSort(indexType());
         if (sortRequiresCustomComparator() || requiresCustomComparator) {
+            if (isIndexSort) {
+                return new SortField(getFieldName(), source, reverse);
+            }
             return new SortField(getFieldName(), source, reverse) {
                 @Override
                 public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
@@ -119,6 +123,11 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
             ? SortedNumericSelector.Type.MAX
             : SortedNumericSelector.Type.MIN;
+        if (isIndexSort) {
+            SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
+            sortField.setMissingValue(source.missingObject(missingValue, reverse));
+            return sortField;
+        }
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType) {
             @Override
             public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
@@ -148,7 +157,48 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
     @Override
     public final SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
+        return sortField(false, getNumericType(), missingValue, sortMode, nested, reverse);
+    }
+
+    @Override
+    public SortField indexSortField(IndexVersion indexCreatedVersion, Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        SortField sortField = sortField(true, getNumericType(), missingValue, sortMode, null, reverse);
+        if (getNumericType() == NumericType.DATE_NANOSECONDS
+            && indexCreatedVersion.before(IndexVersions.V_7_14_0)
+            && missingValue.equals("_last")
+            && Long.valueOf(0L).equals(sortField.getMissingValue())) {
+            // 7.14 changed the default missing value of sort on date_nanos, from Long.MIN_VALUE
+            // to 0L - for compatibility we require to a missing value of MIN_VALUE to allow to
+            // open the index.
+            sortField.setMissingValue(Long.MIN_VALUE);
+            return sortField;
+        } else if (getNumericType().sortFieldType != SortField.Type.INT
+            // we introduced INT sort type in 8.19 and from 9.1
+            || indexCreatedVersion.onOrAfter(IndexVersions.INDEX_INT_SORT_INT_TYPE)
+            || indexCreatedVersion.between(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, UPGRADE_TO_LUCENE_10_0_0)) {
+            return sortField;
+        }
+        if ((sortField instanceof SortedNumericSortField) == false) {
+            return sortField;
+        }
+        // if the index was created before 8.19, or in 9.0
+        // we need to rewrite the sort field to use LONG sort type
+
+        // Rewrite INT sort to LONG sort.
+        // Before indices used TYPE.LONG for index sorting on integer field,
+        // and this is stored in their index writer config on disk and can't be modified.
+        // Now sortField() returns TYPE.INT when sorting on integer field,
+        // but to support sorting on old indices, we need to rewrite this sort to TYPE.LONG.
+        XFieldComparatorSource longSource = comparatorSource(NumericType.LONG, missingValue, sortMode, null);
+        SortedNumericSortField numericSortField = (SortedNumericSortField) sortField;
+        SortedNumericSortField rewrittenSortField = new SortedNumericSortField(
+            sortField.getField(),
+            SortField.Type.LONG,
+            sortField.getReverse(),
+            numericSortField.getSelector()
+        );
+        rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
+        return rewrittenSortField;
     }
 
     @Override
@@ -186,6 +236,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         // and this is stored in their index writer config on disk and can't be modified.
         // Now sortField() returns TYPE.INT when sorting on integer field,
         // but to support sorting on old indices, we need to rewrite this sort to TYPE.LONG.
+        XFieldComparatorSource longSource = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
         SortedNumericSortField numericSortField = (SortedNumericSortField) sortField;
         SortedNumericSortField rewrittenSortField = new SortedNumericSortField(
             sortField.getField(),
@@ -199,7 +250,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
                 return super.getComparator(numHits, Pruning.NONE);
             }
         };
-        XFieldComparatorSource longSource = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
         rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
         return rewrittenSortField;
     }

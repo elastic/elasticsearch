@@ -18,7 +18,6 @@ import org.elasticsearch.compute.gen.argument.Argument;
 import org.elasticsearch.compute.gen.argument.BlockArgument;
 import org.elasticsearch.compute.gen.argument.BuilderArgument;
 import org.elasticsearch.compute.gen.argument.FixedArgument;
-import org.elasticsearch.compute.gen.argument.PositionArgument;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -71,9 +70,7 @@ public class EvaluatorImplementer {
             declarationType.getSimpleName() + extraName + "Evaluator"
         );
         this.processOutputsMultivalued = this.processFunction.hasBlockType;
-        boolean anyParameterNotSupportingVectors = this.processFunction.args.stream()
-            .filter(a -> a instanceof FixedArgument == false && a instanceof PositionArgument == false)
-            .anyMatch(a -> a.hasVector() == false);
+        boolean anyParameterNotSupportingVectors = this.processFunction.args.stream().anyMatch(a -> a.supportsVectorReadAccess() == false);
         vectorsUnsupported = processOutputsMultivalued || anyParameterNotSupportingVectors;
         this.allNullsIsNull = allNullsIsNull;
     }

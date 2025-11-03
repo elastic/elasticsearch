@@ -117,8 +117,11 @@ public interface Argument {
      */
     TypeName dataType(boolean blockStyle);
 
-    default boolean hasVector() {
-        return dataType(false) != null;
+    /**
+     * False if and only if there is a block backing this parameter and that block does not support access as a vector. Otherwise true.
+     */
+    default boolean supportsVectorReadAccess() {
+        return true;
     }
 
     /**

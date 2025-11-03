@@ -36,6 +36,11 @@ public record ArrayArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
+    public boolean supportsVectorReadAccess() {
+        return vectorType(type) != null;
+    }
+
+    @Override
     public String paramName(boolean blockStyle) {
         return name + (blockStyle ? "Block" : "Vector") + "s";
     }

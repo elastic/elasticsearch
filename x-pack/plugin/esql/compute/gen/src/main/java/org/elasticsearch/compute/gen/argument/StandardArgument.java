@@ -36,6 +36,11 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
+    public boolean supportsVectorReadAccess() {
+        return dataType(false) != null;
+    }
+
+    @Override
     public String paramName(boolean blockStyle) {
         return name + (blockStyle ? "Block" : "Vector");
     }

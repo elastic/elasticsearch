@@ -34,7 +34,6 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -136,7 +135,6 @@ public class EsqlSession {
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
     private final ByteSizeValue intermediateLocalRelationMaxSize;
-    private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
 
     private boolean explainMode;
@@ -171,7 +169,6 @@ public class EsqlSession {
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
         this.intermediateLocalRelationMaxSize = services.plannerSettings().intermediateLocalRelationMaxSize();
-        this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
     }
 
@@ -558,14 +555,7 @@ public class EsqlSession {
                 }
                 return r;
             })
-            .<PreAnalysisResult>andThen(
-                (l, r) -> forAll(
-                    preAnalysis.lookupIndices().iterator(),
-                    r,
-                    (lookupIndex, innerR, innerL) -> preAnalyzeLookupIndex(lookupIndex, innerR, executionInfo, innerL),
-                    l
-                )
-            )
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l.map(r::withEnrichResolution));
             })

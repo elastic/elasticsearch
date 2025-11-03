@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -29,6 +28,5 @@ public record TransportActionServices(
     UsageService usageService,
     InferenceService inferenceService,
     BlockFactoryProvider blockFactoryProvider,
-    PlannerSettings plannerSettings,
-    CrossProjectModeDecider crossProjectModeDecider
+    PlannerSettings plannerSettings
 ) {}

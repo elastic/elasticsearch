@@ -26,7 +26,6 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -171,8 +170,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             usageService,
             new InferenceService(client),
             blockFactoryProvider,
-            new PlannerSettings(clusterService),
-            new CrossProjectModeDecider(clusterService.getSettings())
+            new PlannerSettings(clusterService)
         );
 
         this.computeService = new ComputeService(

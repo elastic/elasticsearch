@@ -16,8 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import java.io.IOException;
 
 /**
- * Loads {@code MV_MIN} applied to {@code keyword} style fields that are stored as
- * a lookup table and ordinals.
+ * Loads the MIN {@code keyword} in each doc.
  */
 public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlockLoader {
     private final String fieldName;

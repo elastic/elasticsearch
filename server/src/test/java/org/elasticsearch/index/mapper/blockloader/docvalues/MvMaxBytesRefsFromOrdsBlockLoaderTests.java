@@ -44,9 +44,9 @@ public class MvMaxBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
         BlockLoader.Docs docs = TestBlock.docs(ctx);
         try (
             TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-            TestBlock codePoints = read(mvMaxLoader, mvMaxReader, ctx, docs);
+            TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, ctx, docs);
         ) {
-            checkBlocks(strings, codePoints);
+            checkBlocks(strings, maxStrings);
         }
 
         stringsReader = stringsLoader.reader(ctx);
@@ -59,9 +59,9 @@ public class MvMaxBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
             docs = TestBlock.docs(docsArray);
             try (
                 TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                TestBlock codePoints = read(mvMaxLoader, mvMaxReader, ctx, docs);
+                TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, ctx, docs);
             ) {
-                checkBlocks(strings, codePoints);
+                checkBlocks(strings, maxStrings);
             }
         }
     }

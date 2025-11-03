@@ -1402,11 +1402,19 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
 
         static String singleName(String type) {
-            return type.equals("Ordinals") ? "BytesRefsFromOrds.Singleton" : "BlockDocValuesReader.Singleton" + type;
+            return switch (type) {
+                case "Ordinals" -> "BytesRefsFromOrds.Singleton";
+                case "Ints" -> "IntsFromDocValues.Singleton";
+                default -> "BlockDocValuesReader.Singleton" + type;
+            };
         }
 
         static String multiName(String type) {
-            return type.equals("Ordinals") ? "BytesRefsFromOrds.SortedSet" : "BlockDocValuesReader." + type;
+            return switch (type) {
+                case "Ordinals" -> "BytesRefsFromOrds.SortedSet";
+                case "Ints" -> "IntsFromDocValues.Sorted";
+                default -> "BlockDocValuesReader." + type;
+            };
         }
 
         static void id(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
@@ -1707,7 +1715,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
         assertMap(
             status.readersBuilt(),
-            matchesMap().entry("key:column_at_a_time:BlockDocValuesReader.SingletonInts", 1)
+            matchesMap().entry("key:column_at_a_time:IntsFromDocValues.Singleton", 1)
                 .entry("stored_text:column_at_a_time:null", 1)
                 .entry("stored_text:row_stride:BlockStoredFieldsReader.Bytes", 1)
                 .entry("stored_fields[requires_source:false, fields:1, sequential: " + sequential + "]", 1)

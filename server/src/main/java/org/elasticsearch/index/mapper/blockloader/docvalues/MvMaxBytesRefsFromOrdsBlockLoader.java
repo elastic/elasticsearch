@@ -16,8 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import java.io.IOException;
 
 /**
- * Loads {@code MV_MAX} applied to {@code keyword} style fields that are stored as
- * a lookup table and ordinals.
+ * Loads the MAX {@code keyword} in each doc.
  */
 public class MvMaxBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlockLoader {
     private final String fieldName;

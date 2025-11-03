@@ -44,9 +44,9 @@ public class MvMinBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
         BlockLoader.Docs docs = TestBlock.docs(ctx);
         try (
             TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-            TestBlock codePoints = read(mvMinLoader, mvMinReader, ctx, docs);
+            TestBlock minStrings = read(mvMinLoader, mvMinReader, ctx, docs);
         ) {
-            checkBlocks(strings, codePoints);
+            checkBlocks(strings, minStrings);
         }
 
         stringsReader = stringsLoader.reader(ctx);
@@ -59,9 +59,9 @@ public class MvMinBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
             docs = TestBlock.docs(docsArray);
             try (
                 TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                TestBlock codePoints = read(mvMinLoader, mvMinReader, ctx, docs);
+                TestBlock minStrings = read(mvMinLoader, mvMinReader, ctx, docs);
             ) {
-                checkBlocks(strings, codePoints);
+                checkBlocks(strings, minStrings);
             }
         }
     }

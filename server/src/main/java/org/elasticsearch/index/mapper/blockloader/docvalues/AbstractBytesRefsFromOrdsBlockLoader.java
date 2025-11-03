@@ -20,20 +20,20 @@ import java.io.IOException;
 /**
  * Loads {@code keyword} style fields that are stored as a lookup table.
  */
-public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     protected final String fieldName;
 
-    public AbstractBytesRefsFromOrdsBlockLoader(String fieldName) {
+    AbstractBytesRefsFromOrdsBlockLoader(String fieldName) {
         this.fieldName = fieldName;
     }
 
     @Override
-    public BytesRefBuilder builder(BlockFactory factory, int expectedCount) {
+    public final BytesRefBuilder builder(BlockFactory factory, int expectedCount) {
         return factory.bytesRefs(expectedCount);
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
+    public final AllReader reader(LeafReaderContext context) throws IOException {
         SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
         if (docValues != null) {
             SortedDocValues singleton = DocValues.unwrapSingleton(docValues);

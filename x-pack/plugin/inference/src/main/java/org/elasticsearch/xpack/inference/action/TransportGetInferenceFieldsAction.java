@@ -15,6 +15,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -43,13 +45,12 @@ import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-// TODO: Handle multi-project
-
 public class TransportGetInferenceFieldsAction extends HandledTransportAction<
     GetInferenceFieldsAction.Request,
     GetInferenceFieldsAction.Response> {
 
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final Client client;
 
     @Inject
@@ -57,6 +58,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         Client client
     ) {
         super(
@@ -67,6 +69,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.client = client;
     }
 
@@ -114,8 +117,9 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         boolean resolveWildcards,
         boolean useDefaultFields
     ) {
+        ProjectId projectId = projectResolver.getProjectId();
         ClusterState clusterState = clusterService.state();
-        IndexMetadata indexMetadata = clusterState.getMetadata().getProject().indices().get(index);
+        IndexMetadata indexMetadata = clusterState.getMetadata().getProject(projectId).indices().get(index);
         if (indexMetadata == null) {
             return null;
         }

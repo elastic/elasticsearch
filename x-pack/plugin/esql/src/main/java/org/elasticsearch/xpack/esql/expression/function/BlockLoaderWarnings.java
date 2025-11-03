@@ -11,6 +11,12 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+/**
+ * Shim between the {@link org.elasticsearch.index.mapper.blockloader.Warnings} in server and
+ * our {@link Warnings}. Also adds laziness because our {@link Warnings} are a little expensive
+ * on creation and {@link org.elasticsearch.index.mapper.blockloader.Warnings} wants to be
+ * cheap to create.
+ */
 public class BlockLoaderWarnings implements org.elasticsearch.index.mapper.blockloader.Warnings {
     private final DriverContext.WarningsMode warningsMode;
     private final Source source;

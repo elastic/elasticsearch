@@ -116,7 +116,8 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         );
     }
 
-    abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer, MSInt4SymmetricESNextOSQVectorsScorer {
+    abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer,
+        MSInt4SymmetricESNextOSQVectorsScorer {
 
         static final int BULK_SIZE = MemorySegmentESNextOSQVectorsScorer.BULK_SIZE;
         static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
@@ -133,7 +134,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
 
         static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
         static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
-        
+
         protected final MemorySegment memorySegment;
         protected final IndexInput in;
         protected final int length;

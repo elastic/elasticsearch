@@ -19,14 +19,19 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -35,15 +40,25 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static java.lang.Double.NaN;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.not;
@@ -73,13 +88,19 @@ public class ApproximateTests extends ESTestCase {
      * sampling in the query, the returned number of rows is multiplied by
      * the sampling probability.
      * <p>
-     * The runner collects all its invocations.
+     * The runner also provides the LogicalPlan to PhysicalPlan conversion,
+     * but it does not return a realistic PhysicalPlan. When running a
+     * PhysicalPlan is invoked, it maps it back to the original LogicalPlan,
+     * because LogicalPlans are easier to analyze in tests.
+     * <p>
+     * The runner collects the LogicalPlans of its invocations.
      */
-    private static class TestRunner implements Approximate.LogicalPlanRunner {
+    private static class TestRunner implements Function<LogicalPlan, PhysicalPlan>, EsqlSession.PlanRunner {
 
         private final long totalRows;
         private final long filteredRows;
         private final List<LogicalPlan> invocations;
+        private final Map<PhysicalPlan, LogicalPlan> toLogicalPlan = new HashMap<>();
 
         static ActionListener<Result> resultCloser = ActionListener.wrap(result -> result.pages().getFirst().close(), e -> {});
 
@@ -90,7 +111,20 @@ public class ApproximateTests extends ESTestCase {
         }
 
         @Override
-        public void run(LogicalPlan logicalPlan, ActionListener<Result> listener) {
+        public PhysicalPlan apply(LogicalPlan logicalPlan) {
+            // Return a dummy PhysicalPlan that can be mapped back to the LogicalPlan.
+            PhysicalPlan physicalPlan = new LocalSourceExec(
+                Source.EMPTY,
+                List.of(new ReferenceAttribute(Source.EMPTY, null, "id", null)),
+                EmptyLocalSupplier.EMPTY
+            );
+            toLogicalPlan.put(physicalPlan, logicalPlan);
+            return physicalPlan;
+        }
+
+        @Override
+        public void run(PhysicalPlan physicalPlan, Configuration configuration, FoldContext foldContext, ActionListener<Result> listener) {
+            LogicalPlan logicalPlan = toLogicalPlan.get(physicalPlan);
             invocations.add(logicalPlan);
             List<LogicalPlan> filters = logicalPlan.collect(plan -> plan instanceof Filter);
             long numResults = filters.isEmpty() ? totalRows : filteredRows;
@@ -101,6 +135,7 @@ public class ApproximateTests extends ESTestCase {
             LongBlock block = blockFactory.newConstantLongBlockWith(numResults, 1);
             listener.onResponse(new Result(null, List.of(new Page(block)), null, null));
         }
+
     }
 
     @Override
@@ -358,8 +393,15 @@ public class ApproximateTests extends ESTestCase {
         Approximate.verifyPlan(getLogicalPlan(query));
     }
 
-    private Approximate createApproximate(String query, Approximate.LogicalPlanRunner runner) throws Exception {
-        return new Approximate(getLogicalPlan(query), runner);
+    private Approximate createApproximate(String query, TestRunner runner) throws Exception {
+        return new Approximate(
+            getLogicalPlan(query),
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), EsqlTestUtils.randomMinimumVersion())),
+            runner,
+            runner,
+            EsqlTestUtils.TEST_CFG,
+            FoldContext.small()
+        );
     }
 
     private LogicalPlan getLogicalPlan(String query) throws Exception {
@@ -373,5 +415,17 @@ public class ApproximateTests extends ESTestCase {
             throw exceptionHolder.get();
         }
         return resultHolder.get();
+    }
+
+    public void test() {
+        double bestEstimate = 17600.0;
+        double[] estimates = new double[] {
+            NaN, NaN, NaN, 93768.0, NaN, NaN, NaN, 93916.0, NaN, NaN, NaN, NaN, NaN, NaN, 93916.0, NaN,
+            93916.0, NaN, NaN, NaN, NaN, NaN, 93768.0, NaN, NaN, NaN, NaN, NaN, NaN, 93916.0, NaN, NaN,
+            93916.0, NaN, NaN, NaN, NaN, NaN, NaN, NaN, 93768.0, 93916.0, NaN, NaN, NaN, NaN, NaN, NaN
+        };
+        int trialCount=3;
+        int bucketCount=16;
+        System.out.println(Arrays.toString(ConfidenceInterval.computeConfidenceInterval(bestEstimate, estimates, trialCount, bucketCount, 0.9)));
     }
 }

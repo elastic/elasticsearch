@@ -117,6 +117,10 @@ public interface Argument {
      */
     TypeName dataType(boolean blockStyle);
 
+    default boolean hasVector() {
+        return dataType(false) != null;
+    }
+
     /**
      * The parameter passed to the real evaluation function
      */

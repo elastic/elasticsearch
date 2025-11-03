@@ -128,7 +128,7 @@ public class GroupingAggregatorImplementer {
         }).filter(a -> a instanceof PositionArgument == false).toList();
 
         this.hasOnlyBlockArguments = this.aggParams.stream().allMatch(a -> a instanceof BlockArgument);
-        this.allArgumentsSupportVectors = aggParams.stream().noneMatch(a -> a instanceof StandardArgument && a.dataType(false) == null);
+        this.allArgumentsSupportVectors = aggParams.stream().noneMatch(a -> a instanceof StandardArgument && a.hasVector() == false);
 
         this.createParameters = init.getParameters()
             .stream()

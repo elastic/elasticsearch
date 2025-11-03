@@ -122,7 +122,7 @@ public class AggregatorImplementer {
         }).filter(a -> a instanceof PositionArgument == false).toList();
 
         this.tryToUseVectors = aggParams.stream().anyMatch(a -> (a instanceof BlockArgument) == false)
-            && aggParams.stream().noneMatch(a -> a instanceof StandardArgument && a.dataType(false) == null);
+            && aggParams.stream().noneMatch(a -> a instanceof StandardArgument && a.hasVector() == false);
 
         this.createParameters = init.getParameters()
             .stream()

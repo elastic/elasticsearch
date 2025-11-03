@@ -43,7 +43,7 @@ public class ResultDiversificationRetrieverBuilderParsingTests extends AbstractX
 
     @Override
     protected ResultDiversificationRetrieverBuilder createTestInstance() {
-        int numCandidates = randomIntBetween(1, 20);
+        int rankWindowSize = randomIntBetween(1, 20);
         float[] queryVector = randomBoolean() ? getRandomQueryVector() : null;
         Float lambda = randomBoolean() ? randomFloatBetween(0.0f, 1.0f, true) : null;
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = new CompoundRetrieverBuilder.RetrieverSource(
@@ -54,7 +54,7 @@ public class ResultDiversificationRetrieverBuilderParsingTests extends AbstractX
             innerRetriever,
             ResultDiversificationType.MMR,
             "test_field",
-            numCandidates,
+            rankWindowSize,
             queryVector,
             lambda
         );

@@ -1,6 +1,6 @@
 ---
 applies_to:
-  stack: all
+  stack: 9.3
   serverless: ga
 ---
 
@@ -30,7 +30,7 @@ This is based on the paper "[The Use of MMR, Diversity-Based Reranking for Reord
     The name of the field that will use its values for the diversification process.
     The field must be a `dense_vector` type.
 
-`num_candidates`
+`rank_window_size`
 :   (Required, integer)
 
     The maximum number of top-N results to return.
@@ -68,7 +68,7 @@ GET my_index/_search
       "type": "mmr",
       "field": "my_dense_vector_field",
       "lambda": 0.7,
-      "num_candidates": 3
+      "rank_window_size": 3
       "query_vector": [0.1, 0.2, 0.3],
       "retriever": {
         "standard": {

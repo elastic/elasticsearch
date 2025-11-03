@@ -1,5 +1,5 @@
 # To run this test via the command line:
-# ./gradlew ":x-pack:plugin:yamlRestTest" --tests "org.elasticsearch.xpack.test.rest.XPackRestIT.test {p0=result-diversification/10_mmr_result_diversification/*}"
+# ./gradlew ":rest-api-spec:yamlRestTest" --tests org.elasticsearch.test.rest.ClientYamlTestSuiteIT -Dtests.method="test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/*}"
 setup:
   - requires:
       cluster_features: [ "retriever.result_diversification_mmr" ]
@@ -86,7 +86,7 @@ teardown:
               type: "mmr"
               field: "textvector"
               lambda: 0.7
-              num_candidates: 3
+              rank_window_size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -108,7 +108,7 @@ teardown:
               type: "mmr"
               field: "textvector"
               lambda: 0.9
-              num_candidates: 3
+              rank_window_size: 3
               query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
               retriever:
                 knn:
@@ -144,7 +144,7 @@ teardown:
 
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Required [num_candidates]" }
+  - match: { error.reason: "Required [rank_window_size]" }
 
   - do:
       catch: bad_request
@@ -156,7 +156,7 @@ teardown:
               type: "mmr"
               field: "textvector"
               lambda: 0.7
-              num_candidates: 3
+              rank_window_size: 3
 
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
@@ -171,7 +171,7 @@ teardown:
             diversify:
               type: "mmr"
               field: "textvector"
-              num_candidates: 3
+              rank_window_size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -193,7 +193,7 @@ teardown:
               type: "mmr"
               field: "textvector"
               lambda: -0.5
-              num_candidates: 3
+              rank_window_size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -215,7 +215,7 @@ teardown:
               type: "mmr"
               field: "textvector"
               lambda: 1.5
-              num_candidates: 3
+              rank_window_size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -240,7 +240,7 @@ teardown:
               type: "mmr"
               field: "unknown_field"
               lambda: 0.7
-              num_candidates: 3
+              rank_window_size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -264,7 +264,7 @@ teardown:
               type: "mmr"
               field: "keywordfield"
               lambda: 0.7
-              num_candidates: 3
+              rank_window_size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -288,7 +288,7 @@ teardown:
               type: "mmr"
               field: "textbody"
               lambda: 0.7
-              num_candidates: 3
+              rank_window_size: 3
               retriever:
                 knn:
                   field: "textvector"

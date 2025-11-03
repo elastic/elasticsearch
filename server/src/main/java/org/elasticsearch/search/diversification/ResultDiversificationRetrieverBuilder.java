@@ -54,7 +54,6 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField FIELD_FIELD = new ParseField("field");
-    public static final ParseField NUM_CANDIDATES_FIELD = new ParseField("num_candidates");
     public static final ParseField QUERY_FIELD = new ParseField("query_vector");
     public static final ParseField LAMBDA_FIELD = new ParseField("lambda");
 
@@ -76,7 +75,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
             ResultDiversificationType diversificationType = ResultDiversificationType.fromString((String) args[1]);
             String diversificationField = (String) args[2];
-            int numCandidates = (int) args[3];
+            int rankWindowSize = (int) args[3];
 
             @SuppressWarnings("unchecked")
             List<Float> queryVectorList = args[4] == null ? null : (List<Float>) args[4];
@@ -94,7 +93,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
                 RetrieverSource.from((RetrieverBuilder) args[0]),
                 diversificationType,
                 diversificationField,
-                numCandidates,
+                rankWindowSize,
                 queryVector,
                 lambda
             );
@@ -108,7 +107,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         }, RETRIEVER_FIELD);
         PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareInt(constructorArg(), NUM_CANDIDATES_FIELD);
+        PARSER.declareInt(constructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareFloatArray(optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), LAMBDA_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
@@ -124,11 +123,11 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         RetrieverSource innerRetriever,
         ResultDiversificationType diversificationType,
         String diversificationField,
-        int numCandidates,
+        int rankWindowSize,
         @Nullable float[] queryVector,
         @Nullable Float lambda
     ) {
-        super(List.of(innerRetriever), numCandidates);
+        super(List.of(innerRetriever), rankWindowSize);
         this.diversificationType = diversificationType;
         this.diversificationField = diversificationField;
         this.queryVector = queryVector;
@@ -145,11 +144,11 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         List<RetrieverSource> innerRetrievers,
         ResultDiversificationType diversificationType,
         String diversificationField,
-        int numCandidates,
+        int rankWindowSize,
         @Nullable float[] queryVector,
         @Nullable Float lambda
     ) {
-        super(innerRetrievers, numCandidates);
+        super(innerRetrievers, rankWindowSize);
         assert innerRetrievers.size() == 1 : "ResultDiversificationRetrieverBuilder must have a single child retriever";
 
         this.diversificationType = diversificationType;
@@ -347,7 +346,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
         builder.field(TYPE_FIELD.getPreferredName(), diversificationType.value);
         builder.field(FIELD_FIELD.getPreferredName(), diversificationField);
-        builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), rankWindowSize);
+        builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
 
         if (queryVector != null) {
             builder.array(QUERY_FIELD.getPreferredName(), queryVector);

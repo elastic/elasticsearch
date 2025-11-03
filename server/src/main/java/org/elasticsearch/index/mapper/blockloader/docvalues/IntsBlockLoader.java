@@ -31,7 +31,7 @@ public class IntsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
     @Override
     public AllReader reader(LeafReaderContext context) throws IOException {
-        SortedNumeriBlockLoaderWarningscDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+        SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
         if (docValues != null) {
             NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {

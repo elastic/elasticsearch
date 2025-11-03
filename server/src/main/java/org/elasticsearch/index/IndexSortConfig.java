@@ -107,7 +107,7 @@ public final class IndexSortConfig {
     );
 
     public static class IndexSortConfigDefaults {
-        public static final FieldSortSpec[] TIME_SERIES_SORT, TIME_SERIES_WITH_SYNTHETIC_ID_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
+        public static final FieldSortSpec[] TIME_SERIES_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
 
         private static final FieldSortSpec HOSTNAME_SPEC, MESSAGE_PATTERN_SPEC, TIMESTAMP_SPEC;
 
@@ -115,10 +115,6 @@ public final class IndexSortConfig {
             TIMESTAMP_SPEC = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             TIMESTAMP_SPEC.order = SortOrder.DESC;
             TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), TIMESTAMP_SPEC };
-
-            TIME_SERIES_WITH_SYNTHETIC_ID_SORT = new FieldSortSpec[] {
-                new FieldSortSpec(TimeSeriesIdFieldMapper.NAME),
-                new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
 
             HOSTNAME_SPEC = new FieldSortSpec(IndexMode.HOST_NAME);
             HOSTNAME_SPEC.order = SortOrder.ASC;
@@ -147,12 +143,6 @@ public final class IndexSortConfig {
             }
 
             if (IndexMode.TIME_SERIES.getName().equals(indexMode)) {
-                if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-                    var useSyntheticId = settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey());
-                    if (useSyntheticId != null && useSyntheticId.equalsIgnoreCase(Boolean.TRUE.toString())) {
-                        return TIME_SERIES_WITH_SYNTHETIC_ID_SORT;
-                    }
-                }
                 return TIME_SERIES_SORT;
             } else if (IndexMode.LOGSDB.getName().equals(indexMode)) {
                 var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);

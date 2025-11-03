@@ -153,7 +153,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     public static BytesRef createSyntheticIdBytesRef(BytesRef tsid, long timestamp, int routingHash) {
-        // A synthetic _id is the concatenation of [_tsid (non-fixed length) + timestamp (8 bytes) + routing hash (4 bytes)].
+        // A synthetic _id has the format: [_tsid (non-fixed length) + (Long.MAX_VALUE - timestamp) (8 bytes) + routing hash (4 bytes)].
         // We dont' use hashing here because we need to be able to extract the concatenated values from the _id in various places, like
         // when applying doc values updates in Lucene, or when routing GET or DELETE requests to the corresponding shard, or when replaying
         // translog operations. Since the synthetic _id is not indexed and not really stored on disk we consider it fine if it is longer
@@ -161,10 +161,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         //
         // Also, when applying doc values updates Lucene expects _id to be sorted: it stops applying updates for a term "_id:ABC" if it
         // seeks to a term "BCD" as it knows there won't be more documents matching "_id:ABC" past the term "BCD". So it is important to
-        // generate an _id that reflects the ordering of the terms it is synthesized from, ie _tsid and @timestamp.
+        // generate an _id as a byte array whose lexicographical order reflects the order of the documents in the segment. For this reason,
+        // the timestamp is stored in the synthetic _id as (Long.MAX_VALUE - timestamp).
         byte[] bytes = new byte[tsid.length + Long.BYTES + Integer.BYTES];
         System.arraycopy(tsid.bytes, tsid.offset, bytes, 0, tsid.length);
-        ByteUtils.writeLongBE(timestamp, bytes, tsid.length); // Big Endian as we want to most significant byte first
+        ByteUtils.writeLongBE(Long.MAX_VALUE - timestamp, bytes, tsid.length); // Big Endian as we want to most significant byte first
         ByteUtils.writeIntBE(routingHash, bytes, tsid.length + Long.BYTES);
         return new BytesRef(bytes);
     }
@@ -185,7 +186,10 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     public static long extractTimestampFromSyntheticId(BytesRef id) {
         assert id.length > Long.BYTES + Integer.BYTES;
         // See #createSyntheticId
-        return ByteUtils.readLongBE(id.bytes, id.offset + id.length - Long.BYTES - Integer.BYTES);
+        long delta = ByteUtils.readLongBE(id.bytes, id.offset + id.length - Long.BYTES - Integer.BYTES);
+        long timestamp = Long.MAX_VALUE - delta;
+        assert timestamp >= 0 : delta;
+        return timestamp;
     }
 
     public static int extractRoutingHashFromSyntheticId(BytesRef id) {

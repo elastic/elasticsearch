@@ -22,28 +22,28 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public record CcmIndexModel(SecureString apiKey) implements Writeable, ToXContentObject {
+public record CCMModel(SecureString apiKey) implements Writeable, ToXContentObject {
 
     private static final String API_KEY_FIELD = "api_key";
-    private static final ConstructingObjectParser<CcmIndexModel, Void> PARSER = new ConstructingObjectParser<>(
-        CcmIndexModel.class.getSimpleName(),
+    private static final ConstructingObjectParser<CCMModel, Void> PARSER = new ConstructingObjectParser<>(
+        CCMModel.class.getSimpleName(),
         true,
-        args -> new CcmIndexModel(new SecureString(((String) args[0]).toCharArray()))
+        args -> new CCMModel(new SecureString(((String) args[0]).toCharArray()))
     );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField(API_KEY_FIELD));
     }
 
-    public static CcmIndexModel parse(org.elasticsearch.xcontent.XContentParser parser) throws IOException {
+    public static CCMModel parse(org.elasticsearch.xcontent.XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    CcmIndexModel(String apiKey) {
+    CCMModel(String apiKey) {
         this(new SecureString(Objects.requireNonNull(apiKey).toCharArray()));
     }
 
-    public CcmIndexModel(StreamInput in) throws IOException {
+    public CCMModel(StreamInput in) throws IOException {
         this(in.readSecureString());
     }
 

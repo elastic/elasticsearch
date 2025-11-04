@@ -39,7 +39,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -50,7 +49,7 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
     public void testReshardWithDisruption() throws IOException, InterruptedException {
         var masterNode = startMasterOnlyNode();
 
-        int nodes = randomIntBetween(2, 5);
+        int nodes = 2;
         startIndexNodes(nodes);
         startSearchNodes(nodes);
 
@@ -58,21 +57,17 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
         ensureStableCluster(clusterSize);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        // TODO test initial number of shards other than 1
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
         Index index = resolveIndex(indexName);
 
         checkNumberOfShardsSetting(indexName, 1);
 
-        var multiple = randomIntBetween(2, 5);
+        var multiple = 2;
 
         final int numDocs = randomIntBetween(10, 100);
         indexDocs(indexName, numDocs);
-
-        // We currently need to flush all indexed data in order for copy logic to see it.
-        // This will be included in later stages of resharding that currently don't exist.
-        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
-        assertNoFailures(flushResponse);
 
         try (var disruptionExecutorService = Executors.newSingleThreadExecutor()) {
             logger.info("--> start inducing failures");

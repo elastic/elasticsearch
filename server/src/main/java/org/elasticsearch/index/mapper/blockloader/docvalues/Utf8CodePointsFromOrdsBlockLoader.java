@@ -56,16 +56,16 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
             SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
-                return new SingletonOrdinals(singleton);
+                return new Singleton(singleton);
             }
-            return new Ordinals(warnings, docValues);
+            return new SortedSet(warnings, docValues);
         }
         SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
         if (singleton != null) {
             if (singleton.getValueCount() > LOW_CARDINALITY) {
                 return new ImmediateOrdinals(warnings, DocValues.singleton(singleton));
             }
-            return new SingletonOrdinals(singleton);
+            return new Singleton(singleton);
         }
         return new ConstantNullsReader();
     }
@@ -91,13 +91,13 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
      *     ordinals and look them up in the cache immediately.
      * </p>
      */
-    private static class SingletonOrdinals extends BlockDocValuesReader {
+    private static class Singleton extends BlockDocValuesReader {
         private final SortedDocValues ordinals;
         private final int[] cache;
 
         private int cacheEntriesFilled;
 
-        SingletonOrdinals(SortedDocValues ordinals) {
+        Singleton(SortedDocValues ordinals) {
             this.ordinals = ordinals;
 
             // TODO track this memory. we can't yet because this isn't Closeable
@@ -140,7 +140,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public String toString() {
-            return "Utf8CodePointsFromOrds.SingletonOrdinals";
+            return "Utf8CodePointsFromOrds.Singleton";
         }
 
         private Block blockForSingleDoc(BlockFactory factory, int docId) throws IOException {
@@ -234,16 +234,16 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     /**
      * Loads low cardinality non-singleton ordinals in using a cache of code point counts.
-     * See {@link SingletonOrdinals} for the process.
+     * See {@link Singleton} for the process
      */
-    private static class Ordinals extends BlockDocValuesReader {
+    private static class SortedSet extends BlockDocValuesReader {
         private final Warnings warnings;
         private final SortedSetDocValues ordinals;
         private final int[] cache;
 
         private int cacheEntriesFilled;
 
-        Ordinals(Warnings warnings, SortedSetDocValues ordinals) {
+        SortedSet(Warnings warnings, SortedSetDocValues ordinals) {
             this.warnings = warnings;
             this.ordinals = ordinals;
 
@@ -292,7 +292,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public String toString() {
-            return "Utf8CodePointsFromOrds.Ordinals";
+            return "Utf8CodePointsFromOrds.SortedSet";
         }
 
         private Block blockForSingleDoc(BlockFactory factory, int docId) throws IOException {

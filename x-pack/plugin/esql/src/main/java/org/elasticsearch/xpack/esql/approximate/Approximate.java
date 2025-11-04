@@ -43,10 +43,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -569,6 +569,9 @@ public class Approximate {
                 Alias bucketIdField = new Alias(Source.EMPTY, "$bucket_id", bucketIds);
 
                 List<NamedExpression> aggregates = new ArrayList<>();
+                Alias sampleSize = new Alias(Source.EMPTY, "$sample_size", COUNT_ALL_ROWS);
+                aggregates.add(sampleSize);
+
                 for (NamedExpression aggOrKey : aggregate.aggregates()) {
                     if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
                         // This is a grouping key, not an aggregate function.
@@ -633,10 +636,18 @@ public class Approximate {
                 }
 
                 // Add the bucket ID, do the aggregations (sampled corrected, including the buckets),
-                // and filter out rows with empty buckets.
+                // and filter out rows with less than 10 sampled values.
                 plan = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketIdField));
                 plan = aggregate.with(plan, aggregate.groupings(), aggregates);
+                plan = new Filter(
+                    Source.EMPTY,
+                    plan,
+                    new GreaterThanOrEqual(Source.EMPTY, sampleSize.toAttribute(), Literal.fromLong(Source.EMPTY, 10L))
+                );
 
+                List<Attribute> keepAttributes = new ArrayList<>(plan.output());
+                keepAttributes.remove(sampleSize.toAttribute());
+                plan = new Project(Source.EMPTY, plan, keepAttributes);
             } else if (encounteredStats.get()) {
                 // After the STATS function, any processing of fields that have buckets, should
                 // also process the buckets, so that confidence intervals for the dependent fields
@@ -698,7 +709,6 @@ public class Approximate {
 
         // Compute the confidence interval for all output fields that have buckets.
         List<Alias> confidenceIntervalsAndReliable = new ArrayList<>();
-        Expression confidenceIntervalsExist = Literal.TRUE;
         for (Attribute output : logicalPlan.output()) {
             if (fieldBuckets.containsKey(output.id())) {
                 List<Alias> buckets = fieldBuckets.get(output.id());
@@ -743,11 +753,9 @@ public class Approximate {
                         new Reliable(Source.EMPTY, bucketsMv, trialCount, bucketCount)
                     )
                 );
-                confidenceIntervalsExist = new And(Source.EMPTY, confidenceIntervalsExist, new IsNotNull(Source.EMPTY, confidenceInterval));
             }
         }
         approximatePlan = new Eval(Source.EMPTY, approximatePlan, confidenceIntervalsAndReliable);
-        approximatePlan = new Filter(Source.EMPTY, approximatePlan, confidenceIntervalsExist);
 
         // Finally, drop all bucket fields from the output.
         Set<Attribute> dropAttributes = fieldBuckets.values()

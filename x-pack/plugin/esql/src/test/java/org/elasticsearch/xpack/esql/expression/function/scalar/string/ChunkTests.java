@@ -155,8 +155,9 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         int numChunks = 1;
         int chunkSize = 20;
         String query = "trails";
-        List<String> expectedChunks =
-            List.of("to hike High Peaks trails, paddle across mirror-like waters, or ski through snow-covered forests.");
+        List<String> expectedChunks = List.of(
+            "to hike High Peaks trails, paddle across mirror-like waters, or ski through snow-covered forests."
+        );
         verifyChunks(numChunks, chunkSize, query, expectedChunks);
     }
 
@@ -164,8 +165,10 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         int numChunks = 2;
         int chunkSize = 20;
         String query = "Adirondacks";
-        List<String> expectedChunks = List.of("the Adirondacks a timeless escape into natural tranquility.",
-            "The Adirondacks, a vast mountain region in northern New York, offer a breathtaking mix of rugged wilderness, serene lakes,");
+        List<String> expectedChunks = List.of(
+            "the Adirondacks a timeless escape into natural tranquility.",
+            "The Adirondacks, a vast mountain region in northern New York, offer a breathtaking mix of rugged wilderness, serene lakes,"
+        );
         verifyChunks(numChunks, chunkSize, query, expectedChunks);
     }
 
@@ -173,8 +176,9 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         int numChunks = 3;
         int chunkSize = 20;
         String query = "trails";
-        List<String> expectedChunks =
-            List.of("to hike High Peaks trails, paddle across mirror-like waters, or ski through snow-covered forests.");
+        List<String> expectedChunks = List.of(
+            "to hike High Peaks trails, paddle across mirror-like waters, or ski through snow-covered forests."
+        );
         verifyChunks(numChunks, chunkSize, query, expectedChunks);
     }
 

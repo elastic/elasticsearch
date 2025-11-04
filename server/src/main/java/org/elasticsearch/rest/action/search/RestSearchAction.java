@@ -243,14 +243,14 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
-        if (crossProjectEnabled && searchRequest.allowsCrossProject()) {
+        if (crossProjectEnabled) {
             indicesOptions = IndicesOptions.builder(indicesOptions)
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                 .build();
         }
         searchRequest.indicesOptions(indicesOptions);
 
-        validateSearchRequest(request, searchRequest, crossProjectEnabled && searchRequest.allowsCrossProject());
+        validateSearchRequest(request, searchRequest, crossProjectEnabled);
 
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request);
@@ -413,15 +413,15 @@ public class RestSearchAction extends BaseRestHandler {
         validateSearchRequest(restRequest, searchRequest, false);
     }
 
-    private static void validateSearchRequest(RestRequest restRequest, SearchRequest searchRequest, boolean resolvesCrossProject) {
+    private static void validateSearchRequest(RestRequest restRequest, SearchRequest searchRequest, boolean crossProjectEnabled) {
         checkRestTotalHits(restRequest, searchRequest);
         checkSearchType(restRequest, searchRequest);
         // ensures that the rest param is consumed
         restRequest.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
-        checkProjectRouting(searchRequest, resolvesCrossProject);
+        checkProjectRouting(searchRequest, crossProjectEnabled);
     }
 
-    private static void checkProjectRouting(SearchRequest searchRequest, boolean resolvesCrossProject) {
+    private static void checkProjectRouting(SearchRequest searchRequest, boolean crossProjectEnabled) {
         /*
          * There are 2 ways of specifying project_routing:
          *   - as a query parameter: /_search?project_routing=..., and,
@@ -437,7 +437,7 @@ public class RestSearchAction extends BaseRestHandler {
         String projectRoutingInBody = searchRequest.source().projectRouting();
         // If it's null, either the query parameter is also null or it isn't. Either way, we're fine with it.
         if (projectRoutingInBody != null) {
-            if (resolvesCrossProject == false) {
+            if (crossProjectEnabled == false) {
                 throw new IllegalArgumentException("project_routing is allowed only when CPS is enabled and the endpoint supports CPS");
             }
 

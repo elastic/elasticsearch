@@ -80,7 +80,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         final double dMissingValue = (Double) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new DoubleComparator(numHits, null, null, reversed, Pruning.NONE) {
+        return new DoubleComparator(numHits, fieldname, null, reversed, enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new DoubleLeafComparator(context) {

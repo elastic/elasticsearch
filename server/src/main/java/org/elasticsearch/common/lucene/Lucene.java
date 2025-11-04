@@ -634,10 +634,10 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
-        } else if (sortField.getClass() == SortedNumericSortField.class) {
+        } else if (sortField instanceof SortedNumericSortField snsf) {
             SortField newSortField = new SortField(
                 sortField.getField(),
-                ((SortedNumericSortField) sortField).getNumericType(),
+                snsf.getNumericType(),
                 sortField.getReverse()
             );
             newSortField.setMissingValue(sortField.getMissingValue());
@@ -651,9 +651,6 @@ public class Lucene {
 
     static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
         sortField = rewriteMergeSortField(sortField);
-        if (sortField.getClass() != SortField.class) {
-            throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
-        }
         out.writeOptionalString(sortField.getField());
         if (sortField.getComparatorSource() != null) {
             IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField

@@ -202,6 +202,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     protected static NumericDocValues wrap(LongValues longValues) {
         return new NumericDocValues() {
+
+            int doc = -1;
+
             @Override
             public long longValue() throws IOException {
                 return longValues.longValue();
@@ -209,17 +212,18 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
             @Override
             public boolean advanceExact(int target) throws IOException {
+                doc = target;
                 return longValues.advanceExact(target);
             }
 
             @Override
             public int docID() {
-                throw new UnsupportedOperationException();
+                return doc;
             }
 
             @Override
             public int nextDoc() throws IOException {
-                throw new UnsupportedOperationException();
+                return advance(doc + 1);
             }
 
             @Override
@@ -228,6 +232,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 // always return `true` from `advanceExact()`
                 boolean hasValue = longValues.advanceExact(target);
                 assert hasValue : "LongValuesComparatorSource#wrap called with a LongValues that has missing values";
+                doc = target;
                 return target;
             }
 

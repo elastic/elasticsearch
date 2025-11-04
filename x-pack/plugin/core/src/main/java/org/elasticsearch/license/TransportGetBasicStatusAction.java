@@ -7,8 +7,9 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -16,32 +17,18 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction<GetBasicStatusRequest, GetBasicStatusResponse> {
+public class TransportGetBasicStatusAction extends TransportLocalClusterStateAction<GetBasicStatusRequest, GetBasicStatusResponse> {
+    public static final ActionType<GetBasicStatusResponse> TYPE = new ActionType<>("cluster:admin/xpack/license/basic_status");
 
     @Inject
-    public TransportGetBasicStatusAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters
-    ) {
-        super(
-            GetBasicStatusAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            GetBasicStatusRequest::new,
-            GetBasicStatusResponse::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+    public TransportGetBasicStatusAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
+        super(TYPE.name(), actionFilters, transportService.getTaskManager(), clusterService, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         GetBasicStatusRequest request,
         ClusterState state,
@@ -54,7 +41,6 @@ public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction
             License license = licensesMetadata.getLicense();
             listener.onResponse(new GetBasicStatusResponse(license == null || License.LicenseType.isBasic(license.type()) == false));
         }
-
     }
 
     @Override

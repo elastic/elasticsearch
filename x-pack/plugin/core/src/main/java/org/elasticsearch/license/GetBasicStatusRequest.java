@@ -6,25 +6,12 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.core.TimeValue;
 
-import java.io.IOException;
-
-public class GetBasicStatusRequest extends MasterNodeReadRequest<GetBasicStatusRequest> {
+public class GetBasicStatusRequest extends LocalClusterStateRequest {
 
     public GetBasicStatusRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
-    }
-
-    public GetBasicStatusRequest(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 }

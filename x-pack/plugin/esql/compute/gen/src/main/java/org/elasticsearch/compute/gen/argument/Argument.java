@@ -230,6 +230,13 @@ public interface Argument {
     }
 
     /**
+     * Creates the loop needed to process this argument's values when passed as a block.
+     */
+    default void generateBlockProcessingLoop(MethodSpec.Builder builder, Runnable next) {
+        throw new UnsupportedOperationException("can't build raw block for " + type());
+    }
+
+    /**
      * Build the invocation of the process method for this parameter.
      */
     void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle);

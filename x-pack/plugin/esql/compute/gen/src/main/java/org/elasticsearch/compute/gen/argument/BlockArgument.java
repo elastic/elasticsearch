@@ -130,4 +130,9 @@ public record BlockArgument(TypeName type, String name) implements Argument {
     public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {
         builder.addStatement("baseRamBytesUsed += $L.baseRamBytesUsed()", name);
     }
+
+    @Override
+    public void generateBlockProcessingLoop(MethodSpec.Builder builder, Runnable next) {
+        next.run();
+    }
 }

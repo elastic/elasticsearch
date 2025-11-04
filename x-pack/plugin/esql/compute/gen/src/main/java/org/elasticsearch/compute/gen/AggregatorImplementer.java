@@ -87,6 +87,7 @@ public class AggregatorImplementer {
 
     private final AggregationState aggState;
     private final List<Argument> aggParams;
+    private final boolean hasOnlyBlockArguments;
     private final boolean tryToUseVectors;
 
     public AggregatorImplementer(
@@ -120,7 +121,7 @@ public class AggregatorImplementer {
             }
             return a;
         }).filter(a -> a instanceof PositionArgument == false).toList();
-
+        this.hasOnlyBlockArguments = this.aggParams.stream().allMatch(a -> a instanceof BlockArgument);
         this.tryToUseVectors = aggParams.stream().anyMatch(a -> (a instanceof BlockArgument) == false)
             && aggParams.stream().noneMatch(a -> a.supportsVectorReadAccess() == false);
 
@@ -444,7 +445,28 @@ public class AggregatorImplementer {
                 a.addContinueIfPositionHasNoValueBlock(builder);
             }
 
-            if (aggParams.getFirst() instanceof BlockArgument) {
+            if (hasOnlyBlockArguments == false) {
+                if (first == null && aggState.hasSeen()) {
+                    builder.addStatement("state.seen(true)");
+                }
+            }
+
+            Runnable currAction = getCurrentAction(builder);
+            for (int i = aggParams.size() - 1; i >= 0; i--) {
+                Argument a = aggParams.get(i);
+                Runnable nextAction = currAction;
+                currAction = () -> a.generateBlockProcessingLoop(builder, nextAction);
+            }
+
+            currAction.run();
+        }
+        builder.endControlFlow();
+        return builder.build();
+    }
+
+    private Runnable getCurrentAction(MethodSpec.Builder builder) {
+        Runnable runnable = () -> {
+            if (hasOnlyBlockArguments) {
                 String params = aggParams.stream().map(Argument::blockName).collect(joining(", "));
 
                 warningsBlock(
@@ -452,22 +474,6 @@ public class AggregatorImplementer {
                     () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, params)
                 );
             } else {
-                if (first == null && aggState.hasSeen()) {
-                    builder.addStatement("state.seen(true)");
-                }
-                for (Argument a : aggParams) {
-                    builder.addStatement("int $L = $L.getFirstValueIndex(p)", a.startName(), a.blockName());
-                    builder.addStatement("int $L = $L + $LValueCount", a.endName(), a.startName(), a.name());
-                    builder.beginControlFlow(
-                        "for (int $L = $L; $L < $L; $L++)",
-                        a.offsetName(),
-                        a.startName(),
-                        a.offsetName(),
-                        a.endName(),
-                        a.offsetName()
-                    );
-                    a.read(builder, a.blockName(), a.offsetName());
-                }
                 if (first != null) {
                     builder.addComment("Check seen in every iteration to save on complexity in the Block path");
                     builder.beginControlFlow("if (state.seen())");
@@ -483,13 +489,10 @@ public class AggregatorImplementer {
                 } else {
                     combineRawInput(builder, false);
                 }
-                for (Argument a : aggParams) {
-                    builder.endControlFlow();
-                }
             }
-        }
-        builder.endControlFlow();
-        return builder.build();
+        };
+
+        return runnable;
     }
 
     private MethodSpec.Builder initAddRaw(boolean blockStyle, boolean masked) {

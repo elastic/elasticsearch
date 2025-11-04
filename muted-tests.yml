@@ -471,15 +471,16 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
   method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
   issue: https://github.com/elastic/elasticsearch/issues/137457
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
-  issue: https://github.com/elastic/elasticsearch/issues/137491
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testBasicCCRAndILMIntegration {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137494
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testCcrAndIlmWithRollover {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137528
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testSimilarityWithOneDimVector {functionName=v_cosine
+    similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity$1@6f152006 elementType=byte}
+  issue: https://github.com/elastic/elasticsearch/issues/137552
 
 # Examples:
 #

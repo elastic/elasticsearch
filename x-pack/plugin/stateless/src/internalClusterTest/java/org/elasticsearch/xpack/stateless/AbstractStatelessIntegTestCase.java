@@ -145,6 +145,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
@@ -388,7 +389,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         builder.put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), getUploadMaxCommits());
         if (randomBoolean()) {
             // Randomly disable hollow shards
-            builder.put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false);
+            builder.put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false);
         } else if (randomBoolean()) {
             // Randomly make TTL zero for hollowing shards
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO);
@@ -1228,6 +1229,25 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
             .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.MINUS_ONE)
             .build();
+    }
+
+    protected Settings randomHollowIndexNodeSettings() {
+        var indexingNodeSettingsBuilder = Settings.builder();
+        final var hollowEnabled = randomBoolean();
+        if (hollowEnabled) {
+            indexingNodeSettingsBuilder = indexingNodeSettingsBuilder.put(
+                HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(),
+                true
+            )
+                .put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO)
+                .put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO);
+        } else {
+            indexingNodeSettingsBuilder = indexingNodeSettingsBuilder.put(
+                HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(),
+                false
+            );
+        }
+        return indexingNodeSettingsBuilder.build();
     }
 
     protected void hollowShards(String indexName, int numberOfShards, String indexNodeA, String indexNodeB) throws Exception {

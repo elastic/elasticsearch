@@ -34,7 +34,6 @@ import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReade
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -109,6 +108,7 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static java.util.Map.entry;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
@@ -884,22 +884,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSearchShardGenerationFilesRetention() throws Exception {
-        var indexingNodeSettingsBuilder = Settings.builder();
-        final var hollowEnabled = randomBoolean();
-        if (hollowEnabled) {
-            indexingNodeSettingsBuilder = indexingNodeSettingsBuilder.put(
-                HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(),
-                true
-            )
-                .put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO)
-                .put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO);
-        } else {
-            indexingNodeSettingsBuilder = indexingNodeSettingsBuilder.put(
-                HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(),
-                false
-            );
-        }
-        final var indexingNodeSettings = indexingNodeSettingsBuilder.build();
+        final var indexingNodeSettings = randomHollowIndexNodeSettings();
+        final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(indexingNodeSettings);
         var masterNode = startMasterOnlyNode();
         var indexNode = startIndexNode(indexingNodeSettings);
 

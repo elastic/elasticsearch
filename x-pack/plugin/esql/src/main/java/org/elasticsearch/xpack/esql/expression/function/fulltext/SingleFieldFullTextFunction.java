@@ -111,11 +111,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         if (result.unresolved()) {
             return result;
         }
-        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
-        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
-            return result;
-        }
-        return TypeResolution.TYPE_RESOLVED;
+        return resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
     }
 
     /**
@@ -180,8 +176,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     @Override
     public Nullability nullable() {
-        // The function is nullable if the field is guaranteed to be null, due to the field not being present in the mapping
-        return Expressions.isGuaranteedNull(field()) ? Nullability.TRUE : Nullability.FALSE;
+        return field().nullable();
     }
 
     @Override

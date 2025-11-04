@@ -80,6 +80,7 @@ public class CCMStorageService {
         client.prepareSearch(CCMIndex.INDEX_PATTERN)
             .setSize(1)
             .setTrackTotalHits(false)
-            .setQuery(QueryBuilders.idsQuery().addIds(CCM_DOC_ID)).execute(searchListener);
+            .setQuery(QueryBuilders.idsQuery().addIds(CCM_DOC_ID))
+            .execute(searchListener);
     }
 }

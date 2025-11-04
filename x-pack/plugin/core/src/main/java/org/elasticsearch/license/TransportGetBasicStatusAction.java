@@ -9,12 +9,14 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -22,9 +24,24 @@ import org.elasticsearch.transport.TransportService;
 public class TransportGetBasicStatusAction extends TransportLocalClusterStateAction<GetBasicStatusRequest, GetBasicStatusResponse> {
     public static final ActionType<GetBasicStatusResponse> TYPE = new ActionType<>("cluster:admin/xpack/license/basic_status");
 
+    /**
+     * Prior to 9.3 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportGetBasicStatusAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), clusterService, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            GetBasicStatusRequest::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override

@@ -69,6 +69,7 @@ When a retriever is specified as part of a search, the following elements are no
 ## Multi-field query format [multi-field-query-format]
 ```yaml {applies_to}
 stack: ga 9.1
+serverless: ga
 ```
 
 The [`linear`](retrievers/linear-retriever.md) and [`rrf`](retrievers/rrf-retriever.md) retrievers support a multi-field query format that provides a simplified way to define searches across multiple fields without explicitly specifying inner retrievers.

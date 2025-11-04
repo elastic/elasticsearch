@@ -365,7 +365,7 @@ public abstract class AbstractMatchFullTextFunctionTests extends AbstractFunctio
      * @param suppliers the list of test case suppliers to augment
      * @return the same list with additional null-field test cases added
      */
-    private static List<TestCaseSupplier> addNullFieldTestCases(List<TestCaseSupplier> suppliers) {
+    public static List<TestCaseSupplier> addNullFieldTestCases(List<TestCaseSupplier> suppliers) {
         List<TestCaseSupplier> nullFieldCases = new ArrayList<>();
 
         Set<List<DataType>> uniqueSignatures = new HashSet<>();

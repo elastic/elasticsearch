@@ -57,11 +57,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
-
-    private static final String[] ACCEPTED_FIELD_TYPES = { "dense_vector", "semantic_text" };
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
@@ -315,8 +314,8 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     protected Set<DataType> getFieldDataTypes() {
-        // Knn accepts DENSE_VECTOR or TEXT (for semantic_text)
-        return Set.of(DENSE_VECTOR, TEXT);
+        // Knn accepts DENSE_VECTOR or TEXT (for semantic_text), plus NULL for missing fields
+        return Set.of(DENSE_VECTOR, TEXT, NULL);
     }
 
     @Override

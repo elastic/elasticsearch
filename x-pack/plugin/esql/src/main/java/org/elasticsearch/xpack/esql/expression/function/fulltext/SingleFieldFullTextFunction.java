@@ -88,13 +88,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Resolves and validates the field parameter type.
      */
     protected TypeResolution resolveField() {
-        return isType(
-            field,
-            getFieldDataTypes()::contains,
-            sourceText(),
-            TypeResolutions.ParamOrdinal.FIRST,
-            expectedFieldTypesString()
-        );
+        return isType(field, getFieldDataTypes()::contains, sourceText(), TypeResolutions.ParamOrdinal.FIRST, expectedFieldTypesString());
     }
 
     /**

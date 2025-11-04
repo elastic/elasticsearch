@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 /**
@@ -59,7 +60,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         "MatchPhrase",
         MatchPhrase::readFrom
     );
-    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT);
+    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(

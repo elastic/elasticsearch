@@ -24,6 +24,7 @@ public class CCMIndex {
 
     public static final String INDEX_NAME = ".ccm-inference";
     public static final String INDEX_PATTERN = INDEX_NAME + "*";
+    public static final String INDEX_ALIAS = ".ccm-inference-alias";
 
     // Increment this version number when the mappings change
     private static final int INDEX_MAPPING_VERSION = 1;

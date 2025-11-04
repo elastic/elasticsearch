@@ -132,7 +132,7 @@ import java.util.stream.Collectors;
  */
 public class Approximate {
 
-    public record QueryProperties(boolean hasNonCountAllAgg, boolean preservesRows) {}
+    public record QueryProperties(boolean preservesRows) {}
 
     /**
      * These processing commands are supported.
@@ -246,8 +246,14 @@ public class Approximate {
 
     private long sourceRowCount;
 
-
-    public Approximate(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, Function<LogicalPlan, PhysicalPlan> toPhysicalPlan, EsqlSession.PlanRunner runner, Configuration configuration, FoldContext foldContext) {
+    public Approximate(
+        LogicalPlan logicalPlan,
+        LogicalPlanOptimizer logicalPlanOptimizer,
+        Function<LogicalPlan, PhysicalPlan> toPhysicalPlan,
+        EsqlSession.PlanRunner runner,
+        Configuration configuration,
+        FoldContext foldContext
+    ) {
         this.logicalPlan = logicalPlan;
         this.queryProperties = verifyPlan(logicalPlan);
         this.logicalPlanOptimizer = logicalPlanOptimizer;
@@ -284,15 +290,11 @@ public class Approximate {
         });
 
         Holder<Boolean> encounteredStats = new Holder<>(false);
-        Holder<Boolean> hasNonCountAllAgg = new Holder<>(false);
         Holder<Boolean> preservesRows = new Holder<>(true);
 
         logicalPlan.transformUp(plan -> {
             if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate aggregate) {
-                    if (aggregate.groupings().isEmpty() == false) {
-                        hasNonCountAllAgg.set(true);
-                    }
                     // Verify that the aggregate functions are supported.
                     encounteredStats.set(true);
                     plan.transformExpressionsOnly(AggregateFunction.class, aggFn -> {
@@ -307,9 +309,6 @@ public class Approximate {
                                     )
                                 )
                             );
-                        }
-                        if (aggFn.equals(COUNT_ALL_ROWS) == false) {
-                            hasNonCountAllAgg.set(true);
                         }
                         return aggFn;
                     });
@@ -326,20 +325,52 @@ public class Approximate {
             return plan;
         });
 
-        return new QueryProperties(hasNonCountAllAgg.get(), preservesRows.get());
+        return new QueryProperties(preservesRows.get());
     }
 
     /**
      * Computes approximate results for the logical plan.
      */
     public void approximate(ActionListener<Result> listener) {
-        if (queryProperties.hasNonCountAllAgg || queryProperties.preservesRows == false) {
-            runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, sourceCountListener(listener));
-        } else {
-            // Counting all rows is fast for queries that preserve all rows, as it's returned from
-            // Lucene's metadata. Approximation would only slow things down in this case.
-            runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
-        }
+        // Try to execute the query if it translates to an ES stats query. Results for
+        // them come from Lucene's metadata and are computed fast. Approximation would
+        // only slow things down in that case. When the query is not an ES stats query,
+        // an exception is thrown and approximation is attempted.
+        runner.run(
+            toPhysicalPlan.apply(logicalPlan),
+            configuration.throwOnNonEsStatsQuery(true),
+            foldContext,
+            approximateListener(listener)
+        );
+    }
+
+    private ActionListener<Result> approximateListener(ActionListener<Result> listener) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Result result) {
+                assert result.executionInfo() != null;
+                boolean esStatsQueryExecuted = result.executionInfo().clusterInfo.values()
+                    .stream()
+                    .noneMatch(
+                        cluster -> cluster.getFailures().stream().anyMatch(e -> e.getCause() instanceof UnsupportedOperationException)
+                    );
+                if (esStatsQueryExecuted) {
+                    logger.debug("not approximating stats query");
+                    listener.onResponse(result);
+                } else {
+                    runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, sourceCountListener(listener));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof UnsupportedOperationException) {
+                    runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, sourceCountListener(listener));
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        };
     }
 
     /**
@@ -378,7 +409,12 @@ public class Approximate {
             if (queryProperties.preservesRows || sampleProbability == 1.0) {
                 runner.run(toPhysicalPlan.apply(approximatePlan(sampleProbability)), configuration, foldContext, listener);
             } else {
-                runner.run(toPhysicalPlan.apply(countPlan(sampleProbability)), configuration, foldContext, countListener(sampleProbability, listener));
+                runner.run(
+                    toPhysicalPlan.apply(countPlan(sampleProbability)),
+                    configuration,
+                    foldContext,
+                    countListener(sampleProbability, listener)
+                );
             }
         });
     }
@@ -431,7 +467,12 @@ public class Approximate {
             logger.debug("countPlan result (p={}): {} rows", sampleProbability, rowCount);
             double newSampleProbability = sampleProbability * SAMPLE_ROW_COUNT / Math.max(1, rowCount);
             if (rowCount <= SAMPLE_ROW_COUNT / 2 && newSampleProbability < 1.0) {
-                runner.run(toPhysicalPlan.apply(countPlan(newSampleProbability)), configuration, foldContext, countListener(newSampleProbability, listener));
+                runner.run(
+                    toPhysicalPlan.apply(countPlan(newSampleProbability)),
+                    configuration,
+                    foldContext,
+                    countListener(newSampleProbability, listener)
+                );
             } else {
                 runner.run(toPhysicalPlan.apply(approximatePlan(newSampleProbability)), configuration, foldContext, listener);
             }

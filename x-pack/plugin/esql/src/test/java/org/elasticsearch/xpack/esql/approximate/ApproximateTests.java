@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Foldables;
-import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -51,14 +50,12 @@ import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static java.lang.Double.NaN;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.not;
@@ -396,7 +393,9 @@ public class ApproximateTests extends ESTestCase {
     private Approximate createApproximate(String query, TestRunner runner) throws Exception {
         return new Approximate(
             getLogicalPlan(query),
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), EsqlTestUtils.randomMinimumVersion())),
+            new LogicalPlanOptimizer(
+                new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), EsqlTestUtils.randomMinimumVersion())
+            ),
             runner,
             runner,
             EsqlTestUtils.TEST_CFG,
@@ -415,17 +414,5 @@ public class ApproximateTests extends ESTestCase {
             throw exceptionHolder.get();
         }
         return resultHolder.get();
-    }
-
-    public void test() {
-        double bestEstimate = 17600.0;
-        double[] estimates = new double[] {
-            NaN, NaN, NaN, 93768.0, NaN, NaN, NaN, 93916.0, NaN, NaN, NaN, NaN, NaN, NaN, 93916.0, NaN,
-            93916.0, NaN, NaN, NaN, NaN, NaN, 93768.0, NaN, NaN, NaN, NaN, NaN, NaN, 93916.0, NaN, NaN,
-            93916.0, NaN, NaN, NaN, NaN, NaN, NaN, NaN, 93768.0, 93916.0, NaN, NaN, NaN, NaN, NaN, NaN
-        };
-        int trialCount=3;
-        int bucketCount=16;
-        System.out.println(Arrays.toString(ConfidenceInterval.computeConfidenceInterval(bestEstimate, estimates, trialCount, bucketCount, 0.9)));
     }
 }

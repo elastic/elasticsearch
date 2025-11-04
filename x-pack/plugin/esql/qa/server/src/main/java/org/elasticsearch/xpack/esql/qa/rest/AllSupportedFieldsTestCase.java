@@ -400,6 +400,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(indexToRow(columns, values), expectedAllValues);
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, Object> esql(String query) throws IOException {
         Request request = new Request("POST", "_query");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
@@ -418,6 +419,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(body));
 
         Map<String, Object> response = responseAsMap(client().performRequest(request));
+        Map<String, Object> profile = (Map<String, Object>) response.get("profile");
+        Integer minimumVersion = (Integer) profile.get("minimumVersion");
+        assertNotNull(minimumVersion);
+        assertEquals(minVersion().id(), minimumVersion.intValue());
         profileLogger.extractProfile(response, true);
         return response;
     }

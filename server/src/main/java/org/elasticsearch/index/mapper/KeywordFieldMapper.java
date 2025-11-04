@@ -27,8 +27,12 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -67,9 +71,7 @@ import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.Text;
@@ -720,14 +722,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod);
             } else {
-                return StringScriptFieldFuzzyQuery.build(
-                    new Script(""),
-                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
-                    name(),
-                    indexedValueForSearch(value).utf8ToString(),
+                return new FuzzyQuery(
+                    new Term(name(), indexedValueForSearch(value)),
                     fuzziness.asDistance(BytesRefs.toString(value)),
                     prefixLength,
-                    transpositions
+                    maxExpansions,
+                    transpositions,
+                    MultiTermQuery.DOC_VALUES_REWRITE
                 );
             }
         }
@@ -743,6 +744,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
+                if (caseInsensitive == false) {
+                    Term prefix = new Term(name(), indexedValueForSearch(value));
+                    return new PrefixQuery(prefix, MultiTermQuery.DOC_VALUES_REWRITE);
+                }
                 return new StringScriptFieldPrefixQuery(
                     new Script(""),
                     ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
@@ -1017,6 +1022,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                 } else {
                     value = indexedValueForSearch(value).utf8ToString();
                 }
+                if (caseInsensitive == false) {
+                    Term term = new Term(name(), value);
+                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                }
                 return new StringScriptFieldWildcardQuery(
                     new Script(""),
                     ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
@@ -1038,13 +1047,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 } else {
                     value = indexedValueForSearch(value).utf8ToString();
                 }
-                return new StringScriptFieldWildcardQuery(
-                    new Script(""),
-                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
-                    name(),
-                    value,
-                    false
-                );
+                Term term = new Term(name(), value);
+                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
             }
         }
 
@@ -1064,14 +1068,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (matchFlags != 0) {
                     throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
                 }
-                return new StringScriptFieldRegexpQuery(
-                    new Script(""),
-                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
-                    name(),
-                    indexedValueForSearch(value).utf8ToString(),
+                return new RegexpQuery(
+                    new Term(name(), indexedValueForSearch(value)),
                     syntaxFlags,
                     matchFlags,
-                    maxDeterminizedStates
+                    RegexpQuery.DEFAULT_PROVIDER,
+                    maxDeterminizedStates,
+                    MultiTermQuery.DOC_VALUES_REWRITE
                 );
             }
         }

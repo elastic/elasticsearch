@@ -242,3 +242,26 @@ rate_bytes_in:double | cluster:keyword | region:keyword | time_bucket:datetime
 5.4539153439153445   | prod            | [eu, us]       | 2024-05-10T00:00:00.000Z
 5.241187469367376    | staging         | us             | 2024-05-10T00:00:00.000Z
 ;
+
+trange_absolute_with_rate
+required_capability: ts_command_v0
+required_capability: fn_trange
+
+TS k8s
+| WHERE TRANGE("2024-05-10T00:15:00.000Z", "2024-05-10T00:25:00.000Z") 
+| STATS rate_bytes_in=AVG(RATE(network.total_bytes_in)) BY cluster, time_bucket = TBUCKET(2minute)
+| SORT rate_bytes_in NULLS FIRST, time_bucket, cluster
+| LIMIT 10;
+
+rate_bytes_in:double | cluster:keyword | time_bucket:datetime
+null                 | prod            | 2024-05-10T00:14:00.000Z
+null                 | staging         | 2024-05-10T00:14:00.000Z
+null                 | qa              | 2024-05-10T00:22:00.000Z
+0.0371323529411787   | staging         | 2024-05-10T00:22:00.000Z
+2.27097222222222     | qa              | 2024-05-10T00:20:00.000Z
+5.374305555555554    | staging         | 2024-05-10T00:16:00.000Z
+7.513221153846155    | staging         | 2024-05-10T00:20:00.000Z
+9.45                 | prod            | 2024-05-10T00:20:00.000Z
+9.83125              | prod            | 2024-05-10T00:22:00.000Z
+10.525               | staging         | 2024-05-10T00:18:00.000Z
+;

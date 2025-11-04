@@ -107,7 +107,7 @@ public class GetDataStreamActionTests extends ESTestCase {
 
     private static DataStream newDataStreamInstance(boolean isSystem, TimeValue retention) {
         List<Index> indices = List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)));
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.createDataLifecycle(true, retention, null);
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.createDataLifecycle(true, retention, null, null);
         Settings settings = randomSettings();
         CompressedXContent mappings = randomMappings();
         return DataStream.builder(randomAlphaOfLength(50), indices)

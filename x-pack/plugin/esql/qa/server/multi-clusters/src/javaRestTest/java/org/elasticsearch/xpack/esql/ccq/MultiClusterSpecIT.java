@@ -15,12 +15,12 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -38,8 +38,9 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -55,6 +56,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_ST
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
@@ -167,16 +169,21 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("LOOKUP JOIN after SORT not yet supported in CCS", testName.contains("OnTheCoordinator"));
 
         assumeFalse("FORK not yet supported with CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
+
+        // And convertToRemoteIndices does not generate correct queries with subqueries in the FROM command yet
+        assumeFalse(
+            "Subqueries in FROM command not yet supported in CCS",
+            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+        );
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
         if (remoteFeaturesService == null) {
             var remoteNodeVersions = readVersionsFromNodesInfo(remoteClusterClient());
-            var semanticNodeVersions = remoteNodeVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
-            remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteClusterClient()), semanticNodeVersions);
+            remoteFeaturesService = createTestFeatureService(
+                getClusterStateFeatures(remoteClusterClient()),
+                fromSemanticVersions(remoteNodeVersions)
+            );
         }
         return remoteFeaturesService;
     }
@@ -247,10 +254,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                     return bulkClient.performRequest(request);
                 } else {
                     Request[] clones = cloneRequests(request, 2);
-                    Response resp1 = remoteClient.performRequest(clones[0]);
-                    Response resp2 = localClient.performRequest(clones[1]);
-                    assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
-                    return resp2;
+                    return runInParallel(localClient, remoteClient, clones);
                 }
         });
         doAnswer(invocation -> {
@@ -286,6 +290,44 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     /**
+     * Run {@link #cloneRequests cloned} requests in parallel.
+     */
+    static Response runInParallel(RestClient localClient, RestClient remoteClient, Request[] clones) throws Throwable {
+        CompletableFuture<Response> remoteResponse = new CompletableFuture<>();
+        CompletableFuture<Response> localResponse = new CompletableFuture<>();
+        remoteClient.performRequestAsync(clones[0], new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                remoteResponse.complete(response);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                remoteResponse.completeExceptionally(exception);
+            }
+        });
+        localClient.performRequestAsync(clones[1], new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                localResponse.complete(response);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                localResponse.completeExceptionally(exception);
+            }
+        });
+        try {
+            Response remote = remoteResponse.get();
+            Response local = localResponse.get();
+            assertEquals(remote.getStatusLine().getStatusCode(), local.getStatusLine().getStatusCode());
+            return local;
+        } catch (ExecutionException e) {
+            throw e.getCause();
+        }
+    }
+
+    /**
      * Convert FROM employees ... => FROM *:employees,employees
      */
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
@@ -297,7 +339,15 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String first = commands[0].trim();
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
-        String[] commandParts = first.split("\\s+", 2);
+
+        // Split "SET a=b; FROM x" into "SET a=b" and "FROM x"
+        int lastSetDelimiterPosition = first.lastIndexOf(';');
+        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition + 1);
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition + 1);
+
+        // Split "FROM a, b, c" into "FROM" and "a, b, c"
+        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+
         String command = commandParts[0].trim();
         if (command.equalsIgnoreCase("from") || command.equalsIgnoreCase("ts")) {
             String[] indexMetadataParts = commandParts[1].split("(?i)\\bmetadata\\b", 2);
@@ -319,7 +369,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                     + remoteIndices
                     + " "
                     + (indexMetadataParts.length == 1 ? "" : "metadata " + indexMetadataParts[1]);
-                testCase.query = newFirstCommand + query.substring(first.length());
+                testCase.query = setStatements + newFirstCommand + query.substring(first.length());
             }
         }
 

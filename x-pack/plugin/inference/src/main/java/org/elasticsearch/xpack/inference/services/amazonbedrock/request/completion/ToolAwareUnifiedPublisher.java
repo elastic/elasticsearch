@@ -25,16 +25,18 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBed
 
 import software.amazon.awssdk.services.bedrockruntime.model.ToolResultContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
-import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockDelta;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ToolAwareUnifiedPublisher implements Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> {
     private final AmazonBedrockBaseClient client;
     private ConverseStreamRequest request;
+    private final AtomicLong demand = new AtomicLong(0);
+    private volatile Flow.Subscription upstream;
 
     ToolAwareUnifiedPublisher(AmazonBedrockBaseClient client, ConverseStreamRequest request) {
         this.client = client;
@@ -50,32 +52,35 @@ public class ToolAwareUnifiedPublisher implements Flow.Publisher<StreamingUnifie
             @SuppressWarnings("checkstyle:DescendantToken")
             @Override
             public void request(long n) {
-                if (cancelled) {
-                    return;
-                }
                 try {
                     var history = new ArrayList<>(request.messages());
                     ConverseStreamRequest currentRequest = request;
 
                     while (!cancelled) {
                         List<ToolUseInfo> toolUses = new ArrayList<>();
-
-                        toolUses.add(new ToolUseInfo("tooluse_wYgv7Mx0Q_KsxRNbAoidLQ","get_current_price"));
-
-
                         String[] stopReasons = new String[1];
+                        CountDownLatch countDownLatch = new CountDownLatch(1);
                         var round = client.converseUnifiedStream(currentRequest.toBuilder().messages(history).build());
-
+//                      toolUses.add(new ToolUseInfo("tooluse_wYgv7Mx0Q_KsxRNbAoidLQ","get_current_price"));
                         round.subscribe(new Flow.Subscriber<>() {
                             @Override
                             public void onSubscribe(Flow.Subscription subscription) {
-                                subscription.request(Long.MAX_VALUE);
+                                upstream = subscription;
+                                upstream.request(1);
                             }
 
                             @Override
                             public void onNext(StreamingUnifiedChatCompletionResults.Results results) {
-                                subscriber.onNext(results);
+                                long prev = demand.getAndUpdate(d -> {
+                                    if (d == Long.MAX_VALUE) {
+                                        return d;
+                                    }
+                                    return d > 0 ? d - 1 : d;
+                                });
 
+                                if (prev == Long.MAX_VALUE || prev > 0) {
+                                    subscriber.onNext(results);
+                                }
                                 for (var chunk : results.chunks()) {
                                     for (var choice : chunk.choices()) {
                                         if (choice.finishReason() != null) {
@@ -101,75 +106,80 @@ public class ToolAwareUnifiedPublisher implements Flow.Publisher<StreamingUnifie
                                         }
                                     }
                                 }
+                                if (upstream != null) {
+                                    upstream.request(1);
+                                }
                             }
 
                             @Override
                             public void onError(Throwable throwable) {
                                 subscriber.onError(throwable);
+                                countDownLatch.countDown();
 
                             }
 
                             @Override
                             public void onComplete() {
-                                List<ContentBlock> toolResults = new ArrayList<>();
-                                if (!toolUses.isEmpty()) {
-
-                                    for (ToolUseInfo toolUse : toolUses) {
-                                        String jsonIn = toolUse.inputJson.toString();
-                                    //  String jsonOut = execute(toolUse.getName(), jsonIn);
-
-                                        toolResults.add(
-                                            ContentBlock.builder()
-                                                .toolResult(
-                                                    ToolResultBlock.builder()
-                                                        .toolUseId(toolUse.getId())
-                                                        .content(ToolResultContentBlock.fromJson(Document.fromString(jsonIn)))
-                                                        .build()
-                                                )
-                                                .build()
-                                        );
-
-
-
-                                    }
-                                }
-
-                                Message toolResultMsg = Message.builder().role(ConversationRole.USER).content(toolResults).build();
-
-                                history.add(toolResultMsg);
-
-                                client.converseUnifiedStream(ConverseStreamRequest.builder()
-                                    .modelId(request.modelId())
-                                    .messages(history)
-                                    .toolConfig(
-                                        ToolConfiguration.builder()
-                                            .tools(
-                                                Tool.builder()
-                                                    .toolSpec(
-                                                        ToolSpecification.builder()
-                                                            .name(toolUses.getFirst().getName())
-                                                            .description(toolUses.getFirst().getId())
-                                                            .inputSchema(ToolInputSchema
-                                                                .fromJson(Document
-                                                                    .fromString(toolUses.getFirst().getInputJson().toString())))
-                                                            .build()
-                                                    )
-                                                    .build()
-                                            )
-                                            .toolChoice(
-                                                ToolChoice.builder().tool(SpecificToolChoice.builder()
-                                                    .name(toolUses.getFirst().getName()).build()).build()
-                                            )
-                                            .build()).build());
-
+                                countDownLatch.countDown();
                             }
                         });
+
+                        countDownLatch.await();
 
                         boolean toolRequested = "TOOL_USE".equalsIgnoreCase(stopReasons[0]) || !toolUses.isEmpty();
 
                         if (!toolRequested) {
                             break;
                         }
+
+                        List<ContentBlock> toolResults = new ArrayList<>();
+                        if (!toolUses.isEmpty()) {
+
+                            for (ToolUseInfo toolUse : toolUses) {
+                                String jsonIn = toolUse.inputJson.toString();
+                                //  String jsonOut = execute(toolUse.getName(), jsonIn);
+
+                                toolResults.add(
+                                    ContentBlock.builder()
+                                        .toolResult(
+                                            ToolResultBlock.builder()
+                                                .toolUseId(toolUse.getId())
+                                                .content(ToolResultContentBlock.fromJson(Document.fromString(jsonIn)))
+                                                .build()
+                                        )
+                                        .build()
+                                );
+                            }
+                        }
+
+                        Message toolResultMsg = Message.builder()
+                            .role(ConversationRole.USER)
+                            .content(toolResults)
+                            .build();
+                        history.add(toolResultMsg);
+
+                        client.converseUnifiedStream(ConverseStreamRequest.builder()
+                            .modelId(request.modelId())
+                            .messages(history)
+                            .toolConfig(
+                                ToolConfiguration.builder()
+                                    .tools(
+                                        Tool.builder()
+                                            .toolSpec(
+                                                ToolSpecification.builder()
+                                                    .name(toolUses.getFirst().getName())
+                                                    .description(toolUses.getFirst().getId())
+                                                    .inputSchema(ToolInputSchema
+                                                        .fromJson(Document
+                                                            .fromString(toolUses.getFirst().getInputJson().toString())))
+                                                    .build()
+                                            )
+                                            .build()
+                                    )
+                                    .toolChoice(
+                                        ToolChoice.builder().tool(SpecificToolChoice.builder()
+                                            .name(toolUses.getFirst().getName()).build()).build())
+                                    .build()).build());
                     }
                     subscriber.onComplete();
                 } catch (Throwable throwable) {

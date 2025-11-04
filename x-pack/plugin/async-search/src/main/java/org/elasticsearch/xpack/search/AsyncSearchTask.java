@@ -237,6 +237,17 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                     : ExceptionsHelper.convertToElastic(e);
                 ex.setStackTrace(new StackTraceElement[0]);
 
+                // We are in the failure path where no MutableSearchResponse can be produced or retained.
+                // This happens only after the in-memory reference has been released and the stored response
+                // cannot be retrieved or retained (tryIncRef() failed or the doc is unavailable). At this point
+                // it is unsafe to call searchResponse.toAsyncSearchResponse(...): the underlying
+                // MutableSearchResponse is ref-counted and may already be closed (refcount == 0).
+                //
+                // Instead, we synthesize a minimal AsyncSearchResponse that carries the exception back to
+                // the caller. We set isRunning=false because both the in-memory state and stored document
+                // are unavailable and no further work can be observed. For isPartial we use false as a
+                // conservative choice: partial results may have existed earlier, but they are no longer
+                // accessible and we must not imply that any partial data is included.
                 AsyncSearchResponse failureResponse = new AsyncSearchResponse(
                     searchId.getEncoded(),
                     null,
@@ -348,6 +359,17 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 : ExceptionsHelper.convertToElastic(e);
             ex.setStackTrace(new StackTraceElement[0]);
 
+            // We are in the failure path where no MutableSearchResponse can be produced or retained.
+            // This happens only after the in-memory reference has been released and the stored response
+            // cannot be retrieved or retained (tryIncRef() failed or the doc is unavailable). At this point
+            // it is unsafe to call searchResponse.toAsyncSearchResponse(...): the underlying
+            // MutableSearchResponse is ref-counted and may already be closed (refcount == 0).
+            //
+            // Instead, we synthesize a minimal AsyncSearchResponse that carries the exception back to
+            // the caller. We set isRunning=false because both the in-memory state and stored document
+            // are unavailable and no further work can be observed. For isPartial we use false as a
+            // conservative choice: partial results may have existed earlier, but they are no longer
+            // accessible and we must not imply that any partial data is included.
             AsyncSearchResponse failureResponse = new AsyncSearchResponse(
                 searchId.getEncoded(),
                 null,

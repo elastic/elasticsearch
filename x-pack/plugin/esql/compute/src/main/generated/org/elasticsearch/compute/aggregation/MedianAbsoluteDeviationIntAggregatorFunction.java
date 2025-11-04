@@ -146,8 +146,8 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    MedianAbsoluteDeviationIntAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
+    BytesRef quartScratch = new BytesRef();
+    MedianAbsoluteDeviationIntAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override

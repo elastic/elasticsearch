@@ -158,7 +158,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -168,7 +168,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
       }
     }
   }
@@ -221,7 +221,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -231,7 +231,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
       }
     }
   }
@@ -270,11 +270,11 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+      PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
     }
   }
 

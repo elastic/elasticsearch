@@ -287,7 +287,10 @@ public class SchemaUtilTests extends ESTestCase {
                     responseMap.put(field, singletonMap(field, createFieldCapabilities(field, type)));
                 }
 
-                final FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(fieldCapsRequest.indices(), responseMap);
+                final FieldCapabilitiesResponse response = FieldCapabilitiesResponse.builder()
+                    .withIndices(fieldCapsRequest.indices())
+                    .withFields(responseMap)
+                    .build();
                 listener.onResponse((Response) response);
                 return;
             }

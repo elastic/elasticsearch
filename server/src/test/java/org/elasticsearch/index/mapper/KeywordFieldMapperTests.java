@@ -1219,4 +1219,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         // Only option all keeps array source in ignored source.
         return randomFrom("all");
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -28,6 +29,9 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
+
+    private static final String SUPPORTS_DOWNSAMPLING_METHOD = "dlm.downsampling_method";
+    private static final Set<String> CAPABILITIES = Set.of(SUPPORTS_DOWNSAMPLING_METHOD);
 
     @Override
     public String getName() {
@@ -44,13 +48,14 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(
                 parser,
-                (dataRetention, enabled, downsampling) -> new PutDataStreamLifecycleAction.Request(
+                (dataRetention, enabled, downsamplingRounds, downsamplingMethod) -> new PutDataStreamLifecycleAction.Request(
                     getMasterNodeTimeout(request),
                     getAckTimeout(request),
                     Strings.splitStringByCommaToArray(request.param("name")),
                     dataRetention,
                     enabled,
-                    downsampling
+                    downsamplingRounds,
+                    downsamplingMethod
                 )
             );
             putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
@@ -60,5 +65,10 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
                 new RestToXContentListener<>(channel)
             );
         }
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 }

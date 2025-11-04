@@ -55,8 +55,8 @@ public class ReshardIndexRequest extends MasterNodeRequest<ReshardIndexRequest> 
         if (CollectionUtils.isEmpty(new String[] { index })) {
             validationException = addValidationError("index is missing", validationException);
         }
-        if (multiple <= 1) {
-            validationException = addValidationError("multiple must be greater than 1", validationException);
+        if (multiple != 2) {
+            validationException = addValidationError("only a multiple of 2 is currently supported", validationException);
         }
         return validationException;
     }

@@ -128,11 +128,17 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * file based settings from the cluster state.
      *
      * @param clusterState the cluster state before snapshot restore
+     * @param builder      the current ClusterState builder for the new cluster state
      * @param mdBuilder    the current metadata builder for the new cluster state
      * @param projectId    the project associated with the restore
      */
     @FixForMultiProject(description = "Simplify parameters (ES-12796)")
-    public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder, ProjectId projectId) {
+    public void handleSnapshotRestore(
+        ClusterState clusterState,
+        ClusterState.Builder builder,
+        Metadata.Builder mdBuilder,
+        ProjectId projectId
+    ) {
         assert clusterState.nodes().isLocalNodeElectedMaster();
 
         // When we restore from a snapshot we remove the reserved cluster state for file settings,

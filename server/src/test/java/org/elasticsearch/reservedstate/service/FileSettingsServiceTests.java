@@ -452,7 +452,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             .build();
 
         Metadata.Builder metadata = Metadata.builder(state.metadata());
-        fileSettingsService.handleSnapshotRestore(state, metadata, ProjectId.DEFAULT);
+        fileSettingsService.handleSnapshotRestore(state, ClusterState.builder(state), metadata, ProjectId.DEFAULT);
 
         verify(controller).initEmpty(FileSettingsService.NAMESPACE, ActionListener.noop());
     }
@@ -475,7 +475,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             .build();
 
         Metadata.Builder metadata = Metadata.builder();
-        fileSettingsService.handleSnapshotRestore(state, metadata, ProjectId.DEFAULT);
+        fileSettingsService.handleSnapshotRestore(state, ClusterState.builder(state), metadata, ProjectId.DEFAULT);
 
         assertThat(
             metadata.build().reservedStateMetadata(),

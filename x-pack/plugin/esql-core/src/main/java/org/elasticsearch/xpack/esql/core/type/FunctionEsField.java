@@ -72,8 +72,7 @@ public class FunctionEsField extends EsField {
     }
 
     @Override
-    public boolean pushable() {
-        // These fields are *never* pushable to the lucene index.
-        return false;
+    public Exact getExactInfo() {
+        return new Exact(false, "merged with " + functionConfig.name());
     }
 }

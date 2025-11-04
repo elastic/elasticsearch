@@ -253,13 +253,6 @@ public class EsField implements Writeable {
     }
 
     /**
-     * Can this field be pushed <strong>if</strong> it is indexed?
-     */
-    public boolean pushable() {
-        return true;
-    }
-
-    /**
      * Returns and {@link Exact} object with all the necessary info about the field:
      * <ul>
      *  <li>If it has an exact underlying field or not</li>

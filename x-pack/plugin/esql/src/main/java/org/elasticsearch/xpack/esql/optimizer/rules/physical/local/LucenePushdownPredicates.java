@@ -194,9 +194,6 @@ public interface LucenePushdownPredicates {
                 // We still consider the value of isAggregatable here, because some fields like ScriptFieldTypes are always aggregatable
                 // But this could hide issues with fields that are not indexed but are aggregatable
                 // This is the original behaviour for ES|QL, but is it correct?
-                if (attr.field().pushable() == false) {
-                    return false;
-                }
                 return attr.field().isAggregatable()
                     || stats.isIndexed(new FieldAttribute.FieldName(attr.name()))
                         && stats.hasDocValues(new FieldAttribute.FieldName(attr.name()));

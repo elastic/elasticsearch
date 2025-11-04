@@ -314,6 +314,7 @@ public class DocsV3SupportTests extends ESTestCase {
             ## `COUNT` [esql-count]
             ```{applies_to}
             stack: ga 9.1.0
+            Count function is now GA
             ```
 
             **Syntax**
@@ -415,7 +416,8 @@ public class DocsV3SupportTests extends ESTestCase {
                     file = "stats",
                     tag = "count-or-null"
                 ) },
-            appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") }
+            appliesTo = {
+                @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0", description = "Count function is now GA") }
         )
         public TestClass(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
             String expression. If `null`, the function returns `null`.

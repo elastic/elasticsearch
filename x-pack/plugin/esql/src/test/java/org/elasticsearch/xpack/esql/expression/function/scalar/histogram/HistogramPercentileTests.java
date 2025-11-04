@@ -12,17 +12,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -40,15 +37,17 @@ public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        List<TestCaseSupplier.TypedDataSupplier> validPercentileSuppliers = Stream.of(DataType.DOUBLE, DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG)
-            .filter(DataType::isNumeric)
-            .flatMap(type -> getSuppliersForNumericType(type, 0.0, 100.0, true).stream())
-            .toList();
+        List<TestCaseSupplier.TypedDataSupplier> validPercentileSuppliers = Stream.of(
+            DataType.DOUBLE,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.UNSIGNED_LONG
+        ).filter(DataType::isNumeric).flatMap(type -> getSuppliersForNumericType(type, 0.0, 100.0, true).stream()).toList();
 
         List<Double> invalidPercentileValues = List.of(-0.01, 100.05, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
 
         List<TestCaseSupplier.TypedDataSupplier> invalidPercentileSuppliers = invalidPercentileValues.stream()
-            .map(value -> new TestCaseSupplier.TypedDataSupplier("<"+value+" double>", () -> value, DataType.DOUBLE))
+            .map(value -> new TestCaseSupplier.TypedDataSupplier("<" + value + " double>", () -> value, DataType.DOUBLE))
             .toList();
 
         List<TestCaseSupplier.TypedDataSupplier> allPercentiles = Stream.concat(
@@ -56,23 +55,23 @@ public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
             invalidPercentileSuppliers.stream()
         ).toList();
 
-        TestCaseSupplier.casesCrossProduct( (histogramObj, percentileObj) -> {
-                ExponentialHistogram histogram = (ExponentialHistogram) histogramObj;
-                Number percentile = (Number) percentileObj;
-                double percVal = percentile.doubleValue();
-                if (percVal < 0 || percVal > 100 || Double.isNaN(percVal)) {
-                    return  null;
-                }
-                double result = ExponentialHistogramQuantile.getQuantile(histogram, percVal / 100.0);
-                return Double.isNaN(result) ? null : result;
+        TestCaseSupplier.casesCrossProduct((histogramObj, percentileObj) -> {
+            ExponentialHistogram histogram = (ExponentialHistogram) histogramObj;
+            Number percentile = (Number) percentileObj;
+            double percVal = percentile.doubleValue();
+            if (percVal < 0 || percVal > 100 || Double.isNaN(percVal)) {
+                return null;
+            }
+            double result = ExponentialHistogramQuantile.getQuantile(histogram, percVal / 100.0);
+            return Double.isNaN(result) ? null : result;
         },
             TestCaseSupplier.exponentialHistogramCases(),
             allPercentiles,
-            (histoType, percentileType) ->
-                equalTo(
-                    "HistogramPercentileEvaluator[value=Attribute[channel=0], percentile="
-                    + getCastEvaluator("Attribute[channel=1]", percentileType, DataType.DOUBLE) + "]"
-                ),
+            (histoType, percentileType) -> equalTo(
+                "HistogramPercentileEvaluator[value=Attribute[channel=0], percentile="
+                    + getCastEvaluator("Attribute[channel=1]", percentileType, DataType.DOUBLE)
+                    + "]"
+            ),
             (typedHistoData, typedPercentileData) -> {
                 Object percentile = typedPercentileData.getValue();
                 if (invalidPercentileValues.contains(percentile)) {

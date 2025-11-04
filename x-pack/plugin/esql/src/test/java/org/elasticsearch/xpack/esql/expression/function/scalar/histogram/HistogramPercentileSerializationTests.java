@@ -20,7 +20,8 @@ public class HistogramPercentileSerializationTests extends AbstractExpressionSer
 
     @Override
     protected HistogramPercentile mutateInstance(HistogramPercentile instance) throws IOException {
-        return new HistogramPercentile(randomSource(),
+        return new HistogramPercentile(
+            randomSource(),
             randomValueOtherThan(instance.histogram(), AbstractExpressionSerializationTests::randomChild),
             randomValueOtherThan(instance.percentile(), AbstractExpressionSerializationTests::randomChild)
         );

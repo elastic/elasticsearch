@@ -28,7 +28,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public class ResultDiversificationRetrieverBuilderParsingTests extends AbstractXContentTestCase<ResultDiversificationRetrieverBuilder> {
+public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestCase<DiversifyRetrieverBuilder> {
     private List<NamedXContentRegistry.Entry> xContentRegistryEntries;
 
     @Before
@@ -42,7 +42,7 @@ public class ResultDiversificationRetrieverBuilderParsingTests extends AbstractX
     }
 
     @Override
-    protected ResultDiversificationRetrieverBuilder createTestInstance() {
+    protected DiversifyRetrieverBuilder createTestInstance() {
         int rankWindowSize = randomIntBetween(1, 20);
         float[] queryVector = randomBoolean() ? getRandomQueryVector() : null;
         Float lambda = randomBoolean() ? randomFloatBetween(0.0f, 1.0f, true) : null;
@@ -50,7 +50,7 @@ public class ResultDiversificationRetrieverBuilderParsingTests extends AbstractX
             TestRetrieverBuilder.createRandomTestRetrieverBuilder(),
             null
         );
-        return new ResultDiversificationRetrieverBuilder(
+        return new DiversifyRetrieverBuilder(
             innerRetriever,
             ResultDiversificationType.MMR,
             "test_field",
@@ -61,8 +61,8 @@ public class ResultDiversificationRetrieverBuilderParsingTests extends AbstractX
     }
 
     @Override
-    protected ResultDiversificationRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
-        return (ResultDiversificationRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
+    protected DiversifyRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
+        return (DiversifyRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
             new RetrieverParserContext(new SearchUsage(), n -> true)
         );

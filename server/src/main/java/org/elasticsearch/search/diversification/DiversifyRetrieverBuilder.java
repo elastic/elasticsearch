@@ -44,7 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public final class ResultDiversificationRetrieverBuilder extends CompoundRetrieverBuilder<ResultDiversificationRetrieverBuilder> {
+public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<DiversifyRetrieverBuilder> {
 
     public static final Float DEFAULT_LAMBDA_VALUE = 0.7f;
 
@@ -70,7 +70,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         }
     }
 
-    static final ConstructingObjectParser<ResultDiversificationRetrieverBuilder, RetrieverParserContext> PARSER =
+    static final ConstructingObjectParser<DiversifyRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(NAME, false, args -> {
 
             ResultDiversificationType diversificationType = ResultDiversificationType.fromString((String) args[1]);
@@ -89,7 +89,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
             Float lambda = args[5] == null ? null : (Float) args[5];
 
-            return new ResultDiversificationRetrieverBuilder(
+            return new DiversifyRetrieverBuilder(
                 RetrieverSource.from((RetrieverBuilder) args[0]),
                 diversificationType,
                 diversificationField,
@@ -119,7 +119,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     private final Float lambda;
     private ResultDiversificationContext diversificationContext = null;
 
-    ResultDiversificationRetrieverBuilder(
+    DiversifyRetrieverBuilder(
         RetrieverSource innerRetriever,
         ResultDiversificationType diversificationType,
         String diversificationField,
@@ -140,7 +140,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         }
     }
 
-    ResultDiversificationRetrieverBuilder(
+    DiversifyRetrieverBuilder(
         List<RetrieverSource> innerRetrievers,
         ResultDiversificationType diversificationType,
         String diversificationField,
@@ -164,11 +164,11 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     }
 
     @Override
-    protected ResultDiversificationRetrieverBuilder clone(
+    protected DiversifyRetrieverBuilder clone(
         List<RetrieverSource> newChildRetrievers,
         List<QueryBuilder> newPreFilterQueryBuilders
     ) {
-        return new ResultDiversificationRetrieverBuilder(
+        return new DiversifyRetrieverBuilder(
             newChildRetrievers,
             diversificationType,
             diversificationField,
@@ -336,7 +336,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         return NAME;
     }
 
-    public static ResultDiversificationRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
+    public static DiversifyRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
         throws IOException {
         return PARSER.apply(parser, context);
     }
@@ -365,7 +365,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     @Override
     public boolean doEquals(Object o) {
         return super.doEquals(o)
-            && (o instanceof ResultDiversificationRetrieverBuilder other)
+            && (o instanceof DiversifyRetrieverBuilder other)
             && this.diversificationType.equals(other.diversificationType)
             && this.diversificationField.equals(other.diversificationField)
             && Objects.equals(this.lambda, other.lambda)

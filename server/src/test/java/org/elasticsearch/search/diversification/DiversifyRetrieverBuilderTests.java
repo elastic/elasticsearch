@@ -51,7 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
+public class DiversifyRetrieverBuilderTests extends ESTestCase {
 
     public void testValidate() {
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -59,12 +59,12 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
         // ensure type is MMR
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> new ResultDiversificationRetrieverBuilder(getInnerRetriever(), null, "test_field", 10, getRandomQueryVector(), 0.5f)
+            () -> new DiversifyRetrieverBuilder(getInnerRetriever(), null, "test_field", 10, getRandomQueryVector(), 0.5f)
         );
         assertEquals("[diversify] diversification type must be set to [mmr]", ex.getMessage());
 
         // ensure lambda is within range and set
-        var retrieverHighLambda = new ResultDiversificationRetrieverBuilder(
+        var retrieverHighLambda = new DiversifyRetrieverBuilder(
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "test_field",
@@ -79,7 +79,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
             validationLambda.validationErrors().getFirst()
         );
 
-        var retrieverLowLambda = new ResultDiversificationRetrieverBuilder(
+        var retrieverLowLambda = new DiversifyRetrieverBuilder(
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "test_field",
@@ -94,7 +94,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
             validationLambda.validationErrors().getFirst()
         );
 
-        var retrieverNullLambda = new ResultDiversificationRetrieverBuilder(
+        var retrieverNullLambda = new DiversifyRetrieverBuilder(
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "test_field",
@@ -148,7 +148,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
 
     public void testMmrResultDiversification() {
         var queryRewriteContext = getQueryRewriteContext();
-        var retriever = new ResultDiversificationRetrieverBuilder(
+        var retriever = new DiversifyRetrieverBuilder(
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "dense_vector_field",
@@ -171,7 +171,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
         assertEquals(3, result[1].doc);
         assertEquals(6, result[2].doc);
 
-        var retrieverWithoutRewrite = new ResultDiversificationRetrieverBuilder(
+        var retrieverWithoutRewrite = new DiversifyRetrieverBuilder(
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "dense_vector_field",
@@ -205,7 +205,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
 
     public void testThrowsExceptionOnBadFieldTypes() {
         var queryRewriteContext = getQueryRewriteContext();
-        var retriever = new ResultDiversificationRetrieverBuilder(
+        var retriever = new DiversifyRetrieverBuilder(
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "dense_vector_field",
@@ -252,13 +252,13 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
     private void cleanDocsAndHits(List<ScoreDoc[]> docs, ScoreDoc[] hits) {
         docs.clear();
         for (ScoreDoc hit : hits) {
-            ((ResultDiversificationRetrieverBuilder.RankDocWithSearchHit) hit).hit().decRef();
+            ((DiversifyRetrieverBuilder.RankDocWithSearchHit) hit).hit().decRef();
         }
         Arrays.fill(hits, null);
     }
 
     private ScoreDoc[] getTestSearchHits() {
-        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit[] {
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
             getTestSearchHit(1, 2.0f, new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
             getTestSearchHit(2, 1.8f, new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
             getTestSearchHit(3, 1.8f, new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
@@ -268,48 +268,48 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
     }
 
     private ScoreDoc[] getTestNonVectorSearchHits() {
-        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit[] {
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
             getTestNonVectorSearchHit(1, 2.0f),
             getTestNonVectorSearchHit(2, 1.8f),
             getTestNonVectorSearchHit(3, 1.8f) };
     }
 
     private ScoreDoc[] getTestSearchHitsWithNoValues() {
-        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit[] {
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
             getTestSearchHitWithNoValue(1, 2.0f),
             getTestSearchHitWithNoValue(2, 1.8f),
             getTestSearchHitWithNoValue(3, 1.8f) };
     }
 
-    private ResultDiversificationRetrieverBuilder.RankDocWithSearchHit getTestSearchHit(int docId, float score, float[] value) {
+    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestSearchHit(int docId, float score, float[] value) {
         SearchHit hit = new SearchHit(docId);
         hit.setDocumentField(new DocumentField("dense_vector_field", List.of(value)));
-        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
     }
 
-    private ResultDiversificationRetrieverBuilder.RankDocWithSearchHit getTestNonVectorSearchHit(int docId, float score) {
+    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestNonVectorSearchHit(int docId, float score) {
         SearchHit hit = new SearchHit(docId);
         Object value = randomBoolean() ? randomAlphanumericOfLength(16) : generateRandomStringArray(8, 16, false);
         hit.setDocumentField(new DocumentField("dense_vector_field", List.of(value)));
-        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
     }
 
-    private ResultDiversificationRetrieverBuilder.RankDocWithSearchHit getTestSearchHitWithNoValue(int docId, float score) {
+    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestSearchHitWithNoValue(int docId, float score) {
         SearchHit hit = new SearchHit(docId);
-        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
     }
 
-    protected void assertCompoundRetriever(ResultDiversificationRetrieverBuilder originalRetriever, RetrieverBuilder rewrittenRetriever) {
-        assertTrue(rewrittenRetriever instanceof ResultDiversificationRetrieverBuilder);
-        ResultDiversificationRetrieverBuilder actualRetrieverBuilder = (ResultDiversificationRetrieverBuilder) rewrittenRetriever;
+    protected void assertCompoundRetriever(DiversifyRetrieverBuilder originalRetriever, RetrieverBuilder rewrittenRetriever) {
+        assertTrue(rewrittenRetriever instanceof DiversifyRetrieverBuilder);
+        DiversifyRetrieverBuilder actualRetrieverBuilder = (DiversifyRetrieverBuilder) rewrittenRetriever;
         assertEquals(originalRetriever.rankWindowSize(), actualRetrieverBuilder.rankWindowSize());
     }
 
-    private static ResultDiversificationRetrieverBuilder createRandomRetriever() {
+    private static DiversifyRetrieverBuilder createRandomRetriever() {
         return createRandomRetriever(null, null);
     }
 
-    private static ResultDiversificationRetrieverBuilder createRandomRetriever(
+    private static DiversifyRetrieverBuilder createRandomRetriever(
         @Nullable String fieldName,
         @Nullable Integer vectorDimensions
     ) {
@@ -320,7 +320,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
             : getRandomQueryVector(vectorDimensions);
         Float lambda = randomFloatBetween(0.0f, 1.0f, true);
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = getInnerRetriever();
-        return new ResultDiversificationRetrieverBuilder(
+        return new DiversifyRetrieverBuilder(
             innerRetriever,
             ResultDiversificationType.MMR,
             field,
@@ -420,6 +420,7 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
             new PointInTimeBuilder(new BytesArray("pitid")),
             null,
             null,
+            false,
             false
         );
     }

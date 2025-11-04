@@ -14,7 +14,7 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
-import static org.elasticsearch.search.diversification.ResultDiversificationRetrieverBuilder.RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE;
+import static org.elasticsearch.search.diversification.DiversifyRetrieverBuilder.RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE;
 
 /**
  * Each retriever is given its own {@link NodeFeature} so new

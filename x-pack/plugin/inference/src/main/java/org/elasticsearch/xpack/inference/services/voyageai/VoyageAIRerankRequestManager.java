@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.http.sender;
+package org.elasticsearch.xpack.inference.services.voyageai;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,10 +14,12 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIRerankRequest;
-import org.elasticsearch.xpack.inference.external.response.voyageai.VoyageAIRerankResponseEntity;
-import org.elasticsearch.xpack.inference.external.voyageai.VoyageAIResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIRerankRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
+import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIRerankResponseEntity;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -48,8 +50,14 @@ public class VoyageAIRerankRequestManager extends VoyageAIRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
-        VoyageAIRerankRequest request = new VoyageAIRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
+        QueryAndDocsInputs rerankInput = inferenceInputs.castTo(QueryAndDocsInputs.class);
+        VoyageAIRerankRequest request = new VoyageAIRerankRequest(
+            rerankInput.getQuery(),
+            rerankInput.getChunks(),
+            null,  // returnDocuments
+            null,  // topN
+            model
+        );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

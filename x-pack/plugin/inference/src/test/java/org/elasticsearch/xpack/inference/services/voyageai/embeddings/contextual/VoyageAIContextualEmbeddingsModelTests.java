@@ -15,6 +15,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingType;
 
 import java.util.Map;
 
@@ -180,6 +181,7 @@ public class VoyageAIContextualEmbeddingsModelTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unused")
     public static VoyageAIContextualEmbeddingsModel createModel(
         String url,
         String apiKey,
@@ -189,15 +191,17 @@ public class VoyageAIContextualEmbeddingsModelTests extends ESTestCase {
         String model,
         VoyageAIEmbeddingType embeddingType
     ) {
-        return new VoyageAIEmbeddingsModel(
+        return new VoyageAIContextualEmbeddingsModel(
             "id",
             "service",
-            new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(url, model, null),
-                embeddingType,
+            url,
+            new VoyageAIContextualEmbeddingsServiceSettings(
+                new VoyageAIServiceSettings(model, null),
+                VoyageAIContextualEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
-                tokenLimit
+                tokenLimit,
+                false
             ),
             taskSettings,
             null,
@@ -205,10 +209,10 @@ public class VoyageAIContextualEmbeddingsModelTests extends ESTestCase {
         );
     }
 
-    public static VoyageAIEmbeddingsModel createModel(
+    public static VoyageAIContextualEmbeddingsModel createModel(
         String url,
         String apiKey,
-        VoyageAIEmbeddingsTaskSettings taskSettings,
+        VoyageAIContextualEmbeddingsTaskSettings taskSettings,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
         String model,

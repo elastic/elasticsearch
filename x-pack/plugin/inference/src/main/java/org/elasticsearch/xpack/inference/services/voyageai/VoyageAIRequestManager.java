@@ -5,10 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.http.sender;
+package org.elasticsearch.xpack.inference.services.voyageai;
 
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
+import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager;
 
 import java.util.Map;
 import java.util.Objects;
@@ -39,7 +39,7 @@ abstract class VoyageAIRequestManager extends BaseRequestManager {
     );
 
     protected VoyageAIRequestManager(ThreadPool threadPool, VoyageAIModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitSettings());
     }
 
     record RateLimitGrouping(int apiKeyHash) {

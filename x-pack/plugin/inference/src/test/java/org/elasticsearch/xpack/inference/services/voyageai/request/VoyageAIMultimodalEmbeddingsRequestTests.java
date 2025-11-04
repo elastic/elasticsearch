@@ -17,17 +17,42 @@ import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsTaskSettings;
 import org.hamcrest.MatcherAssert;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.instanceOf;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertToString;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class VoyageAIMultimodalEmbeddingsRequestTests extends ESTestCase {
+
+    @SuppressWarnings("ConstantValue")
+    private static Map<String, Object> createExpectedRequestMap(
+        String input,
+        String model,
+        InputType inputType
+    ) {
+        var contentItem = Map.of("type", "text", "text", input);
+        var contentList = List.of(contentItem);
+        var inputItem = Map.of("content", contentList);
+
+        var expectedMap = Map.of("inputs", List.of(inputItem), "model", model);
+        if (InputType.isSpecified(inputType)) {
+            var convertedInputType = VoyageAIMultimodalEmbeddingsRequestEntity
+                .convertToString(inputType);
+            expectedMap = Map.of(
+                "inputs",
+                List.of(inputItem),
+                "model",
+                model,
+                "input_type",
+                convertedInputType
+            );
+        }
+        return expectedMap;
+    }
 
     public void testCreateRequest_UrlDefined() throws IOException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
@@ -58,16 +83,8 @@ public class VoyageAIMultimodalEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
-            // Note: multimodal uses "inputs" (plural) and does NOT include output_dtype
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("inputs", List.of("abc"), "model", "voyage-multimodal-3", "input_type", convertedInputType))
-            );
-        } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "voyage-multimodal-3")));
-        }
+        var expectedMap = createExpectedRequestMap("abc", "voyage-multimodal-3", inputType);
+        MatcherAssert.assertThat(requestMap, is(expectedMap));
     }
 
     public void testCreateRequest_AllOptionsDefined() throws IOException {
@@ -99,15 +116,8 @@ public class VoyageAIMultimodalEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("inputs", List.of("abc"), "model", "voyage-multimodal-3", "input_type", convertedInputType))
-            );
-        } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "voyage-multimodal-3")));
-        }
+        var expectedMap = createExpectedRequestMap("abc", "voyage-multimodal-3", inputType);
+        MatcherAssert.assertThat(requestMap, is(expectedMap));
     }
 
     public void testCreateRequest_TaskSettingsInputType() throws IOException {
@@ -139,15 +149,8 @@ public class VoyageAIMultimodalEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("inputs", List.of("abc"), "model", "voyage-multimodal-3", "input_type", convertedInputType))
-            );
-        } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "voyage-multimodal-3")));
-        }
+        var expectedMap = createExpectedRequestMap("abc", "voyage-multimodal-3", inputType);
+        MatcherAssert.assertThat(requestMap, is(expectedMap));
     }
 
     public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException {
@@ -181,19 +184,35 @@ public class VoyageAIMultimodalEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(requestInputType)) {
-            var convertedInputType = convertToString(requestInputType);
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("inputs", List.of("abc"), "model", "voyage-multimodal-3", "input_type", convertedInputType))
+            var convertedInputType = VoyageAIMultimodalEmbeddingsRequestEntity.convertToString(requestInputType);
+            var expectedMap = Map.of(
+                "inputs",
+                List.of(Map.of("content", List.of(Map.of("type", "text", "text", "abc")))),
+                "model",
+                "voyage-multimodal-3",
+                "input_type",
+                convertedInputType
             );
+            MatcherAssert.assertThat(requestMap, is(expectedMap));
         } else if (InputType.isSpecified(taskSettingsInputType)) {
-            var convertedInputType = convertToString(taskSettingsInputType);
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("inputs", List.of("abc"), "model", "voyage-multimodal-3", "input_type", convertedInputType))
+            var convertedInputType = VoyageAIMultimodalEmbeddingsRequestEntity.convertToString(taskSettingsInputType);
+            var expectedMap = Map.of(
+                "inputs",
+                List.of(Map.of("content", List.of(Map.of("type", "text", "text", "abc")))),
+                "model",
+                "voyage-multimodal-3",
+                "input_type",
+                convertedInputType
             );
+            MatcherAssert.assertThat(requestMap, is(expectedMap));
         } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "voyage-multimodal-3")));
+            var expectedMap = Map.of(
+                "inputs",
+                List.of(Map.of("content", List.of(Map.of("type", "text", "text", "abc")))),
+                "model",
+                "voyage-multimodal-3"
+            );
+            MatcherAssert.assertThat(requestMap, is(expectedMap));
         }
     }
 

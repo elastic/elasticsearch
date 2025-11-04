@@ -13,13 +13,11 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
-import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils;
 
 import java.net.URI;
@@ -32,7 +30,10 @@ import static org.elasticsearch.xpack.inference.services.voyageai.request.Voyage
 public class VoyageAIMultimodalEmbeddingsModel extends VoyageAIModel {
     public static VoyageAIMultimodalEmbeddingsModel of(VoyageAIMultimodalEmbeddingsModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = VoyageAIMultimodalEmbeddingsTaskSettings.fromMap(taskSettings);
-        return new VoyageAIMultimodalEmbeddingsModel(model, VoyageAIMultimodalEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new VoyageAIMultimodalEmbeddingsModel(
+            model, 
+            VoyageAIMultimodalEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings)
+        );
     }
 
     public VoyageAIMultimodalEmbeddingsModel(
@@ -93,11 +94,17 @@ public class VoyageAIMultimodalEmbeddingsModel extends VoyageAIModel {
         );
     }
 
-    private VoyageAIMultimodalEmbeddingsModel(VoyageAIMultimodalEmbeddingsModel model, VoyageAIMultimodalEmbeddingsTaskSettings taskSettings) {
+    private VoyageAIMultimodalEmbeddingsModel(
+        VoyageAIMultimodalEmbeddingsModel model, 
+        VoyageAIMultimodalEmbeddingsTaskSettings taskSettings
+    ) {
         super(model, taskSettings);
     }
 
-    public VoyageAIMultimodalEmbeddingsModel(VoyageAIMultimodalEmbeddingsModel model, VoyageAIMultimodalEmbeddingsServiceSettings serviceSettings) {
+    public VoyageAIMultimodalEmbeddingsModel(
+        VoyageAIMultimodalEmbeddingsModel model, 
+        VoyageAIMultimodalEmbeddingsServiceSettings serviceSettings
+    ) {
         super(model, serviceSettings);
     }
 
@@ -116,8 +123,4 @@ public class VoyageAIMultimodalEmbeddingsModel extends VoyageAIModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
-    @Override
-    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
-    }
 }

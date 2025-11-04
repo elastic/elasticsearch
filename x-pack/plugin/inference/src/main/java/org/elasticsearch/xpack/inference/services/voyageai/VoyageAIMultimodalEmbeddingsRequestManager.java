@@ -14,9 +14,10 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIMultimodalEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
@@ -25,22 +26,22 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class VoyageAIEmbeddingsRequestManager extends VoyageAIRequestManager {
-    private static final Logger logger = LogManager.getLogger(VoyageAIEmbeddingsRequestManager.class);
-    private static final ResponseHandler HANDLER = createEmbeddingsHandler();
+public class VoyageAIMultimodalEmbeddingsRequestManager extends BaseRequestManager {
+    private static final Logger logger = LogManager.getLogger(VoyageAIMultimodalEmbeddingsRequestManager.class);
+    private static final ResponseHandler HANDLER = createMultimodalEmbeddingsHandler();
 
-    private static ResponseHandler createEmbeddingsHandler() {
-        return new VoyageAIResponseHandler("voyageai text embedding", VoyageAIEmbeddingsResponseEntity::fromResponse);
+    private static ResponseHandler createMultimodalEmbeddingsHandler() {
+        return new VoyageAIResponseHandler("voyageai multimodal embedding", VoyageAIEmbeddingsResponseEntity::fromResponse);
     }
 
-    public static VoyageAIEmbeddingsRequestManager of(VoyageAIEmbeddingsModel model, ThreadPool threadPool) {
-        return new VoyageAIEmbeddingsRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool));
+    public static VoyageAIMultimodalEmbeddingsRequestManager of(VoyageAIMultimodalEmbeddingsModel model, ThreadPool threadPool) {
+        return new VoyageAIMultimodalEmbeddingsRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool));
     }
 
-    private final VoyageAIEmbeddingsModel model;
+    private final VoyageAIMultimodalEmbeddingsModel model;
 
-    private VoyageAIEmbeddingsRequestManager(VoyageAIEmbeddingsModel model, ThreadPool threadPool) {
-        super(threadPool, model);
+    private VoyageAIMultimodalEmbeddingsRequestManager(VoyageAIMultimodalEmbeddingsModel model, ThreadPool threadPool) {
+        super(threadPool, model.getInferenceEntityId(), VoyageAIRequestManager.RateLimitGrouping.of(model), model.rateLimitSettings());
         this.model = Objects.requireNonNull(model);
     }
 
@@ -53,7 +54,11 @@ public class VoyageAIEmbeddingsRequestManager extends VoyageAIRequestManager {
     ) {
         EmbeddingsInput embeddingsInput = inferenceInputs.castTo(EmbeddingsInput.class);
         List<String> docsInput = embeddingsInput.getInputs();
-        VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(docsInput, embeddingsInput.getInputType(), model);
+        VoyageAIMultimodalEmbeddingsRequest request = new VoyageAIMultimodalEmbeddingsRequest(
+            docsInput,
+            embeddingsInput.getInputType(),
+            model
+        );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

@@ -467,7 +467,13 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         VoyageAIMultimodalEmbeddingsRequest request = new VoyageAIMultimodalEmbeddingsRequest(
             List.of("abc", "def"),
             InputTypeTests.randomSearchAndIngestWithNull(),
-            org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModelTests.createModel("url", "api_key", null, "voyage-multimodal-3")
+            org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
+                .VoyageAIMultimodalEmbeddingsModelTests.createModel(
+                    "url",
+                    "api_key",
+                    null,
+                    "voyage-multimodal-3"
+                )
         );
 
         InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
@@ -503,24 +509,23 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        var multimodalModel = org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModelTests.createModel("url", "api_key", null, "voyage-multimodal-3");
+        var multimodalModel = org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
+            .VoyageAIMultimodalEmbeddingsModelTests.createModel("url", "api_key", null, "voyage-multimodal-3");
         // Create a model with INT8 embedding type
-        var modelWithInt8 = new org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModel(
-            multimodalModel.getInferenceEntityId(),
-            multimodalModel.getConfigurations().getService(),
-            "url",
-            new org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsServiceSettings(
-                multimodalModel.getServiceSettings().getCommonSettings(),
-                org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingType.INT8,
-                multimodalModel.getServiceSettings().similarity(),
-                multimodalModel.getServiceSettings().dimensions(),
-                multimodalModel.getServiceSettings().maxInputTokens(),
-                false
-            ),
-            multimodalModel.getTaskSettings(),
-            multimodalModel.getConfigurations().getChunkingSettings(),
-            (org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings) multimodalModel.getSecretSettings()
-        );
+        var modelWithInt8 = new org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
+            .VoyageAIMultimodalEmbeddingsModel(
+                multimodalModel,
+                new org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
+                    .VoyageAIMultimodalEmbeddingsServiceSettings(
+                        multimodalModel.getServiceSettings().getCommonSettings(),
+                        org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
+                            .VoyageAIMultimodalEmbeddingType.INT8,
+                        multimodalModel.getServiceSettings().similarity(),
+                        multimodalModel.getServiceSettings().dimensions(),
+                        multimodalModel.getServiceSettings().maxInputTokens(),
+                        false
+                    )
+            );
 
         VoyageAIMultimodalEmbeddingsRequest request = new VoyageAIMultimodalEmbeddingsRequest(
             List.of("abc"),

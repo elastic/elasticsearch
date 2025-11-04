@@ -13,13 +13,11 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
-import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils;
 
 import java.net.URI;
@@ -116,8 +114,4 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
-    @Override
-    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
-    }
 }

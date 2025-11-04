@@ -311,7 +311,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
         VoyageAIModel voyageaiModel = (VoyageAIModel) model;
         var actionCreator = new VoyageAIActionCreator(getSender(), getServiceComponents());
 
-        var action = voyageaiModel.accept(actionCreator, taskSettings);
+        var action = actionCreator.create(voyageaiModel, taskSettings);
         action.execute(inputs, timeout, listener);
     }
 
@@ -344,7 +344,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            var action = voyageaiModel.accept(actionCreator, taskSettings);
+            var action = actionCreator.create(voyageaiModel, taskSettings);
             action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
@@ -355,61 +355,64 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     @Override
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
-        if (model instanceof VoyageAIEmbeddingsModel embeddingsModel) {
-            var serviceSettings = embeddingsModel.getServiceSettings();
-            var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
-            var maxInputTokens = serviceSettings.maxInputTokens();
-            var dimensionSetByUser = serviceSettings.dimensionsSetByUser();
+        return switch (model) {
+            case VoyageAIEmbeddingsModel embeddingsModel -> {
+                var serviceSettings = embeddingsModel.getServiceSettings();
+                var similarityFromModel = serviceSettings.similarity();
+                var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+                var maxInputTokens = serviceSettings.maxInputTokens();
+                var dimensionSetByUser = serviceSettings.dimensionsSetByUser();
 
-            var updatedServiceSettings = new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(
-                    serviceSettings.getCommonSettings().modelId(),
-                    serviceSettings.getCommonSettings().rateLimitSettings()
-                ),
-                serviceSettings.getEmbeddingType(),
-                similarityToUse,
-                embeddingSize,
-                maxInputTokens,
-                dimensionSetByUser
-            );
+                var updatedServiceSettings = new VoyageAIEmbeddingsServiceSettings(
+                    new VoyageAIServiceSettings(
+                        serviceSettings.getCommonSettings().modelId(),
+                        serviceSettings.getCommonSettings().rateLimitSettings()
+                    ),
+                    serviceSettings.getEmbeddingType(),
+                    similarityToUse,
+                    embeddingSize,
+                    maxInputTokens,
+                    dimensionSetByUser
+                );
 
-            return new VoyageAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);
-        } else if (model instanceof VoyageAIContextualEmbeddingsModel contextualModel) {
-            var serviceSettings = contextualModel.getServiceSettings();
-            var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
-            var maxInputTokens = serviceSettings.maxInputTokens();
+                yield new VoyageAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+            }
+            case VoyageAIContextualEmbeddingsModel contextualModel -> {
+                var serviceSettings = contextualModel.getServiceSettings();
+                var similarityFromModel = serviceSettings.similarity();
+                var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+                var maxInputTokens = serviceSettings.maxInputTokens();
 
-            var updatedServiceSettings = new VoyageAIContextualEmbeddingsServiceSettings(
-                serviceSettings.getCommonSettings(),
-                serviceSettings.getEmbeddingType(),
-                similarityToUse,
-                embeddingSize,
-                maxInputTokens,
-                false  // dimensions not set by user, inferred from API
-            );
+                var updatedServiceSettings = new VoyageAIContextualEmbeddingsServiceSettings(
+                    serviceSettings.getCommonSettings(),
+                    serviceSettings.getEmbeddingType(),
+                    similarityToUse,
+                    embeddingSize,
+                    maxInputTokens,
+                    false  // dimensions not set by user, inferred from API
+                );
 
-            return new VoyageAIContextualEmbeddingsModel(contextualModel, updatedServiceSettings);
-        } else if (model instanceof VoyageAIMultimodalEmbeddingsModel multimodalModel) {
-            var serviceSettings = multimodalModel.getServiceSettings();
-            var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
-            var maxInputTokens = serviceSettings.maxInputTokens();
+                yield new VoyageAIContextualEmbeddingsModel(contextualModel, updatedServiceSettings);
+            }
+            case VoyageAIMultimodalEmbeddingsModel multimodalModel -> {
+                var serviceSettings = multimodalModel.getServiceSettings();
+                var similarityFromModel = serviceSettings.similarity();
+                var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+                var maxInputTokens = serviceSettings.maxInputTokens();
 
-            var updatedServiceSettings = new VoyageAIMultimodalEmbeddingsServiceSettings(
-                serviceSettings.getCommonSettings(),
-                serviceSettings.getEmbeddingType(),
-                similarityToUse,
-                embeddingSize,
-                maxInputTokens,
-                false  // dimensions not set by user, inferred from API
-            );
+                var updatedServiceSettings = new VoyageAIMultimodalEmbeddingsServiceSettings(
+                    serviceSettings.getCommonSettings(),
+                    serviceSettings.getEmbeddingType(),
+                    similarityToUse,
+                    embeddingSize,
+                    maxInputTokens,
+                    false  // dimensions not set by user, inferred from API
+                );
 
-            return new VoyageAIMultimodalEmbeddingsModel(multimodalModel, updatedServiceSettings);
-        } else {
-            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
-        }
+                yield new VoyageAIMultimodalEmbeddingsModel(multimodalModel, updatedServiceSettings);
+            }
+            default -> throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        };
     }
 
     /**

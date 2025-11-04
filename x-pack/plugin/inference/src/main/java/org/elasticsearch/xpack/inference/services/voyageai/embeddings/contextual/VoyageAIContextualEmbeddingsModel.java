@@ -13,13 +13,11 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
-import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils;
 
 import java.net.URI;
@@ -32,7 +30,10 @@ import static org.elasticsearch.xpack.inference.services.voyageai.request.Voyage
 public class VoyageAIContextualEmbeddingsModel extends VoyageAIModel {
     public static VoyageAIContextualEmbeddingsModel of(VoyageAIContextualEmbeddingsModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = VoyageAIContextualEmbeddingsTaskSettings.fromMap(taskSettings);
-        return new VoyageAIContextualEmbeddingsModel(model, VoyageAIContextualEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new VoyageAIContextualEmbeddingsModel(
+            model, 
+            VoyageAIContextualEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings)
+        );
     }
 
     public VoyageAIContextualEmbeddingsModel(
@@ -93,11 +94,17 @@ public class VoyageAIContextualEmbeddingsModel extends VoyageAIModel {
         );
     }
 
-    private VoyageAIContextualEmbeddingsModel(VoyageAIContextualEmbeddingsModel model, VoyageAIContextualEmbeddingsTaskSettings taskSettings) {
+    private VoyageAIContextualEmbeddingsModel(
+        VoyageAIContextualEmbeddingsModel model, 
+        VoyageAIContextualEmbeddingsTaskSettings taskSettings
+    ) {
         super(model, taskSettings);
     }
 
-    public VoyageAIContextualEmbeddingsModel(VoyageAIContextualEmbeddingsModel model, VoyageAIContextualEmbeddingsServiceSettings serviceSettings) {
+    public VoyageAIContextualEmbeddingsModel(
+        VoyageAIContextualEmbeddingsModel model, 
+        VoyageAIContextualEmbeddingsServiceSettings serviceSettings
+    ) {
         super(model, serviceSettings);
     }
 
@@ -116,8 +123,4 @@ public class VoyageAIContextualEmbeddingsModel extends VoyageAIModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
-    @Override
-    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
-    }
 }

@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,7 +38,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     private final QueryBuilder filterBuilder;
 
-    private List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = List.of();
 
     /**
      * A query that wraps another query and simply returns a constant score equal to the
@@ -158,7 +157,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        propagatePrefilters(List.of(filterBuilder));
+        propagatePrefilters();
 
         QueryBuilder rewrite = filterBuilder.rewrite(queryRewriteContext);
         if (rewrite instanceof MatchNoneQueryBuilder) {
@@ -190,5 +189,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     public List<QueryBuilder> getPrefilters() {
         return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return List.of(filterBuilder);
     }
 }

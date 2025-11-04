@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,7 +49,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     private float negativeBoost = -1;
 
-    private List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = List.of();
 
     /**
      * Create a new {@link BoostingQueryBuilder}
@@ -219,7 +218,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        propagatePrefilters(List.of(positiveQuery));
+        propagatePrefilters();
 
         QueryBuilder positiveQuery = this.positiveQuery.rewrite(queryRewriteContext);
         if (positiveQuery instanceof MatchNoneQueryBuilder) {
@@ -255,5 +254,10 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     @Override
     public List<QueryBuilder> getPrefilters() {
         return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return List.of(positiveQuery);
     }
 }

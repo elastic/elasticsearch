@@ -42,7 +42,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     private static final ParseField QUERIES_FIELD = new ParseField("queries");
 
     private final List<QueryBuilder> queries = new ArrayList<>();
-    private List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = List.of();
 
     private float tieBreaker = DEFAULT_TIE_BREAKER;
 
@@ -189,7 +189,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        propagatePrefilters(queries);
+        propagatePrefilters();
 
         DisMaxQueryBuilder newBuilder = new DisMaxQueryBuilder();
         boolean changed = false;
@@ -246,5 +246,10 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     @Override
     public List<QueryBuilder> getPrefilters() {
         return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return queries;
     }
 }

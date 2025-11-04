@@ -102,7 +102,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
     private final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier;
     private final Boolean lenient;
-    private List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = List.of();
 
     // ccsRequest is only used on the local cluster coordinator node to detect when:
     // - The request references a remote index
@@ -680,5 +680,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     @Override
     public List<QueryBuilder> getPrefilters() {
         return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return List.of();
     }
 }

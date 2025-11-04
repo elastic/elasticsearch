@@ -61,7 +61,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     private String minimumShouldMatch;
 
-    private List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = List.of();
 
     /**
      * Build an empty bool query.
@@ -363,7 +363,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
             return new MatchAllQueryBuilder().boost(boost()).queryName(queryName());
         }
 
-        propagatePrefilters(Stream.concat(mustClauses.stream(), shouldClauses.stream()).toList());
+        propagatePrefilters();
 
         changed |= rewriteClauses(queryRewriteContext, mustClauses, newBuilder::must);
 
@@ -475,5 +475,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
     @Override
     public List<QueryBuilder> getPrefilters() {
         return Stream.concat(prefilters.stream(), filterClauses.stream()).toList();
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return Stream.concat(mustClauses.stream(), shouldClauses.stream()).toList();
     }
 }

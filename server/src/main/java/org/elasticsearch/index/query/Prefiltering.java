@@ -21,10 +21,12 @@ public interface Prefiltering<T extends QueryBuilder> {
 
     List<QueryBuilder> getPrefilters();
 
-    default void propagatePrefilters(List<QueryBuilder> targetQueries) {
+    List<QueryBuilder> getPrefilteringTargetQueries();
+
+    default void propagatePrefilters() {
         List<QueryBuilder> prefilters = getPrefilters();
         if (prefilters.isEmpty() == false) {
-            for (QueryBuilder targetQuery : targetQueries) {
+            for (QueryBuilder targetQuery : getPrefilteringTargetQueries()) {
                 if (targetQuery instanceof Prefiltering<?> prefilteredQuery) {
                     prefilteredQuery.setPrefilters(prefilters.stream().filter(q -> q != targetQuery).toList());
                 }

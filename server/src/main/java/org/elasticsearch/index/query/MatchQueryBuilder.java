@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -83,7 +82,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
-    private List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = List.of();
 
     /**
      * Constructs a new match query.
@@ -590,5 +589,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
     @Override
     public List<QueryBuilder> getPrefilters() {
         return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return List.of();
     }
 }

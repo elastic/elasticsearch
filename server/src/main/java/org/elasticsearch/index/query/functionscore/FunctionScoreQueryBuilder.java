@@ -78,7 +78,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     private final FilterFunctionBuilder[] filterFunctionBuilders;
 
-    private List<QueryBuilder> prefilters = new ArrayList<>();
+    private List<QueryBuilder> prefilters = List.of();
 
     /**
      * Creates a function_score query without functions
@@ -345,6 +345,11 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         return prefilters;
     }
 
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return List.of(query);
+    }
+
     /**
      * Function to be associated with an optional filter, meaning it will be executed only for the documents
      * that match the given filter.
@@ -428,7 +433,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        propagatePrefilters(List.of(query));
+        propagatePrefilters();
 
         QueryBuilder queryBuilder = this.query.rewrite(queryRewriteContext);
         if (queryBuilder instanceof MatchNoneQueryBuilder) {

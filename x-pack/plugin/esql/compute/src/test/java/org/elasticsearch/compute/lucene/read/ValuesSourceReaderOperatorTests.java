@@ -1404,16 +1404,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         static String singleName(String type) {
             return switch (type) {
                 case "Ordinals" -> "BytesRefsFromOrds.Singleton";
-                case "Ints" -> "IntsFromDocValues.Singleton";
-                default -> "BlockDocValuesReader.Singleton" + type;
+                default -> type + "FromDocValues.Singleton";
             };
         }
 
         static String multiName(String type) {
             return switch (type) {
                 case "Ordinals" -> "BytesRefsFromOrds.SortedSet";
-                case "Ints" -> "IntsFromDocValues.Sorted";
-                default -> "BlockDocValuesReader." + type;
+                default -> type + "FromDocValues.Sorted";
             };
         }
 

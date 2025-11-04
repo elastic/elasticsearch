@@ -3,6 +3,7 @@
 ## `TOP` [esql-top]
 ```{applies_to}
 stack: coming 9.3.0
+Support for optional order and outputField parameters is only available from 9.3.0
 ```
 
 **Syntax**

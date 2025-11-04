@@ -59,19 +59,12 @@ public class FireworksAiRerankRequest implements Request {
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(model.uri());
 
-        var requestEntity = new FireworksAiRerankRequestEntity(query, documents, getTopN(), returnDocuments, model);
-        String requestJson;
-        try {
-            requestJson = Strings.toString(requestEntity);
-            logger.debug("FireworksAI Rerank JSON Request: {}", requestJson);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize FireworksAI rerank request entity", e);
-        }
-
-        ByteArrayEntity byteEntity = new ByteArrayEntity(requestJson.getBytes(StandardCharsets.UTF_8));
+        ByteArrayEntity byteEntity = new ByteArrayEntity(
+            Strings.toString(new FireworksAiRerankRequestEntity(query, documents, getTopN(), returnDocuments, model))
+                .getBytes(StandardCharsets.UTF_8)
+        );
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
-
         decorateWithAuth(httpPost);
 
         return new HttpRequest(httpPost, getInferenceEntityId());

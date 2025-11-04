@@ -715,6 +715,8 @@ public abstract class MappedFieldType {
      * Is retrievable from the {@link BlockLoaderContext}. The {@link MappedFieldType} can use this configuration to choose the appropriate
      * implementation for transforming loaded values into blocks.
      */
-    public interface BlockLoaderFunctionConfig {}
+    public interface BlockLoaderFunctionConfig {
+        String name();
+    }
 
 }

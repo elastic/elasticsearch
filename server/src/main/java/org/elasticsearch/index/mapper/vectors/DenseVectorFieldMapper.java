@@ -3167,6 +3167,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public interface SimilarityFunction {
+        String name();
+
         float calculateSimilarity(float[] leftVector, float[] rightVector);
 
         float calculateSimilarity(byte[] leftVector, byte[] rightVector);
@@ -3183,9 +3185,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private byte[] vectorAsBytes;
 
         public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, float[] vector) {
+            Objects.requireNonNull(vector);
+            assert vector.length > 0 : "vector length must be > 0";
             this.similarityFunction = similarityFunction;
             this.vector = vector;
-
         }
 
         /**
@@ -3212,6 +3215,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return similarityFunction;
         }
 
+        public String name() {
+            return similarityFunction.name() + "$" + Arrays.hashCode(vector);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
@@ -3223,7 +3230,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public int hashCode() {
-            return Objects.hash(similarityFunction, Arrays.hashCode(vector), Arrays.hashCode(vectorAsBytes));
+            return Objects.hash(similarityFunction, Arrays.hashCode(vector));
         }
     }
 }

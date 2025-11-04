@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -43,7 +44,6 @@ public class PushDownVectorSimilarityFunctions extends ParameterizedRule<
     LogicalPlan,
     LogicalPlan,
     LocalLogicalOptimizerContext> {
-
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
@@ -104,7 +104,6 @@ public class PushDownVectorSimilarityFunctions extends ParameterizedRule<
             return similarityFunction;
         }
 
-        Literal literal = (Literal) (similarityFunction.left() instanceof Literal ? similarityFunction.left() : similarityFunction.right());
         FieldAttribute fieldAttr = null;
         if (similarityFunction.left() instanceof FieldAttribute fa) {
             fieldAttr = fa;
@@ -116,23 +115,14 @@ public class PushDownVectorSimilarityFunctions extends ParameterizedRule<
             return similarityFunction;
         }
 
-        @SuppressWarnings("unchecked")
-        List<Number> vectorList = (List<Number>) literal.value();
-        float[] vectorArray = new float[vectorList.size()];
-        int arrayHashCode = 0;
-        for (int i = 0; i < vectorList.size(); i++) {
-            vectorArray[i] = vectorList.get(i).floatValue();
-            arrayHashCode = 31 * arrayHashCode + Float.floatToIntBits(vectorArray[i]);
-        }
-
         // Change the similarity function to a reference of a transformation on the field
+        MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig = similarityFunction.getBlockLoaderFunctionConfig();
         FunctionEsField functionEsField = new FunctionEsField(
             fieldAttr.field(),
             similarityFunction.dataType(),
-            similarityFunction.getBlockLoaderFunctionConfig()
+            blockLoaderFunctionConfig
         );
-        var name = rawTemporaryName(fieldAttr.name(), similarityFunction.nodeName(), String.valueOf(arrayHashCode));
-        // TODO: Check if exists before adding, retrieve the previous one
+        var name = rawTemporaryName(fieldAttr.name(), blockLoaderFunctionConfig.name());
         var newFunctionAttr = new FieldAttribute(
             fieldAttr.source(),
             fieldAttr.parentName(),

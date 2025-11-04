@@ -334,9 +334,10 @@ public class ClusterStateCreationUtils {
     }
 
     /**
-     * Creates cluster state with an index that has #(numberOfPrimaries) primary shards in the started state and no replicas. The cluster
-     * state contains #(numberOfIndexNodes) nodes with {@link DiscoveryNodeRole#INDEX_ROLE}, assigning the primary shards to those nodes,
-     * and #(numberOfSearchNodes) nodes with {@link DiscoveryNodeRole#SEARCH_ROLE}.
+     * Creates cluster state with an index that has {@code numberOfPrimaries} primary shards in the started state and no replicas. The
+     * cluster state contains {@code numberOfIndexNodes} nodes with {@link DiscoveryNodeRole#INDEX_ROLE}, assigning the primary shards
+     * to those nodes, {@code numberOfSearchNodes} nodes with {@link DiscoveryNodeRole#SEARCH_ROLE}, and {@code numberOfMLNodes} with
+     * {@link DiscoveryNodeRole#ML_ROLE}.
      */
     public static ClusterState buildServerlessRoleNodes(
         String indexName,

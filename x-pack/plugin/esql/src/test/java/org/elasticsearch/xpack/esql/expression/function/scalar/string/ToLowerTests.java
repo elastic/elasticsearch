@@ -48,7 +48,7 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
         suppliers(suppliers, "keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10));
         suppliers(suppliers, "text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10));
         suppliers(suppliers, "text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     public void testRandomLocale() {
@@ -91,7 +91,8 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
             values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));
 
             String expectedValue = value.toLowerCase(EsqlTestUtils.TEST_CFG.locale());
-            return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(new BytesRef(expectedValue)));
+            return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(new BytesRef(expectedValue)))
+                .withStaticConfiguration();
         }));
         suppliers.add(new TestCaseSupplier(name + " mv", List.of(type), () -> {
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
@@ -101,7 +102,7 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
             values.add(new TestCaseSupplier.TypedData(strings.stream().map(BytesRef::new).toList(), type, "0"));
 
             List<BytesRef> expectedValue = strings.stream().map(s -> new BytesRef(s.toLowerCase(EsqlTestUtils.TEST_CFG.locale()))).toList();
-            return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(expectedValue));
+            return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(expectedValue)).withStaticConfiguration();
         }));
     }
 

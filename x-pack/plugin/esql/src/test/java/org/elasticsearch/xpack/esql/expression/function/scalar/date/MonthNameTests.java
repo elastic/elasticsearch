@@ -72,11 +72,11 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.startsWith("MonthNameMillisEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
                     DataType.KEYWORD,
                     equalTo(null)
-                )
+                ).withStaticConfiguration()
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static List<TestCaseSupplier> generateTest(String dateTime, String expectedMonthName) {
@@ -88,7 +88,7 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.startsWith("MonthNameMillisEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
                     DataType.KEYWORD,
                     equalTo(new BytesRef(expectedMonthName))
-                )
+                ).withStaticConfiguration()
             ),
             new TestCaseSupplier(
                 List.of(DataType.DATE_NANOS),
@@ -97,7 +97,7 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.is("MonthNameNanosEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
                     DataType.KEYWORD,
                     equalTo(new BytesRef(expectedMonthName))
-                )
+                ).withStaticConfiguration()
             )
         );
     }

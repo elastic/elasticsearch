@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.qa.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
@@ -44,10 +46,12 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_CREATED_TV;
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_USED_TV;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.INDEX_SOURCE;
+import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -100,7 +104,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         this.indexMode = indexMode;
     }
 
-    protected record NodeInfo(String cluster, String id, boolean snapshot, TransportVersion version, Set<String> roles) {}
+    protected record NodeInfo(
+        String cluster,
+        String id,
+        boolean snapshot,
+        TransportVersion version,
+        Set<String> roles,
+        Set<HttpHost> boundAddress
+    ) {}
 
     private static Map<String, NodeInfo> nodeToInfo;
 
@@ -164,9 +175,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String id = (String) n.getKey();
             Map<?, ?> nodeInfo = (Map<?, ?>) n.getValue();
             String nodeName = (String) extractValue(nodeInfo, "name");
+            Map<?, ?> http = (Map<?, ?>) extractValue(nodeInfo, "http");
+            List<?> boundAddressUnparsed = (List<?>) extractValue(http, "bound_address");
+            Set<HttpHost> boundAddress = boundAddressUnparsed.stream().map(s -> HttpHost.create((String) s)).collect(Collectors.toSet());
 
             /*
-             * Figuring out is a node is a snapshot is kind of tricky. The main version
+             * Figuring out if a node is a snapshot is kind of tricky. The main version
              * doesn't include -SNAPSHOT. But ${VERSION}-SNAPSHOT is in the node info
              * *somewhere*. So we do this silly toString here.
              */
@@ -178,7 +192,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
             nodeToInfo.put(
                 nodeName,
-                new NodeInfo(cluster, id, snapshot, transportVersion, roles.stream().map(Object::toString).collect(Collectors.toSet()))
+                new NodeInfo(
+                    cluster,
+                    id,
+                    snapshot,
+                    transportVersion,
+                    roles.stream().map(Object::toString).collect(Collectors.toSet()),
+                    boundAddress
+                )
             );
         }
 
@@ -418,13 +439,30 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         body.endObject();
         request.setJsonEntity(Strings.toString(body));
 
-        Map<String, Object> response = responseAsMap(client().performRequest(request));
-        Map<String, Object> profile = (Map<String, Object>) response.get("profile");
-        Integer minimumVersion = (Integer) profile.get("minimumVersion");
-        assertNotNull(minimumVersion);
-        assertEquals(minVersion().id(), minimumVersion.intValue());
-        profileLogger.extractProfile(response, true);
-        return response;
+        Response response = client().performRequest(request);
+        Map<String, Object> responseMap = responseAsMap(client().performRequest(request));
+        HttpHost coordinatorHost = response.getHost();
+        NodeInfo coordinator = allNodeToInfo().values().stream().filter(n -> n.boundAddress().contains(coordinatorHost)).findFirst().get();
+        TransportVersion coordinatorVersion = coordinator.version();
+        if (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
+            Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
+            Integer minimumVersion = (Integer) profile.get("minimumVersion");
+            assertNotNull(minimumVersion);
+            if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV)) {
+                // All nodes are new enough that their field caps responses should contain the minimum transport version
+                // of matching clusters.
+                assertEquals(minVersion().id(), minimumVersion.intValue());
+            } else {
+                // One node is old enough that it doesn't provide version information in the field caps response. We must assume
+                // the oldest compatible version.
+                // Since we got minimumVersion in the profile, the coordinator is on a new version.
+                // Thus, it's on the same version as this code (bwc tests only use 2 different versions) and the oldest compatible version
+                // to the coordinator is given by TransportVersion.minimumCompatible().
+                assertEquals(TransportVersion.minimumCompatible(), minimumVersion.intValue());
+            }
+        }
+        profileLogger.extractProfile(responseMap, true);
+        return responseMap;
     }
 
     protected void createIndexForNode(RestClient client, String nodeName, String nodeId) throws IOException {
@@ -696,7 +734,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     name = e.getValue().cluster + ":" + name;
                 }
                 // We should only end up with one per cluster
-                result.put(name, new NodeInfo(e.getValue().cluster, null, e.getValue().snapshot(), e.getValue().version(), null));
+                result.put(
+                    name,
+                    new NodeInfo(
+                        e.getValue().cluster,
+                        null,
+                        e.getValue().snapshot(),
+                        e.getValue().version(),
+                        null,
+                        e.getValue().boundAddress()
+                    )
+                );
             }
         }
         return result;

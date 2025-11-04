@@ -430,6 +430,10 @@ public class RestSearchAction extends BaseRestHandler {
          * Because we do not have access to `IndicesRequest/SearchRequest` from `SearchSourceBuilder`, and, project_routing
          * can be potentially specified in 2 different places, we need to explicitly check this scenario.
          */
+        if (searchRequest.source() == null) {
+            return;
+        }
+
         String projectRoutingInBody = searchRequest.source().projectRouting();
         // If it's null, either the query parameter is also null or it isn't. Either way, we're fine with it.
         if (projectRoutingInBody != null) {

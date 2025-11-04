@@ -15,8 +15,11 @@ import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 
 public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCase<EsqlQueryResponse.Profile> {
     @Override
@@ -26,14 +29,21 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     @Override
     protected EsqlQueryResponse.Profile createTestInstance() {
-        return new EsqlQueryResponse.Profile(randomDriverProfiles(), randomPlanProfiles());
+        return new EsqlQueryResponse.Profile(randomDriverProfiles(), randomPlanProfiles(), randomMinimumVersion());
     }
 
     @Override
     protected EsqlQueryResponse.Profile mutateInstance(EsqlQueryResponse.Profile instance) {
-        return randomBoolean()
-            ? new EsqlQueryResponse.Profile(randomValueOtherThan(instance.drivers(), this::randomDriverProfiles), instance.plans())
-            : new EsqlQueryResponse.Profile(instance.drivers(), randomValueOtherThan(instance.plans(), this::randomPlanProfiles));
+        var drivers = instance.drivers();
+        var plans = instance.plans();
+        var minimumVersion = instance.minimumVersion();
+
+        switch (between(0, 2)) {
+            case 0 -> drivers = randomValueOtherThan(drivers, this::randomDriverProfiles);
+            case 1 -> plans = randomValueOtherThan(plans, this::randomPlanProfiles);
+            case 2 -> minimumVersion = randomValueOtherThan(minimumVersion, EsqlTestUtils::randomMinimumVersion);
+        }
+        return new EsqlQueryResponse.Profile(drivers, plans, minimumVersion);
     }
 
     @Override

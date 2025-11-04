@@ -64,7 +64,7 @@ public final class EsqlQueryLog {
     }
 
     public void onQueryPhase(Versioned<Result> esqlResult, String query) {
-        if (esqlResult == null) {
+        if (esqlResult.inner() == null) {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
         long tookInNanos = esqlResult.inner().executionInfo().overallTook().nanos();

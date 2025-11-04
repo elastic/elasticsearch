@@ -504,7 +504,6 @@ public class InferencePlugin extends Plugin
                 SystemIndexDescriptor.builder()
                     .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
                     .setIndexPattern(CCMIndex.INDEX_PATTERN)
-                    .setAliasName(CCMIndex.INDEX_ALIAS)
                     .setPrimaryIndex(CCMIndex.INDEX_NAME)
                     .setDescription("Contains Elastic Inference Service Cloud Connected Mode settings")
                     .setMappings(CCMIndex.mappings())

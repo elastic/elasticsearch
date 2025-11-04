@@ -12,11 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -57,12 +58,14 @@ public class CCMStorageService {
     public void get(ActionListener<CCMModel> listener) {
         var ccmConfigNotFound = new ResourceNotFoundException("CCM configuration not found");
 
-        var getResponseListener = ActionListener.<GetResponse>wrap(response -> {
-            if (response.isExists() == false) {
+        var searchListener = ActionListener.<SearchResponse>wrap(searchResponse -> {
+            if (searchResponse.getHits().getHits().length == 0) {
                 listener.onFailure(ccmConfigNotFound);
                 return;
             }
-            listener.onResponse(CCMModel.fromXContentBytes(response.getSourceAsBytesRef()));
+
+            assert searchResponse.getHits().getHits().length == 1;
+            listener.onResponse(CCMModel.fromXContentBytes(searchResponse.getHits().getHits()[0].getSourceRef()));
         }, e -> {
             if (e instanceof IndexNotFoundException) {
                 listener.onFailure(ccmConfigNotFound);
@@ -74,6 +77,9 @@ public class CCMStorageService {
             listener.onFailure(new ElasticsearchException(message, e));
         });
 
-        client.prepareGet().setIndex(CCMIndex.INDEX_NAME).setId(CCM_DOC_ID).execute(getResponseListener);
+        client.prepareSearch(CCMIndex.INDEX_PATTERN)
+            .setSize(1)
+            .setTrackTotalHits(false)
+            .setQuery(QueryBuilders.idsQuery().addIds(CCM_DOC_ID)).execute(searchListener);
     }
 }

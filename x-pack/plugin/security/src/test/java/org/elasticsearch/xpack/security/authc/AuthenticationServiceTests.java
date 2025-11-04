@@ -216,6 +216,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         telemetryProvider = mock(TelemetryProvider.class);
         when(telemetryProvider.getTracer()).thenReturn(Tracer.NOOP);
+        when(telemetryProvider.getMeterRegistry()).thenReturn(MeterRegistry.NOOP);
 
         firstDomain = randomFrom(new RealmDomain("firstDomain", Set.of()), null);
         firstRealm = mock(Realm.class);

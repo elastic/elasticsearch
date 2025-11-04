@@ -408,7 +408,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     /**
      * Create a {@link ClusterInfo} with the specified number of hot spotting index nodes,
      * all other index nodes will have no queue latency and have utilization below the specified
-     * high-utilization threshold. Any search nodes in the cluster will have zero usage write load stats.
+     * high-utilization threshold. Any search or ML nodes in the cluster will have zero usage
+     * write load stats.
      *
      * @param state The cluster state
      * @param numberOfNodesHotSpotting The number of nodes that should be hot-spotting

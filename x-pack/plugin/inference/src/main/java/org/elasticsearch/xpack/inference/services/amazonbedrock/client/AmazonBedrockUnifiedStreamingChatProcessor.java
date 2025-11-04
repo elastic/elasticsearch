@@ -394,14 +394,13 @@ class AmazonBedrockUnifiedStreamingChatProcessor
     private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseStart(
         ContentBlockStart start
     ) {
-        var type = start.type();
         var toolUse = start.toolUse();
         var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(null, toolUse.name());
         return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
             0,
             toolUse.toolUseId(),
             function,
-            type.name()
+            toolUse.name()
         );
     }
 

@@ -7,16 +7,28 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
+import software.amazon.awssdk.core.document.Document;
+import software.amazon.awssdk.services.bedrockruntime.model.AutoToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.Message;
+import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
+import software.amazon.awssdk.services.bedrockruntime.model.Tool;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolChoice;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolConfiguration;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolResultBlock;
 
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 
+import software.amazon.awssdk.services.bedrockruntime.model.ToolResultContentBlock;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockDelta;
+
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Flow;
 
@@ -47,6 +59,10 @@ public class ToolAwareUnifiedPublisher implements Flow.Publisher<StreamingUnifie
 
                     while (!cancelled) {
                         List<ToolUseInfo> toolUses = new ArrayList<>();
+
+                        toolUses.add(new ToolUseInfo("tooluse_wYgv7Mx0Q_KsxRNbAoidLQ","get_current_price"));
+
+
                         String[] stopReasons = new String[1];
                         var round = client.converseUnifiedStream(currentRequest.toBuilder().messages(history).build());
 
@@ -95,6 +111,56 @@ public class ToolAwareUnifiedPublisher implements Flow.Publisher<StreamingUnifie
 
                             @Override
                             public void onComplete() {
+                                List<ContentBlock> toolResults = new ArrayList<>();
+                                if (!toolUses.isEmpty()) {
+
+                                    for (ToolUseInfo toolUse : toolUses) {
+                                        String jsonIn = toolUse.inputJson.toString();
+                                    //  String jsonOut = execute(toolUse.getName(), jsonIn);
+
+                                        toolResults.add(
+                                            ContentBlock.builder()
+                                                .toolResult(
+                                                    ToolResultBlock.builder()
+                                                        .toolUseId(toolUse.getId())
+                                                        .content(ToolResultContentBlock.fromJson(Document.fromString(jsonIn)))
+                                                        .build()
+                                                )
+                                                .build()
+                                        );
+
+
+
+                                    }
+                                }
+
+                                Message toolResultMsg = Message.builder().role(ConversationRole.USER).content(toolResults).build();
+
+                                history.add(toolResultMsg);
+
+                                client.converseUnifiedStream(ConverseStreamRequest.builder()
+                                    .modelId(request.modelId())
+                                    .messages(history)
+                                    .toolConfig(
+                                        ToolConfiguration.builder()
+                                            .tools(
+                                                Tool.builder()
+                                                    .toolSpec(
+                                                        ToolSpecification.builder()
+                                                            .name(toolUses.getFirst().getName())
+                                                            .description(toolUses.getFirst().getId())
+                                                            .inputSchema(ToolInputSchema
+                                                                .fromJson(Document
+                                                                    .fromString(toolUses.getFirst().getInputJson().toString())))
+                                                            .build()
+                                                    )
+                                                    .build()
+                                            )
+                                            .toolChoice(
+                                                ToolChoice.builder().tool(SpecificToolChoice.builder()
+                                                    .name(toolUses.getFirst().getName()).build()).build()
+                                            )
+                                            .build()).build());
 
                             }
                         });
@@ -103,30 +169,6 @@ public class ToolAwareUnifiedPublisher implements Flow.Publisher<StreamingUnifie
 
                         if (!toolRequested) {
                             break;
-                        }
-
-                        List<ContentBlock> toolResultBlocks = new ArrayList<>();
-                        for (var toolUse : toolUses) {
-
-                            String jsonIn = toolUse.inputJson.toString();
-                            // String jsonOut = execute(toolUse.getName(), jsonIn);
-
-                            toolResultBlocks.add(
-                                ContentBlock.builder()
-                                    .toolResult(
-                                        ToolResultBlock.builder()
-                                            .toolUseId(toolUse.getId())
-                                            // .content((Collection<ToolResultContentBlock>) Document.fromString(jsonOut))
-                                            .build()
-                                    )
-                                    .build()
-                            );
-
-                            Message toolResultMsg = Message.builder().role(ConversationRole.USER).content(toolResultBlocks).build();
-
-                            history.add(toolResultMsg);
-
-                            currentRequest = currentRequest.toBuilder().messages(history).build();
                         }
                     }
                     subscriber.onComplete();

@@ -22,7 +22,8 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  * <ul>
  *     <li>
  *         {@code V_COSINE(vector, [constant_vector])} - vector is ~512 floats
- *         and V_COSINE is one double.
+ *         and V_COSINE is one double. We can find the similarity without any
+ *         copies if we combine.
  *     </li>
  *     <li>
  *         {@code ST_CENTROID(shape)} - shapes can be quite large. Centroids

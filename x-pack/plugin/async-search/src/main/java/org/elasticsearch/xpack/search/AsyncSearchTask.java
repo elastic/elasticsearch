@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -23,6 +24,7 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.logging.Loggers
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;

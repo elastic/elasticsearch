@@ -16,19 +16,19 @@ Either `query` or `retrievers` must be specified.
 Combining `query` and `retrievers` is not supported.
 ::::
 
-`query` {applies_to}`stack: ga 9.1, serverless: ga`
+`query` {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga`
 :   (Optional, String)
 
     The query to use when using the [multi-field query format](../retrievers.md#multi-field-query-format).
 
-`fields` {applies_to}`stack: ga 9.1, serverless: ga`
+`fields` {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga`
 :   (Optional, array of strings)
 
     The fields to query when using the [multi-field query format](../retrievers.md#multi-field-query-format).
     Fields can include boost values using the `^` notation (e.g., `"field^2"`).
     If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
 
-`normalizer` {applies_to}`stack: ga 9.1, serverless: ga`
+`normalizer` {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga`
 :   (Optional, String)
 
     The top-level normalizer to use when combining results.
@@ -37,7 +37,7 @@ Combining `query` and `retrievers` is not supported.
     
     When used with the [multi-field query format](../retrievers.md#multi-field-query-format) (`query` parameter), normalizes scores per [field grouping](../retrievers.md#multi-field-field-grouping).
 
-    Otherwise this serves as the default normalizer for any sub-retriever that doesn't specify its own normalizer. Per-retriever normalizers always take precedence over the top-level normalizer. {applies_to}`stack: ga 9.2`
+    Otherwise this serves as the default normalizer for any sub-retriever that doesn't specify its own normalizer. Per-retriever normalizers always take precedence over the top-level normalizer. {applies_to}`stack: ga 9.2` {applies_to}`serverless: ga`
 
     ::::{warning}
     Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.

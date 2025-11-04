@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.esql.approximate.Approximate;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -206,8 +205,7 @@ public class EsqlSession {
             System.nanoTime(),
             request.allowPartialResults(),
             clusterSettings.timeseriesResultTruncationMaxSize(),
-            clusterSettings.timeseriesResultTruncationDefaultSize(),
-            true
+            clusterSettings.timeseriesResultTruncationDefaultSize()
         );
         FoldContext foldContext = configuration.newFoldContext();
 

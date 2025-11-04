@@ -75,10 +75,10 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionVa
 
 public class Top extends AggregateFunction
     implements
-    TwoOptionalArguments,
-    ToAggregator,
-    SurrogateExpression,
-    PostOptimizationVerificationAware {
+        TwoOptionalArguments,
+        ToAggregator,
+        SurrogateExpression,
+        PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
 
     private static final String ORDER_ASC = "ASC";
@@ -117,11 +117,19 @@ public class Top extends AggregateFunction
             description = "The extra field that, if present, will be the output of the TOP call instead of `field`."
         ) Expression outputField
     ) {
-        this(source, field, Literal.TRUE, limit, order == null ? Literal.keyword(source, ORDER_ASC) : order, outputField);
+        this(source, field, Literal.TRUE, NO_WINDOW, limit, order == null ? Literal.keyword(source, ORDER_ASC) : order, outputField);
     }
 
-    public Top(Source source, Expression field, Expression filter, Expression limit, Expression order, @Nullable Expression outputField) {
-        super(source, field, filter, outputField != null ? asList(limit, order, outputField) : asList(limit, order));
+    public Top(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression limit,
+        Expression order,
+        @Nullable Expression outputField
+    ) {
+        super(source, field, filter, window, outputField != null ? asList(limit, order, outputField) : asList(limit, order));
     }
 
     private Top(StreamInput in) throws IOException {
@@ -130,7 +138,7 @@ public class Top extends AggregateFunction
 
     @Override
     public Top withFilter(Expression filter) {
-        return new Top(source(), field(), filter, limitField(), orderField(), outputField());
+        return new Top(source(), field(), filter, window(), limitField(), orderField(), outputField());
     }
 
     @Override
@@ -191,15 +199,15 @@ public class Top extends AggregateFunction
             .and(isString(orderField(), sourceText(), THIRD));
         if (outputField() != null) {
             typeResolution = typeResolution.and(
-                    isType(
-                        outputField(),
-                        dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
-                        sourceText(),
-                        FOURTH,
-                        "date",
-                        "numeric except unsigned_long or counter types"
-                    )
+                isType(
+                    outputField(),
+                    dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+                    sourceText(),
+                    FOURTH,
+                    "date",
+                    "numeric except unsigned_long or counter types"
                 )
+            )
                 .and(
                     isType(
                         field(),
@@ -305,7 +313,7 @@ public class Top extends AggregateFunction
 
     @Override
     protected NodeInfo<Top> info() {
-        return NodeInfo.create(this, Top::new, field(), filter(), limitField(), orderField(), outputField());
+        return NodeInfo.create(this, Top::new, field(), filter(), window(), limitField(), orderField(), outputField());
     }
 
     @Override
@@ -316,7 +324,8 @@ public class Top extends AggregateFunction
             newChildren.get(1),
             newChildren.get(2),
             newChildren.get(3),
-            newChildren.size() > 4 ? newChildren.get(4) : null
+            newChildren.get(4),
+            newChildren.size() > 5 ? newChildren.get(5) : null
         );
     }
 
@@ -388,9 +397,9 @@ public class Top extends AggregateFunction
         }
         if (orderField() instanceof Literal && limitField() instanceof Literal && limitValue() == 1) {
             if (orderValue()) {
-                return new Min(s, field(), filter());
+                return new Min(s, field(), filter(), window());
             } else {
-                return new Max(s, field(), filter());
+                return new Max(s, field(), filter(), window());
             }
         }
         return null;

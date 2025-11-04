@@ -14,9 +14,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIResponseHandler;
-import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIContextualizedEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIRerankResponseEntity;
 
 import java.util.Map;
 import java.util.Objects;

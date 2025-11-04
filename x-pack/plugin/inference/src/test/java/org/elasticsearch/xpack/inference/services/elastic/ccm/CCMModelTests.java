@@ -52,10 +52,7 @@ public class CCMModelTests extends AbstractBWCWireSerializationTestCase<CCMModel
             {
             }
             """;
-        var exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> CCMModel.fromXContentBytes(new BytesArray(json))
-        );
+        var exception = expectThrows(IllegalArgumentException.class, () -> CCMModel.fromXContentBytes(new BytesArray(json)));
         assertThat(exception.getMessage(), containsString("Required [api_key]"));
     }
 

@@ -58,10 +58,7 @@ public class CCMStorageServiceIT extends ESSingleNodeTestCase {
         var getListener = new PlainActionFuture<CCMModel>();
         ccmStorageService.get(getListener);
 
-        var exception = expectThrows(
-            ResourceNotFoundException.class,
-            () -> getListener.actionGet(TimeValue.THIRTY_SECONDS)
-        );
+        var exception = expectThrows(ResourceNotFoundException.class, () -> getListener.actionGet(TimeValue.THIRTY_SECONDS));
         assertThat(exception.getMessage(), is("CCM configuration not found"));
     }
 
@@ -71,10 +68,7 @@ public class CCMStorageServiceIT extends ESSingleNodeTestCase {
         var getListener = new PlainActionFuture<CCMModel>();
         ccmStorageService.get(getListener);
 
-        var exception = expectThrows(
-            ResourceNotFoundException.class,
-            () -> getListener.actionGet(TimeValue.THIRTY_SECONDS)
-        );
+        var exception = expectThrows(ResourceNotFoundException.class, () -> getListener.actionGet(TimeValue.THIRTY_SECONDS));
         assertThat(exception.getMessage(), is("CCM configuration not found"));
     }
 
@@ -84,10 +78,7 @@ public class CCMStorageServiceIT extends ESSingleNodeTestCase {
         var getListener = new PlainActionFuture<CCMModel>();
         ccmStorageService.get(getListener);
 
-        var exception = expectThrows(
-            ElasticsearchException.class,
-            () -> getListener.actionGet(TimeValue.THIRTY_SECONDS)
-        );
+        var exception = expectThrows(ElasticsearchException.class, () -> getListener.actionGet(TimeValue.THIRTY_SECONDS));
         assertThat(exception.getMessage(), containsString("Failed to retrieve CCM configuration"));
         assertThat(exception.getCause().getMessage(), containsString("Required [api_key]"));
     }
@@ -104,10 +95,10 @@ public class CCMStorageServiceIT extends ESSingleNodeTestCase {
             .setIndex(CCMIndex.INDEX_NAME)
             .setId(id)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .execute().actionGet(TimeValue.THIRTY_SECONDS);
+            .execute()
+            .actionGet(TimeValue.THIRTY_SECONDS);
 
         assertThat(response.getResult(), is(DocWriteResponse.Result.CREATED));
     }
-
 
 }

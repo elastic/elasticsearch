@@ -88,63 +88,6 @@ public class TopTests extends AbstractAggregationTestCase {
 
         suppliers.addAll(
             List.of(
-                // Surrogates for cases where field and outputField are effectively the same field
-                new TestCaseSupplier(
-                    List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD, DataType.INTEGER),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5, 8, -2, 0, 200), DataType.INTEGER, "field"),
-                            new TestCaseSupplier.TypedData(3, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral(),
-                            TestCaseSupplier.TypedData.multiRow(List.of(5, 8, -2, 0, 200), DataType.INTEGER, "field")
-                        ),
-                        "TopInt",
-                        DataType.INTEGER,
-                        equalTo(List.of(200, 8, 5))
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD, DataType.LONG),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, -2L, 0L, 200L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(3, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral(),
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, -2L, 0L, 200L), DataType.LONG, "field")
-                        ),
-                        "TopLong",
-                        DataType.LONG,
-                        equalTo(List.of(200L, 8L, 5L))
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.DOUBLE, DataType.INTEGER, DataType.KEYWORD, DataType.DOUBLE),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5., 8., -2., 0., 200.), DataType.DOUBLE, "field"),
-                            new TestCaseSupplier.TypedData(3, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral(),
-                            TestCaseSupplier.TypedData.multiRow(List.of(5., 8., -2., 0., 200.), DataType.DOUBLE, "field")
-                        ),
-                        "TopDouble",
-                        DataType.DOUBLE,
-                        equalTo(List.of(200., 8., 5.))
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.DATETIME, DataType.INTEGER, DataType.KEYWORD, DataType.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.DATETIME, "field"),
-                            new TestCaseSupplier.TypedData(3, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral(),
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.DATETIME, "field")
-                        ),
-                        "TopLong",
-                        DataType.DATETIME,
-                        equalTo(List.of(200L, 8L, 5L))
-                    )
-                ),
                 // Surrogates for cases where limit == 1
                 new TestCaseSupplier(
                     List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.KEYWORD),

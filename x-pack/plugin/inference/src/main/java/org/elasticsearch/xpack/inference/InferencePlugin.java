@@ -212,6 +212,12 @@ public class InferencePlugin extends Plugin
         License.OperationMode.ENTERPRISE
     );
 
+    public static final LicensedFeature.Momentary EIS_INFERENCE_FEATURE = LicensedFeature.momentary(
+        "inference",
+        "Elastic Inference Service",
+        License.OperationMode.BASIC
+    );
+
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
 
     public static final String NAME = "inference";

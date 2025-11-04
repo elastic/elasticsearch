@@ -43,7 +43,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         } else if (queryBits == 4 && indexBits == 4) {
             this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, memorySegment);
         } else if (queryBits == 4 && indexBits == 2) {
-            throw new IllegalArgumentException("Only symmetric 4-bit query and 1-bit index supported");
+            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, memorySegment);
         } else {
             throw new IllegalArgumentException("Only asymmetric 4-bit query and 1-bit index supported");
         }
@@ -102,7 +102,8 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         );
     }
 
-    abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSInt4SymmetricESNextOSQVectorsScorer {
+    abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer,
+        MSInt4SymmetricESNextOSQVectorsScorer {
 
         static final int BULK_SIZE = MemorySegmentESNextOSQVectorsScorer.BULK_SIZE;
         static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);

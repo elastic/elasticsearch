@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -541,7 +542,8 @@ public final class EsqlTestUtils {
         null,
         new InferenceService(mock(Client.class)),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
-        TEST_PLANNER_SETTINGS
+        TEST_PLANNER_SETTINGS,
+        new CrossProjectModeDecider(Settings.EMPTY)
     );
 
     private static ClusterService createMockClusterService() {

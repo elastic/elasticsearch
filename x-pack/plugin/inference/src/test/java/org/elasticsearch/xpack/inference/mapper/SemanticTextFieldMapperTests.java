@@ -2369,4 +2369,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private void givenModelSettings(String inferenceId, MinimalServiceSettings modelSettings) {
         when(globalModelRegistry.getMinimalServiceSettings(inferenceId)).thenReturn(modelSettings);
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -41,6 +42,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.resizeRequest;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService.AllocationState.MAX_AMOUNT_OF_SHARD_DECISIONS;
@@ -347,16 +349,9 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         });
 
         String shrinkName = "shrink-" + indexName;
-        assertAcked(
-            indicesAdmin().prepareResizeIndex(indexName, shrinkName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .build()
-                )
-                .setWaitForActiveShards(ActiveShardCount.NONE)
-        );
+        final var shrinkRequest = resizeRequest(ResizeType.SHRINK, indexName, shrinkName, indexSettings(1, 0));
+        shrinkRequest.setWaitForActiveShards(ActiveShardCount.NONE);
+        assertAcked(client().execute(TransportResizeAction.TYPE, shrinkRequest));
 
         // * 2 since worst case is no hard links, see DiskThresholdDecider.getExpectedShardSize.
         long requiredSpaceForShrink = used * 2 + LOW_WATERMARK_BYTES;
@@ -455,17 +450,9 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), indexName);
         String cloneName = "clone-" + indexName;
         int resizedShardCount = between(2, 10);
-        assertAcked(
-            indicesAdmin().prepareResizeIndex(indexName, cloneName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, resizedShardCount)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .build()
-                )
-                .setWaitForActiveShards(ActiveShardCount.NONE)
-                .setResizeType(ResizeType.SPLIT)
-        );
+        final var splitRequest = resizeRequest(ResizeType.SPLIT, indexName, cloneName, indexSettings(resizedShardCount, 0));
+        splitRequest.setWaitForActiveShards(ActiveShardCount.NONE);
+        assertAcked(client().execute(TransportResizeAction.TYPE, splitRequest));
 
         // * 2 since worst case is no hard links, see DiskThresholdDecider.getExpectedShardSize.
         long requiredSpaceForClone = used * 2 + LOW_WATERMARK_BYTES;

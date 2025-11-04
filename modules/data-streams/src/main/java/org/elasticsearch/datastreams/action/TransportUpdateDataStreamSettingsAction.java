@@ -40,6 +40,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -231,7 +232,13 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         List<String> appliedToDataStreamOnly = new ArrayList<>();
         List<String> appliedToDataStreamAndWriteIndexOnly = new ArrayList<>();
         List<String> appliedToDataStreamAndBackingIndices = new ArrayList<>();
-        Settings effectiveSettings = dataStream.getEffectiveSettings(projectResolver.getProjectMetadata(clusterService.state()));
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        final Settings effectiveSettings;
+        try {
+            effectiveSettings = metadataDataStreamsService.getEffectiveSettings(projectMetadata, dataStream);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         for (String settingName : requestSettings.keySet()) {
             if (APPLY_TO_WRITE_INDEX.contains(settingName)) {
                 settingsToApplyToWriteIndex.put(settingName, effectiveSettings.get(settingName));

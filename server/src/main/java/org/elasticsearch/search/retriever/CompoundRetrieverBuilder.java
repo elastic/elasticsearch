@@ -183,7 +183,8 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
                     if (failures.isEmpty()) {
                         try {
-                            results.set(combineInnerRetrieverResults(topDocs, ctx.isExplain()));
+                            boolean enrichResults = ctx.isExplain() || ctx.isProfile();
+                            results.set(combineInnerRetrieverResults(topDocs, enrichResults));
                             listener.onResponse(null);
                             return;
                         } catch (ElasticsearchStatusException esEx) {

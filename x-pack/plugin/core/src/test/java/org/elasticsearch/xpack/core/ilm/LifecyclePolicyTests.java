@@ -222,6 +222,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
                             randomAlphaOfLength(10),
                             randomBoolean(),
                             (randomBoolean() ? null : randomIntBetween(1, 100)),
+                            null,
                             null
                         )
                     )

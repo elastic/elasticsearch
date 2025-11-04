@@ -372,7 +372,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final String sessionId;
 
     private final Tracer tracer;
-    private Map<ShardId, Set<Supplier<ReaderContext>>> relocatingContexts = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private Map<ShardId, Set<Supplier<ReaderContext>>> relocatingContexts = ConcurrentCollections
+        .newConcurrentMapWithAggressiveConcurrency();
 
     public SearchService(
         ClusterService clusterService,
@@ -1985,14 +1986,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }
             // TODO clean up pending relocating contexts. How long to wait for a relocation to complete?
-//            for (Set<Supplier<ReaderContext>> contexts : relocatingContexts.values()) {
-//                for (Supplier<ReaderContext> context : contexts) {
-//                    if (context.isExpired()) {
-//                        logger.debug("freeing relocating search context [{}]", context.id());
-//                        freeReaderContext(context.id());
-//                    }
-//                }
-//            }<
+            // for (Set<Supplier<ReaderContext>> contexts : relocatingContexts.values()) {
+            // for (Supplier<ReaderContext> context : contexts) {
+            // if (context.isExpired()) {
+            // logger.debug("freeing relocating search context [{}]", context.id());
+            // freeReaderContext(context.id());
+            // }
+            // }
+            // }<
         }
 
         @Override

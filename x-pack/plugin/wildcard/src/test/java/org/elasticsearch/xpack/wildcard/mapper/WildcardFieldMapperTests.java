@@ -1272,4 +1272,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             return List.of();
         }
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

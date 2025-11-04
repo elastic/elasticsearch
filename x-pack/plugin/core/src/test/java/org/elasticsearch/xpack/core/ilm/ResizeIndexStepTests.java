@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -119,9 +119,8 @@ public class ResizeIndexStepTests extends AbstractStepTestCase<ResizeIndexStep> 
             .build();
 
         Mockito.doAnswer(invocation -> {
-            ResizeRequest request = (ResizeRequest) invocation.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            ActionListener<CreateIndexResponse> listener = (ActionListener<CreateIndexResponse>) invocation.getArguments()[1];
+            final ResizeRequest request = invocation.getArgument(1);
+            final ActionListener<CreateIndexResponse> listener = invocation.getArgument(2);
             assertThat(request.getSourceIndex(), equalTo(sourceIndexMetadata.getIndex().getName()));
             assertThat(request.getTargetIndexRequest().aliases(), equalTo(Set.of()));
 
@@ -133,16 +132,14 @@ public class ResizeIndexStepTests extends AbstractStepTestCase<ResizeIndexStep> 
             assertThat(request.getMaxPrimaryShardSize(), equalTo(step.getMaxPrimaryShardSize()));
             listener.onResponse(new CreateIndexResponse(true, true, sourceIndexMetadata.getIndex().getName()));
             return null;
-        }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(TransportResizeAction.TYPE), Mockito.any(), Mockito.any());
 
         final var state = projectStateWithEmptyProject();
         performActionAndWait(step, sourceIndexMetadata, state, null);
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(projectClient).admin();
-        Mockito.verifyNoMoreInteractions(client);
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
+        Mockito.verify(projectClient).execute(Mockito.same(TransportResizeAction.TYPE), Mockito.any(), Mockito.any());
+        Mockito.verifyNoMoreInteractions(client, projectClient);
     }
 
     public void testPerformActionShrunkenIndexExists() throws Exception {
@@ -195,23 +192,20 @@ public class ResizeIndexStepTests extends AbstractStepTestCase<ResizeIndexStep> 
         ResizeIndexStep step = createRandomInstance();
 
         Mockito.doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<CreateIndexResponse> listener = (ActionListener<CreateIndexResponse>) invocation.getArguments()[1];
+            final ActionListener<CreateIndexResponse> listener = invocation.getArgument(2);
             listener.onResponse(new CreateIndexResponse(false, false, indexMetadata.getIndex().getName()));
             return null;
-        }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(TransportResizeAction.TYPE), Mockito.any(), Mockito.any());
 
         final var state = projectStateWithEmptyProject();
         performActionAndWait(step, indexMetadata, state, null);
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(projectClient).admin();
-        Mockito.verifyNoMoreInteractions(client);
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
+        Mockito.verify(projectClient).execute(Mockito.same(TransportResizeAction.TYPE), Mockito.any(), Mockito.any());
+        Mockito.verifyNoMoreInteractions(client, projectClient);
     }
 
-    public void testPerformActionFailure() throws Exception {
+    public void testPerformActionFailure() {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
@@ -224,20 +218,17 @@ public class ResizeIndexStepTests extends AbstractStepTestCase<ResizeIndexStep> 
         ResizeIndexStep step = createRandomInstance();
 
         Mockito.doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
+            final ActionListener<CreateIndexResponse> listener = invocation.getArgument(2);
             listener.onFailure(exception);
             return null;
-        }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(TransportResizeAction.TYPE), Mockito.any(), Mockito.any());
 
         final var state = projectStateWithEmptyProject();
         assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(projectClient).admin();
-        Mockito.verifyNoMoreInteractions(client);
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
+        Mockito.verify(projectClient).execute(Mockito.same(TransportResizeAction.TYPE), Mockito.any(), Mockito.any());
+        Mockito.verifyNoMoreInteractions(client, projectClient);
     }
 
 }

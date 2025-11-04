@@ -108,6 +108,34 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 int discretized = discretizedDimensions(dimensions);
                 return 2 * ((discretized + 7) / 8);
             }
+        },
+        FOUR_BIT_SYMMETRIC(2, (byte) 4, (byte) 4) {
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                ESVectorUtil.transposeHalfByte(quantized, destination);
+            }
+
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                ESVectorUtil.transposeHalfByte(quantized, destination);
+            }
+
+            @Override
+            public int getDocPackedLength(int dimensions) {
+                int discretized = discretizedDimensions(dimensions);
+                return 4 * ((discretized + 7) / 8);
+            }
+
+            @Override
+            public int getQueryPackedLength(int dimensions) {
+                return getDocPackedLength(dimensions);
+            }
+
+            @Override
+            public int discretizedDimensions(int dimensions) {
+                int totalBits = dimensions * 4;
+                return (totalBits + 7) / 8 * 8 / 4;
+            }
         };
 
         private final int id;

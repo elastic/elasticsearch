@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.downsample.DownsampleAction;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -34,6 +35,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstanc
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ilm.DownsampleActionTests.randomSamplingMethod;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -48,9 +50,10 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         return new DownsampleStep(
             stepKey,
             nextStepKey,
-            client,
             fixedInterval,
-            randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS)
+            randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS),
+            randomSamplingMethod(),
+            client
         );
     }
 
@@ -60,8 +63,9 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         StepKey nextKey = instance.getNextStepKey();
         DateHistogramInterval fixedInterval = instance.getFixedInterval();
         TimeValue timeout = instance.getWaitTimeout();
+        DownsampleConfig.SamplingMethod samplingMethod = instance.getSamplingMethod();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> fixedInterval = randomValueOtherThan(instance.getFixedInterval(), ConfigTestHelpers::randomInterval);
@@ -69,10 +73,11 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 instance.getWaitTimeout(),
                 () -> randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS)
             );
+            case 4 -> samplingMethod = randomValueOtherThan(instance.getSamplingMethod(), DownsampleActionTests::randomSamplingMethod);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DownsampleStep(key, nextKey, instance.getClientWithoutProject(), fixedInterval, timeout);
+        return new DownsampleStep(key, nextKey, fixedInterval, timeout, samplingMethod, instance.getClientWithoutProject());
     }
 
     @Override
@@ -80,9 +85,10 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         return new DownsampleStep(
             instance.getKey(),
             instance.getNextStepKey(),
-            instance.getClientWithoutProject(),
             instance.getFixedInterval(),
-            instance.getWaitTimeout()
+            instance.getWaitTimeout(),
+            instance.getSamplingMethod(),
+            instance.getClientWithoutProject()
         );
     }
 
@@ -257,7 +263,14 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
-                DownsampleStep completeStep = new DownsampleStep(randomStepKey(), nextKey, client, fixedInterval, timeout) {
+                DownsampleStep completeStep = new DownsampleStep(
+                    randomStepKey(),
+                    nextKey,
+                    fixedInterval,
+                    timeout,
+                    randomSamplingMethod(),
+                    client
+                ) {
                     @Override
                     void performDownsampleIndex(
                         ProjectId projectId,
@@ -278,7 +291,14 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
-                DownsampleStep doubleInvocationStep = new DownsampleStep(randomStepKey(), nextKey, client, fixedInterval, timeout) {
+                DownsampleStep doubleInvocationStep = new DownsampleStep(
+                    randomStepKey(),
+                    nextKey,
+                    fixedInterval,
+                    timeout,
+                    randomSamplingMethod(),
+                    client
+                ) {
                     @Override
                     void performDownsampleIndex(
                         ProjectId projectId,

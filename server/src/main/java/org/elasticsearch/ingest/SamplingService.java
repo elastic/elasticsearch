@@ -195,13 +195,17 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     }
 
     /**
-     * Potentially samples the given indexRequest, depending on the existing sampling configuration.
+     * Potentially samples the given indexRequest, depending on the existing sampling configuration. The request will be sampled against
+     * the sampling configurations of all indices it has been rerouted to (if it has been rerouted).
      * @param projectMetadata Used to get the sampling configuration
      * @param indexRequest The raw request to potentially sample
      * @param ingestDocument The IngestDocument used for evaluating any conditionals that are part of the sample configuration
      */
-    public void maybeSample(ProjectMetadata projectMetadata, String indexName, IndexRequest indexRequest, IngestDocument ingestDocument) {
-        maybeSample(projectMetadata, indexName, indexRequest, () -> ingestDocument);
+    public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) {
+        // The index history gives us the initially-requested index, as well as any indices it has been rerouted through
+        for (String index : ingestDocument.getIndexHistory()) {
+            maybeSample(projectMetadata, index, indexRequest, () -> ingestDocument);
+        }
     }
 
     private void maybeSample(
@@ -214,16 +218,24 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
             return;
         }
         long startTime = statsTimeSupplier.getAsLong();
-        SamplingConfiguration samplingConfig = getSamplingConfiguration(projectMetadata, indexName);
-        if (samplingConfig == null) {
-            return;
-        }
-        SoftReference<SampleInfo> sampleInfoReference = samples.compute(
-            new ProjectIndex(projectMetadata.id(), indexName),
-            (k, v) -> v == null || v.get() == null ? new SoftReference<>(new SampleInfo(samplingConfig.maxSamples())) : v
-        );
+        SoftReference<SampleInfo> sampleInfoReference = samples.compute(new ProjectIndex(projectMetadata.id(), indexName), (k, v) -> {
+            if (v == null || v.get() == null) {
+                SamplingConfiguration samplingConfig = getSamplingConfiguration(projectMetadata, indexName);
+                if (samplingConfig == null) {
+                    /*
+                     * Calls to getSamplingConfiguration() are relatively expensive. So we store the NONE object here to indicate that there
+                     * was no sampling configuration. This way we don't have to do the lookup every single time for every index that has no
+                     * sampling configuration. If a sampling configuration is added for this index, this NONE sample will be removed by
+                     * the cluster state change listener.
+                     */
+                    return new SoftReference<>(SampleInfo.NONE);
+                }
+                return new SoftReference<>(new SampleInfo(samplingConfig.maxSamples()));
+            }
+            return v;
+        });
         SampleInfo sampleInfo = sampleInfoReference.get();
-        if (sampleInfo == null) {
+        if (sampleInfo == null || sampleInfo == SampleInfo.NONE) {
             return;
         }
         SampleStats stats = sampleInfo.stats;
@@ -232,6 +244,10 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
             if (sampleInfo.isFull) {
                 stats.samplesRejectedForMaxSamplesExceeded.increment();
                 return;
+            }
+            SamplingConfiguration samplingConfig = getSamplingConfiguration(projectMetadata, indexName);
+            if (samplingConfig == null) {
+                return; // it was not null above, but has since become null because the index was deleted asynchronously
             }
             if (sampleInfo.getSizeInBytes() + indexRequest.source().length() > samplingConfig.maxSize().getBytes()) {
                 stats.samplesRejectedForSize.increment();
@@ -496,7 +512,12 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                 if (oldSampleConfigsMap.containsKey(indexName) && entry.getValue().equals(oldSampleConfigsMap.get(indexName)) == false) {
                     logger.debug("Removing sample info for {} because its configuration has changed", indexName);
                     samples.remove(new ProjectIndex(projectId, indexName));
-                }
+                } else if (oldSampleConfigsMap.containsKey(indexName) == false
+                    && samples.containsKey(new ProjectIndex(projectId, indexName))) {
+                        // There had previously been a NONE sample here. There is a real config now, so delete the NONE sample
+                        logger.debug("Removing sample info for {} because its configuration has been created", indexName);
+                        samples.remove(new ProjectIndex(projectId, indexName));
+                    }
             }
         }
     }
@@ -1040,6 +1061,7 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
      * This is used internally to store information about a sample in the samples Map.
      */
     private static final class SampleInfo {
+        public static final SampleInfo NONE = new SampleInfo(0);
         private final RawDocument[] rawDocuments;
         /*
          * This stores the maximum index in rawDocuments that has data currently. This is incremented speculatively before writing data to

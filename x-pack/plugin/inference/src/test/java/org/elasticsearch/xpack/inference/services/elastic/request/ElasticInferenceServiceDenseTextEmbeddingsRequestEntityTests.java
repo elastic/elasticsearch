@@ -25,7 +25,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequestEntityTests extend
         var entity = new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
             List.of("abc"),
             "my-model-id",
-            ElasticInferenceServiceUsageContext.UNSPECIFIED
+            ElasticInferenceServiceUsageContext.UNSPECIFIED,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
@@ -39,7 +40,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequestEntityTests extend
         var entity = new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
             List.of("abc", "def"),
             "my-model-id",
-            ElasticInferenceServiceUsageContext.UNSPECIFIED
+            ElasticInferenceServiceUsageContext.UNSPECIFIED,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
@@ -57,7 +59,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequestEntityTests extend
         var entity = new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
             List.of("abc"),
             "my-model-id",
-            ElasticInferenceServiceUsageContext.SEARCH
+            ElasticInferenceServiceUsageContext.SEARCH,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
@@ -73,7 +76,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequestEntityTests extend
         var entity = new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
             List.of("abc"),
             "my-model-id",
-            ElasticInferenceServiceUsageContext.INGEST
+            ElasticInferenceServiceUsageContext.INGEST,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
@@ -85,11 +89,29 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequestEntityTests extend
             """));
     }
 
+    public void testToXContent_SingleInput_DimensionsSpecified() throws IOException {
+        var entity = new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
+            List.of("abc"),
+            "my-model-id",
+            ElasticInferenceServiceUsageContext.UNSPECIFIED,
+            100
+        );
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "input": ["abc"],
+                "model": "my-model-id",
+                "dimensions": 100
+            }
+            """));
+    }
+
     public void testToXContent_MultipleInputs_SearchUsageContext() throws IOException {
         var entity = new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
             List.of("first input", "second input", "third input"),
             "my-dense-model",
-            ElasticInferenceServiceUsageContext.SEARCH
+            ElasticInferenceServiceUsageContext.SEARCH,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
@@ -109,7 +131,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequestEntityTests extend
         var entity = new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
             List.of("document one", "document two"),
             "embedding-model-v2",
-            ElasticInferenceServiceUsageContext.INGEST
+            ElasticInferenceServiceUsageContext.INGEST,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
@@ -128,7 +151,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequestEntityTests extend
         var entity = new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
             List.of(""),
             "my-model-id",
-            ElasticInferenceServiceUsageContext.UNSPECIFIED
+            ElasticInferenceServiceUsageContext.UNSPECIFIED,
+            null
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""

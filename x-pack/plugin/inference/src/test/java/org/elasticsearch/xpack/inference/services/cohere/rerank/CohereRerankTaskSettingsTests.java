@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.containsString;
 public class CohereRerankTaskSettingsTests extends AbstractWireSerializingTestCase<CohereRerankTaskSettings> {
 
     public static CohereRerankTaskSettings createRandom() {
-        var returnDocuments = randomBoolean() ? randomBoolean() : null;
+        var returnDocuments = randomOptionalBoolean();
         var topNDocsOnly = randomBoolean() ? randomIntBetween(1, 10) : null;
         var maxChunksPerDoc = randomBoolean() ? randomIntBetween(1, 20) : null;
 
@@ -149,6 +149,14 @@ public class CohereRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     @Override
     protected CohereRerankTaskSettings mutateInstance(CohereRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CohereRerankTaskSettingsTests::createRandom);
+        var topNDocsOnly = instance.getTopNDocumentsOnly();
+        var returnDocuments = instance.getReturnDocuments();
+        var maxChunksPerDoc = instance.getMaxChunksPerDoc();
+        switch (randomInt(2)) {
+            case 0 -> topNDocsOnly = randomValueOtherThan(topNDocsOnly, () -> randomFrom(randomIntBetween(1, 10), null));
+            case 1 -> returnDocuments = returnDocuments == null ? randomBoolean() : returnDocuments == false;
+            case 2 -> maxChunksPerDoc = randomValueOtherThan(maxChunksPerDoc, () -> randomFrom(randomIntBetween(1, 20), null));
+        }
+        return new CohereRerankTaskSettings(topNDocsOnly, returnDocuments, maxChunksPerDoc);
     }
 }

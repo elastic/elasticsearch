@@ -20,6 +20,7 @@ import java.util.Map;
  */
 public abstract class TextFamilyFieldType extends StringFieldType {
 
+    public static final String FALLBACK_FIELD_NAME_SUFFIX = "._original";
     private final boolean isSyntheticSourceEnabled;
     private final boolean isWithinMultiField;
 
@@ -51,7 +52,7 @@ public abstract class TextFamilyFieldType extends StringFieldType {
      * stored for whatever reason.
      */
     public String syntheticSourceFallbackFieldName() {
-        return name() + "._original";
+        return name() + FALLBACK_FIELD_NAME_SUFFIX;
     }
 
     /**

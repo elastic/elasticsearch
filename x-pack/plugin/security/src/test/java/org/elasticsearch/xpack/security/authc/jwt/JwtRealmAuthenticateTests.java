@@ -57,7 +57,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 3), // usersRange
             randomIntBetween(0, 0), // rolesRange
             randomIntBetween(0, 1), // jwtCacheSizeRange
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         final User user = randomUser(jwtIssuerAndRealm.issuer());
@@ -68,7 +69,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     }
 
     public void testJwtCache() throws Exception {
-        jwtIssuerAndRealms = generateJwtIssuerRealmPairs(1, 1, 1, 1, 1, 1, 99, false);
+        jwtIssuerAndRealms = generateJwtIssuerRealmPairs(1, 1, 1, 1, 1, 1, 99, false, false);
         JwtRealm realm = jwtIssuerAndRealms.get(0).realm();
         realm.expireAll();
         assertThat(realm.getJwtCache().count(), is(0));
@@ -100,7 +101,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 3), // usersRange
             randomIntBetween(0, 3), // rolesRange
             randomIntBetween(0, 1), // jwtCacheSizeRange
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(false));
@@ -125,7 +127,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 3), // usersRange
             randomIntBetween(0, 3), // rolesRange
             randomIntBetween(0, 1), // jwtCacheSizeRange
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(false));
@@ -267,6 +270,72 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         }
     }
 
+    public void testJwkUpdatesByReloadWithFile() throws Exception {
+        doTestJwkUpdatesByReload(false);
+    }
+
+    public void testJwkUpdatesByReloadWithWebServer() throws Exception {
+        doTestJwkUpdatesByReload(true);
+    }
+
+    private void doTestJwkUpdatesByReload(boolean httpsServer) throws Exception {
+        jwtIssuerAndRealms = generateJwtIssuerRealmPairs(
+            1, // realmsRange
+            1, // authzRange
+            1, // algsRange
+            1, // audiencesRange
+            1, // usersRange
+            1, // rolesRange
+            1, // jwtCacheSizeRange
+            httpsServer, // createHttpsServer,
+            true
+        );
+        JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
+
+        User user = randomUser(jwtIssuerAndRealm.issuer());
+        SecureString jwtJwks = randomJwt(jwtIssuerAndRealm, user);
+        SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks, clientSecret, 1);
+
+        List<JwtIssuer.AlgJwkPair> jwtIssuerJwks = jwtIssuerAndRealm.issuer().algAndJwksAll;
+
+        // clear all PKC JWK sets
+        configureJwkSets(jwtIssuerAndRealm, Collections.emptyList());
+        awaitAuthenticationFailure(jwtIssuerAndRealm, jwtJwks, clientSecret);
+
+        // restore PKC JWK sets
+        configureJwkSets(jwtIssuerAndRealm, jwtIssuerJwks);
+        awaitAuthenticationSuccess(jwtIssuerAndRealm, user, jwtJwks, clientSecret);
+    }
+
+    private void configureJwkSets(JwtIssuerAndRealm jwtIssuerAndRealm, List<JwtIssuer.AlgJwkPair> algAndJwks) throws Exception {
+        jwtIssuerAndRealm.issuer().setJwks(algAndJwks, false);
+        printJwtIssuer(jwtIssuerAndRealm.issuer());
+        copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
+    }
+
+    private void awaitAuthenticationFailure(JwtIssuerAndRealm jwtIssAndRealm, SecureString jwtJwks, SecureString clientSecret) {
+        assertTrue(waitUntil(() -> {
+            try {
+                verifyAuthenticateFailureHelper(jwtIssAndRealm, jwtJwks, clientSecret);
+                return true;
+            } catch (Exception | AssertionError e) {
+                return false;
+            }
+        }, 5, TimeUnit.SECONDS));
+    }
+
+    private void awaitAuthenticationSuccess(JwtIssuerAndRealm jwtIssAndRealm, User user, SecureString jwtJwks, SecureString clientSecret) {
+        assertTrue(waitUntil(() -> {
+            try {
+                doMultipleAuthcAuthzAndVerifySuccess(jwtIssAndRealm.realm(), user, jwtJwks, clientSecret, 1);
+                return true;
+            } catch (AssertionError e) {
+                return false;
+            }
+        }, 5, TimeUnit.SECONDS));
+    }
+
     /**
      * Test with authz realms.
      * @throws Exception Unexpected test failure
@@ -280,7 +349,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 3), // usersRange
             randomIntBetween(0, 3), // rolesRange
             randomIntBetween(0, 1), // jwtCacheSizeRange
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(true));
@@ -321,10 +391,10 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     public void testPkcJwkSetUrlNotFound() throws Exception {
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
-        final JwtIssuer jwtIssuer = createJwtIssuer(0, 12, 1, 1, 1, createHttpsServer);
+        final JwtIssuer jwtIssuer = createJwtIssuer(0, 12, 1, 1, 1, createHttpsServer, false);
         assertThat(jwtIssuer.httpsServer, notNullValue());
         try {
-            final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = createJwtRealmSettingsBuilder(jwtIssuer, 0, 0);
+            final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = createJwtRealmSettingsBuilder(jwtIssuer, 0, 0, false);
             final String configKey = RealmSettings.getFullSettingKey(jwtRealmSettingsBuilder.name(), JwtRealmSettings.PKC_JWKSET_PATH);
             final String configValue = jwtIssuer.httpsServer.url.replace("/valid/", "/invalid"); // right host, wrong path
             jwtRealmSettingsBuilder.settingsBuilder().put(configKey, configValue);
@@ -352,7 +422,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 1), // usersRange
             randomIntBetween(1, 1), // rolesRange
             randomIntBetween(0, 1), // jwtCacheSizeRange
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         final User user = randomUser(jwtIssuerAndRealm.issuer());
@@ -489,7 +560,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     public void testSameIssuerTwoRealmsDifferentClientSecrets() throws Exception {
         final int realmsCount = 2;
         final List<Realm> allRealms = new ArrayList<>(realmsCount); // two identical realms for same issuer, except different client secret
-        final JwtIssuer jwtIssuer = createJwtIssuer(0, 12, 1, 1, 1, false);
+        final JwtIssuer jwtIssuer = createJwtIssuer(0, 12, 1, 1, 1, false, false);
         printJwtIssuer(jwtIssuer);
         jwtIssuerAndRealms = new ArrayList<>(realmsCount);
         for (int i = 0; i < realmsCount; i++) {
@@ -560,7 +631,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 1), // usersRange
             randomIntBetween(1, 1), // rolesRange
             randomIntBetween(1, 1), // jwtCacheSizeRange set to 1 for constant eviction that is necessary to trigger the locking when put
-            false // createHttpsServer
+            false, // createHttpsServer
+            false // jwkSetReloadEnabled
         );
 
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();

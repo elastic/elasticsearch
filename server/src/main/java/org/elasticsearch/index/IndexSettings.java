@@ -668,6 +668,14 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> LOGSDB_SORT_ON_MESSAGE_TEMPLATE = Setting.boolSetting(
+        "index.logsdb.sort_on_message_template",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
     public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
         "index.mapping.use_doc_values_skipper",

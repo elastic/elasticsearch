@@ -40,7 +40,7 @@ public abstract sealed class DiskBBQBulkWriter {
      */
     public static DiskBBQBulkWriter fromBitSize(int bitSize, int bulkSize, IndexOutput out) {
         return switch (bitSize) {
-            case 1, 2 -> new SmallBitDiskBBQBulkWriter(bulkSize, out);
+            case 1, 2, 4 -> new SmallBitDiskBBQBulkWriter(bulkSize, out);
             case 7 -> new LargeBitDiskBBQBulkWriter(bulkSize, out);
             default -> throw new IllegalArgumentException("Unsupported bit size: " + bitSize);
         };

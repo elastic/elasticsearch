@@ -37,6 +37,8 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW;
 import static org.elasticsearch.health.node.selection.HealthNodeTaskExecutor.ENABLED_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN;
@@ -109,7 +111,12 @@ public class HealthMetadataService {
                 )
             );
 
-        Stream.of(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN)
+        Stream.of(
+            SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+            SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
+            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
+            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED
+        )
             .forEach(
                 setting -> clusterSettings.addSettingsUpdateConsumer(
                     setting,
@@ -225,6 +232,10 @@ public class HealthMetadataService {
             shardLimitsBuilder.maxShardsPerNode(value);
         } else if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey().equals(settingName)) {
             shardLimitsBuilder.maxShardsPerNodeFrozen(value);
+        } else if (SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey().equals(settingName)) {
+            shardLimitsBuilder.shardCapacityUnhealthyThresholdYellow(value);
+        } else if (SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey().equals(settingName)) {
+            shardLimitsBuilder.shardCapacityUnhealthyThresholdRed(value);
         }
 
         this.localHealthMetadata = healthMetadataBuilder.shardLimits(shardLimitsBuilder.build()).build();
@@ -242,7 +253,9 @@ public class HealthMetadataService {
             ),
             new HealthMetadata.ShardLimits(
                 SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings),
-                SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings)
+                SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings),
+                SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings),
+                SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
             )
         );
     }

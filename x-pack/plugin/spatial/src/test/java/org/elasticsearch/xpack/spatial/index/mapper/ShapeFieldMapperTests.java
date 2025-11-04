@@ -372,4 +372,9 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

@@ -1,60 +1,57 @@
- # Tests for hamming similarity function
- 
- similarityWithVectorField
- required_capability: hamming_vector_similarity_function
- required_capability: dense_vector_field_type_released
- 
+# Tests for hamming similarity function
+
+similarityWithVectorField
+required_capability: vector_similarity_functions_pushdown
+
 // tag::vector-hamming[]
- from colors
- | eval similarity = v_hamming(rgb_vector, [0, 255, 255]) 
- | sort similarity desc, color asc 
+from colors
+| eval similarity = v_hamming(rgb_byte_vector, [0, 127, 127]) 
+| sort similarity desc, color asc 
 // end::vector-hamming[]
- | limit 10
- | keep color, similarity
- ;
+| limit 10
+| keep color, similarity
+;
  
 // tag::vector-hamming-result[]
 color:text | similarity:double
-red        | 24.0
-orange     | 20.0
-gold       | 18.0
-indigo     | 18.0
-bisque     | 17.0
-maroon     | 17.0
-pink       | 17.0
-salmon     | 17.0
-black      | 16.0
-firebrick  | 16.0
+red        | 23.0
+indigo     | 19.0
+orange     | 19.0
+black      | 17.0
+gold       | 17.0
+bisque     | 16.0
+chartreuse | 16.0
+green      | 16.0
+maroon     | 16.0
+navy       | 16.0
 // end::vector-hamming-result[] 
 ;
 
 similarityAsPartOfExpression
-required_capability: hamming_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
-| eval score = round((1 + v_hamming(rgb_vector, [0, 255, 255]) / 2), 3) 
+| eval score = round((1 + v_hamming(rgb_byte_vector, [0, 127, 127]) / 2), 3) 
 | sort score desc, color asc 
 | limit 10
 | keep color, score
 ;
 
 color:text | score:double
-red        | 13.0
-orange     | 11.0
-gold       | 10.0
-indigo     | 10.0
-bisque     | 9.5
-maroon     | 9.5
-pink       | 9.5
-salmon     | 9.5
-black      | 9.0
-firebrick  | 9.0
+red        | 12.5
+indigo     | 10.5
+orange     | 10.5
+black      | 9.5
+gold       | 9.5
+bisque     | 9.0
+chartreuse | 9.0
+green      | 9.0
+maroon     | 9.0
+navy       | 9.0
 ;
 
 similarityWithLiteralVectors
-required_capability: hamming_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row a = 1
 | eval similarity = round(v_hamming([1, 2, 3], [0, 1, 2]), 3) 
@@ -66,25 +63,22 @@ similarity:double
 ;
 
 similarityWithStats
-required_capability: hamming_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
-| eval similarity = round(v_hamming(rgb_vector, [0, 255, 255]), 3) 
+| eval similarity = round(v_hamming(rgb_byte_vector, [0, 127, 127]), 3) 
 | stats avg = round(avg(similarity), 3), min = min(similarity), max = max(similarity)
 ;
 
 avg:double | min:double | max:double
-13.322     | 0.0        | 24.0
+12.932     | 3.0        | 23.0
 ;
 
 similarityWithNull
-required_capability: hamming_vector_similarity_function
-required_capability: vector_similarity_functions_support_null
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
-| eval similarity = v_hamming(rgb_vector, null) 
+| eval similarity = v_hamming(rgb_byte_vector, null) 
 | stats total_null = count(*) where similarity is null
 ;
 
@@ -93,9 +87,7 @@ total_null:long
 ;
 
 similarityWithRow
-required_capability: hamming_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row vector = to_dense_vector([1, 2, 3])
 | eval similarity = round(v_hamming(vector, [0, 1, 2]), 3) 
@@ -105,28 +97,123 @@ vector: dense_vector | similarity:double
 [1.0, 2.0, 3.0]      | 4.0
 ;
 
-similarityWithVectorField
-required_capability: hamming_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
+multipleEvalSimilarityWithVectorFields
+required_capability: vector_similarity_functions_pushdown
 
 from colors
-| eval query = to_dense_vector([0, 255, 255])
-| eval similarity = v_hamming(rgb_vector, query) 
+| eval similarity1 = v_hamming(rgb_byte_vector, [0, 127, 127]), similarity2 = v_hamming(rgb_byte_vector, [127, 0, 127]) / 2 + 1
+| sort similarity1 desc, similarity2 desc, color asc 
+| limit 10
+| keep color, similarity1, similarity2
+;
+
+color:text | similarity1:double | similarity2:double
+red        | 23.0               | 5.5
+indigo     | 19.0               | 6.5
+orange     | 19.0               | 6.5
+black      | 17.0               | 9.5
+gold       | 17.0               | 7.5
+chartreuse | 16.0               | 9.0
+green      | 16.0               | 9.0
+maroon     | 16.0               | 9.0
+navy       | 16.0               | 9.0
+bisque     | 16.0               | 5.0  
+;
+
+multipleSimilarityWithVectorFields
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval similarity = v_hamming(rgb_byte_vector, [0, 127, 127]) / 2 + v_hamming(rgb_byte_vector, [127, 0, 127]) / 2 + 1
 | sort similarity desc, color asc 
 | limit 10
 | keep color, similarity
 ;
- 
+
 color:text | similarity:double
-red        | 24.0
-orange     | 20.0
-gold       | 18.0
-indigo     | 18.0
-bisque     | 17.0
+black      | 18.0
+chartreuse | 17.0
+green      | 17.0
+lime       | 17.0
 maroon     | 17.0
-pink       | 17.0
-salmon     | 17.0
-black      | 16.0
-firebrick  | 16.0
+navy       | 17.0
+red        | 17.0
+cyan       | 16.0
+gold       | 16.0
+indigo     | 16.0
+;
+
+hammingWithLookupJoin
+required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
+
+from colors
+| eval s = v_hamming(rgb_byte_vector, [1, 2, 3])
+| lookup join colors_cmyk on id
+| keep color, s, cmyk_vector
+| sort s desc, color asc
+| limit 10
+;
+
+color:text  | s:double | cmyk_vector:dense_vector
+aqua marine | 18.0     | [50.0, 0.0, 17.0, 0.0]
+coral       | 18.0     | [0.0, 50.0, 69.0, 0.0]
+corn silk   | 17.0     | [0.0, 3.0, 14.0, 0.0]
+ivory       | 17.0     | [0.0, 0.0, 6.0, 0.0]
+sea shell   | 17.0     | [0.0, 4.0, 7.0, 0.0]
+white       | 17.0     | [0.0, 0.0, 0.0, 0.0]
+beige       | 16.0     | [0.0, 0.0, 10.0, 4.0]
+chartreuse  | 16.0     | [50.0, 0.0, 100.0, 0.0]
+crimson     | 16.0     | [0.0, 91.0, 73.0, 14.0]
+gainsboro   | 16.0     | [0.0, 0.0, 0.0, 14.0]
+;
+
+hammingWithLookupJoinOnJoinedField
+required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
+
+from colors
+| lookup join colors_cmyk on id
+| eval s = v_hamming(cmyk_vector, [1, 2, 3, 4])
+| keep color, s
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double
+green      | 14.0
+indigo     | 14.0
+maroon     | 14.0
+navy       | 14.0
+tomato     | 12.0
+blue       | 11.0
+chartreuse | 11.0
+firebrick  | 11.0
+golden rod | 11.0
+lime       | 11.0
+;
+
+hammingWithEnrich
+required_capability: vector_similarity_functions_pushdown
+required_capability: enrich_load
+
+from colors
+| eval s = v_hamming(rgb_byte_vector, [1, 2, 3])
+| enrich colors_policy
+| keep color_name, s
+| sort s desc, color_name asc
+| limit 10
+;
+
+color_name:text | s:double
+aqua marine     | 18.0
+coral           | 18.0
+corn silk       | 17.0
+ivory           | 17.0
+sea shell       | 17.0
+white           | 17.0
+beige           | 16.0
+chartreuse      | 16.0
+crimson         | 16.0
+gainsboro       | 16.0
 ;

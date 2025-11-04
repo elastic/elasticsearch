@@ -7,18 +7,18 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.admin.indices.shrink;
+package org.elasticsearch.upgrades;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import com.carrotsearch.randomizedtesting.annotations.Name;
 
-public class ResizeAction extends ActionType<CreateIndexResponse> {
+public class WildcardRollingUpgradeIT extends AbstractStringTypeRollingUpgradeIT {
 
-    public static final ResizeAction INSTANCE = new ResizeAction();
-    public static final String NAME = "indices:admin/resize";
-
-    private ResizeAction() {
-        super(NAME);
+    public WildcardRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
     }
 
+    @Override
+    public String stringType() {
+        return "wildcard";
+    }
 }

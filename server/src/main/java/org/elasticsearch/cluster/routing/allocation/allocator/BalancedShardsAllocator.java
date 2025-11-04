@@ -243,7 +243,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
+    public ShardAllocationDecision explainShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
         Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
@@ -821,7 +821,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     shardRouting,
                     bestNonPreferredShardMovementsTracker::shardIsBetterThanCurrent
                 );
-                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
+                if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
@@ -845,7 +845,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // invalid, so we must call `decideMove` again. If not, we know we haven't made any moves, and we
                 // can use the cached decision.
                 final var moveDecision = shardMoved ? decideMove(index, shardRouting) : storedShardMovement.moveDecision();
-                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
+                if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     executeMove(shardRouting, index, moveDecision, "move-non-preferred");
                     // Return after a single move so that the change can be simulated before further moves are made.
                     return true;
@@ -898,8 +898,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *   2. If the shard is allowed to remain on its current node, no attempt will be made to move the shard and
          *      {@link MoveDecision#getCanRemainDecision} will have a decision type of YES. All other fields in the object will be null.
          *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#getAllocationDecision()} will be
-         *      populated with the decision of moving to another node. If {@link MoveDecision#forceMove()} returns {@code true}, then
-         *      {@link MoveDecision#getTargetNode} will return a non-null value, otherwise the assignedNodeId will be null.
+         *      populated with the decision of moving to another node. If {@link MoveDecision#cannotRemainAndCanMove()} returns
+         *      {@code true}, then {@link MoveDecision#getTargetNode} will return a non-null value, otherwise the assignedNodeId will be
+         *      null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
          *
@@ -926,7 +927,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
             if (canRemain.type() != Decision.Type.NO && canRemain.type() != Decision.Type.NOT_PREFERRED) {
-                return MoveDecision.remain(canRemain);
+                return MoveDecision.createRemainYesDecision(canRemain);
             }
 
             // Check predicate to decide whether to assess movement options
@@ -942,7 +943,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * allocate on the minimal eligible node.
              */
             final MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocate);
-            if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
+            if (moveDecision.cannotRemainAndCannotMove()) {
                 final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
                 if (shardsOnReplacedNode) {
                     return decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);

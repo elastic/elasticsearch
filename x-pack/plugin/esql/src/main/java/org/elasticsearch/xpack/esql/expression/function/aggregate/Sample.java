@@ -101,11 +101,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
         ) Expression field,
         @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit
     ) {
-        this(source, field, Literal.TRUE, limit);
-    }
-
-    public Sample(Source source, Expression field, Expression filter, Expression limit) {
-        this(source, field, filter, limit, new Literal(Source.EMPTY, Randomness.get().nextLong(), DataType.LONG));
+        this(source, field, Literal.TRUE, NO_WINDOW, limit, new Literal(Source.EMPTY, Randomness.get().nextLong(), DataType.LONG));
     }
 
     /**
@@ -113,8 +109,8 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
      * samples of size N. The uuid is used to ensure that the optimizer does not optimize both
      * expressions to one, resulting in identical samples.
      */
-    public Sample(Source source, Expression field, Expression filter, Expression limit, Expression uuid) {
-        super(source, field, filter, List.of(limit, uuid));
+    public Sample(Source source, Expression field, Expression filter, Expression window, Expression limit, Expression uuid) {
+        super(source, field, filter, window, List.of(limit, uuid));
     }
 
     private Sample(StreamInput in) throws IOException {
@@ -151,12 +147,12 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
 
     @Override
     protected NodeInfo<Sample> info() {
-        return NodeInfo.create(this, Sample::new, field(), filter(), limitField(), uuid());
+        return NodeInfo.create(this, Sample::new, field(), filter(), window(), limitField(), uuid());
     }
 
     @Override
     public Sample replaceChildren(List<Expression> newChildren) {
-        return new Sample(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Sample(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
     }
 
     @Override
@@ -173,7 +169,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
 
     @Override
     public Sample withFilter(Expression filter) {
-        return new Sample(source(), field(), filter, limitField(), uuid());
+        return new Sample(source(), field(), filter, window(), limitField(), uuid());
     }
 
     Expression limitField() {

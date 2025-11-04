@@ -1,0 +1,5 @@
+pr: 135231
+summary: Improve retrying PIT contexts for read-only indices
+area: Search
+type: enhancement
+issues: []

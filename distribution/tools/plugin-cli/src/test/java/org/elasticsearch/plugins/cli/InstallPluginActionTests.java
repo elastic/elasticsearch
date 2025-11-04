@@ -66,18 +66,18 @@ import org.junit.Before;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
-import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.GroupPrincipal;
@@ -552,8 +552,8 @@ public class InstallPluginActionTests extends ESTestCase {
             pluginZip.getId() + "-does-not-exist",
             pluginZip.getLocation() + "-does-not-exist"
         );
-        final FileNotFoundException e = expectThrows(
-            FileNotFoundException.class,
+        final NoSuchFileException e = expectThrows(
+            NoSuchFileException.class,
             () -> installPlugins(List.of(pluginZip, nonexistentPluginZip), env.v1())
         );
         assertThat(e.getMessage(), containsString("does-not-exist"));
@@ -586,11 +586,27 @@ public class InstallPluginActionTests extends ESTestCase {
         assertPlugin("fake", pluginDir, env.v2());
     }
 
+    public void testCannotInstallFromInsidePluginsDirectory() throws Exception {
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
+        Path pluginZipInsidePlugins = env.v2().pluginsDir().resolve("fake.zip");
+        try (InputStream in = FileSystemUtils.openFileURLStream(new URL(pluginZip.getLocation()))) {
+            Files.copy(in, pluginZipInsidePlugins, StandardCopyOption.REPLACE_EXISTING);
+        }
+        String location = pluginZipInsidePlugins.toUri().toURL().toString();
+        assumeTrue("requires file URL scheme", location.startsWith("file:"));
+        InstallablePlugin modifiedPlugin = new InstallablePlugin("fake", location);
+        UserException e = expectThrows(UserException.class, () -> installPlugin(modifiedPlugin));
+        assertThat(
+            e.getMessage(),
+            startsWith("Installation of plugin in location [" + location + "] from inside the plugins directory is not permitted.")
+        );
+    }
+
     public void testMalformedUrlNotMaven() {
         // has two colons, so it appears similar to maven coordinates
         InstallablePlugin plugin = new InstallablePlugin("fake", "://host:1234");
-        MalformedURLException e = expectThrows(MalformedURLException.class, () -> installPlugin(plugin));
-        assertThat(e.getMessage(), containsString("no protocol"));
+        URISyntaxException e = expectThrows(URISyntaxException.class, () -> installPlugin(plugin));
+        assertThat(e.getMessage(), containsString("Expected scheme name"));
     }
 
     public void testFileNotMaven() {

@@ -520,4 +520,9 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     protected boolean supportsBulkLongBlockReading() {
         return true;
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
 }

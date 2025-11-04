@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
 import java.util.List;
@@ -78,15 +78,17 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         return List.of(sums, valueCounts, zeroThresholds, encodedHistograms, minima, maxima);
     }
 
-    void loadValue(int valueIndex, CompressedExponentialHistogram resultHistogram, BytesRef tempBytesRef) {
-        BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), tempBytesRef);
+    @Override
+    public ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch) {
+        BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), scratch.bytesRefScratch);
         double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
         long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
         double sum = sums.getDouble(sums.getFirstValueIndex(valueIndex));
         double min = valueCount == 0 ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(valueIndex));
         double max = valueCount == 0 ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(valueIndex));
         try {
-            resultHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
+            scratch.reusedHistogram.reset(zeroThreshold, valueCount, sum, min, max, bytes);
+            return scratch.reusedHistogram;
         } catch (IOException e) {
             throw new IllegalStateException("error loading histogram", e);
         }
@@ -374,4 +376,5 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         // this ensures proper equality with null blocks and should be unique enough for practical purposes
         return encodedHistograms.hashCode();
     }
+
 }

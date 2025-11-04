@@ -914,4 +914,24 @@ public class DateFieldMapperTests extends MapperTestCase {
             }
         }
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            new SortShortcutSupport(b -> b.field("type", "date"), b -> b.field("field", "2025-10-30T00:00:00"), true),
+            new SortShortcutSupport(b -> b.field("type", "date_nanos"), b -> b.field("field", "2025-10-30T00:00:00"), true),
+            new SortShortcutSupport(
+                IndexVersion.fromId(5000099),
+                b -> b.field("type", "date"),
+                b -> b.field("field", "2025-10-30T00:00:00"),
+                false
+            ),
+            new SortShortcutSupport(
+                IndexVersion.fromId(5000099),
+                b -> b.field("type", "date_nanos"),
+                b -> b.field("field", "2025-10-30T00:00:00"),
+                false
+            )
+        );
+    }
 }

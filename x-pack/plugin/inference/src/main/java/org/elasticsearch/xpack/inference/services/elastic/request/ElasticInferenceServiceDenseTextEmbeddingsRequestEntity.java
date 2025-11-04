@@ -19,12 +19,14 @@ import java.util.Objects;
 public record ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
     List<String> inputs,
     String modelId,
-    @Nullable ElasticInferenceServiceUsageContext usageContext
+    @Nullable ElasticInferenceServiceUsageContext usageContext,
+    @Nullable Integer dimensions
 ) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";
     private static final String MODEL_FIELD = "model";
     private static final String USAGE_CONTEXT = "usage_context";
+    private static final String DIMENSIONS = "dimensions";
 
     public ElasticInferenceServiceDenseTextEmbeddingsRequestEntity {
         Objects.requireNonNull(inputs);
@@ -47,6 +49,11 @@ public record ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
         // optional field
         if (Objects.nonNull(usageContext) && usageContext != ElasticInferenceServiceUsageContext.UNSPECIFIED) {
             builder.field(USAGE_CONTEXT, usageContext);
+        }
+
+        // optional field
+        if (Objects.nonNull(dimensions)) {
+            builder.field(DIMENSIONS, dimensions);
         }
 
         builder.endObject();

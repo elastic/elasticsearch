@@ -11,10 +11,12 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields;
@@ -25,6 +27,7 @@ import java.io.IOException;
 import java.util.HashMap;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
@@ -35,10 +38,10 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
         var projectId = randomAlphaOfLength(8);
         var model = randomAlphaOfLength(8);
         var dimensionsSetByUser = randomBoolean();
-        var maxInputTokens = randomFrom(new Integer[] { null, randomNonNegativeInt() });
+        var maxInputTokens = randomNonNegativeIntOrNull();
         var similarityMeasure = randomFrom(new SimilarityMeasure[] { null, randomFrom(SimilarityMeasure.values()) });
         var similarityMeasureString = similarityMeasure == null ? null : similarityMeasure.toString();
-        var dims = randomFrom(new Integer[] { null, randomNonNegativeInt() });
+        var dims = randomNonNegativeIntOrNull();
         var configurationParseContext = ConfigurationParseContext.PERSISTENT;
 
         var serviceSettings = GoogleVertexAiEmbeddingsServiceSettings.fromMap(new HashMap<>() {
@@ -146,7 +149,36 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
     @Override
     protected GoogleVertexAiEmbeddingsServiceSettings mutateInstance(GoogleVertexAiEmbeddingsServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, GoogleVertexAiEmbeddingsServiceSettingsTests::createRandom);
+        var location = instance.location();
+        var projectId = instance.projectId();
+        var modelId = instance.modelId();
+        var dimensionsSetByUser = instance.dimensionsSetByUser();
+        var maxInputTokens = instance.maxInputTokens();
+        var dimensions = instance.dimensions();
+        var similarity = instance.similarity();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(7)) {
+            case 0 -> location = randomValueOtherThan(location, () -> randomAlphaOfLength(10));
+            case 1 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(10));
+            case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
+            case 3 -> dimensionsSetByUser = dimensionsSetByUser == false;
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, ESTestCase::randomNonNegativeIntOrNull);
+            case 5 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 6 -> similarity = randomValueOtherThan(similarity, Utils::randomSimilarityMeasure);
+            case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new GoogleVertexAiEmbeddingsServiceSettings(
+            location,
+            projectId,
+            modelId,
+            dimensionsSetByUser,
+            maxInputTokens,
+            dimensions,
+            similarity,
+            rateLimitSettings
+        );
     }
 
     @Override
@@ -163,10 +195,11 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomBoolean(),
-            randomFrom(new Integer[] { null, randomNonNegativeInt() }),
-            randomFrom(new Integer[] { null, randomNonNegativeInt() }),
-            randomFrom(new SimilarityMeasure[] { null, randomFrom(SimilarityMeasure.values()) }),
+            randomNonNegativeIntOrNull(),
+            randomNonNegativeIntOrNull(),
+            randomFrom(new SimilarityMeasure[] { null, randomSimilarityMeasure() }),
             randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() })
         );
     }
+
 }

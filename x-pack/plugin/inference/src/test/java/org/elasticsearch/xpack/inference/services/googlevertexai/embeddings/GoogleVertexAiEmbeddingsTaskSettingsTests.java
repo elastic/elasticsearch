@@ -14,6 +14,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -226,7 +227,13 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
 
     @Override
     protected GoogleVertexAiEmbeddingsTaskSettings mutateInstance(GoogleVertexAiEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, GoogleVertexAiEmbeddingsTaskSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var autoTruncate = randomValueOtherThan(instance.autoTruncate(), ESTestCase::randomOptionalBoolean);
+            return new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, instance.getInputType());
+        } else {
+            var inputType = randomValueOtherThan(instance.getInputType(), () -> randomFrom(randomWithoutUnspecified(), null));
+            return new GoogleVertexAiEmbeddingsTaskSettings(instance.autoTruncate(), inputType);
+        }
     }
 
     @Override
@@ -243,7 +250,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
 
     private static GoogleVertexAiEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomWithoutUnspecified() : null;
-        var autoTruncate = randomFrom(new Boolean[] { null, randomBoolean() });
+        var autoTruncate = randomOptionalBoolean();
         return new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, inputType);
     }
 

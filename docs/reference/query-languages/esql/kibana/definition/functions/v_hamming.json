@@ -24,7 +24,7 @@
     }
   ],
   "examples" : [
-    " from colors\n | eval similarity = v_hamming(rgb_vector, [0, 255, 255])\n | sort similarity desc, color asc"
+    "from colors\n| eval similarity = v_hamming(rgb_byte_vector, [0, 127, 127])\n| sort similarity desc, color asc"
   ],
   "preview" : true,
   "snapshot_only" : true

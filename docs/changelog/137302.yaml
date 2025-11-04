@@ -1,0 +1,5 @@
+pr: 137302
+summary: Add audit log testing for cert-based cross-cluster authentication
+area: Security
+type: enhancement
+issues: []

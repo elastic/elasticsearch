@@ -94,10 +94,14 @@ public class CrossProjectIndexExpressionsRewriter {
         @Nullable String originProjectAlias,
         Set<String> allProjectAliases
     ) {
-        assert originProjectAlias != null || allProjectAliases.isEmpty() == false
-            : "either origin project or linked projects must be in project target set";
-
         maybeThrowOnUnsupportedResource(indexExpression);
+
+        // Always 404 when no project is available for index resolution. This is matching error handling behaviour for resolving
+        // projects with qualified index patterns such as "missing-*:index".
+        if (originProjectAlias == null && allProjectAliases.isEmpty()) {
+            // TODO: add project_routing string to the exception message
+            throw new NoMatchingProjectException("no matching project after applying project routing");
+        }
 
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
         final IndexRewriteResult rewrittenExpression;

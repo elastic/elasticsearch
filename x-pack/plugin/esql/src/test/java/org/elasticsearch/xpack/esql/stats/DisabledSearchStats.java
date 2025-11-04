@@ -19,7 +19,8 @@ public class DisabledSearchStats implements SearchStats {
 
     @Override
     public boolean isIndexed(FieldName field) {
-        return true;
+        // Vector fields are not indexed, so vector similarity functions are be evaluated via evaluator instead of pushed down in CSV tests
+        return field.string().contains("vector") == false;
     }
 
     @Override

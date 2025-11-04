@@ -660,7 +660,7 @@ public abstract class MappedFieldType {
          * loading many fields. The {@link MappedFieldType} can chose a different
          * method to load the field if it needs to.
          */
-        STORED;
+        STORED
     }
 
     /**
@@ -703,6 +703,18 @@ public abstract class MappedFieldType {
          * The {@code _field_names} field mapper, mostly used to check if it is enabled.
          */
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
+
+        @Nullable
+        default BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+            return null;
+        }
     }
+
+    /**
+     * Marker interface that contains the configuration needed to transform loaded values into blocks.
+     * Is retrievable from the {@link BlockLoaderContext}. The {@link MappedFieldType} can use this configuration to choose the appropriate
+     * implementation for transforming loaded values into blocks.
+     */
+    public interface BlockLoaderFunctionConfig {}
 
 }

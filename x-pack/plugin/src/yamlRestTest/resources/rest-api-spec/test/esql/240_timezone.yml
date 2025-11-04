@@ -1,0 +1,188 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ global_timezone_parameter ]
+      test_runner_features: [ capabilities ]
+      reason: "Check timezone capability"
+  - do:
+      indices.create:
+        index: logs
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+
+  - do:
+      bulk:
+        index: tzs
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2025-05-31T00:00:00Z" }
+          - { "index": { } }
+          - { "@timestamp": "2025-05-31T01:00:00Z" }
+          - { "index": { } }
+          - { "@timestamp": "2025-05-31T22:00:00Z" }
+          - { "index": { } }
+          - { "@timestamp": "2025-05-31T23:00:00Z" }
+
+---
+Default UTC:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM tzs
+            | EVAL
+                hour=DATE_EXTRACT("hour_of_day", @timestamp),
+                day_name=DAY_NAME(@timestamp),
+                month_name=MONTH_NAME(@timestamp)
+            | SORT @timestamp ASC
+            | LIMIT 5
+
+  - length: { columns: 4 }
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.1.name: "hour" }
+  - match: { columns.2.name: "day_name" }
+  - match: { columns.3.name: "month_name" }
+
+  - length: { values: 4 }
+  - match: { values.0.0: "2025-05-31T00:00:00.000Z" }
+  - match: { values.0.1: 0 }
+  - match: { values.0.2: "Saturday" }
+  - match: { values.0.3: "May" }
+  - match: { values.1.0: "2025-05-31T01:00:00.000Z" }
+  - match: { values.1.1: 1 }
+  - match: { values.1.2: "Saturday" }
+  - match: { values.1.3: "May" }
+  - match: { values.2.0: "2025-05-31T22:00:00.000Z" }
+  - match: { values.2.1: 22 }
+  - match: { values.2.2: "Saturday" }
+  - match: { values.2.3: "May" }
+  - match: { values.3.0: "2025-05-31T23:00:00.000Z" }
+  - match: { values.3.1: 23 }
+  - match: { values.3.2: "Saturday" }
+  - match: { values.3.3: "May" }
+
+---
+Paris tz with SET:
+  - do:
+      esql.query:
+        body:
+          query: |
+            SET time_zone="Europe/Paris";
+            FROM tzs
+            | EVAL
+                hour=DATE_EXTRACT("hour_of_day", @timestamp),
+                day_name=DAY_NAME(@timestamp),
+                month_name=MONTH_NAME(@timestamp)
+            | SORT @timestamp ASC
+            | LIMIT 5
+
+  - length: { columns: 4 }
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.1.name: "hour" }
+  - match: { columns.2.name: "day_name" }
+  - match: { columns.3.name: "month_name" }
+
+  - length: { values: 4 }
+  - match: { values.0.0: "2025-05-31T00:00:00.000Z" }
+  - match: { values.0.1: 2 }
+  - match: { values.0.2: "Saturday" }
+  - match: { values.0.3: "May" }
+  - match: { values.1.0: "2025-05-31T01:00:00.000Z" }
+  - match: { values.1.1: 3 }
+  - match: { values.1.2: "Saturday" }
+  - match: { values.1.3: "May" }
+  - match: { values.2.0: "2025-05-31T22:00:00.000Z" }
+  - match: { values.2.1: 0 }
+  - match: { values.2.2: "Sunday" }
+  - match: { values.2.3: "June" }
+  - match: { values.3.0: "2025-05-31T23:00:00.000Z" }
+  - match: { values.3.1: 1 }
+  - match: { values.3.2: "Sunday" }
+  - match: { values.3.3: "June" }
+
+---
+Paris tz with request parameter:
+  - do:
+      esql.query:
+        body:
+          time_zone: "Europe/Paris"
+          query: |
+            FROM tzs
+            | EVAL
+                hour=DATE_EXTRACT("hour_of_day", @timestamp),
+                day_name=DAY_NAME(@timestamp),
+                month_name=MONTH_NAME(@timestamp)
+            | SORT @timestamp ASC
+            | LIMIT 5
+
+  - length: { columns: 4 }
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.1.name: "hour" }
+  - match: { columns.2.name: "day_name" }
+  - match: { columns.3.name: "month_name" }
+
+  - length: { values: 4 }
+  - match: { values.0.0: "2025-05-31T00:00:00.000Z" }
+  - match: { values.0.1: 2 }
+  - match: { values.0.2: "Saturday" }
+  - match: { values.0.3: "May" }
+  - match: { values.1.0: "2025-05-31T01:00:00.000Z" }
+  - match: { values.1.1: 3 }
+  - match: { values.1.2: "Saturday" }
+  - match: { values.1.3: "May" }
+  - match: { values.2.0: "2025-05-31T22:00:00.000Z" }
+  - match: { values.2.1: 0 }
+  - match: { values.2.2: "Sunday" }
+  - match: { values.2.3: "June" }
+  - match: { values.3.0: "2025-05-31T23:00:00.000Z" }
+  - match: { values.3.1: 1 }
+  - match: { values.3.2: "Sunday" }
+  - match: { values.3.3: "June" }
+
+---
+Set overrides request parameter:
+  - do:
+      esql.query:
+        body:
+          time_zone: "Europe/Paris"
+          query: |
+            SET time_zone="+04:00";
+            FROM tzs
+            | EVAL
+                hour=DATE_EXTRACT("hour_of_day", @timestamp),
+                day_name=DAY_NAME(@timestamp),
+                month_name=MONTH_NAME(@timestamp)
+            | SORT @timestamp ASC
+            | LIMIT 5
+
+  - length: { columns: 4 }
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.1.name: "hour" }
+  - match: { columns.2.name: "day_name" }
+  - match: { columns.3.name: "month_name" }
+
+  - length: { values: 4 }
+  - match: { values.0.0: "2025-05-31T00:00:00.000Z" }
+  - match: { values.0.1: 4 }
+  - match: { values.0.2: "Saturday" }
+  - match: { values.0.3: "May" }
+  - match: { values.1.0: "2025-05-31T01:00:00.000Z" }
+  - match: { values.1.1: 5 }
+  - match: { values.1.2: "Saturday" }
+  - match: { values.1.3: "May" }
+  - match: { values.2.0: "2025-05-31T22:00:00.000Z" }
+  - match: { values.2.1: 2 }
+  - match: { values.2.2: "Sunday" }
+  - match: { values.2.3: "June" }
+  - match: { values.3.0: "2025-05-31T23:00:00.000Z" }
+  - match: { values.3.1: 3 }
+  - match: { values.3.2: "Sunday" }
+  - match: { values.3.3: "June" }

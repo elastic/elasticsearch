@@ -795,7 +795,7 @@ public class AllocationService {
         if (allocateDecision.isDecisionTaken()) {
             return new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         } else {
-            return shardsAllocator.decideShardAllocation(shardRouting, allocation);
+            return shardsAllocator.explainShardAllocation(shardRouting, allocation);
         }
     }
 

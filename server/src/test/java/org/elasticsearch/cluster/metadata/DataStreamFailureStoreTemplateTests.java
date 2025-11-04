@@ -146,7 +146,8 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
                         template.lifecycleType(),
                         template.enabled(),
                         template.dataRetention().get(),
-                        template.downsampling().get()
+                        template.downsamplingRounds().get(),
+                        template.downsamplingMethod().get()
                     )
                 )
         );

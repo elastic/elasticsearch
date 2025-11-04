@@ -171,6 +171,22 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """;
     }
 
+    static String mockDenseServiceModelConfig(int dimensions) {
+        return Strings.format("""
+            {
+              "task_type": "text_embedding",
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_dense_vector_model",
+                "api_key": "abc64",
+                "dimensions": %s
+              },
+              "task_settings": {
+              }
+            }
+            """, dimensions);
+    }
+
     static String mockRerankServiceModelConfig() {
         return """
             {

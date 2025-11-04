@@ -496,10 +496,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 }
             }""";
 
-        final String[] validSubojectsValues = ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG
-            ? new String[] { "false", "true", "auto" }
-            : new String[] { "false", "true" };
-
+        final String[] validSubojectsValues = new String[] { "false", "true" };
         {
             String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false").replace("<FIELD_NAME>", "_project");
             Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));

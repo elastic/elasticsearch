@@ -1,6 +1,6 @@
 ---
 applies_to:
-  stack: 9.3
+  stack: all
   serverless: ga
 ---
 

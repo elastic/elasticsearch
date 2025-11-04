@@ -91,13 +91,15 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         if (randomBoolean()) {
             Objects.requireNonNull(validatorRequestQueue.poll()).listener().onResponse(null);
             channel.runPendingTasks();
-            assertSame(validRequest, channel.readInbound());
+            TraceableHttpRequest request = channel.readInbound();
+            assertSame(validRequest, request.getDelegate());
             channel.read();
             asInstanceOf(LastHttpContent.class, channel.readInbound()).release();
         } else {
             Objects.requireNonNull(validatorRequestQueue.poll()).listener().onFailure(new Exception("simulated validation failure"));
             channel.runPendingTasks();
-            assertSame(validRequest, channel.readInbound());
+            TraceableHttpRequest request = channel.readInbound();
+            assertSame(validRequest, request.getDelegate());
         }
 
         // handle the second request, which is read from the buffer and passed on without validation
@@ -136,13 +138,13 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
             }
             channel.runPendingTasks();
 
-            var gotRequest = channel.readInbound();
+            TraceableHttpRequest gotRequest = channel.readInbound();
             assertEquals(
                 "should set decoder result failure for invalid request",
                 shouldPassValidation,
                 ((HttpRequest) gotRequest).decoderResult().isSuccess()
             );
-            assertEquals(request, gotRequest);
+            assertEquals(request, gotRequest.getDelegate());
 
             channel.writeInbound(content);
             channel.writeInbound(last);
@@ -295,7 +297,8 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         if (randomBoolean()) {
             channel.read(); // optional read
         }
-        assertSame(nextRequest, channel.readInbound());
+        TraceableHttpRequest request = channel.readInbound();
+        assertSame(nextRequest, request.getDelegate());
         assertFalse(channel.hasPendingTasks());
     }
 
@@ -304,7 +307,8 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         final var httpRequest = newHttpRequest();
         channel.writeInbound(httpRequest);
         assertFalse(channel.hasPendingTasks());
-        assertSame(httpRequest, channel.readInbound());
+        TraceableHttpRequest request = channel.readInbound();
+        assertEquals(httpRequest, request.getDelegate());
     }
 
     record ValidationRequest(HttpRequest request, Channel channel, ActionListener<Void> listener) {}

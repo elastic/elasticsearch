@@ -97,4 +97,26 @@ public class TraceableHttpRequest implements Traceable, HttpRequest {
     public String getSpanId() {
         return spanId;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof HttpRequest) {
+            return obj.equals(delegate);
+        }
+        return delegate.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return delegate.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return delegate.toString();
+    }
+
+    public HttpRequest getDelegate() {
+        return delegate;
+    }
 }

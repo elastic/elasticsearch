@@ -203,7 +203,8 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
                 }
             }
             channel.runPendingTasks();
-            assertThat(channel.readInbound(), sameInstance(request1));
+            TraceableHttpRequest request = channel.readInbound();
+            assertThat(request.getDelegate(), sameInstance(request1));
             channel.read();
             if (content1 != null && success) {
                 assertThat(channel.readInbound(), sameInstance(content1));

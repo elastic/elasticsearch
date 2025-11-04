@@ -45,8 +45,6 @@ public class TimeSeriesAggregate extends Aggregate {
 
     private final Bucket timeBucket;
 
-    private final boolean hasTopLevelOverTimeFunctions;
-
     public TimeSeriesAggregate(
         Source source,
         LogicalPlan child,
@@ -54,37 +52,19 @@ public class TimeSeriesAggregate extends Aggregate {
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket
     ) {
-        this(source, child, groupings, aggregates, timeBucket, false);
-    }
-
-    public TimeSeriesAggregate(
-        Source source,
-        LogicalPlan child,
-        List<Expression> groupings,
-        List<? extends NamedExpression> aggregates,
-        Bucket timeBucket,
-        boolean hasTopLevelOverTimeFunctions
-    ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
-        this.hasTopLevelOverTimeFunctions = hasTopLevelOverTimeFunctions;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
-        // Shouldn't need to be serialized; at least not yet
-        this.hasTopLevelOverTimeFunctions = false;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
-    }
-
-    public boolean hasTopLevelOverTimeFunctions() {
-        return hasTopLevelOverTimeFunctions;
     }
 
     @Override
@@ -94,17 +74,17 @@ public class TimeSeriesAggregate extends Aggregate {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, hasTopLevelOverTimeFunctions);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, hasTopLevelOverTimeFunctions);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, hasTopLevelOverTimeFunctions);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket);
     }
 
     @Override
@@ -253,54 +233,30 @@ public class TimeSeriesAggregate extends Aggregate {
                         );
                     }
                 }
-                if (outer instanceof TimeSeriesAggregateFunction ts) {
-                    outer.field()
+                outer.field().forEachDown(AggregateFunction.class, nested -> {
+                    if (nested instanceof TimeSeriesAggregateFunction == false) {
+                        fail(
+                            this,
+                            "cannot use aggregate function [{}] inside aggregation function [{}];"
+                                + "only time-series aggregation function can be used inside another aggregation function",
+                            nested.sourceText(),
+                            outer.sourceText()
+                        );
+                    }
+                    nested.field()
                         .forEachDown(
                             AggregateFunction.class,
-                            nested -> failures.add(
+                            nested2 -> failures.add(
                                 fail(
                                     this,
-                                    "cannot use aggregate function [{}] inside time-series aggregation function [{}]",
+                                    "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
                                     nested.sourceText(),
-                                    outer.sourceText()
+                                    nested2.sourceText()
                                 )
                             )
                         );
-                    // reject `TS metrics | STATS rate(requests)`
-                    // TODO: support this
-                    failures.add(
-                        fail(
-                            ts,
-                            "time-series aggregate function [{}] can only be used with the TS command "
-                                + "and inside another aggregate function",
-                            ts.sourceText()
-                        )
-                    );
-                } else {
-                    outer.field().forEachDown(AggregateFunction.class, nested -> {
-                        if (nested instanceof TimeSeriesAggregateFunction == false) {
-                            fail(
-                                this,
-                                "cannot use aggregate function [{}] inside aggregation function [{}];"
-                                    + "only time-series aggregation function can be used inside another aggregation function",
-                                nested.sourceText(),
-                                outer.sourceText()
-                            );
-                        }
-                        nested.field()
-                            .forEachDown(
-                                AggregateFunction.class,
-                                nested2 -> failures.add(
-                                    fail(
-                                        this,
-                                        "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
-                                        nested.sourceText(),
-                                        nested2.sourceText()
-                                    )
-                                )
-                            );
-                    });
-                }
+                });
+                // }
             }
         }
     }

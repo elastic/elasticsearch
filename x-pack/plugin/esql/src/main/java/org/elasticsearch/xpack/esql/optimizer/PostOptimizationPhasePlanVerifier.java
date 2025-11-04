@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
@@ -85,7 +86,19 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 a -> a instanceof TimeSeriesAggregate ts
                     && ts.aggregates().stream().anyMatch(g -> Alias.unwrap(g) instanceof Values v && v.field().dataType() == DataType.TEXT)
             );
-            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries;
+            // TranslateTimeSeriesAggregate creates a Project with an Eval child that contains additional attributes (like _tsid)
+            // that weren't in the original query.
+            int optimizedOutputSize = optimizedPlan.output().size();
+            int expectedOutputSize = expectedOutputAttributes.size();
+
+            boolean hasTranslatedTimeSeriesAggregate = optimizedOutputSize > expectedOutputSize
+                && optimizedOutputSize - expectedOutputSize == 1
+                && optimizedPlan.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.TSID_FIELD));
+
+            boolean ignoreError = hasProjectAwayColumns
+                || hasLookupJoinExec
+                || hasTextGroupingInTimeSeries
+                || hasTranslatedTimeSeriesAggregate;
             if (ignoreError == false) {
                 failures.add(
                     fail(

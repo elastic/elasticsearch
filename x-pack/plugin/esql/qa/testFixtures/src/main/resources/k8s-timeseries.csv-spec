@@ -720,25 +720,14 @@ mx:integer | tbucket:datetime
 1716       | 2024-05-10T00:00:00.000Z
 ;
 
-
-
-
-Group by all for over time agg with no wrapper, no time bucket  
+GroupByAll
 required_capability: metrics_command  
 required_capability: metrics_group_by_all
   
-TS k8s   
-| STATS count = count_over_time(network.cost) 
-;  
+TS k8s
+| STATS count = count_over_time(network.cost)
+;
   
-count:long | cluster:keyword | pod:keyword  
-13         | staging         | one
-20         | staging         | two
-24         | staging         | three
-29         | qa              | one
-29         | qa              | two
-24         | qa              | three
-23         | prod            | one
-16         | prod            | two
-22         | prod            | three
+count:long  | _tsid:string
+1           | KEgPmt8JTKe7WA6iB8FLYKbvei62ccUzlcoJwx6Ltf34ddg5heNyQIA
 ;  

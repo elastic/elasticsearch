@@ -212,8 +212,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveLookupTables(),
             new ResolveFunctions(),
             new ResolveInference(),
-            new DateMillisToNanosInEsRelation(),
-            new TimeSeriesGroupByAll()
+            new DateMillisToNanosInEsRelation()
         ),
         new Batch<>(
             "Resolution",
@@ -527,20 +526,59 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Holder<Boolean> changed = new Holder<>(false);
             List<Expression> groupings = aggregate.groupings();
             List<? extends NamedExpression> aggregates = aggregate.aggregates();
+
+            Holder<Attribute> tsidAttribute = new Holder<>();
+            LogicalPlan newChild = aggregate.child();
+            if (aggregate instanceof TimeSeriesAggregate) {
+                for (Expression g : groupings) {
+                    if (g instanceof UnresolvedAttribute ua && ua.name().equals(MetadataAttribute.TSID_FIELD)) {
+                        boolean foundInOutput = childrenOutput.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TSID_FIELD));
+                        if (foundInOutput == false) {
+                            MetadataAttribute tsid = MetadataAttribute.create(g.source(), MetadataAttribute.TSID_FIELD);
+                            if (tsid != null) {
+                                tsidAttribute.set(tsid);
+                                newChild = aggregate.child().transformUp(EsRelation.class, r -> {
+                                    if (r.indexMode() == IndexMode.TIME_SERIES && r.outputSet().contains(tsid) == false) {
+                                        return new EsRelation(
+                                            r.source(),
+                                            r.indexPattern(),
+                                            r.indexMode(),
+                                            r.indexNameWithModes(),
+                                            CollectionUtils.combine(r.output(), tsid)
+                                        );
+                                    }
+                                    return r;
+                                });
+                                childrenOutput.add(tsid);
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
             // first resolve groupings since the aggs might refer to them
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
-            if (Resolvables.resolved(groupings) == false) {
+            if (Resolvables.resolved(groupings) == false || newChild != aggregate.child()) {
                 List<Expression> newGroupings = new ArrayList<>(groupings.size());
                 for (Expression g : groupings) {
-                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
-                    if (resolved != g) {
+                    Expression resolved;
+                    if (g instanceof UnresolvedAttribute ua
+                        && ua.name().equals(MetadataAttribute.TSID_FIELD)
+                        && tsidAttribute.get() != null) {
+                        resolved = tsidAttribute.get();
                         changed.set(true);
+                    } else {
+                        resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                        if (resolved != g) {
+                            changed.set(true);
+                        }
                     }
                     newGroupings.add(resolved);
                 }
                 groupings = newGroupings;
-                if (changed.get()) {
-                    aggregate = aggregate.with(aggregate.child(), newGroupings, aggregate.aggregates());
+                if (changed.get() || newChild != aggregate.child()) {
+                    aggregate = aggregate.with(newChild, newGroupings, aggregate.aggregates());
                     changed.set(false);
                 }
             }

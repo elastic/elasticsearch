@@ -216,7 +216,15 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
 
     @Override
     protected JinaAIEmbeddingsTaskSettings mutateInstance(JinaAIEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, JinaAIEmbeddingsTaskSettingsTests::createRandom);
+        InputType inputType = instance.getInputType();
+        Boolean lateChunking = instance.getLateChunking();
+        switch (randomInt(1)) {
+            case 0 -> inputType = randomValueOtherThan(inputType, () -> randomFrom(VALID_INPUT_TYPE_VALUES));
+            case 1 -> lateChunking = lateChunking == null ? randomBoolean() : lateChunking == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

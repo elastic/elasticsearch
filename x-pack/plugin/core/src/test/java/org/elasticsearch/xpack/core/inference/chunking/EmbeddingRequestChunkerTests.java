@@ -906,6 +906,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             chunkingSettings
         ).batchRequestsWithListeners(finalListener);
 
+        // There are 3 inputs that generate 8 chunks. If we are allowing batching of chunks across inputs, they will be placed into 1 batch.
+        // Otherwise, they will be split into 3 batches (1 per input).
         int expectedNumberOfBatches = batchChunksAcrossInputs ? 1 : 3;
         assertThat(batches, hasSize(expectedNumberOfBatches));
         if (batchChunksAcrossInputs) {

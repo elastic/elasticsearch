@@ -1667,81 +1667,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-
-            if (Boolean.TRUE.equals(model.getTaskSettings().getLateChunking())) {
-                var responseJson = """
-                    {
-                        "model": "jina-clip-v2",
-                        "object": "list",
-                        "usage": {
-                            "total_tokens": 5,
-                            "prompt_tokens": 5
-                        },
-                        "data": [
-                            {
-                                "object": "embedding",
-                                "index": 0,
-                                "embedding": [
-                                    0.123,
-                                    -0.123
-                                ]
-                            }
-                        ]
-                    }
-                    """;
-                webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-                var responseJson2 = """
-                    {
-                        "model": "jina-clip-v2",
-                        "object": "list",
-                        "usage": {
-                            "total_tokens": 5,
-                            "prompt_tokens": 5
-                        },
-                        "data": [
-                            {
-                                "object": "embedding",
-                                "index": 0,
-                                "embedding": [
-                                    0.223,
-                                    -0.223
-                                ]
-                            }
-                        ]
-                    }
-                    """;
-                webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson2));
-            } else {
-                var responseJson = """
-                    {
-                        "model": "jina-clip-v2",
-                        "object": "list",
-                        "usage": {
-                            "total_tokens": 5,
-                            "prompt_tokens": 5
-                        },
-                        "data": [
-                            {
-                                "object": "embedding",
-                                "index": 0,
-                                "embedding": [
-                                    0.123,
-                                    -0.123
-                                ]
-                            },
-                            {
-                                "object": "embedding",
-                                "index": 1,
-                                "embedding": [
-                                    0.223,
-                                    -0.223
-                                ]
-                            }
-                        ]
-                    }
-                    """;
-                webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            }
+            queueResponsesForChunkedInfer(model.getTaskSettings().getLateChunking());
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             // 2 input
@@ -1781,6 +1707,83 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                     0.0f
                 );
             }
+        }
+    }
+
+    private void queueResponsesForChunkedInfer(Boolean lateChunking) {
+        if (Boolean.TRUE.equals(lateChunking)) {
+            var responseJson = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        }
+                    ]
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            var responseJson2 = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.223,
+                                -0.223
+                            ]
+                        }
+                    ]
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson2));
+        } else {
+            var responseJson = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        },
+                        {
+                            "object": "embedding",
+                            "index": 1,
+                            "embedding": [
+                                0.223,
+                                -0.223
+                            ]
+                        }
+                    ]
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
         }
     }
 

@@ -378,11 +378,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             new MockFieldAttributeCommand(
                 EMPTY,
                 new Row(EMPTY, List.of()),
-                new FieldAttribute(
-                    EMPTY,
-                    "last_name",
-                    new EsField("last_name", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-                )
+                new FieldAttribute(EMPTY, "last_name", new EsField("last_name", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             ),
             testStats
         );
@@ -1437,12 +1433,12 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         String query = String.format(
             Locale.ROOT,
             """
-            from test_all
-            | eval s1 = %s, s2 = %s * 2 / 3
-            | where %s + 5 + %s > 0
-            | eval r2 = %s + %s
-            | keep s1, s2, r2
-            """,
+                from test_all
+                | eval s1 = %s, s2 = %s * 2 / 3
+                | where %s + 5 + %s > 0
+                | eval r2 = %s + %s
+                | keep s1, s2, r2
+                """,
             testCase1.toQuery(),
             testCase1.toQuery(),
             testCase1.toQuery(),
@@ -1524,8 +1520,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     private record SimilarityFunctionTestCase(String esqlFunction, String fieldName, float[] vector, String functionName) {
 
         public String toQuery() {
-            String params = randomBoolean() ? fieldName + ", " + Arrays.toString(vector)
-                                         : Arrays.toString(vector) + ", " + fieldName;
+            String params = randomBoolean() ? fieldName + ", " + Arrays.toString(vector) : Arrays.toString(vector) + ", " + fieldName;
             return esqlFunction + "(" + params + ")";
         }
 
@@ -1534,44 +1529,15 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         }
 
         public static SimilarityFunctionTestCase random(String fieldName) {
-            float[] vector = new float[] {
-                randomFloat(),
-                randomFloat(),
-                randomFloat()
-            };
+            float[] vector = new float[] { randomFloat(), randomFloat(), randomFloat() };
             // Only use DotProduct and CosineSimilarity as they have full pushdown support
             // L1Norm, L2Norm, and Hamming are still in development
-            return switch(randomInt(4)) {
-                case 0 -> new SimilarityFunctionTestCase(
-                    "v_dot_product",
-                    fieldName,
-                    vector,
-                    "DotProduct"
-                );
-                case 1 -> new SimilarityFunctionTestCase(
-                    "v_cosine",
-                    fieldName,
-                    vector,
-                    "CosineSimilarity"
-                );
-                case 2 -> new SimilarityFunctionTestCase(
-                    "v_l1_norm",
-                    fieldName,
-                    vector,
-                    "L1Norm"
-                );
-                case 3 -> new SimilarityFunctionTestCase(
-                    "v_l2_norm",
-                    fieldName,
-                    vector,
-                    "L2Norm"
-                );
-                case 4 -> new SimilarityFunctionTestCase(
-                    "v_hamming",
-                    fieldName,
-                    vector,
-                    "Hamming"
-                );
+            return switch (randomInt(4)) {
+                case 0 -> new SimilarityFunctionTestCase("v_dot_product", fieldName, vector, "DotProduct");
+                case 1 -> new SimilarityFunctionTestCase("v_cosine", fieldName, vector, "CosineSimilarity");
+                case 2 -> new SimilarityFunctionTestCase("v_l1_norm", fieldName, vector, "L1Norm");
+                case 3 -> new SimilarityFunctionTestCase("v_l2_norm", fieldName, vector, "L2Norm");
+                case 4 -> new SimilarityFunctionTestCase("v_hamming", fieldName, vector, "Hamming");
                 default -> throw new IllegalStateException("Unexpected value");
             };
         }

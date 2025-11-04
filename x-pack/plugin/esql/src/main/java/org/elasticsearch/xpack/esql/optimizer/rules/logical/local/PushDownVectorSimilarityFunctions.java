@@ -40,17 +40,13 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * the similarity function during value loading, when one side of the function is a literal.
  * It also adds the new field function attribute to the EsRelation output, and adds a projection after it to remove it from the output.
  */
-public class PushDownVectorSimilarityFunctions extends ParameterizedRule<
-    LogicalPlan,
-    LogicalPlan,
-    LocalLogicalOptimizerContext> {
+public class PushDownVectorSimilarityFunctions extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
         Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
         return plan.transformUp(LogicalPlan.class, p -> doRule(p, context.searchStats(), addedAttrs));
     }
-
 
     private LogicalPlan doRule(LogicalPlan plan, SearchStats searchStats, Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs) {
         // Collect field attributes from previous runs
@@ -97,7 +93,8 @@ public class PushDownVectorSimilarityFunctions extends ParameterizedRule<
 
     private static Expression replaceFieldsForFieldTransformations(
         VectorSimilarityFunction similarityFunction,
-        Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs, SearchStats searchStats
+        Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs,
+        SearchStats searchStats
     ) {
         // Only replace if it consists of a literal and the other a field attribute.
         // CanonicalizeVectorSimilarityFunctions ensures that if there is a literal, it will be on the right side.

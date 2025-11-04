@@ -193,7 +193,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 try (
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT)
+                        cuVSResourceManager.acquire(
+                            numVectors,
+                            fieldInfo.getVectorDimension(),
+                            CuVSMatrix.DataType.FLOAT,
+                            CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT
+                        )
                     )
                 ) {
                     var builder = CuVSMatrix.deviceBuilder(
@@ -533,7 +538,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         var dataset = DatasetUtilsImpl.fromMemorySegment(packedSegment, numVectors, packedRowSize, dataType);
                         var resourcesHolder = new ResourcesHolder(
                             cuVSResourceManager,
-                            cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                            cuVSResourceManager.acquire(
+                                numVectors,
+                                fieldInfo.getVectorDimension(),
+                                dataType,
+                                CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT
+                            )
                         )
                     ) {
                         generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
@@ -557,7 +567,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                        cuVSResourceManager.acquire(
+                            numVectors,
+                            fieldInfo.getVectorDimension(),
+                            dataType,
+                            CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT
+                        )
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
@@ -578,7 +593,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                    cuVSResourceManager.acquire(
+                        numVectors,
+                        fieldInfo.getVectorDimension(),
+                        dataType,
+                        CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT
+                    )
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
@@ -605,7 +625,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                        cuVSResourceManager.acquire(
+                            numVectors,
+                            fieldInfo.getVectorDimension(),
+                            dataType,
+                            CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT
+                        )
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
@@ -628,7 +653,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                        cuVSResourceManager.acquire(
+                            numVectors,
+                            fieldInfo.getVectorDimension(),
+                            dataType,
+                            CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT
+                        )
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
@@ -650,7 +680,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                    cuVSResourceManager.acquire(
+                        numVectors,
+                        fieldInfo.getVectorDimension(),
+                        dataType,
+                        CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT
+                    )
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);

@@ -214,13 +214,8 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     static void process(BytesRefBlock.Builder builder, BytesRef str, @Fixed String query, @Fixed int numChunks, @Fixed int chunkSize) {
         var settings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
         var chunks = chunkText(str.utf8ToString(), settings);
-        try {
-            var scored = new MemoryIndexChunkScorer().scoreChunks(chunks, query, numChunks);
-            var contents = scored.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).toList();
-            appendBytesRefs(builder, contents);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        var contents = scoreChunks(chunks, query, numChunks);
+        appendBytesRefs(builder, contents);
     }
 
     @Evaluator(extraName = "BytesRef")
@@ -236,6 +231,15 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     public static List<String> chunkText(String content, ChunkingSettings chunkingSettings) {
         Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
         return chunker.chunk(content, chunkingSettings).stream().map(offset -> content.substring(offset.start(), offset.end())).toList();
+    }
+
+    public static List<String> scoreChunks(List<String> chunks, String query, int numChunks) {
+        try {
+            var scored = new MemoryIndexChunkScorer().scoreChunks(chunks, query, numChunks);
+            return scored.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).toList();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static void appendBytesRefs(BytesRefBlock.Builder builder, List<String> texts) {

@@ -118,7 +118,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
 
         if (Objects.nonNull(query)) {
             keyValuePairs.add(Literal.keyword(Source.EMPTY, QUERY));
-            keyValuePairs.add(new Literal(Source.EMPTY, query, DataType.KEYWORD));
+            keyValuePairs.add(Literal.keyword(Source.EMPTY, query));
         }
 
         return new MapExpression(Source.EMPTY, keyValuePairs);
@@ -151,6 +151,44 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         verifyChunks(numChunks, chunkSize, numChunks);
     }
 
+    public void testQuerySingleChunk() {
+        int numChunks = 1;
+        int chunkSize = 20;
+        String query = "trails";
+        List<String> expectedChunks =
+            List.of("to hike High Peaks trails, paddle across mirror-like waters, or ski through snow-covered forests.");
+        verifyChunks(numChunks, chunkSize, query, expectedChunks);
+    }
+
+    public void testQueryMultipleChunks() {
+        int numChunks = 2;
+        int chunkSize = 20;
+        String query = "Adirondacks";
+        List<String> expectedChunks = List.of("the Adirondacks a timeless escape into natural tranquility.",
+            "The Adirondacks, a vast mountain region in northern New York, offer a breathtaking mix of rugged wilderness, serene lakes,");
+        verifyChunks(numChunks, chunkSize, query, expectedChunks);
+    }
+
+    public void testQueryMultipleChunksWithSmallerMatch() {
+        int numChunks = 3;
+        int chunkSize = 20;
+        String query = "trails";
+        List<String> expectedChunks =
+            List.of("to hike High Peaks trails, paddle across mirror-like waters, or ski through snow-covered forests.");
+        verifyChunks(numChunks, chunkSize, query, expectedChunks);
+    }
+
+    public void testQueryChunksWithNoScoreMatches() {
+        int numChunks = randomIntBetween(2, 4);
+        int chunkSize = randomIntBetween(20, 30);
+        ChunkingSettings settings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
+        List<String> expectedChunks = Chunk.chunkText(PARAGRAPH_INPUT, settings).stream().map(String::trim).toList();
+        if (expectedChunks.size() > numChunks) {
+            expectedChunks = expectedChunks.subList(0, numChunks);
+        }
+        verifyChunks(numChunks, chunkSize, "No_results_so_return_the_first_results_like_there_was_no_query", expectedChunks);
+    }
+
     private void verifyChunks(Integer numChunks, Integer chunkSize, int expectedNumChunksReturned) {
         int numChunksOrDefault = numChunks != null ? numChunks : Chunk.DEFAULT_NUM_CHUNKS;
         int chunkSizeOrDefault = chunkSize != null ? chunkSize : Chunk.DEFAULT_CHUNK_SIZE;
@@ -163,6 +201,13 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         List<String> result = process(PARAGRAPH_INPUT, null, numChunksOrDefault, chunkSizeOrDefault);
         assertThat(result.size(), equalTo(expectedNumChunksReturned));
         assertThat(result, equalTo(expected));
+    }
+
+    private void verifyChunks(Integer numChunks, Integer chunkSize, String query, List<String> expectedChunks) {
+        int numChunksOrDefault = numChunks != null ? numChunks : Chunk.DEFAULT_NUM_CHUNKS;
+        int chunkSizeOrDefault = chunkSize != null ? chunkSize : Chunk.DEFAULT_CHUNK_SIZE;
+        List<String> result = process(PARAGRAPH_INPUT, query, numChunksOrDefault, chunkSizeOrDefault);
+        assertThat(result, equalTo(expectedChunks));
     }
 
     private List<String> process(String str, String query, Integer numChunks, Integer chunkSize) {

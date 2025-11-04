@@ -18,6 +18,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
@@ -236,10 +237,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     // TODO: Also add a test for _tsid once we can determine the minimum transport version of all nodes.
     public final void testFetchAll() throws IOException {
-        Map<String, Object> response = esql("""
+        var responseAndCoordinatorVersion = esql("""
             , _id, _ignored, _index_mode, _score, _source, _version
             | LIMIT 1000
             """);
+        Map<String, Object> response = responseAndCoordinatorVersion.v1();
+        TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
         if ((Boolean) response.get("is_partial")) {
             throw new AssertionError("partial results: " + response);
         }
@@ -251,7 +254,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (supportedInIndex(type) == false) {
                 continue;
             }
-            expectedColumns = expectedColumns.entry(fieldName(type), expectedType(type));
+            expectedColumns = expectedColumns.entry(fieldName(type), expectedType(type, coordinatorVersion));
         }
         expectedColumns = expectedColumns.entry("_id", "keyword")
             .entry("_ignored", "keyword")
@@ -265,13 +268,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         MapMatcher expectedAllValues = matchesMap();
         for (Map.Entry<String, NodeInfo> e : expectedIndices().entrySet()) {
             String indexName = e.getKey();
-            NodeInfo nodeInfo = e.getValue();
             MapMatcher expectedValues = matchesMap();
             for (DataType type : DataType.values()) {
                 if (supportedInIndex(type) == false) {
                     continue;
                 }
-                expectedValues = expectedValues.entry(fieldName(type), expectedValue(type, nodeInfo));
+                expectedValues = expectedValues.entry(fieldName(type), expectedValue(type, coordinatorVersion));
             }
             expectedValues = expectedValues.entry("_id", any(String.class))
                 .entry("_ignored", nullValue())
@@ -302,7 +304,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     | EVAL k = v_l2_norm(f_dense_vector, [1])  // workaround to enable fetching dense_vector
                     """ + request;
             }
-            response = esql(request);
+            response = esql(request).v1();
             if ((Boolean) response.get("is_partial")) {
                 Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
                 Map<?, ?> details = (Map<?, ?>) clusters.get("details");
@@ -369,7 +371,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     | EVAL junk = TO_AGGREGATE_METRIC_DOUBLE(1)  // workaround to enable fetching aggregate_metric_double
                     """ + request;
             }
-            response = esql(request);
+            response = esql(request).v1();
             if ((Boolean) response.get("is_partial")) {
                 Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
                 Map<?, ?> details = (Map<?, ?>) clusters.get("details");
@@ -422,8 +424,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(indexToRow(columns, values), expectedAllValues);
     }
 
+    /**
+     * Run the query and return the response and the version of the coordinator.
+     */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> esql(String query) throws IOException {
+    private Tuple<Map<String, Object>, TransportVersion> esql(String query) throws IOException {
         Request request = new Request("POST", "_query");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
         body.field("query", "FROM *:%mode%*,%mode%* METADATA _index".replace("%mode%", indexMode.toString()) + query);
@@ -448,7 +453,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMinimumVersion(coordinatorVersion, responseMap);
 
         profileLogger.extractProfile(responseMap, true);
-        return responseMap;
+        return new Tuple<>(responseMap, coordinatorVersion);
     }
 
     @SuppressWarnings("unchecked")
@@ -575,7 +580,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     // This will become dependent on the minimum transport version of all nodes once we can determine that.
-    private Matcher<?> expectedValue(DataType type, NodeInfo nodeInfo) throws IOException {
+    private Matcher<?> expectedValue(DataType type, TransportVersion coordinatorVersion) throws IOException {
         return switch (type) {
             case BOOLEAN -> equalTo(true);
             case COUNTER_LONG, LONG, COUNTER_INTEGER, INTEGER, UNSIGNED_LONG, SHORT, BYTE -> equalTo(1);
@@ -594,14 +599,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
+                // See expectedType for an explanation
+                if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
                     || minVersion().supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
                     yield nullValue();
                 }
                 yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
             }
             case DENSE_VECTOR -> {
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
+                // See expectedType for an explanation
+                if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
                     || minVersion().supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
                     yield nullValue();
                 }
@@ -679,7 +686,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     // This will become dependent on the minimum transport version of all nodes once we can determine that.
-    private Matcher<String> expectedType(DataType type) throws IOException {
+    private Matcher<String> expectedType(DataType type, TransportVersion coordinatorVersion) throws IOException {
         return switch (type) {
             case COUNTER_DOUBLE, COUNTER_LONG, COUNTER_INTEGER -> {
                 if (indexMode == IndexMode.TIME_SERIES) {
@@ -691,18 +698,22 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case HALF_FLOAT, SCALED_FLOAT, FLOAT -> equalTo("double");
             case NULL -> equalTo("keyword");
             case AGGREGATE_METRIC_DOUBLE -> {
-                // RESOLVE_FIELDS_RESPONSE_USED_TV is newer and technically sufficient to check.
-                // We also check for ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION for clarity.
-                // Future data types added here should only require the TV when they were created,
-                // because it will be after RESOLVE_FIELDS_RESPONSE_USED_TV.
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
+                // 9.2.0 nodes have ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION and support this type
+                // when they are data nodes, but not as coordinators!
+                // (Unless the query uses functions that depend on this type, which is a workaround
+                // for missing version-awareness in 9.2.0, and not considered here.)
+                // RESOLVE_FIELDS_RESPONSE_USED_TV is newer and marks the point when coordinators
+                // started to be able to plan for this data type, and will consider it supported if
+                // all nodes are on ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION or newer.
+                if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
                     || minVersion().supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
                     yield equalTo("unsupported");
                 }
                 yield equalTo("aggregate_metric_double");
             }
             case DENSE_VECTOR -> {
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
+                // Same dance as for AGGREGATE_METRIC_DOUBLE
+                if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
                     || minVersion().supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
                     yield equalTo("unsupported");
                 }

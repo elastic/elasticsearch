@@ -66,6 +66,12 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                 stats.get(0)
             );
         }
+
+        // TODO: what is a good place to do something like this?
+        if (context.configuration().throwOnNonEsStatsQuery() && plan instanceof EsStatsQueryExec == false) {
+            throw new UnsupportedOperationException("not executing query of type [" + plan.getClass().getSimpleName() + "]");
+        }
+
         return plan;
     }
 

@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.ccm;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,8 +43,8 @@ public record CCMModel(SecureString apiKey) implements Writeable, ToXContentObje
         return PARSER.parse(parser, null);
     }
 
-    CCMModel(String apiKey) {
-        this(new SecureString(Objects.requireNonNull(apiKey).toCharArray()));
+    public CCMModel {
+        Objects.requireNonNull(apiKey);
     }
 
     public CCMModel(StreamInput in) throws IOException {
@@ -58,5 +62,11 @@ public record CCMModel(SecureString apiKey) implements Writeable, ToXContentObje
         builder.field(API_KEY_FIELD, apiKey.toString());
         builder.endObject();
         return builder;
+    }
+
+    public static CCMModel fromXContentBytes(BytesReference bytes) throws IOException {
+        try (var parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, XContentType.JSON)) {
+            return parse(parser);
+        }
     }
 }

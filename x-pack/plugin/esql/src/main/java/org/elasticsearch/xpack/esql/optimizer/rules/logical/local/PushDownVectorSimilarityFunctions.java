@@ -99,46 +99,42 @@ public class PushDownVectorSimilarityFunctions extends ParameterizedRule<
         VectorSimilarityFunction similarityFunction,
         Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs, SearchStats searchStats
     ) {
-        // Only replace if exactly one side is a literal and the other a field attribute
-        if ((similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) == false) {
-            return similarityFunction;
+        // Only replace if it consists of a literal and the other a field attribute.
+        // CanonicalizeVectorSimilarityFunctions ensures that if there is a literal, it will be on the right side.
+        if (similarityFunction.left() instanceof FieldAttribute fieldAttr && similarityFunction.right() instanceof Literal) {
+
+            // We can push down also for doc values, requires handling that case on the field mapper
+            if (searchStats.isIndexed(fieldAttr.fieldName()) == false) {
+                return similarityFunction;
+            }
+
+            // Change the similarity function to a reference of a transformation on the field
+            MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig = similarityFunction.getBlockLoaderFunctionConfig();
+            FunctionEsField functionEsField = new FunctionEsField(
+                fieldAttr.field(),
+                similarityFunction.dataType(),
+                blockLoaderFunctionConfig
+            );
+            var name = rawTemporaryName(fieldAttr.name(), blockLoaderFunctionConfig.name());
+            var newFunctionAttr = new FieldAttribute(
+                fieldAttr.source(),
+                fieldAttr.parentName(),
+                fieldAttr.qualifier(),
+                name,
+                functionEsField,
+                fieldAttr.nullable(),
+                new NameId(),
+                true
+            );
+            Attribute.IdIgnoringWrapper key = newFunctionAttr.ignoreId();
+            if (addedAttrs.containsKey(key)) {
+                return addedAttrs.get(key);
+            }
+
+            addedAttrs.put(key, newFunctionAttr);
+            return newFunctionAttr;
         }
 
-        FieldAttribute fieldAttr = null;
-        if (similarityFunction.left() instanceof FieldAttribute fa) {
-            fieldAttr = fa;
-        } else if (similarityFunction.right() instanceof FieldAttribute fa) {
-            fieldAttr = fa;
-        }
-        // We can push down also for doc values, requires handling that case on the field mapper
-        if (fieldAttr == null || searchStats.isIndexed(fieldAttr.fieldName()) == false) {
-            return similarityFunction;
-        }
-
-        // Change the similarity function to a reference of a transformation on the field
-        MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig = similarityFunction.getBlockLoaderFunctionConfig();
-        FunctionEsField functionEsField = new FunctionEsField(
-            fieldAttr.field(),
-            similarityFunction.dataType(),
-            blockLoaderFunctionConfig
-        );
-        var name = rawTemporaryName(fieldAttr.name(), blockLoaderFunctionConfig.name());
-        var newFunctionAttr = new FieldAttribute(
-            fieldAttr.source(),
-            fieldAttr.parentName(),
-            fieldAttr.qualifier(),
-            name,
-            functionEsField,
-            fieldAttr.nullable(),
-            new NameId(),
-            true
-        );
-        Attribute.IdIgnoringWrapper key = newFunctionAttr.ignoreId();
-        if (addedAttrs.containsKey(key)) {
-            return addedAttrs.get(key);
-        }
-
-        addedAttrs.put(key, newFunctionAttr);
-        return newFunctionAttr;
+        return similarityFunction;
     }
 }

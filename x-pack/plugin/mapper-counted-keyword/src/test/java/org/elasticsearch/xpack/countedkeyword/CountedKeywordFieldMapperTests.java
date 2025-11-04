@@ -219,4 +219,9 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
         assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

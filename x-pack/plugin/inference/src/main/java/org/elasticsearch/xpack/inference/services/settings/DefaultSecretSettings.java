@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 public record DefaultSecretSettings(SecureString apiKey) implements SecretSettings, ApiKeySecrets {
     public static final String NAME = "default_secret_settings";
 
-    static final String API_KEY = "api_key";
+    public static final String API_KEY = "api_key";
 
     public static DefaultSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {

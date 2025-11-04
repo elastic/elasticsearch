@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -27,6 +28,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -82,6 +84,27 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             return docValuesFormat;
         }
     };
+
+    public static class TestES819TSDBDocValuesFormatVersion0 extends ES819TSDBDocValuesFormat {
+
+        public TestES819TSDBDocValuesFormatVersion0() {
+            super();
+        }
+
+        @Override
+        public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+            return new ES819TSDBDocValuesConsumerVersion0(
+                state,
+                skipIndexIntervalSize,
+                minDocsPerOrdinalForRangeEncoding,
+                enableOptimizedMerge,
+                DATA_CODEC,
+                DATA_EXTENSION,
+                META_CODEC,
+                META_EXTENSION
+            );
+        }
+    }
 
     @Override
     protected Codec getCodec() {

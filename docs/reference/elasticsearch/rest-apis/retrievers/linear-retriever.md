@@ -21,7 +21,7 @@ Combining `query` and `retrievers` is not supported.
 
     The query to use when using the [multi-field query format](../retrievers.md#multi-field-query-format).
 
-`fields` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.1` 
+`fields` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.1`
 :   (Optional, array of strings)
 
     The fields to query when using the [multi-field query format](../retrievers.md#multi-field-query-format).

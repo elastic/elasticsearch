@@ -112,7 +112,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 return new LongLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return wrap(getLongValues(context, lMissingValue));
+                        return wrap(getLongValues(context, lMissingValue), context.reader().maxDoc());
                     }
 
                     @Override
@@ -200,7 +200,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return super.missingObject(missingValue, reversed);
     }
 
-    protected static NumericDocValues wrap(LongValues longValues) {
+    protected static NumericDocValues wrap(LongValues longValues, int maxDoc) {
         return new NumericDocValues() {
 
             int doc = -1;
@@ -228,6 +228,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
             @Override
             public int advance(int target) throws IOException {
+                if (target > maxDoc) {
+                    return doc = NO_MORE_DOCS;
+                }
                 // All documents are guaranteed to have a value, as all invocations of getLongValues
                 // always return `true` from `advanceExact()`
                 boolean hasValue = longValues.advanceExact(target);

@@ -12,21 +12,19 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.TestBlock;
-import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBlockLoaderTests {
-    public Utf8CodePointsFromOrdsBlockLoaderTests(
+public class MvMinBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBlockLoaderTests {
+    public MvMinBytesRefsFromOrdsBlockLoaderTests(
         boolean blockAtATime,
         boolean highCardinality,
         boolean multiValues,
@@ -37,32 +35,22 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
 
     @Override
     protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
-        List<MockWarnings.MockWarning> expectedWarnings = new ArrayList<>();
-        for (int i = 0; i < mvCount; i++) {
-            expectedWarnings.add(
-                new MockWarnings.MockWarning(IllegalArgumentException.class, "single-value function encountered multi-value")
-            );
-        }
-
-        var warnings = new MockWarnings();
         var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
-        var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field");
+        var mvMinLoader = new MvMinBytesRefsFromOrdsBlockLoader("field");
 
         var stringsReader = stringsLoader.reader(ctx);
-        var codePointsReader = codePointsLoader.reader(ctx);
-        assertThat(codePointsReader, readerMatcher());
+        var mvMinReader = mvMinLoader.reader(ctx);
+        assertThat(mvMinReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
         try (
             TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-            TestBlock codePoints = read(codePointsLoader, codePointsReader, ctx, docs);
+            TestBlock minStrings = read(mvMinLoader, mvMinReader, ctx, docs);
         ) {
-            checkBlocks(strings, codePoints);
+            checkBlocks(strings, minStrings);
         }
-        assertThat(warnings.warnings(), equalTo(expectedWarnings));
-        warnings.warnings().clear();
 
         stringsReader = stringsLoader.reader(ctx);
-        codePointsReader = codePointsLoader.reader(ctx);
+        mvMinReader = mvMinLoader.reader(ctx);
         for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
             int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
             for (int d = 0; d < docsArray.length; d++) {
@@ -71,41 +59,31 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
             docs = TestBlock.docs(docsArray);
             try (
                 TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                TestBlock codePoints = read(codePointsLoader, codePointsReader, ctx, docs);
+                TestBlock minStrings = read(mvMinLoader, mvMinReader, ctx, docs);
             ) {
-                checkBlocks(strings, codePoints);
+                checkBlocks(strings, minStrings);
             }
         }
-        assertThat(warnings.warnings(), equalTo(expectedWarnings));
     }
 
     private Matcher<Object> readerMatcher() {
-        if (lowCardinality == false) {
-            return hasToString("Utf8CodePointsFromOrds.Immediate");
-        }
         if (multiValues) {
-            return hasToString("Utf8CodePointsFromOrds.SortedSet");
+            return hasToString("MvMinBytesRefsFromOrds.SortedSet");
         }
-        return hasToString("Utf8CodePointsFromOrds.Singleton");
+        return hasToString("BytesRefsFromOrds.Singleton");
     }
 
-    private static KeywordFieldMapper.KeywordField field(int codePointCount) {
-        return new KeywordFieldMapper.KeywordField(
-            "field",
-            new BytesRef("a".repeat(codePointCount)),
-            KeywordFieldMapper.Defaults.FIELD_TYPE
-        );
-    }
-
-    private void checkBlocks(TestBlock strings, TestBlock codePoints) {
+    private void checkBlocks(TestBlock strings, TestBlock mvMin) {
         for (int i = 0; i < strings.size(); i++) {
             Object str = strings.get(i);
-            if (str instanceof List<?> || str == null) {
-                assertThat(codePoints.get(i), nullValue());
+            if (str == null) {
+                assertThat(mvMin.get(i), nullValue());
                 continue;
             }
-            BytesRef bytes = (BytesRef) str;
-            assertThat(codePoints.get(i), equalTo(bytes.length));
+            BytesRef bytes = (BytesRef) (str instanceof List<?> l
+                ? l.stream().map(b -> (BytesRef) b).min(Comparator.naturalOrder()).get()
+                : str);
+            assertThat(mvMin.get(i), equalTo(bytes));
         }
     }
 }

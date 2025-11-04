@@ -384,11 +384,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
             if (InferenceLicenceCheck.isServiceLicenced(inferenceProvider.service.name(), licenseState) == false) {
                 try (onFinish) {
+                    var complianceException = InferenceLicenceCheck.complianceException(inferenceProvider.service.name());
                     for (FieldInferenceRequest request : requests) {
-                        addInferenceResponseFailure(
-                            request.bulkItemIndex,
-                            InferenceLicenceCheck.complianceException(inferenceProvider.service.name())
-                        );
+                        addInferenceResponseFailure(request.bulkItemIndex, complianceException);
                     }
                     return;
                 }

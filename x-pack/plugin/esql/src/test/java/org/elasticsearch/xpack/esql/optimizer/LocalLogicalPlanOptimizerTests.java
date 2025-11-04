@@ -1421,20 +1421,20 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         String query = """
             from test_all
             | eval s1 = v_dot_product(dense_vector, [1.0, 2.0, 3.0]), s2 = v_dot_product(dense_vector, [1.0, 2.0, 3.0]) * 2 / 3
-            | eval s3 = v_dot_product(dense_vector, [1.0, 2.0, 3.0]) + 5, r1 = v_dot_product(dense_vector, [4.0, 5.0, 6.0])
+            | where v_dot_product(dense_vector, [1.0, 2.0, 3.0]) + 5 + v_dot_product(dense_vector, [4.0, 5.0, 6.0]) > 0
             | eval r2 = v_dot_product(dense_vector, [4.0, 5.0, 6.0]) + v_cosine(dense_vector, [4.0, 5.0, 6.0])
-            | keep s1, s2, r1, r2
+            | keep s1, s2, r2
             """;
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject[[s1{r}#5, s2{r}#8, r1{r}#14, r2{r}#18]]
+        // EsqlProject[[s1{r}#5, s2{r}#8, r2{r}#14]]
         var project = as(plan, EsqlProject.class);
-        assertThat(Expressions.names(project.projections()), contains("s1", "s2", "r1", "r2"));
+        assertThat(Expressions.names(project.projections()), contains("s1", "s2", "r2"));
 
-        // Eval with s1, s2, r1, r2
+        // Eval with s1, s2, r2
         var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(4));
+        assertThat(eval.fields(), hasSize(3));
 
         // Check s1 = $$dense_vector$DotProduct$...
         var s1Alias = as(eval.fields().getFirst(), Alias.class);
@@ -1455,25 +1455,19 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var s2FieldAttr = as(s2Mul.left(), FieldAttribute.class);
         assertThat(s1FieldAttr, is(s2FieldAttr));
 
-        // Check r1 = $$dense_vector$DotProduct$882900992 (vector [4.0, 5.0, 6.0])
-        var r1Alias = as(eval.fields().get(2), Alias.class);
-        assertThat(r1Alias.name(), equalTo("r1"));
-        var r1FieldAttr = as(r1Alias.child(), FieldAttribute.class);
-        assertThat(r1FieldAttr.fieldName().string(), equalTo("dense_vector"));
-        assertThat(r1FieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
-        var r1Field = as(r1FieldAttr.field(), FunctionEsField.class);
-        var r1Config = as(r1Field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
-        assertThat(r1Config.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
-        assertThat(r1Config.vector(), equalTo(new float[] { 4.0f, 5.0f, 6.0f }));
-
         // Check r2 = $$dense_vector$DotProduct$882900992 + $$dense_vector$CosineSimilarity$882900992
-        var r2Alias = as(eval.fields().get(3), Alias.class);
+        var r2Alias = as(eval.fields().get(2), Alias.class);
         assertThat(r2Alias.name(), equalTo("r2"));
         var r2Add = as(r2Alias.child(), Add.class);
 
-        // Left side: DotProduct field (same as r1)
+        // Left side: DotProduct field with vector [4.0, 5.0, 6.0]
         var r2DotProductFieldAttr = as(r2Add.left(), FieldAttribute.class);
-        assertThat(r2DotProductFieldAttr, is(r1FieldAttr));
+        assertThat(r2DotProductFieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(r2DotProductFieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        var r2DotProductField = as(r2DotProductFieldAttr.field(), FunctionEsField.class);
+        var r2DotProductConfig = as(r2DotProductField.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
+        assertThat(r2DotProductConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+        assertThat(r2DotProductConfig.vector(), equalTo(new float[] { 4.0f, 5.0f, 6.0f }));
 
         // Right side: CosineSimilarity field
         var r2CosineFieldAttr = as(r2Add.right(), FieldAttribute.class);
@@ -1487,10 +1481,24 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Limit[1000[INTEGER],false,false]
         var limit = as(eval.child(), Limit.class);
 
-        // EsRelation[test_all][!alias_integer, boolean{f}#24, byte{f}#25, constant..]
-        var esRelation = as(limit.child(), EsRelation.class);
+        // Filter[$$dense_vector$DotProduct$1606418432 + 5 + $$dense_vector$DotProduct$882900992 > 0]
+        var filter = as(limit.child(), Filter.class);
+        var greaterThan = as(filter.condition(), GreaterThan.class);
+        var filterAdd1 = as(greaterThan.left(), Add.class);
+        var filterAdd2 = as(filterAdd1.left(), Add.class);
+
+        // Check filter uses s1 field (DotProduct with [1.0, 2.0, 3.0])
+        var filterS1FieldAttr = as(filterAdd2.left(), FieldAttribute.class);
+        assertThat(filterS1FieldAttr, is(s1FieldAttr));
+
+        // Check filter uses r2's DotProduct field (DotProduct with [4.0, 5.0, 6.0])
+        var filterR2FieldAttr = as(filterAdd1.right(), FieldAttribute.class);
+        assertThat(filterR2FieldAttr, is(r2DotProductFieldAttr));
+
+        // EsRelation[test_all][!alias_integer, boolean{f}#19, byte{f}#20, constant..]
+        var esRelation = as(filter.child(), EsRelation.class);
         assertTrue(esRelation.output().contains(s1FieldAttr));
-        assertTrue(esRelation.output().contains(r1FieldAttr));
+        assertTrue(esRelation.output().contains(r2DotProductFieldAttr));
         assertTrue(esRelation.output().contains(r2CosineFieldAttr));
     }
 

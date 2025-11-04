@@ -88,7 +88,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
 
             // Add previous port bindings and UDP port binding
             Ports ports = cmd.getPortBindings();
-            ports.bind(ExposedPort.udp(88), Ports.Binding.bindPort(88));
+            ports.bind(ExposedPort.udp(88), Ports.Binding.empty());
             cmd.withPortBindings(ports);
         });
         withNetworkAliases("kerberos.build.elastic.co", "build.elastic.co");

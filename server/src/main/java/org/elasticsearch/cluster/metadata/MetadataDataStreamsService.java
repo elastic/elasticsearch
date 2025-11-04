@@ -600,7 +600,7 @@ public class MetadataDataStreamsService {
      * implicit settings provide by IndexSettingsProviders.
      * @param projectMetadata The project metadata
      * @param dataStream The data stream
-     * @param mappingOverrides The mapping overrides to be used in place of the mapping overrides on the data strea currently
+     * @param mappingOverrides The mapping overrides to be used in place of the mapping overrides on the data stream currently
      * @return The effective settings for the data stream, which are a the combination of template settings, data stream settings overrides,
      * and the implicit settings provide by IndexSettingsProviders
      * @throws IOException

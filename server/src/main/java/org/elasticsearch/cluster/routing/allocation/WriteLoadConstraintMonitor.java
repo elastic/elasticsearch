@@ -78,7 +78,7 @@ public class WriteLoadConstraintMonitor {
         final int numberOfNodes = clusterInfo.getNodeUsageStatsForThreadPools().size();
         final Set<String> writeNodeIdsExceedingQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
         var haveWriteNodesBelowQueueLatencyThreshold = false;
-        var totalIngestionNodes = 0;
+        var totalIngestNodes = 0;
         for (var entry : clusterInfo.getNodeUsageStatsForThreadPools().entrySet()) {
             final var nodeId = entry.getKey();
             final var usageStats = entry.getValue();
@@ -88,7 +88,7 @@ public class WriteLoadConstraintMonitor {
                 // TODO (ES-13314): consider stateful data tiers
                 return;
             }
-            totalIngestionNodes++;
+            totalIngestNodes++;
             final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = usageStats.threadPoolUsageStatsMap()
                 .get(ThreadPool.Names.WRITE);
             assert writeThreadPoolStats != null : "Write thread pool is not publishing usage stats for node [" + nodeId + "]";
@@ -126,7 +126,7 @@ public class WriteLoadConstraintMonitor {
                         Previously hot-spotting nodes are [{}]. The write thread pool queue latency threshold is [{}]. Triggering reroute.
                         """,
                     nodeSummary(writeNodeIdsExceedingQueueLatencyThreshold),
-                    totalIngestionNodes,
+                    totalIngestNodes,
                     lastRerouteTimeMillis == 0
                         ? "has never previously been called"
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",

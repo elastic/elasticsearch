@@ -205,7 +205,7 @@ public class InferencePlugin extends Plugin
 
     public static final LicensedFeature.Momentary EIS_INFERENCE_FEATURE = LicensedFeature.momentary(
         "inference",
-        "eis",
+        "Elastic Inference Service",
         License.OperationMode.BASIC
     );
 

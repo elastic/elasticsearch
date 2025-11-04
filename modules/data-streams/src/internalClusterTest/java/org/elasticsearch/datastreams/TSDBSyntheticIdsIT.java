@@ -25,7 +25,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -389,7 +388,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var settings = indexSettings(shards, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            .put(EngineConfig.USE_COMPOUND_FILE, false)
             .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
 
         final var mappings = """

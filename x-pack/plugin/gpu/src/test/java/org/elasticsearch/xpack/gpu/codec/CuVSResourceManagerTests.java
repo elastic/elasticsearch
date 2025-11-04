@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.gpu.codec;
 
 import com.nvidia.cuvs.CagraIndexParams;
+import com.nvidia.cuvs.CuVSIvfPqIndexParams;
+import com.nvidia.cuvs.CuVSIvfPqParams;
 import com.nvidia.cuvs.CuVSMatrix;
 import com.nvidia.cuvs.CuVSResources;
 
@@ -16,8 +18,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -32,16 +32,16 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     public static final long TOTAL_DEVICE_MEMORY_IN_BYTES = 256L * 1024 * 1024;
 
-    public void testBasic() throws InterruptedException {
+    private static void testBasic(CagraIndexParams params) throws InterruptedException {
         var mgr = new MockPoolingCuVSResourceManager(2);
-        var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
-        var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
+        var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, params);
+        var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, params);
         assertThat(res1.toString(), containsString("id=0"));
         assertThat(res2.toString(), containsString("id=1"));
         mgr.release(res1);
         mgr.release(res2);
-        res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
-        res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
+        res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, params);
+        res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, params);
         assertThat(res1.toString(), containsString("id=0"));
         assertThat(res2.toString(), containsString("id=1"));
         mgr.release(res1);
@@ -49,15 +49,23 @@ public class CuVSResourceManagerTests extends ESTestCase {
         mgr.shutdown();
     }
 
-    public void testBlocking() throws Exception {
+    public void testBasicWithNNDescent() throws InterruptedException {
+        testBasic(createNnDescentParams());
+    }
+
+    public void testBasicWithIvfPq() throws InterruptedException {
+        testBasic(createIvfPqParams());
+    }
+
+    private static void testBlocking(CagraIndexParams params) throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(2);
-        var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
-        var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
+        var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, params);
+        var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, params);
 
         AtomicReference<CuVSResources> holder = new AtomicReference<>();
         Thread t = new Thread(() -> {
             try {
-                var res3 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
+                var res3 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, params);
                 holder.set(res3);
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
@@ -72,14 +80,21 @@ public class CuVSResourceManagerTests extends ESTestCase {
         mgr.shutdown();
     }
 
-    public void testBlockingOnInsufficientMemory() throws Exception {
-        var mgr = new MockPoolingCuVSResourceManager(2);
-        var res1 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
+    public void testBlockingWithNNDescent() throws Exception {
+        testBlocking(createNnDescentParams());
+    }
+
+    public void testBlockingWithIvfPq() throws Exception {
+        testBlocking(createIvfPqParams());
+    }
+
+    private static void testBlockingOnInsufficientMemory(CagraIndexParams params, CuVSResourceManager mgr) throws Exception {
+        var res1 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT, params);
 
         AtomicReference<CuVSResources> holder = new AtomicReference<>();
         Thread t = new Thread(() -> {
             try {
-                var res2 = mgr.acquire((16 * 1024) + 1, 1024, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
+                var res2 = mgr.acquire((16 * 1024) + 1, 1024, CuVSMatrix.DataType.FLOAT, params);
                 holder.set(res2);
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
@@ -94,14 +109,23 @@ public class CuVSResourceManagerTests extends ESTestCase {
         mgr.shutdown();
     }
 
-    public void testNotBlockingOnSufficientMemory() throws Exception {
+    public void testBlockingOnInsufficientMemoryNnDescent() throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(2);
-        var res1 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
+        testBlockingOnInsufficientMemory(createNnDescentParams(), mgr);
+    }
+
+    public void testBlockingOnInsufficientMemoryIvfPq() throws Exception {
+        var mgr = new MockPoolingCuVSResourceManager(2, 32L * 1024 * 1024);
+        testBlockingOnInsufficientMemory(createIvfPqParams(), mgr);
+    }
+
+    private static void testNotBlockingOnSufficientMemory(CagraIndexParams params, CuVSResourceManager mgr) throws Exception {
+        var res1 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT, params);
 
         AtomicReference<CuVSResources> holder = new AtomicReference<>();
         Thread t = new Thread(() -> {
             try {
-                var res2 = mgr.acquire((16 * 1024) - 1, 1024, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
+                var res2 = mgr.acquire((16 * 1024) - 1000, 1024, CuVSMatrix.DataType.FLOAT, params);
                 holder.set(res2);
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
@@ -114,9 +138,19 @@ public class CuVSResourceManagerTests extends ESTestCase {
         mgr.shutdown();
     }
 
+    public void testNotBlockingOnSufficientMemoryNnDescent() throws Exception {
+        var mgr = new MockPoolingCuVSResourceManager(2);
+        testNotBlockingOnSufficientMemory(createNnDescentParams(), mgr);
+    }
+
+    public void testNotBlockingOnSufficientMemoryIvfPq() throws Exception {
+        var mgr = new MockPoolingCuVSResourceManager(2, 32L * 1024 * 1024);
+        testNotBlockingOnSufficientMemory(createIvfPqParams(), mgr);
+    }
+
     public void testManagedResIsNotClosable() throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(1);
-        var res = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
+        var res = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, createNnDescentParams());
         assertThrows(UnsupportedOperationException.class, res::close);
         mgr.release(res);
         mgr.shutdown();
@@ -124,12 +158,28 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     public void testDoubleRelease() throws InterruptedException {
         var mgr = new MockPoolingCuVSResourceManager(2);
-        var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
-        var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT);
+        var res1 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, createNnDescentParams());
+        var res2 = mgr.acquire(0, 0, CuVSMatrix.DataType.FLOAT, createNnDescentParams());
         mgr.release(res1);
         mgr.release(res2);
         assertThrows(AssertionError.class, () -> mgr.release(randomFrom(res1, res2)));
         mgr.shutdown();
+    }
+
+    private static CagraIndexParams createNnDescentParams() {
+        return new CagraIndexParams.Builder().withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
+            .withNNDescentNumIterations(5)
+            .build();
+    }
+
+    private static CagraIndexParams createIvfPqParams() {
+        return new CagraIndexParams.Builder().withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ)
+            .withCuVSIvfPqParams(
+                new CuVSIvfPqParams.Builder().withCuVSIvfPqIndexParams(
+                    new CuVSIvfPqIndexParams.Builder().withPqBits(4).withPqDim(1024).build()
+                ).build()
+            )
+            .build();
     }
 
     static class MockPoolingCuVSResourceManager extends CuVSResourceManager.PoolingCuVSResourceManager {
@@ -137,11 +187,11 @@ public class CuVSResourceManagerTests extends ESTestCase {
         private final AtomicInteger idGenerator = new AtomicInteger();
 
         MockPoolingCuVSResourceManager(int capacity) {
-            this(capacity, new ArrayList<>());
+            this(capacity, TOTAL_DEVICE_MEMORY_IN_BYTES);
         }
 
-        private MockPoolingCuVSResourceManager(int capacity, List<Long> allocationList) {
-            super(capacity, new TrackingGPUMemoryService(TOTAL_DEVICE_MEMORY_IN_BYTES));
+        MockPoolingCuVSResourceManager(int capacity, long totalMemoryInBytes) {
+            super(capacity, new TrackingGPUMemoryService(totalMemoryInBytes));
         }
 
         @Override

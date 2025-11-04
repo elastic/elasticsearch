@@ -47,12 +47,8 @@ public interface CuVSResourceManager {
      * effect on GPU memory and compute usage to determine whether to give out
      * another resource or wait for a resources to be returned before giving out another.
      */
-    ManagedCuVSResources acquire(
-        int numVectors,
-        int dims,
-        CuVSMatrix.DataType dataType,
-        CagraIndexParams.CagraGraphBuildAlgo graphBuildAlgo
-    ) throws InterruptedException;
+    ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams)
+        throws InterruptedException;
 
     /** Marks the resources as finished with regard to compute. */
     void finishedComputation(ManagedCuVSResources resources);
@@ -130,12 +126,8 @@ public interface CuVSResourceManager {
         }
 
         @Override
-        public ManagedCuVSResources acquire(
-            int numVectors,
-            int dims,
-            CuVSMatrix.DataType dataType,
-            CagraIndexParams.CagraGraphBuildAlgo graphBuildAlgo
-        ) throws InterruptedException {
+        public ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams)
+            throws InterruptedException {
             try {
                 var started = System.nanoTime();
                 lock.lock();
@@ -143,7 +135,7 @@ public interface CuVSResourceManager {
                 boolean allConditionsMet = false;
                 ManagedCuVSResources res = null;
 
-                long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims, dataType, graphBuildAlgo);
+                long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims, dataType, cagraIndexParams);
                 logger.debug(
                     "Estimated memory for [{}] vectors, [{}] dims of type [{}] is [{} B]",
                     numVectors,
@@ -200,17 +192,25 @@ public interface CuVSResourceManager {
             }
         }
 
-        private long estimateRequiredMemory(
-            int numVectors,
-            int dims,
-            CuVSMatrix.DataType dataType,
-            CagraIndexParams.CagraGraphBuildAlgo graphBuildAlgo
-        ) {
+        private long estimateRequiredMemory(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams) {
             int elementTypeBytes = switch (dataType) {
                 case FLOAT -> Float.BYTES;
                 case INT, UINT -> Integer.BYTES;
                 case BYTE -> Byte.BYTES;
             };
+
+            if (cagraIndexParams.getCagraGraphBuildAlgo() == CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ
+                && cagraIndexParams.getCuVSIvfPqParams() != null
+                && cagraIndexParams.getCuVSIvfPqParams().getIndexParams() != null
+                && cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getPqDim() != 0) {
+                // See https://docs.rapids.ai/api/cuvs/nightly/neighbors/ivfpq/#index-device-memory
+                var pqDim = cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getPqDim();
+                var pqBits = cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getPqBits();
+                var numClusters = cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getnLists();
+                var approximatedIvfBytes = numVectors * (pqDim * (pqBits / 8.0) + elementTypeBytes) + (long) numClusters * Integer.BYTES;
+                return (long) (GPU_COMPUTATION_MEMORY_FACTOR * approximatedIvfBytes);
+            }
+
             return (long) (GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * elementTypeBytes);
         }
 

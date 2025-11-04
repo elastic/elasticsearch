@@ -466,8 +466,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
     @Override
     public Nullability nullable() {
-        // The function is nullable if all fields are guaranteed to be null, due to the fields not being present in the mapping
-        return fields.stream().allMatch(Expressions::isGuaranteedNull) ? Nullability.TRUE : Nullability.FALSE;
+        return Expressions.nullable(fields);
     }
 
     @Override

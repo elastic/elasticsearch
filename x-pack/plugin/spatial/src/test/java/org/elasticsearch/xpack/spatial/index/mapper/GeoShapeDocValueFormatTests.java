@@ -49,9 +49,7 @@ public class GeoShapeDocValueFormatTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();
         IndexService indexService = createIndex(indexName, settings, "doc", "@timestamp", "type=date", fieldName, "type=geo_shape");
 
-        var indexRequest = new IndexRequest(indexName)
-            .opType(DocWriteRequest.OpType.CREATE)
-            .source("""
+        var indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.CREATE).source("""
             {
               "@timestamp": "2025-10-01T12:34:56.789",
               "%field": {

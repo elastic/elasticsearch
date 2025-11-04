@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.recovery;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
@@ -259,22 +260,22 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testPeerRecovery() throws Exception {
-        startMasterOnlyNode();
-
-        final var indexNodesSettings = Settings.builder()
-            // TODO: consider modifying this test to considers hollow flushes when asserting generation numbers.
-            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), Boolean.FALSE)
+        final var indexingNodeSettings = Settings.builder()
+            .put(randomHollowIndexNodeSettings())
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
-
-        var indexNode = startIndexNode(indexNodesSettings);
-        var indexName = createIndex(randomIntBetween(1, 3), 0);
+        final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(indexingNodeSettings);
+        startMasterOnlyNode();
+        var indexNode = startIndexNode(indexingNodeSettings);
+        final var numberOfShards = randomIntBetween(1, 3);
+        var indexName = createIndex(numberOfShards, 0);
 
         var currentGeneration = new PrimaryTermAndGeneration(1L, 3L);
         assertBusyCommitsMatchExpectedResults(indexName, expectedResults(currentGeneration, 0));
 
         long totalDocs = 0L;
         assertDocsCount(indexName, totalDocs);
+        boolean isHollow = false;
 
         int iters = randomIntBetween(1, 5);
         for (int i = 0; i < iters; i++) {
@@ -284,24 +285,49 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
                 logger.info("--> iteration {}/{}: {} docs indexed in {} commits", i, iters, generated.docs, generated.commits);
                 assertDocsCount(indexName, totalDocs + generated.docs);
 
-                var expected = expectedResults(currentGeneration, generated.commits);
+                var initialGeneration = currentGeneration;
+                if (generated.commits > 0 && hollowEnabled && isHollow) {
+                    // Unhollowing commit
+                    initialGeneration = new PrimaryTermAndGeneration(initialGeneration.primaryTerm(), initialGeneration.generation() + 1L);
+                    isHollow = false;
+                }
+
+                var expected = expectedResults(initialGeneration, generated.commits);
                 assertBusyCommitsMatchExpectedResults(indexName, expected);
 
                 if (expected.lastVirtualBcc != null) {
                     // there is a flush before relocating the shard so last CC of VBCC is uploaded, in addition to
-                    // generation increments due to a flush on the target shard after peer-recovery
+                    // generation increments due to a flush, either on the source node if hollow shards are enabled,
+                    // else on the target shard after peer-recovery
                     expectedGenerationAfterRelocation = expected.lastVirtualCc.generation() + 1L;
                 } else {
-                    // generation increments due to a flush on the target shard after peer-recovery
-                    expectedGenerationAfterRelocation = expected.lastUploadedCc.generation() + 1L;
+                    if (isHollow) {
+                        // a hollow shard will recover without any new commits
+                        // this can happen if shard was already hollow (from the previous iteration) and generated.commits == 0
+                        expectedGenerationAfterRelocation = expected.lastUploadedCc.generation();
+                    } else {
+                        // flush either on the source node if hollow shards are enabled, else on the target shard after peer-recovery
+                        expectedGenerationAfterRelocation = expected.lastUploadedCc.generation() + 1L;
+                    }
                 }
                 totalDocs += generated.docs;
             } else {
-                // generation increments due to a flush on the target shard after peer-recovery
-                expectedGenerationAfterRelocation = currentGeneration.generation() + 1L;
+                if (isHollow) {
+                    // a hollow shard will recover without any new commits
+                    expectedGenerationAfterRelocation = currentGeneration.generation();
+                } else {
+                    // flush either on the source node if hollow shards are enabled, else on the target shard after peer-recovery
+                    expectedGenerationAfterRelocation = currentGeneration.generation() + 1L;
+                }
             }
 
-            var newIndexNode = startIndexNode(indexNodesSettings);
+            // Wait until all shards are hollowable, so they can get hollowed
+            if (hollowEnabled && isHollow == false) {
+                waitForShardsToBeHollowable(indexName, numberOfShards, indexNode);
+                isHollow = true;
+            }
+
+            var newIndexNode = startIndexNode(indexingNodeSettings);
             logger.info("--> iteration {}/{}: node {} started", i, iters, newIndexNode);
 
             var excludedNode = indexNode;
@@ -316,6 +342,16 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
             assertBusyCommitsMatchExpectedResults(indexName, expectedResults(expected, 0));
             assertDocsCount(indexName, totalDocs);
             currentGeneration = expected;
+        }
+    }
+
+    private void waitForShardsToBeHollowable(String indexName, int numberOfShards, String indexNode) throws Exception {
+        final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNode);
+        for (int shard = 0; shard < numberOfShards; shard++) {
+            var index = resolveIndex(indexName);
+            var indexShard = findIndexShard(index, shard);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+            assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
         }
     }
 

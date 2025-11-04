@@ -206,7 +206,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
             .groupIndices(
                 resolveCrossProject ? indicesOptionsForCrossProjectFanout(originalIndicesOptions) : originalIndicesOptions,
-                request.indices()
+                request.indices(),
+                request.returnLocalAll()
             );
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 

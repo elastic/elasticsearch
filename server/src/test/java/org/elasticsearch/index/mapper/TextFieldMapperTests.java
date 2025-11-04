@@ -1776,4 +1776,8 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.omitNorms(), is(false));
     }
 
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

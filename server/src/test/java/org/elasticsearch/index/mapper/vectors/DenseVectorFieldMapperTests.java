@@ -264,18 +264,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         registerConflict(
             checker,
             "element_type",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", "l2_norm"),
-            "element_type",
-            "float",
-            "bit"
+            b -> b.field("type", "dense_vector").field("index", true).field("similarity", "l2_norm"),
+            b -> b.field("dims", dims).field("element_type", "float"),
+            b -> b.field("dims", dims * 8).field("element_type", "bit")
         );
         registerConflict(
             checker,
             "element_type",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", "l2_norm"),
-            "element_type",
-            "byte",
-            "bit"
+            b -> b.field("type", "dense_vector").field("index", true).field("similarity", "l2_norm"),
+            b -> b.field("dims", dims).field("element_type", "float"),
+            b -> b.field("dims", dims * 8).field("element_type", "bit")
         );
 
         // update for flat

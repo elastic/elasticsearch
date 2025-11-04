@@ -3842,7 +3842,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
-        final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
+        final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().getTimestampFieldType() != null;
         return new EngineConfig(
             shardId,
             threadPool,

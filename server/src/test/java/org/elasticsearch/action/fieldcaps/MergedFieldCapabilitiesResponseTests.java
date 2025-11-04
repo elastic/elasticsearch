@@ -52,7 +52,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
-        return new FieldCapabilitiesResponse(indices, responses);
+        return FieldCapabilitiesResponse.builder().withIndices(indices).withFields(responses).build();
     }
 
     @Override
@@ -87,7 +87,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
             }
         }
         // TODO pass real list
-        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
+        return FieldCapabilitiesResponse.builder().withFields(mutatedResponses).build();
     }
 
     @Override
@@ -180,7 +180,11 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         List<FieldCapabilitiesFailure> failureMap = List.of(
             new FieldCapabilitiesFailure(new String[] { "errorindex", "errorindex2" }, new IllegalArgumentException("test"))
         );
-        return new FieldCapabilitiesResponse(new String[] { "index1", "index2", "index3", "index4" }, responses, failureMap);
+        return FieldCapabilitiesResponse.builder()
+            .withIndices(new String[] { "index1", "index2", "index3", "index4" })
+            .withFields(responses)
+            .withFailures(failureMap)
+            .build();
     }
 
     public void testChunking() {

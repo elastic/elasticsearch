@@ -346,4 +346,9 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     protected boolean addsValueWhenNotSupplied() {
         return true;
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

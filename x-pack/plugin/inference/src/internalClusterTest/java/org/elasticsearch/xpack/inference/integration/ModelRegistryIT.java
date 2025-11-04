@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -906,7 +907,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var model = TestModel.createRandomInstance();
         assertStoreModel(modelRegistry, model);
 
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> assertStoreModel(modelRegistry, model));
+        var exception = expectThrows(ResourceAlreadyExistsException.class, () -> assertStoreModel(modelRegistry, model));
         assertThat(exception.status(), Matchers.is(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),
@@ -941,7 +942,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         PlainActionFuture<Boolean> secondStoreListener = new PlainActionFuture<>();
         modelRegistry.storeModel(model, secondStoreListener, TimeValue.THIRTY_SECONDS);
 
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> secondStoreListener.actionGet(TimeValue.THIRTY_SECONDS));
+        var exception = expectThrows(ResourceAlreadyExistsException.class, () -> secondStoreListener.actionGet(TimeValue.THIRTY_SECONDS));
         assertThat(exception.getMessage(), containsString("already exists"));
         assertThat(exception.status(), Matchers.is(RestStatus.BAD_REQUEST));
         assertIndicesContainExpectedDocsCount(model, 2);
@@ -964,7 +965,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         PlainActionFuture<Boolean> storeListener = new PlainActionFuture<>();
         modelRegistry.storeModel(model, storeListener, TimeValue.THIRTY_SECONDS);
 
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> storeListener.actionGet(TimeValue.THIRTY_SECONDS));
+        var exception = expectThrows(ResourceAlreadyExistsException.class, () -> storeListener.actionGet(TimeValue.THIRTY_SECONDS));
         assertThat(exception.getMessage(), containsString("already exists"));
         assertThat(exception.status(), Matchers.is(RestStatus.BAD_REQUEST));
 

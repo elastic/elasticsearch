@@ -129,6 +129,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
     public static final ParseField RETRIEVER = new ParseField("retriever");
+    public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
@@ -211,6 +212,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private Map<String, Object> runtimeMappings = emptyMap();
 
     private boolean skipInnerHits = false;
+
+    private String projectRouting;
 
     /**
      * Constructs a new search source builder.
@@ -607,6 +610,19 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public TimeValue timeout() {
         return timeout;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
+    }
+
+    public SearchSourceBuilder projectRouting(String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set");
+        }
+
+        this.projectRouting = projectRouting;
+        return this;
     }
 
     /**
@@ -1382,7 +1398,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (PROJECT_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+                    projectRouting(parser.text());
+                } else if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     size(parser.intValue());

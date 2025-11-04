@@ -30,6 +30,7 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -68,15 +69,13 @@ public class RestSearchAction extends BaseRestHandler {
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final Settings settings;
-
-    public RestSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
-        this(searchUsageHolder, clusterSupportsFeature, null);
-    }
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
         this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -109,10 +108,9 @@ public class RestSearchAction extends BaseRestHandler {
         // this might be set by old clients
         request.param("min_compatible_shard_node");
 
-        final boolean crossProjectEnabled = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
-        if (crossProjectEnabled) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
+        final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled && searchRequest.allowsCrossProject()) {
+            searchRequest.setProjectRouting(request.param("project_routing"));
         }
 
         /*
@@ -252,7 +250,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indicesOptions(indicesOptions);
 
-        validateSearchRequest(request, searchRequest);
+        validateSearchRequest(request, searchRequest, crossProjectEnabled && searchRequest.allowsCrossProject());
 
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request);
@@ -412,10 +410,46 @@ public class RestSearchAction extends BaseRestHandler {
      * might modify the search request to align certain parameters.
      */
     public static void validateSearchRequest(RestRequest restRequest, SearchRequest searchRequest) {
+        validateSearchRequest(restRequest, searchRequest, false);
+    }
+
+    private static void validateSearchRequest(RestRequest restRequest, SearchRequest searchRequest, boolean resolvesCrossProject) {
         checkRestTotalHits(restRequest, searchRequest);
         checkSearchType(restRequest, searchRequest);
         // ensures that the rest param is consumed
         restRequest.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
+        checkProjectRouting(searchRequest, resolvesCrossProject);
+    }
+
+    private static void checkProjectRouting(SearchRequest searchRequest, boolean resolvesCrossProject) {
+        /*
+         * There are 2 ways of specifying project_routing:
+         *   - as a query parameter: /_search?project_routing=..., and,
+         *   - within the request's body.
+         *
+         * Because we do not have access to `IndicesRequest/SearchRequest` from `SearchSourceBuilder`, and, project_routing
+         * can be potentially specified in 2 different places, we need to explicitly check this scenario.
+         */
+        String projectRoutingInBody = searchRequest.source().projectRouting();
+        // If it's null, either the query parameter is also null or it isn't. Either way, we're fine with it.
+        if (projectRoutingInBody != null) {
+            if (resolvesCrossProject == false) {
+                throw new IllegalArgumentException("project_routing is allowed only when CPS is enabled and the endpoint supports CPS");
+            }
+
+            // Query parameter was also set. This is not allowed, irrespective of the values.
+            if (searchRequest.getProjectRouting() != null) {
+                throw new IllegalArgumentException(
+                    "project_routing is specified in both the places: as query parameter and in the request's body"
+                );
+            }
+
+            /*
+             * Bring forward the project_routing value so that TransportSearchAction can pick it up. Although TSA can pick it up
+             * from `SearchSourceBuilder`, let's use `IndicesRequest#getProjectRouting()` since that's the intended way.
+             */
+            searchRequest.setProjectRouting(projectRoutingInBody);
+        }
     }
 
     /**

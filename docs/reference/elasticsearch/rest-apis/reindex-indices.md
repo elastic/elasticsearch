@@ -696,29 +696,17 @@ Be sure to use `https` when using an API key, or it will be sent in plain text. 
 
 ### Permitted remote hosts [reindex-remote-whitelist]
 
-::::{applies-switch}
+The remote hosts that you can use depend on whether you're using the versioned {{stack}} or {{serverless-short}}.
 
-:::{applies-item} { "stack": }
+* In the versioned {{stack}}, remote hosts have to be explicitly allowed in elasticsearch.yml using the `reindex.remote.whitelist` property. It can be set to a comma-delimited list of allowed remote host and port combinations. Scheme is ignored; only the host and port are used. For example:
 
-Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the `reindex.remote.whitelist` property.
-It can be set to a comma-delimited list of allowed remote `host` and `port` combinations.
-Scheme is ignored, only the host and port are used. For example:
+  ```
+  reindex.remote.whitelist: [otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"]
+  ```
 
-```yaml
-reindex.remote.whitelist: [otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"]
-```
-The list of allowed hosts must be configured on any node that will coordinate the reindex.
+  The list of allowed hosts must be configured on any node that will coordinate the reindex.
 
-:::
-
-:::{applies-item} { "serverless": }
-
-When running reindex in Elastic Cloud Serverless, only remote hosts in Elastic Cloud Hosted or Elastic Cloud Serverless are allowed.
-
-:::
-
-::::
-
+* In {{serverless-full}}, only remote hosts in Elastic Cloud Hosted or Elastic Cloud Serverless are allowed.
 
 ### Compatibility [reindex-remote-compatibility]
 

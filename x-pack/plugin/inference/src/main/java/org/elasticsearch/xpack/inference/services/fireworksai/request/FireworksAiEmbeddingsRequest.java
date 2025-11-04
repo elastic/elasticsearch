@@ -12,13 +12,13 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
@@ -29,13 +29,11 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  */
 public class FireworksAiEmbeddingsRequest implements Request {
 
-    private final Truncator truncator;
-    private final Truncator.TruncationResult truncationResult;
+    private final List<String> input;
     private final FireworksAiEmbeddingsModel model;
 
-    public FireworksAiEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, FireworksAiEmbeddingsModel model) {
-        this.truncator = Objects.requireNonNull(truncator);
-        this.truncationResult = Objects.requireNonNull(input);
+    public FireworksAiEmbeddingsRequest(List<String> input, FireworksAiEmbeddingsModel model) {
+        this.input = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
     }
 
@@ -49,9 +47,8 @@ public class FireworksAiEmbeddingsRequest implements Request {
         }
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(
-                new FireworksAiEmbeddingsRequestEntity(truncationResult.input(), model.getServiceSettings().modelId(), dimensions)
-            ).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new FireworksAiEmbeddingsRequestEntity(input, model.getServiceSettings().modelId(), dimensions))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
@@ -73,13 +70,11 @@ public class FireworksAiEmbeddingsRequest implements Request {
 
     @Override
     public Request truncate() {
-        var truncatedInput = truncator.truncate(truncationResult.input());
-
-        return new FireworksAiEmbeddingsRequest(truncator, truncatedInput, model);
+        return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        return truncationResult.truncated().clone();
+        return null;
     }
 }

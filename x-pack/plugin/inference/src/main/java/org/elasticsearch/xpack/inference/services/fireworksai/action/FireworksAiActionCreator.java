@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.inference.services.fireworksai.action;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.http.sender.TruncatingRequestManager;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiResponseHandler;
@@ -59,12 +59,12 @@ public class FireworksAiActionCreator implements FireworksAiActionVisitor {
     @Override
     public ExecutableAction create(FireworksAiEmbeddingsModel model, Map<String, Object> taskSettings) {
         var overriddenModel = FireworksAiEmbeddingsModel.of(model, taskSettings);
-        var manager = new TruncatingRequestManager(
+        var manager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             overriddenModel,
             EMBEDDINGS_HANDLER,
-            (truncationResult) -> new FireworksAiEmbeddingsRequest(serviceComponents.truncator(), truncationResult, overriddenModel),
-            overriddenModel.getServiceSettings().maxInputTokens()
+            (embeddingInput) -> new FireworksAiEmbeddingsRequest(embeddingInput.getInputs(), overriddenModel),
+            EmbeddingsInput.class
         );
 
         var errorMessage = constructFailedToSendRequestMessage("FireworksAI embeddings");

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -44,8 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
-import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
-import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -76,10 +76,10 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -115,6 +115,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -223,7 +224,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(eval.fields().get(0), Alias.class);
         var literal = as(alias.child(), Literal.class);
         assertThat(literal.value(), is(nullValue()));
-        assertThat(literal.dataType(), is(DataType.KEYWORD));
+        assertThat(literal.dataType(), is(KEYWORD));
 
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
@@ -256,7 +257,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(eval.fields().get(0), Alias.class);
         var literal = as(alias.child(), Literal.class);
         assertThat(literal.value(), is(new BytesRef("foo")));
-        assertThat(literal.dataType(), is(DataType.KEYWORD));
+        assertThat(literal.dataType(), is(KEYWORD));
 
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
@@ -322,7 +323,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertEquals(eval.fields().size(), 1);
         var lastName = eval.fields().get(0);
         assertEquals(lastName.name(), "last_name");
-        assertEquals(lastName.child(), new Literal(EMPTY, null, DataType.KEYWORD));
+        assertEquals(lastName.child(), new Literal(EMPTY, null, KEYWORD));
         var limit2 = asLimit(eval.child(), 1000, false);
         var relation = as(limit2.child(), EsRelation.class);
         assertThat(Expressions.names(relation.output()), not(contains("last_name")));
@@ -380,7 +381,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
                 new FieldAttribute(
                     EMPTY,
                     "last_name",
-                    new EsField("last_name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                    new EsField("last_name", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
                 )
             ),
             testStats
@@ -414,7 +415,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(Expressions.names(eval.fields()), contains("last_name"));
         var literal = as(eval.fields().get(0), Alias.class);
-        assertEquals(literal.child(), new Literal(EMPTY, null, DataType.KEYWORD));
+        assertEquals(literal.child(), new Literal(EMPTY, null, KEYWORD));
         assertThat(Expressions.names(relation.output()), not(contains("last_name")));
 
         assertEquals(Expressions.names(initialRelation.output()), Expressions.names(project.output()));
@@ -445,7 +446,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(eval.fields().get(0), Alias.class);
         var literal = as(alias.child(), Literal.class);
         assertThat(literal.value(), is(nullValue()));
-        assertThat(literal.dataType(), is(DataType.INTEGER));
+        assertThat(literal.dataType(), is(INTEGER));
 
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
@@ -535,7 +536,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Map<String, EsField> large = Maps.newLinkedHashMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             var name = String.format(Locale.ROOT, "field%03d", i);
-            large.put(name, new EsField(name, DataType.INTEGER, emptyMap(), true, false, EsField.TimeSeriesFieldType.NONE));
+            large.put(name, new EsField(name, INTEGER, emptyMap(), true, false, EsField.TimeSeriesFieldType.NONE));
         }
 
         SearchStats searchStats = statsForExistingField("field000", "field001", "field002", "field003", "field004");
@@ -568,7 +569,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), Eval.class);
         var field = eval.fields().get(0);
         assertThat(Expressions.name(field), is("field005"));
-        assertThat(Alias.unwrap(field).fold(FoldContext.small()), Matchers.nullValue());
+        assertThat(Alias.unwrap(field).fold(FoldContext.small()), nullValue());
     }
 
     // InferIsNotNull
@@ -912,11 +913,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Alias eval1 = eval.fields().get(0);
         Literal literal1 = as(eval1.child(), Literal.class);
         assertNull(literal1.value());
-        assertThat(literal1.dataType(), is(DataType.KEYWORD));
+        assertThat(literal1.dataType(), is(KEYWORD));
         Alias eval2 = eval.fields().get(1);
         Literal literal2 = as(eval2.child(), Literal.class);
         assertNull(literal2.value());
-        assertThat(literal2.dataType(), is(DataType.KEYWORD));
+        assertThat(literal2.dataType(), is(KEYWORD));
         assertThat(grouping1.id(), equalTo(eval1.id()));
         assertThat(grouping2.id(), equalTo(eval2.id()));
         as(eval.child(), EsRelation.class);
@@ -987,8 +988,8 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
                     // We only want to apply it once, so we use a static counter
                     if (appliedCount.get() == 0) {
                         appliedCount.set(appliedCount.get() + 1);
-                        Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER);
-                        return new Eval(plan.source(), plan, List.of(new Alias(Source.EMPTY, "additionalAttribute", additionalLiteral)));
+                        Literal additionalLiteral = new Literal(EMPTY, "additional literal", INTEGER);
+                        return new Eval(plan.source(), plan, List.of(new Alias(EMPTY, "additionalAttribute", additionalLiteral)));
                     }
                     return plan;
                 }
@@ -1108,17 +1109,18 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      */
     public void testVectorFunctionsReplaced() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
-        String query = """
+        SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
+        String query = String.format(Locale.ROOT, """
             from test_all
-            | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
-            """;
+            | eval s = %s
+            """, testCase.toQuery());
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
         // EsqlProject[[!alias_integer, boolean{f}#7, byte{f}#8, ... s{r}#5]]
         var project = as(plan, EsqlProject.class);
         // Does not contain the extracted field
-        assertFalse(Expressions.names(project.projections()).stream().anyMatch(s -> s.startsWith("$$dense_vector$DotProduct")));
+        assertFalse(Expressions.names(project.projections()).stream().anyMatch(s -> s.startsWith(testCase.toFieldAttrName())));
 
         // Eval[[$$dense_vector$DOTPRODUCT$27{f}#27 AS s#5]]
         var eval = as(project.child(), Eval.class);
@@ -1129,11 +1131,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Check replaced field attribute
         FieldAttribute fieldAttr = (FieldAttribute) alias.child();
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
-        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        assertThat(fieldAttr.name(), startsWith(testCase.toFieldAttrName()));
         var field = as(fieldAttr.field(), FunctionEsField.class);
         var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
-        assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
-        assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+        assertThat(blockLoaderFunctionConfig.similarityFunction(), instanceOf(DenseVectorFieldMapper.SimilarityFunction.class));
+        assertThat(blockLoaderFunctionConfig.vector(), equalTo(testCase.vector()));
 
         // Limit[1000[INTEGER],false,false]
         var limit = as(eval.child(), Limit.class);
@@ -1153,13 +1155,14 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      */
     public void testVectorFunctionsReplacedWithTopN() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
-        String query = """
+        SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
+        String query = String.format(Locale.ROOT, """
             from test_all
-            | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
+            | eval s = %s
             | sort s desc
             | limit 1
             | keep s
-            """;
+            """, testCase.toQuery());
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
@@ -1185,11 +1188,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Check replaced field attribute
         FieldAttribute fieldAttr = (FieldAttribute) alias.child();
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
-        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        assertThat(fieldAttr.name(), startsWith(testCase.toFieldAttrName()));
         var field = as(fieldAttr.field(), FunctionEsField.class);
         var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
-        assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
-        assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+        assertThat(blockLoaderFunctionConfig.similarityFunction(), instanceOf(DenseVectorFieldMapper.SimilarityFunction.class));
+        assertThat(blockLoaderFunctionConfig.vector(), equalTo(testCase.vector()));
 
         // EsRelation[types]
         var esRelation = as(eval.child(), EsRelation.class);
@@ -1198,13 +1201,14 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     public void testVectorFunctionsNotPushedDownWhenNotIndexed() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
-        String query = """
+        SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
+        String query = String.format(Locale.ROOT, """
             from test_all
-            | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
+            | eval s = %s
             | sort s desc
             | limit 1
             | keep s
-            """;
+            """, testCase.toQuery());
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), new EsqlTestUtils.TestSearchStats() {
             @Override
@@ -1225,8 +1229,8 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(eval.fields().getFirst(), Alias.class);
         assertThat(alias.name(), equalTo("s"));
 
-        // Check similarly function field attribute is NOT replaced
-        as(alias.child(), DotProduct.class);
+        // Check similarity function field attribute is NOT replaced
+        as(alias.child(), VectorSimilarityFunction.class);
 
         // EsRelation does not contain a FunctionEsField
         var esRelation = as(eval.child(), EsRelation.class);
@@ -1239,13 +1243,14 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     public void testVectorFunctionsWhenFieldMissing() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
-        String query = """
+        SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
+        String query = String.format(Locale.ROOT, """
             from test_all
-            | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
+            | eval s = %s
             | sort s desc
             | limit 1
             | keep s
-            """;
+            """, testCase.toQuery());
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), new EsqlTestUtils.TestSearchStats() {
             @Override
@@ -1281,11 +1286,12 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     public void testVectorFunctionsInWhere() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
-        String query = """
+        SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
+        String query = String.format(Locale.ROOT, """
             from test_all
-            | where v_dot_product(dense_vector, [1.0, 2.0, 3.0]) > 0.5
+            | where %s > 0.5
             | keep dense_vector
-            """;
+            """, testCase.toQuery());
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
@@ -1300,11 +1306,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Check left side is the replaced field attribute
         var fieldAttr = as(greaterThan.left(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
-        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        assertThat(fieldAttr.name(), startsWith(testCase.toFieldAttrName()));
         var field = as(fieldAttr.field(), FunctionEsField.class);
         var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
-        assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
-        assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+        assertThat(blockLoaderFunctionConfig.similarityFunction(), instanceOf(DenseVectorFieldMapper.SimilarityFunction.class));
+        assertThat(blockLoaderFunctionConfig.vector(), equalTo(testCase.vector()));
 
         // Check right side is 0.5
         var literal = as(greaterThan.right(), Literal.class);
@@ -1319,10 +1325,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     public void testVectorFunctionsInStats() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
-        String query = """
+        SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
+        String query = String.format(Locale.ROOT, """
             from test_all
-            | stats count(*) where v_dot_product(dense_vector, [1.0, 2.0, 3.0]) > 0.5
-            """;
+            | stats count(*) where %s > 0.5
+            """, testCase.toQuery());
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
@@ -1337,7 +1344,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         // Check the Count aggregate with filter
         var countAlias = as(aggregate.aggregates().getFirst(), Alias.class);
-        var count = as(countAlias.child(), org.elasticsearch.xpack.esql.expression.function.aggregate.Count.class);
+        var count = as(countAlias.child(), Count.class);
 
         // Check the filter on the Count aggregate
         assertThat(count.filter(), equalTo(Literal.TRUE));
@@ -1349,11 +1356,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Check left side is the replaced field attribute
         var fieldAttr = as(filterCondition.left(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
-        assertThat(fieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        assertThat(fieldAttr.name(), startsWith(testCase.toFieldAttrName()));
         var field = as(fieldAttr.field(), FunctionEsField.class);
         var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
-        assertThat(blockLoaderFunctionConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
-        assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+        assertThat(blockLoaderFunctionConfig.similarityFunction(), instanceOf(DenseVectorFieldMapper.SimilarityFunction.class));
+        assertThat(blockLoaderFunctionConfig.vector(), equalTo(testCase.vector()));
 
         // Verify the filter condition matches the aggregate filter
         var filterFieldAttr = as(filterCondition.left(), FieldAttribute.class);
@@ -1366,14 +1373,15 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     public void testVectorFunctionsUpdateIntermediateProjections() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
-        String query = """
+        SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
+        String query = String.format(Locale.ROOT, """
             from test_all
             | keep *
             | mv_expand keyword
-            | eval similarity = v_cosine(dense_vector, [0, 255, 255])
+            | eval similarity = %s
             | sort similarity desc, keyword asc
             | limit 1
-            """;
+            """, testCase.toQuery());
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
@@ -1392,11 +1400,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Check replaced field attribute
         var fieldAttr = as(alias.child(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
-        assertThat(fieldAttr.name(), startsWith("$$dense_vector$CosineSimilarity"));
+        assertThat(fieldAttr.name(), startsWith(testCase.toFieldAttrName()));
         var field = as(fieldAttr.field(), FunctionEsField.class);
         var blockLoaderFunctionConfig = as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
-        assertThat(blockLoaderFunctionConfig.similarityFunction(), is(CosineSimilarity.SIMILARITY_FUNCTION));
-        assertThat(blockLoaderFunctionConfig.vector(), equalTo(new float[] { 0.0f, 255.0f, 255.0f }));
+        assertThat(blockLoaderFunctionConfig.similarityFunction(), instanceOf(DenseVectorFieldMapper.SimilarityFunction.class));
+        assertThat(blockLoaderFunctionConfig.vector(), equalTo(testCase.vector()));
 
         // MvExpand[keyword{f}#23,keyword{r}#32]
         var mvExpand = as(eval.child(), MvExpand.class);
@@ -1408,7 +1416,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(
             innerProject.projections()
                 .stream()
-                .anyMatch(p -> (p instanceof FieldAttribute fa) && fa.name().startsWith("$$dense_vector$CosineSimilarity"))
+                .anyMatch(p -> (p instanceof FieldAttribute fa) && fa.name().startsWith(testCase.toFieldAttrName()))
         );
 
         // EsRelation[test_all][$$dense_vector$CosineSimilarity$33{f}#33, !alias_in..]
@@ -1418,13 +1426,30 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     public void testVectorFunctionsWithDuplicateFunctions() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
-        String query = """
+        // Generate two random test cases - one for duplicate usage, one for the second set
+        SimilarityFunctionTestCase testCase1 = SimilarityFunctionTestCase.random("dense_vector");
+        SimilarityFunctionTestCase testCase2 = randomValueOtherThan(testCase1, () -> SimilarityFunctionTestCase.random("dense_vector"));
+        SimilarityFunctionTestCase testCase3 = randomValueOtherThanMany(
+            tc -> (tc.equals(testCase1) || tc.equals(testCase2)),
+            () -> SimilarityFunctionTestCase.random("dense_vector")
+        );
+
+        String query = String.format(
+            Locale.ROOT,
+            """
             from test_all
-            | eval s1 = v_dot_product(dense_vector, [1.0, 2.0, 3.0]), s2 = v_dot_product(dense_vector, [1.0, 2.0, 3.0]) * 2 / 3
-            | where v_dot_product(dense_vector, [1.0, 2.0, 3.0]) + 5 + v_dot_product(dense_vector, [4.0, 5.0, 6.0]) > 0
-            | eval r2 = v_dot_product(dense_vector, [4.0, 5.0, 6.0]) + v_cosine(dense_vector, [4.0, 5.0, 6.0])
+            | eval s1 = %s, s2 = %s * 2 / 3
+            | where %s + 5 + %s > 0
+            | eval r2 = %s + %s
             | keep s1, s2, r2
-            """;
+            """,
+            testCase1.toQuery(),
+            testCase1.toQuery(),
+            testCase1.toQuery(),
+            testCase2.toQuery(),
+            testCase2.toQuery(),
+            testCase3.toQuery()
+        );
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
@@ -1436,18 +1461,18 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields(), hasSize(3));
 
-        // Check s1 = $$dense_vector$DotProduct$...
+        // Check s1 = $$dense_vector$Function1$...
         var s1Alias = as(eval.fields().getFirst(), Alias.class);
         assertThat(s1Alias.name(), equalTo("s1"));
         var s1FieldAttr = as(s1Alias.child(), FieldAttribute.class);
         assertThat(s1FieldAttr.fieldName().string(), equalTo("dense_vector"));
-        assertThat(s1FieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
+        assertThat(s1FieldAttr.name(), startsWith(testCase1.toFieldAttrName()));
         var s1Field = as(s1FieldAttr.field(), FunctionEsField.class);
         var s1Config = as(s1Field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
-        assertThat(s1Config.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
-        assertThat(s1Config.vector(), equalTo(new float[] { 1.0f, 2.0f, 3.0f }));
+        assertThat(s1Config.similarityFunction(), instanceOf(DenseVectorFieldMapper.SimilarityFunction.class));
+        assertThat(s1Config.vector(), equalTo(testCase1.vector()));
 
-        // Check s2 = $$dense_vector$DotProduct$1606418432 * 2 / 3 (same field as s1)
+        // Check s2 = $$dense_vector$Function1$ * 2 / 3 (same field as s1)
         var s2Alias = as(eval.fields().get(1), Alias.class);
         assertThat(s2Alias.name(), equalTo("s2"));
         var s2Div = as(s2Alias.child(), Div.class);
@@ -1455,51 +1480,101 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var s2FieldAttr = as(s2Mul.left(), FieldAttribute.class);
         assertThat(s1FieldAttr, is(s2FieldAttr));
 
-        // Check r2 = $$dense_vector$DotProduct$882900992 + $$dense_vector$CosineSimilarity$882900992
+        // Check r2 = $$dense_vector$Function2$ + $$dense_vector$Function2$ (deduplicated to same field)
         var r2Alias = as(eval.fields().get(2), Alias.class);
         assertThat(r2Alias.name(), equalTo("r2"));
         var r2Add = as(r2Alias.child(), Add.class);
 
-        // Left side: DotProduct field with vector [4.0, 5.0, 6.0]
-        var r2DotProductFieldAttr = as(r2Add.left(), FieldAttribute.class);
-        assertThat(r2DotProductFieldAttr.fieldName().string(), equalTo("dense_vector"));
-        assertThat(r2DotProductFieldAttr.name(), startsWith("$$dense_vector$DotProduct"));
-        var r2DotProductField = as(r2DotProductFieldAttr.field(), FunctionEsField.class);
-        var r2DotProductConfig = as(r2DotProductField.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
-        assertThat(r2DotProductConfig.similarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
-        assertThat(r2DotProductConfig.vector(), equalTo(new float[] { 4.0f, 5.0f, 6.0f }));
+        // Both sides should be the same function/vector (testCase2)
+        var r2LeftFieldAttr = as(r2Add.left(), FieldAttribute.class);
+        assertThat(r2LeftFieldAttr.fieldName().string(), equalTo("dense_vector"));
+        assertThat(r2LeftFieldAttr.name(), startsWith(testCase2.toFieldAttrName()));
+        var r2LeftField = as(r2LeftFieldAttr.field(), FunctionEsField.class);
+        var r2LeftConfig = as(r2LeftField.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
+        assertThat(r2LeftConfig.similarityFunction(), instanceOf(DenseVectorFieldMapper.SimilarityFunction.class));
+        assertThat(r2LeftConfig.vector(), equalTo(testCase2.vector()));
 
-        // Right side: CosineSimilarity field
-        var r2CosineFieldAttr = as(r2Add.right(), FieldAttribute.class);
-        assertThat(r2CosineFieldAttr.fieldName().string(), equalTo("dense_vector"));
-        assertThat(r2CosineFieldAttr.name(), startsWith("$$dense_vector$CosineSimilarity"));
-        var r2CosineField = as(r2CosineFieldAttr.field(), FunctionEsField.class);
-        var r2CosineConfig = as(r2CosineField.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
-        assertThat(r2CosineConfig.similarityFunction(), is(CosineSimilarity.SIMILARITY_FUNCTION));
-        assertThat(r2CosineConfig.vector(), equalTo(new float[] { 4.0f, 5.0f, 6.0f }));
+        var r2RightFieldAttr = as(r2Add.right(), FieldAttribute.class);
+        // Both sides should not be deduplicated to the same field attribute
+        assertThat(r2RightFieldAttr, not(is(r2LeftFieldAttr)));
 
         // Limit[1000[INTEGER],false,false]
         var limit = as(eval.child(), Limit.class);
 
-        // Filter[$$dense_vector$DotProduct$1606418432 + 5 + $$dense_vector$DotProduct$882900992 > 0]
+        // Filter[$$dense_vector$Function1$ + 5 + $$dense_vector$Function2$ > 0]
         var filter = as(limit.child(), Filter.class);
         var greaterThan = as(filter.condition(), GreaterThan.class);
         var filterAdd1 = as(greaterThan.left(), Add.class);
         var filterAdd2 = as(filterAdd1.left(), Add.class);
 
-        // Check filter uses s1 field (DotProduct with [1.0, 2.0, 3.0])
+        // Check filter uses s1 field (testCase1)
         var filterS1FieldAttr = as(filterAdd2.left(), FieldAttribute.class);
         assertThat(filterS1FieldAttr, is(s1FieldAttr));
 
-        // Check filter uses r2's DotProduct field (DotProduct with [4.0, 5.0, 6.0])
+        // Check filter uses r2's field (testCase2)
         var filterR2FieldAttr = as(filterAdd1.right(), FieldAttribute.class);
-        assertThat(filterR2FieldAttr, is(r2DotProductFieldAttr));
+        assertThat(filterR2FieldAttr, is(r2LeftFieldAttr));
 
         // EsRelation[test_all][!alias_integer, boolean{f}#19, byte{f}#20, constant..]
         var esRelation = as(filter.child(), EsRelation.class);
         assertTrue(esRelation.output().contains(s1FieldAttr));
-        assertTrue(esRelation.output().contains(r2DotProductFieldAttr));
-        assertTrue(esRelation.output().contains(r2CosineFieldAttr));
+        assertTrue(esRelation.output().contains(r2LeftFieldAttr));
+    }
+
+    private record SimilarityFunctionTestCase(String esqlFunction, String fieldName, float[] vector, String functionName) {
+
+        public String toQuery() {
+            String params = randomBoolean() ? fieldName + ", " + Arrays.toString(vector)
+                                         : Arrays.toString(vector) + ", " + fieldName;
+            return esqlFunction + "(" + params + ")";
+        }
+
+        public String toFieldAttrName() {
+            return "$$" + fieldName + "$" + functionName;
+        }
+
+        public static SimilarityFunctionTestCase random(String fieldName) {
+            float[] vector = new float[] {
+                randomFloat(),
+                randomFloat(),
+                randomFloat()
+            };
+            // Only use DotProduct and CosineSimilarity as they have full pushdown support
+            // L1Norm, L2Norm, and Hamming are still in development
+            return switch(randomInt(4)) {
+                case 0 -> new SimilarityFunctionTestCase(
+                    "v_dot_product",
+                    fieldName,
+                    vector,
+                    "DotProduct"
+                );
+                case 1 -> new SimilarityFunctionTestCase(
+                    "v_cosine",
+                    fieldName,
+                    vector,
+                    "CosineSimilarity"
+                );
+                case 2 -> new SimilarityFunctionTestCase(
+                    "v_l1_norm",
+                    fieldName,
+                    vector,
+                    "L1Norm"
+                );
+                case 3 -> new SimilarityFunctionTestCase(
+                    "v_l2_norm",
+                    fieldName,
+                    vector,
+                    "L2Norm"
+                );
+                case 4 -> new SimilarityFunctionTestCase(
+                    "v_hamming",
+                    fieldName,
+                    vector,
+                    "Hamming"
+                );
+                default -> throw new IllegalStateException("Unexpected value");
+            };
+        }
     }
 
     private IsNotNull isNotNull(Expression field) {

@@ -1511,15 +1511,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
-     * <p>
-     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#aggregateMetricDoubleCases}.
-     * </p>
      */
     public static List<TypedDataSupplier> exponentialHistogramCases() {
         return List.of(
             new TypedDataSupplier(
                 "<random exponential histogram>",
-                () -> EsqlTestUtils.randomExponentialHistogram(),
+                EsqlTestUtils::randomExponentialHistogram,
                 DataType.EXPONENTIAL_HISTOGRAM
             )
         );

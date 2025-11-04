@@ -1,0 +1,5 @@
+pr: 137236
+summary: Add URI_PARTS ESQL function
+area: ES|QL
+type: enhancement
+issues: []

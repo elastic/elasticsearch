@@ -135,16 +135,47 @@ public class Reindexer {
                     projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    ActionListener.runAfter(listener, () -> {
-                        long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-                        if (reindexMetrics != null) {
-                            reindexMetrics.recordTookTime(elapsedTime);
-                        }
-                    })
+                    wrapWithMetrics(listener, reindexMetrics, startTime, request.getRemoteInfo() != null)
                 );
                 searchAction.start();
             }
         );
+    }
+
+    // Visible for testing
+    static ActionListener<BulkByScrollResponse> wrapWithMetrics(
+        ActionListener<BulkByScrollResponse> listener,
+        @Nullable ReindexMetrics metrics,
+        long startTime,
+        boolean isRemote
+    ) {
+        if (metrics == null) {
+            return listener;
+        }
+        var withCompletionMetrics = new ActionListener<BulkByScrollResponse>() {
+            @Override
+            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                if ((bulkByScrollResponse.getBulkFailures() != null && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
+                    || (bulkByScrollResponse.getSearchFailures() != null && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
+                    metrics.recordFailure(isRemote);
+                    listener.onResponse(bulkByScrollResponse);
+                } else {
+                    metrics.recordSuccess(isRemote);
+                    listener.onResponse(bulkByScrollResponse);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                metrics.recordFailure(isRemote);
+                listener.onFailure(e);
+            }
+        };
+
+        return ActionListener.runAfter(withCompletionMetrics, () -> {
+            long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+            metrics.recordTookTime(elapsedTime, isRemote);
+        });
     }
 
     /**

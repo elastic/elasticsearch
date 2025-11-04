@@ -26,10 +26,12 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
@@ -474,7 +476,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     @Override
     public List<QueryBuilder> getPrefilters() {
-        return Stream.concat(prefilters.stream(), filterClauses.stream()).toList();
+        return Stream.of(prefilters, filterClauses, mustNotClauses.stream().map(c -> QueryBuilders.boolQuery().mustNot(c)).toList())
+            .flatMap(Collection::stream)
+            .collect(Collectors.toList());
     }
 
     @Override

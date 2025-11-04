@@ -455,6 +455,11 @@ stack: ga 9.2
 serverless: ga
 ```
 
+:::{important}
+The recommended method for retrieving embeddings differs between {{es}} versions 9.2 and earlier.
+For instructions on retrieving embeddings in versions earlier than 9.2, refer to [Retrieve semantic field embeddings using `fields`](#retrieve-embeddings-9.0-9.1).
+:::
+
 By default, the embeddings generated for `semantic_text` fields are stored internally and **not included in `_source`** when retrieving documents.
 
 To include the full {{infer}} fields, including their embeddings, in `_source`, set the `_source.exclude_vectors` option to `false`.
@@ -489,6 +494,10 @@ Including embeddings in `_source` is useful when you want to:
 * Inspect or debug the raw embeddings generated for your content.
 
 ### Example: Reindex while preserving embeddings
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
 ```console
 POST _reindex
@@ -516,40 +525,13 @@ Matching `inference_id` values are required to reuse the existing embeddings.
 
 This allows documents to be re-indexed without triggering {{infer}} again, **as long as the target `semantic_text` field uses the same `inference_id` as the source**.
 
-::::{note}
-**For versions prior to 9.2.0**
-
-Older versions do not support the `exclude_vectors` option to retrieve the embeddings of the semantic text fields.
-To return the `_inference_fields`, use the `fields` option in a search request instead:
-
-```console
-POST my-index/_search
-{
-  "query": {
-    "match": {
-      "my_semantic_field": "Which country is Paris in?"
-    }
-  },
-  "fields": [
-    "_inference_fields"
-  ]
-}
-```
-% TEST[skip:Requires {{infer}} endpoint]
-
-This returns the chunked embeddings used for semantic search under `_inference_fields` in `_source`.
-Note that the `fields` option is **not** available for the Reindex API.
-::::
-
 ### Example: Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
-
-To verify that your embeddings look correct, you can retrieve the {{infer}} data that `semantic_text` normally hides from search results.
-The recommended method for retrieving this data differs between versions [9.2](#retrieve-embeddings-9.2) and [9.0–9.1](#retrieve-embeddings-9.0-9.1).
-
-#### Retrieve embeddings from version 9.2 [retrieve-embeddings-9.2]
 ```{applies_to}
 stack: ga 9.2
+serverless: ga
 ```
+
+To verify that your embeddings look correct, you can retrieve the {{infer}} data that `semantic_text` normally hides from search results.
 
 To retrieve the stored embeddings in {{es}} 9.2 and later, set the `exclude_vectors` parameter to `false` in the `_source` field. This ensures that the vector data, which is excluded by default, is included in the search response.
 
@@ -633,14 +615,14 @@ semantic search for `semantic_text` fields:
 2. Lists details about the model used to generate embeddings, such as the service name and task type.
 3. The embeddings generated for this chunk.
 
-#### Retrieve embeddings for versions 9.0-9.1 [retrieve-embeddings-9.0-9.1]
-
-To retrieve stored embeddings in versions 9.0 and 9.1, use the `fields` parameter with `_inference_fields`. This lets you include the vector data that is not shown by default in the response.
+## Returning semantic field embeddings using `fields` [retrieve-embeddings-9.0-9.1]
 
 :::{warning}
-This method is only recommended for {{es}} versions 9.0 and 9.1.
-For version 9.2 and later, use the [`exclude_vectors`](#retrieve-embeddings-9.2) parameter instead.
+This method is only recommended for {{es}} versions earlier than 9.2
+For version 9.2 and later, use the [`exclude_vectors`](#troubleshooting-semantic-text-fields) parameter instead.
 :::
+
+To retrieve stored embeddings, use the `fields` parameter with `_inference_fields`. This lets you include the vector data that is not shown by default in the response.
 
 ```console
 POST my-index/_search

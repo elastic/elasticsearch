@@ -78,15 +78,13 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     /**
      * Loads low cardinality singleton ordinals in using a cache of code point counts.
      * <p>
-     *     If we haven't cached the counts for all ordinals then the process looks like:
+     *     It's very important to look up ordinals in ascending order. So, if we haven't
+     *     cached the counts for all ordinals, then the process looks like:
      * </p>
      * <ol>
-     *     <li>Build an int[] containing the ordinals</li>
-     *     <li>
-     *         Sort a copy of the int[] and load the cache for each ordinal. The sorting
-     *         is important here because ordinals are faster to resolved in ascending order.
-     *     </li>
-     *     <li>Walk the int[] in order, reading from the cache to build the page</li>
+     *     <li>Build an {@code int[]} containing the ordinals</li>
+     *     <li>Sort a copy of the {@code int[]} and load the count into the cache for each ordinal.</li>
+     *     <li>Walk the unsorted {@code int[]} reading from the cache to build the page</li>
      * </ol>
      * <p>
      *     If we <strong>have</strong> cached the counts for all ordinals we load the
@@ -236,7 +234,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     /**
      * Loads low cardinality non-singleton ordinals in using a cache of code point counts.
-     * See {@link SingletonOrdinals} for the process
+     * See {@link SingletonOrdinals} for the process.
      */
     private static class Ordinals extends BlockDocValuesReader {
         private final Warnings warnings;
@@ -370,8 +368,21 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     }
 
     /**
-     * Loads a count of utf-8 code points for each ordinal doc by doc, without a cache. We use this when there
+     * Loads a count of utf-8 code points for each ordinal without a cache. We use this when there
      * are many unique doc values and the cache hit rate is unlikely to be high.
+     * <p>
+     *     It's very important to read values in sorted order so we:
+     * </p>
+     * <ul>
+     *     <li>Load the ordinals into an {@code int[]}, using -1 for "empty" values</li>
+     *     <li>Create a sorted copy of the {@code int[]}</li>
+     *     <li>Compact the sorted {@code int[]}s into a sorted list of unique, non "empty" ordinals</li>
+     *     <li>Count the code points for each of the sorted, compacted ordinals</li>
+     *     <li>
+     *         Walk the original ordinals {@code int[]} which are in doc order, building a {@link Block}
+     *         of counts.
+     *     </li>
+     * </ul>
      */
     private static class ImmediateOrdinals extends BlockDocValuesReader {
         private final Warnings warnings;

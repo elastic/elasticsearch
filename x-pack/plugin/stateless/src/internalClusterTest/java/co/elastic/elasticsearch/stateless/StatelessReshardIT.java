@@ -123,8 +123,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
-    // Given an index with a certain number of shards, it can be resharded only to valid
-    // number of target shards. Here we test some valid and invalid combinations.
+    // Given an index with a certain number of shards, it can be resharded only
+    // using a multiple of 2. Here we test some valid and invalid combinations.
     public void testReshardTargetNumShardsIsValid() {
         String indexNode = startMasterAndIndexNode();
         String searchNode = startSearchNode();
@@ -138,8 +138,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
         final int multiple2 = 2;
-        final int multiple3 = 3;
-        // Note that we can go from 1 shard to any number of shards (< 1024)
         int startingNumShards = 1;
         int targetNumShards = multiple2 * startingNumShards;
         logger.info("Starting reshard to go from {} to {} shards", startingNumShards, targetNumShards);
@@ -147,13 +145,14 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         waitForReshardCompletion(indexName);
         checkNumberOfShardsSetting(indexNode, indexName, targetNumShards);
 
-        // Now lets try to go from 2 shards to 6 shards (this is not allowed)
+        // Now lets try to use a multiple of 3 - this is not allowed.
         startingNumShards = 2;
+        final int multiple3 = 3;
         checkNumberOfShardsSetting(indexNode, indexName, startingNumShards);
         targetNumShards = multiple3 * startingNumShards;
         logger.info("Starting reshard to go from {} to {} shards", startingNumShards, targetNumShards);
         assertThrows(
-            IllegalStateException.class,
+            ActionRequestValidationException.class,
             () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple3))
                 .actionGet(SAFE_AWAIT_TIMEOUT)
         );
@@ -178,8 +177,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         ensureStableCluster(2);
 
-        // Note that we can go from 1 shard to any number of shards (< 1024)
-        final int multiple = randomIntBetween(2, 10);
+        final int multiple = 2;
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
@@ -353,7 +351,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         String searchCoordinator = startSearchNode();
         ensureStableCluster(4);
 
-        final int multiple = randomIntBetween(2, 3);
+        final int multiple = 2;
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
@@ -389,15 +387,16 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName, multiple);
         client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
 
-        CyclicBarrier startStateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + the test itself
-        CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple);
+        CountDownLatch handOffStarted = new CountDownLatch(multiple - 1); // (multiple - 1) target shards
+        CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + the test itself
 
         MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             try {
                 if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
-                    // Line up all targets here to make sure that we can properly reset `stateTransitionBlock` below.
-                    startStateTransitionBlock.await();
+                    if (handOffStarted.getCount() > 0) {
+                        handOffStarted.countDown();
+                    }
                     stateTransitionBlock.await();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -414,7 +413,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         );
 
         // wait for all target shards to arrive at handoff point
-        startStateTransitionBlock.await();
+        handOffStarted.await();
 
         // All target shards are in CLONE state.
         // At this point the handoff is in progress, all target shards received handoff requests
@@ -465,9 +464,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                 .targetStates()
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
         );
-
-        stateTransitionBlock.reset();
-        startStateTransitionBlock.await();
 
         // Transition of target shards to SPLIT state is blocked, all targets are in HANDOFF state.
         // Refresh includes target shards, search only uses the source shard.
@@ -534,9 +530,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                 .targetStates()
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT)
         );
-
-        stateTransitionBlock.reset();
-        startStateTransitionBlock.await();
 
         // Transition of target shards to DONE state is blocked, all targets are in SPLIT state.
         // Refresh includes target shards, search includes target shards.
@@ -697,7 +690,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         var searchNode = startSearchNode();
         ensureStableCluster(3);
 
-        final int multiple = 3;
+        final int multiple = 2;
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
@@ -713,7 +706,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             .reshardingMetadata(
                 IndexReshardingMetadata.newSplitByMultiple(1, multiple)
                     .transitionSplitTargetToNewState(new ShardId(index, 1), IndexReshardingState.Split.TargetShardState.HANDOFF)
-                    .transitionSplitTargetToNewState(new ShardId(index, 2), IndexReshardingState.Split.TargetShardState.HANDOFF)
             )
             .build();
         var wouldBeAfterSplitRouting = IndexRouting.fromIndexMetadata(wouldBeMetadata);
@@ -734,7 +726,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             {
                 put(0, findRoutingValue.apply(0));
                 put(1, findRoutingValue.apply(1));
-                put(2, findRoutingValue.apply(2));
             }
         };
 
@@ -772,15 +763,16 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // Start split and block transition to HANDOFF.
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet();
 
-        CyclicBarrier startStateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + the test itself
-        CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple);
+        CountDownLatch handOffStarted = new CountDownLatch(multiple - 1); // (multiple - 1) target shards
+        CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + the test itself
 
         MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             try {
                 if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
-                    // Line up all targets here to make sure that we can properly reset `stateTransitionBlock` below.
-                    startStateTransitionBlock.await();
+                    if (handOffStarted.getCount() > 0) {
+                        handOffStarted.countDown();
+                    }
                     stateTransitionBlock.await();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -792,7 +784,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         awaitClusterState(searchNode, clusterState -> clusterState.getMetadata().indexMetadata(index).getReshardingMetadata() != null);
 
         // wait for all target shards to arrive at handoff point
-        startStateTransitionBlock.await();
+        handOffStarted.await();
 
         // Don't refresh since it is blocked anyway, covered in other tests.
 
@@ -815,6 +807,10 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // unblock HANDOFF transition
         stateTransitionBlock.await();
 
+        // Wait for recovery of the target shard to complete because a flush is performed during recovery
+        // and we don't want to block it.
+        awaitClusterState(masterNode, clusterState -> clusterState.routingTable().index(index).shard(1).primaryShard().started());
+
         awaitClusterState(
             searchNode,
             clusterState -> clusterState.getMetadata()
@@ -824,9 +820,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                 .targetStates()
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
         );
-
-        stateTransitionBlock.reset();
-        startStateTransitionBlock.await();
 
         // Transition to SPLIT is blocked, all target shards are in HANDOFF state.
         var handoffSearch = client(searchNode).prepareSearch(indexName)
@@ -928,10 +921,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                 commitUploadLatch.countDown();
             }
         }
-
-        // Now that flush is unblocked target shards will proceed to DONE state.
-        stateTransitionBlock.reset();
-        startStateTransitionBlock.await();
 
         // unblock DONE transition
         stateTransitionBlock.await();
@@ -1051,15 +1040,12 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // Start split and block transition to HANDOFF.
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
-        CyclicBarrier startStateTransitionBlock = new CyclicBarrier(2); // 1 target shard + the test itself
-        CyclicBarrier stateTransitionBlock = new CyclicBarrier(1);
+        CyclicBarrier stateTransitionBlock = new CyclicBarrier(2); // target shard + the test itself
 
         MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             try {
                 if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
-                    // Line up all targets here to make sure that we can properly reset `stateTransitionBlock` below.
-                    startStateTransitionBlock.await();
                     stateTransitionBlock.await();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -1071,10 +1057,11 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         awaitClusterState(searchNode, clusterState -> clusterState.getMetadata().indexMetadata(index).getReshardingMetadata() != null);
 
         // transition to HANDOFF
-        startStateTransitionBlock.await();
         stateTransitionBlock.await();
 
-        startStateTransitionBlock.await();
+        // Wait for recovery of the target shard to complete because a flush is performed during recovery
+        // and we don't want to block it.
+        awaitClusterState(masterNode, clusterState -> clusterState.routingTable().index(index).shard(1).primaryShard().started());
 
         var commitUploadLatch = new CountDownLatch(1); // number of target shards
 
@@ -1164,7 +1151,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         }
 
         // unblock transition to DONE
-        startStateTransitionBlock.await();
         stateTransitionBlock.await();
 
         waitForReshardCompletion(indexName);
@@ -1182,7 +1168,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
-        final int multiple = randomIntBetween(2, 10);
+        final int multiple = 2;
 
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet();
         waitForReshardCompletion(indexName);

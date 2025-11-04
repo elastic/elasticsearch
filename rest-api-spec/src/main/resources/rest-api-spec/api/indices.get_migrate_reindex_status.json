@@ -23,8 +23,8 @@
           ],
           "parts": {
             "index": {
-              "type": "string",
-              "description": "The index or data stream name"
+              "type": "list",
+              "description": "The index or data stream name."
             }
           }
         }

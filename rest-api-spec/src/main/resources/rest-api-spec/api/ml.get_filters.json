@@ -26,8 +26,8 @@
           ],
           "parts": {
             "filter_id": {
-              "type": "string",
-              "description": "The ID of the filter to fetch"
+              "type": "list",
+              "description": "A string that uniquely identifies a filter."
             }
           }
         }

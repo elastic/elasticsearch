@@ -1088,9 +1088,7 @@ public class SearchModule {
         registerRetriever(new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::fromXContent));
         registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::fromXContent));
         registerRetriever(new RetrieverSpec<>(RescorerRetrieverBuilder.NAME, RescorerRetrieverBuilder::fromXContent));
-        registerRetriever(
-            new RetrieverSpec<>(DiversifyRetrieverBuilder.NAME, DiversifyRetrieverBuilder::fromXContent)
-        );
+        registerRetriever(new RetrieverSpec<>(DiversifyRetrieverBuilder.NAME, DiversifyRetrieverBuilder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
     }

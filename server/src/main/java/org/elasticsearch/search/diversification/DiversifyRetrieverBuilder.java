@@ -70,8 +70,10 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }
     }
 
-    static final ConstructingObjectParser<DiversifyRetrieverBuilder, RetrieverParserContext> PARSER =
-        new ConstructingObjectParser<>(NAME, false, args -> {
+    static final ConstructingObjectParser<DiversifyRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        false,
+        args -> {
 
             ResultDiversificationType diversificationType = ResultDiversificationType.fromString((String) args[1]);
             String diversificationField = (String) args[2];
@@ -97,7 +99,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 queryVector,
                 lambda
             );
-        });
+        }
+    );
 
     static {
         PARSER.declareNamedObject(constructorArg(), (parser, context, n) -> {
@@ -164,10 +167,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     }
 
     @Override
-    protected DiversifyRetrieverBuilder clone(
-        List<RetrieverSource> newChildRetrievers,
-        List<QueryBuilder> newPreFilterQueryBuilders
-    ) {
+    protected DiversifyRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
         return new DiversifyRetrieverBuilder(
             newChildRetrievers,
             diversificationType,
@@ -336,8 +336,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         return NAME;
     }
 
-    public static DiversifyRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
-        throws IOException {
+    public static DiversifyRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         return PARSER.apply(parser, context);
     }
 

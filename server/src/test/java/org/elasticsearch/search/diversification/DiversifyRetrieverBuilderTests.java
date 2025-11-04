@@ -309,10 +309,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         return createRandomRetriever(null, null);
     }
 
-    private static DiversifyRetrieverBuilder createRandomRetriever(
-        @Nullable String fieldName,
-        @Nullable Integer vectorDimensions
-    ) {
+    private static DiversifyRetrieverBuilder createRandomRetriever(@Nullable String fieldName, @Nullable Integer vectorDimensions) {
         String field = fieldName == null ? "test_field" : fieldName;
         int rankWindowSize = randomIntBetween(1, 20);
         float[] queryVector = vectorDimensions == null
@@ -320,14 +317,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             : getRandomQueryVector(vectorDimensions);
         Float lambda = randomFloatBetween(0.0f, 1.0f, true);
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = getInnerRetriever();
-        return new DiversifyRetrieverBuilder(
-            innerRetriever,
-            ResultDiversificationType.MMR,
-            field,
-            rankWindowSize,
-            queryVector,
-            lambda
-        );
+        return new DiversifyRetrieverBuilder(innerRetriever, ResultDiversificationType.MMR, field, rankWindowSize, queryVector, lambda);
     }
 
     private static CompoundRetrieverBuilder.RetrieverSource getInnerRetriever() {

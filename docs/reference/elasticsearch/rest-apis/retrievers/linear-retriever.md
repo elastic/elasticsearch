@@ -16,19 +16,19 @@ Either `query` or `retrievers` must be specified.
 Combining `query` and `retrievers` is not supported.
 ::::
 
-`query` {applies_to}`stack: ga 9.1`
+`query` {applies_to}`stack: ga 9.1, serverless: ga`
 :   (Optional, String)
 
     The query to use when using the [multi-field query format](../retrievers.md#multi-field-query-format).
 
-`fields` {applies_to}`stack: ga 9.1`
+`fields` {applies_to}`stack: ga 9.1, serverless: ga`
 :   (Optional, array of strings)
 
     The fields to query when using the [multi-field query format](../retrievers.md#multi-field-query-format).
     Fields can include boost values using the `^` notation (e.g., `"field^2"`).
     If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
 
-`normalizer` {applies_to}`stack: ga 9.1`
+`normalizer` {applies_to}`stack: ga 9.1, serverless: ga`
 :   (Optional, String)
 
     The top-level normalizer to use when combining results.

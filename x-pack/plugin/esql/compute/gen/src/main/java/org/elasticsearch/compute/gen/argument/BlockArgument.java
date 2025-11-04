@@ -132,7 +132,12 @@ public record BlockArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public void generateBlockProcessingLoop(MethodSpec.Builder builder, Runnable next) {
-        next.run();
+    public void startBlockProcessingLoop(MethodSpec.Builder builder) {
+        // nothing to do
+    }
+
+    @Override
+    public void endBlockProcessingLoop(MethodSpec.Builder builder) {
+        // nothing to do
     }
 }

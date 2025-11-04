@@ -451,24 +451,12 @@ public class AggregatorImplementer {
                 }
             }
 
-            Runnable currAction = getCurrentAction(builder);
-            for (int i = aggParams.size() - 1; i >= 0; i--) {
-                Argument a = aggParams.get(i);
-                Runnable nextAction = currAction;
-                currAction = () -> a.generateBlockProcessingLoop(builder, nextAction);
+            for (Argument a : aggParams) {
+                a.startBlockProcessingLoop(builder);
             }
 
-            currAction.run();
-        }
-        builder.endControlFlow();
-        return builder.build();
-    }
-
-    private Runnable getCurrentAction(MethodSpec.Builder builder) {
-        Runnable runnable = () -> {
             if (hasOnlyBlockArguments) {
                 String params = aggParams.stream().map(Argument::blockName).collect(joining(", "));
-
                 warningsBlock(builder, () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, params));
             } else {
                 if (first != null) {
@@ -487,9 +475,14 @@ public class AggregatorImplementer {
                     combineRawInput(builder, false);
                 }
             }
-        };
 
-        return runnable;
+            for (int i = aggParams.size() - 1; i >= 0; --i) {
+                Argument a = aggParams.get(i);
+                a.endBlockProcessingLoop(builder);
+            }
+        }
+        builder.endControlFlow();
+        return builder.build();
     }
 
     private MethodSpec.Builder initAddRaw(boolean blockStyle, boolean masked) {

@@ -230,10 +230,17 @@ public interface Argument {
     }
 
     /**
-     * Creates the loop needed to process this argument's values when passed as a block.
+     * Starts the loop needed to process this argument's values when passed as a block.
      */
-    default void generateBlockProcessingLoop(MethodSpec.Builder builder, Runnable next) {
+    default void startBlockProcessingLoop(MethodSpec.Builder builder) {
         throw new UnsupportedOperationException("can't build raw block for " + type());
+    }
+
+    /**
+     * Ends the loop needed to process this argument's values when passed as a block.
+     */
+    default void endBlockProcessingLoop(MethodSpec.Builder builder) {
+        throw new UnsupportedOperationException("can't end block for " + type());
     }
 
     /**

@@ -17,12 +17,12 @@ Either `query` or `retrievers` must be specified.
 Combining `query` and `retrievers` is not supported.
 ::::
 
-`query` {applies_to}`stack: ga 9.1`
+`query` {applies_to}`stack: ga 9.1, serverless: ga`
 :   (Optional, String)
 
     The query to use when using the [multi-field query format](../retrievers.md#multi-field-query-format).
 
-`fields` {applies_to}`stack: ga 9.1`
+`fields` {applies_to}`stack: ga 9.1, serverless: ga`
 :   (Optional, array of strings)
 
     The fields to query when using the [multi-field query format](../retrievers.md#multi-field-query-format).

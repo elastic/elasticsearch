@@ -635,11 +635,7 @@ public class Lucene {
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
         } else if (sortField instanceof SortedNumericSortField snsf) {
-            SortField newSortField = new SortField(
-                sortField.getField(),
-                snsf.getNumericType(),
-                sortField.getReverse()
-            );
+            SortField newSortField = new SortField(sortField.getField(), snsf.getNumericType(), sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {

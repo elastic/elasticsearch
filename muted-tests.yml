@@ -454,6 +454,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565
+- class: org.elasticsearch.action.IndicesRequestIT
+  method: testIndicesStats
+  issue: https://github.com/elastic/elasticsearch/issues/137594
 
 # Examples:
 #

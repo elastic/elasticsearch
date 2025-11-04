@@ -53,6 +53,11 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         super(localLogicalOptimizerContext);
     }
 
+    @Override
+    protected List<Batch<LogicalPlan>> batches() {
+        return RULES;
+    }
+
     @SuppressWarnings("unchecked")
     private static Batch<LogicalPlan> localRewrites() {
         List<Rule<?, LogicalPlan>> rules = new ArrayList<>(
@@ -70,11 +75,6 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         }
 
         return new Batch<>("Local rewrite", Limiter.ONCE, rules.toArray(Rule[]::new));
-    }
-
-    @Override
-    protected List<Batch<LogicalPlan>> batches() {
-        return RULES;
     }
 
     @SuppressWarnings("unchecked")

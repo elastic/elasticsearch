@@ -93,7 +93,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             getFieldDataTypes()::contains,
             sourceText(),
             TypeResolutions.ParamOrdinal.FIRST,
-            getExpectedFieldTypesString()
+            expectedFieldTypesString()
         );
     }
 
@@ -106,7 +106,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             getQueryDataTypes()::contains,
             sourceText(),
             TypeResolutions.ParamOrdinal.SECOND,
-            getExpectedQueryTypesString()
+            expectedQueryTypesString()
         ).and(isNotNull(query(), sourceText(), TypeResolutions.ParamOrdinal.SECOND));
         if (result.unresolved()) {
             return result;
@@ -234,7 +234,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Returns a human-readable string listing the expected field types.
      * Used in error messages.
      */
-    protected String getExpectedFieldTypesString() {
+    protected String expectedFieldTypesString() {
         return expectedTypesAsString(getFieldDataTypes());
     }
 
@@ -242,11 +242,11 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Returns a human-readable string listing the expected query types.
      * Used in error messages.
      */
-    protected String getExpectedQueryTypesString() {
+    protected String expectedQueryTypesString() {
         return expectedTypesAsString(getQueryDataTypes());
     }
 
-    static String expectedTypesAsString(Set<DataType> FieldDataTypes) {
-        return String.join(", ", FieldDataTypes.stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).toList());
+    static String expectedTypesAsString(Set<DataType> dataTypes) {
+        return String.join(", ", dataTypes.stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).toList());
     }
 }

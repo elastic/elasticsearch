@@ -91,7 +91,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new PredictLinear(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new PredictLinear(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
     }
 
     @Override

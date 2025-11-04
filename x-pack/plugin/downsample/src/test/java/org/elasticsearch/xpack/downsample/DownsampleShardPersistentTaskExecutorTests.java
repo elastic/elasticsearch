@@ -157,7 +157,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             .build();
 
         var params = new DownsampleShardTaskParams(
-            new DownsampleConfig(new DateHistogramInterval("1h")),
+            new DownsampleConfig(new DateHistogramInterval("1h"), randomSamplingMethod()),
             shardId.getIndexName(),
             1,
             1,

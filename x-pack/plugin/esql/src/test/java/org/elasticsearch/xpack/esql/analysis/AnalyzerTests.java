@@ -3318,10 +3318,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveDenseVector() {
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build()))),
-            List.of()
-        );
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build())))
+            )
+            .build();
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
@@ -3343,15 +3344,16 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveAggregateMetricDouble() {
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse(
-                    "foo",
-                    Map.of("v", new IndexFieldCapabilitiesBuilder("v", "aggregate_metric_double").build())
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(
+                    fieldCapabilitiesIndexResponse(
+                        "foo",
+                        Map.of("v", new IndexFieldCapabilitiesBuilder("v", "aggregate_metric_double").build())
+                    )
                 )
-            ),
-            List.of()
-        );
+            )
+            .build();
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",

@@ -76,7 +76,8 @@ import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.markClusterWithF
 public class EnrichPolicyResolver {
     private static final String RESOLVE_ACTION_NAME = "cluster:monitor/xpack/enrich/esql/resolve_policy";
 
-    private static final TransportVersion ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION = TransportVersion.fromName(
+    // NOCOMMIT: rename to something that represents the overall change
+    public static final TransportVersion ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION = TransportVersion.fromName(
         "esql_use_minimum_version_for_enrich_resolution"
     );
 

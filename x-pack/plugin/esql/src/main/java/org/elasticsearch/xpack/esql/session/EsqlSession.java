@@ -178,7 +178,12 @@ public class EsqlSession {
     /**
      * Execute an ESQL request.
      */
-    public void execute(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, PlanRunner planRunner, ActionListener<Result> listener) {
+    public void execute(
+        EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        PlanRunner planRunner,
+        ActionListener<Versioned<Result>> listener
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
@@ -250,6 +255,7 @@ public class EsqlSession {
                                 l
                             )
                         )
+                        .<Versioned<Result>>andThen((l, r) -> l.onResponse(new Versioned<>(r, minimumVersion)))
                         .addListener(listener);
                 }
             }

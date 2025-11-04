@@ -716,6 +716,10 @@ public abstract class MappedFieldType {
      * implementation for transforming loaded values into blocks.
      */
     public interface BlockLoaderFunctionConfig {
+        /**
+         * Returns a representable name for this configuration that can be used as part of a pushed down attribute name.
+         * Configurations that are equal() must return the same name.
+         */
         String name();
     }
 

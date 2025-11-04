@@ -209,6 +209,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         final SearchRequest request = new SearchRequest(originalSearchRequest, indices, clusterAlias, absoluteStartMillis, finalReduce);
         request.setParentTask(parentTaskId);
+        request.setProjectRouting(originalSearchRequest.getProjectRouting());
         return request;
     }
 
@@ -238,6 +239,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         this.waitForCheckpoints = searchRequest.waitForCheckpoints;
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
+        this.projectRouting = searchRequest.projectRouting;
     }
 
     /**

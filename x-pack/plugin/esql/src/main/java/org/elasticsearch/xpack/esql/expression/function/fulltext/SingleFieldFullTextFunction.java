@@ -176,8 +176,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     @Override
     public Nullability nullable() {
-        // The function is nullable if the field is guaranteed to be null, due to the field not being present in the mapping
-        return Expressions.isGuaranteedNull(field()) ? Nullability.TRUE : Nullability.FALSE;
+        return field().nullable();
     }
 
     @Override

@@ -27,17 +27,19 @@ import org.elasticsearch.core.Releasables;
  * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
  * This class is not generated yet, but will be eventually by something like `X-ValueByTimestampAggregator.java.st`.
  */
-@Aggregator({
-    @IntermediateState(name = "timestamps", type = "LONG"),
-    @IntermediateState(name = "values", type = "LONG"),
-    @IntermediateState(name = "seen", type = "BOOLEAN"),
-    @IntermediateState(name = "hasValue", type = "BOOLEAN")
-})
-@GroupingAggregator({
-    @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-    @IntermediateState(name = "values", type = "LONG_BLOCK"),
-    @IntermediateState(name = "hasValues", type = "BOOLEAN_BLOCK")
-})
+@Aggregator(
+    {
+        @IntermediateState(name = "timestamps", type = "LONG"),
+        @IntermediateState(name = "values", type = "LONG"),
+        @IntermediateState(name = "seen", type = "BOOLEAN"),
+        @IntermediateState(name = "hasValue", type = "BOOLEAN") }
+)
+@GroupingAggregator(
+    {
+        @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
+        @IntermediateState(name = "values", type = "LONG_BLOCK"),
+        @IntermediateState(name = "hasValues", type = "BOOLEAN_BLOCK") }
+)
 public class AllFirstLongByTimestampAggregator {
     public static String describe() {
         return "first_long_by_timestamp";
@@ -82,12 +84,12 @@ public class AllFirstLongByTimestampAggregator {
     public static void combineIntermediate(AllLongLongState current, long timestamp, long value, boolean seen, boolean v2Seen) {
         if (seen) {
             if (current.seen()) {
-                 if (timestamp < current.v1()) {
-                     // an earlier timestamp has been observed in the reporting shard so we must update internal state
-                     current.v1(timestamp);
-                     current.v2(value);
-                     current.v2Seen(v2Seen);
-                 }
+                if (timestamp < current.v1()) {
+                    // an earlier timestamp has been observed in the reporting shard so we must update internal state
+                    current.v1(timestamp);
+                    current.v2(value);
+                    current.v2Seen(v2Seen);
+                }
             } else {
                 current.v1(timestamp);
                 current.v2(value);
@@ -121,7 +123,7 @@ public class AllFirstLongByTimestampAggregator {
         LongBlock values,
         BooleanBlock hasValues,
         int otherPosition
-    )   {
+    ) {
         // TODO seen should probably be part of the intermediate representation
         int valueCount = values.getValueCount(otherPosition);
         if (valueCount > 0) {

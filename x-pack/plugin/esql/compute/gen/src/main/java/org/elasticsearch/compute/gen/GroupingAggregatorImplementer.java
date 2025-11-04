@@ -502,11 +502,7 @@ public class GroupingAggregatorImplementer {
                     String params = aggParams.stream().map(Argument::blockName).collect(joining(", "));
                     warningsBlock(
                         builder,
-                        () -> builder.addStatement(
-                            "$T.combine(state, groupId, valuesPosition, $L)",
-                            declarationType,
-                            params
-                        )
+                        () -> builder.addStatement("$T.combine(state, groupId, valuesPosition, $L)", declarationType, params)
                     );
                 } else {
                     for (Argument a : aggParams) {

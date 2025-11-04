@@ -469,10 +469,7 @@ public class AggregatorImplementer {
             if (hasOnlyBlockArguments) {
                 String params = aggParams.stream().map(Argument::blockName).collect(joining(", "));
 
-                warningsBlock(
-                    builder,
-                    () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, params)
-                );
+                warningsBlock(builder, () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, params));
             } else {
                 if (first != null) {
                     builder.addComment("Check seen in every iteration to save on complexity in the Block path");

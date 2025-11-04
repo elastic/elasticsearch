@@ -10,11 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-// NOTE: Only the long type is supported for now.
-// import org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampAggregatorFunctionSupplier;
-// import org.elasticsearch.compute.aggregation.AllFirstDoubleByTimestampAggregatorFunctionSupplier;
-// import org.elasticsearch.compute.aggregation.AllFirstFloatByTimestampAggregatorFunctionSupplier;
-// import org.elasticsearch.compute.aggregation.AllFirstIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -42,7 +37,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * This class only supports the long type for now, but that'll change after templating kicks in.
  */
 public class AllFirst extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "AllFirst", AllFirst::readFrom);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "AllFirst",
+        AllFirst::readFrom
+    );
 
     private final Expression sort;
 
@@ -50,7 +49,7 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         preview = true,
-        returnType = { "long"/*, "integer", "double", "keyword" */},
+        returnType = { "long"/*, "integer", "double", "keyword" */ },
         description = "Calculates the earliest value of a field, and can operate on null values.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
         examples = @Example(file = "all_first", tag = "all_first")

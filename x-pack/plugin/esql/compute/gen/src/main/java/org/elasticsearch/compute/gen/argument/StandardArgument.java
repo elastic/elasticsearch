@@ -160,14 +160,7 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     public void generateBlockProcessingLoop(MethodSpec.Builder builder, Runnable next) {
         builder.addStatement("int $L = $L.getFirstValueIndex(p)", startName(), blockName());
         builder.addStatement("int $L = $L + $LValueCount", endName(), startName(), name());
-        builder.beginControlFlow(
-            "for (int $L = $L; $L < $L; $L++)",
-            offsetName(),
-            startName(),
-            offsetName(),
-            endName(),
-            offsetName()
-        );
+        builder.beginControlFlow("for (int $L = $L; $L < $L; $L++)", offsetName(), startName(), offsetName(), endName(), offsetName());
         read(builder, blockName(), offsetName());
         next.run();
         builder.endControlFlow();

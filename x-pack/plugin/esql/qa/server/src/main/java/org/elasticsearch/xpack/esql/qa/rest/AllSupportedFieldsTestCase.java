@@ -176,8 +176,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             Map<?, ?> nodeInfo = (Map<?, ?>) n.getValue();
             String nodeName = (String) extractValue(nodeInfo, "name");
             Map<?, ?> http = (Map<?, ?>) extractValue(nodeInfo, "http");
-            List<?> boundAddressUnparsed = (List<?>) extractValue(http, "bound_address");
-            Set<HttpHost> boundAddress = boundAddressUnparsed.stream().map(s -> HttpHost.create((String) s)).collect(Collectors.toSet());
+            List<?> unparsedBoundAddress = (List<?>) extractValue(http, "bound_address");
+            // The bound address can actually be 2 addresses, one ipv4 and one ipv6; stuff 'em in a set.
+            Set<HttpHost> boundAddress = unparsedBoundAddress.stream().map(s -> HttpHost.create((String) s)).collect(Collectors.toSet());
 
             /*
              * Figuring out if a node is a snapshot is kind of tricky. The main version
@@ -440,10 +441,18 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(body));
 
         Response response = client().performRequest(request);
-        Map<String, Object> responseMap = responseAsMap(client().performRequest(request));
+        Map<String, Object> responseMap = responseAsMap(response);
         HttpHost coordinatorHost = response.getHost();
         NodeInfo coordinator = allNodeToInfo().values().stream().filter(n -> n.boundAddress().contains(coordinatorHost)).findFirst().get();
         TransportVersion coordinatorVersion = coordinator.version();
+        assertMinimumVersion(coordinatorVersion, responseMap);
+
+        profileLogger.extractProfile(responseMap, true);
+        return responseMap;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void assertMinimumVersion(TransportVersion coordinatorVersion, Map<String, Object> responseMap) throws IOException {
         if (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
             Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
             Integer minimumVersion = (Integer) profile.get("minimumVersion");
@@ -458,11 +467,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // Since we got minimumVersion in the profile, the coordinator is on a new version.
                 // Thus, it's on the same version as this code (bwc tests only use 2 different versions) and the oldest compatible version
                 // to the coordinator is given by TransportVersion.minimumCompatible().
-                assertEquals(TransportVersion.minimumCompatible(), minimumVersion.intValue());
+                assertEquals(TransportVersion.minimumCompatible().id(), minimumVersion.intValue());
             }
         }
-        profileLogger.extractProfile(responseMap, true);
-        return responseMap;
     }
 
     protected void createIndexForNode(RestClient client, String nodeName, String nodeId) throws IOException {

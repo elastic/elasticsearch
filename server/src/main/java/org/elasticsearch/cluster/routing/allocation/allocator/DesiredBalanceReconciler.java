@@ -79,24 +79,18 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
-    private final FrequencyCappedAction undesiredAllocationPercentageLogInterval;
-    private double undesiredAllocationsPercentageLoggingThreshold;
+    private final FrequencyCappedAction undesiredAllocationLogInterval;
+    private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
     private final UndesiredAllocationsTracker undesiredAllocationsTracker;
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider) {
-        this.undesiredAllocationPercentageLogInterval = new FrequencyCappedAction(
-            timeProvider::relativeTimeInMillis,
-            TimeValue.timeValueMinutes(5)
-        );
-        clusterSettings.initializeAndWatch(
-            UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,
-            this.undesiredAllocationPercentageLogInterval::setMinInterval
-        );
+        this.undesiredAllocationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.timeValueMinutes(5));
+        clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
-            value -> this.undesiredAllocationsPercentageLoggingThreshold = value
+            value -> this.undesiredAllocationsLogThreshold = value
         );
         this.undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, timeProvider, 50);
     }
@@ -559,7 +553,6 @@ public class DesiredBalanceReconciler {
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
             // shards.
-            var earliestUndesiredTimestamp = Long.MAX_VALUE;
             for (final var iterator = OrderedShardsIterator.createForBalancing(allocation, moveOrdering); iterator.hasNext();) {
                 var shardRouting = iterator.next();
 
@@ -655,16 +648,15 @@ public class DesiredBalanceReconciler {
         private void maybeLogUndesiredAllocationsWarning(int totalAllocations, int undesiredAllocations, int nodeCount) {
             // more shards than cluster can relocate with one reroute
             final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
-            final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsPercentageLoggingThreshold
-                * totalAllocations;
+            final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsLogThreshold * totalAllocations;
             if (totalAllocations > 0 && nonEmptyRelocationBacklog && warningThresholdReached) {
-                undesiredAllocationPercentageLogInterval.maybeExecute(
+                undesiredAllocationLogInterval.maybeExecute(
                     () -> logger.warn(
                         "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}]",
                         Strings.format1Decimals(100.0 * undesiredAllocations / totalAllocations, "%"),
                         undesiredAllocations,
                         totalAllocations,
-                        Strings.format1Decimals(100.0 * undesiredAllocationsPercentageLoggingThreshold, "%")
+                        Strings.format1Decimals(100.0 * undesiredAllocationsLogThreshold, "%")
                     )
                 );
             }

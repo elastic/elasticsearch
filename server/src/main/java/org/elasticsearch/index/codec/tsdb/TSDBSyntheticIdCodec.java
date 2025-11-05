@@ -225,7 +225,7 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
 
     /**
      * {@link PostingsFormat} that throws an {@link IllegalArgumentException} if a Lucene field with the name {@code _id} has postings
-     * produces during indexing.
+     * produced during indexing.
      */
     private static class EnsureNoPostingsFormat extends PostingsFormat {
 

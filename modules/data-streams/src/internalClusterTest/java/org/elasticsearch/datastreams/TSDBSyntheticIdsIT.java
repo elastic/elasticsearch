@@ -109,6 +109,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
         final var timestamp = Instant.now();
+        logger.info("timestamp is " + timestamp);
 
         // Index 10 docs in datastream
         //
@@ -198,6 +199,34 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
             assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
             assertThat(deleteResponse.getVersion(), equalTo(2L));
+        }
+
+        // Index more random docs
+        if (randomBoolean()) {
+            int nbDocs = randomIntBetween(1, 100);
+            final var arrayOfDocs = new XContentBuilder[nbDocs];
+
+            var t = timestamp.plus(4, unit); // t + 4s, no overlap with previous docs
+            while (nbDocs > 0) {
+                var hosts = randomSubsetOf(List.of("vm-dev01", "vm-dev02", "vm-dev03"));
+                for (var host : hosts) {
+                    if (--nbDocs < 0) {
+                        break;
+                    }
+                    arrayOfDocs[nbDocs] = document(t, host, "cpu-load", randomInt(10));
+                }
+                // always use seconds, otherwise the doc might fell outside of the timestamps window of the datastream
+                t = t.plus(1, ChronoUnit.SECONDS);
+            }
+
+            results = createDocuments(dataStreamName, arrayOfDocs);
+
+            // Verify that documents are created
+            for (var result : results) {
+                assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                assertThat(result.getVersion(), equalTo(1L));
+                docs.put(result.getId(), result.getIndex());
+            }
         }
 
         refresh(dataStreamName);

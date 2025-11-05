@@ -196,6 +196,18 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         );
     }
 
+    public void testNoIndices() {
+        assertRequest(new GetInferenceFieldsAction.Request(Set.of(), ALL_FIELDS, false, false, "foo"), Map.of(), Map.of());
+    }
+
+    public void testNoFields() {
+        assertRequest(
+            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(), false, false, "foo"),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of()
+        );
+    }
+
     public void testInvalidRequest() {
         assertInvalidRequest(new GetInferenceFieldsAction.Request(null, Set.of(), false, false, null), List.of("indices is null"));
         assertInvalidRequest(new GetInferenceFieldsAction.Request(Set.of(), null, false, false, null), List.of("fields is null"));
@@ -235,12 +247,6 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
         assertRequest(
             new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("*"), false, false, query),
-            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
-            Map.of()
-        );
-
-        assertRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(), false, false, query),
             Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
             Map.of()
         );

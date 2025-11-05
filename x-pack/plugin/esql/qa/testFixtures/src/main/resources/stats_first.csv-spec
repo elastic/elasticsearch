@@ -140,3 +140,29 @@ Running cats (cycle 1)              | cron
 Doing java stuff for 192.168.86.038 | java
 Pinging 192.168.86.046              | ping
 ;
+
+include_null
+required_capability: all_first
+
+FROM k8s-downsampled
+| STATS v1 = ALL_FIRST(network.bytes_in, @timestamp),
+        v2 = ALL_FIRST(network.total_bytes_in::long, @timestamp)
+;
+
+v1:long | v2:long
+null    | 821
+;
+
+include_null_in_grouping
+required_capability: all_first
+
+FROM k8s-downsampled
+| STATS v1 = ALL_FIRST(network.bytes_in, @timestamp) BY pod
+| SORT pod ASC
+;
+
+v1:long | pod:keyword
+null    | one
+113     | three
+473     | two
+;

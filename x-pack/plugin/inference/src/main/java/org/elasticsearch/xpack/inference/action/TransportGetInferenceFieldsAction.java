@@ -7,16 +7,18 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
@@ -30,12 +32,14 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +54,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
     GetInferenceFieldsAction.Request,
     GetInferenceFieldsAction.Response> {
 
+    private final TransportService transportService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -71,6 +76,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
             GetInferenceFieldsAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.transportService = transportService;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -88,30 +94,43 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         final boolean resolveWildcards = request.resolveWildcards();
         final boolean useDefaultFields = request.useDefaultFields();
         final String query = request.getQuery();
+        final IndicesOptions indicesOptions = request.getIndicesOptions();
 
-        Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(indices.size());
-        indices.forEach(index -> {
-            List<InferenceFieldMetadata> inferenceFieldMetadataList = getInferenceFieldMetadata(
-                index,
-                fields,
-                resolveWildcards,
-                useDefaultFields
-            );
-            if (inferenceFieldMetadataList != null) {
-                inferenceFieldsMap.put(index, inferenceFieldMetadataList);
+        try {
+            Map<String, OriginalIndices> groupedIndices = transportService.getRemoteClusterService()
+                .groupIndices(indicesOptions, indices.toArray(new String[0]), true);
+            OriginalIndices localIndices = groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            if (groupedIndices.isEmpty() == false) {
+                throw new IllegalArgumentException("GetInferenceFieldsAction does not support remote indices");
             }
-        });
 
-        if (query != null && query.isBlank() == false) {
-            Set<String> inferenceIds = inferenceFieldsMap.values()
-                .stream()
-                .flatMap(List::stream)
-                .map(InferenceFieldMetadata::getSearchInferenceId)
-                .collect(Collectors.toSet());
+            ProjectState projectState = projectResolver.getProjectState(clusterService.state());
+            String[] concreteLocalIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
 
-            getInferenceResults(query, inferenceIds, inferenceFieldsMap, listener);
-        } else {
-            listener.onResponse(new GetInferenceFieldsAction.Response(inferenceFieldsMap, Map.of()));
+            Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(concreteLocalIndices.length);
+            Arrays.stream(concreteLocalIndices).forEach(index -> {
+                List<InferenceFieldMetadata> inferenceFieldMetadataList = getInferenceFieldMetadata(
+                    index,
+                    fields,
+                    resolveWildcards,
+                    useDefaultFields
+                );
+                inferenceFieldsMap.put(index, inferenceFieldMetadataList);
+            });
+
+            if (query != null && query.isBlank() == false) {
+                Set<String> inferenceIds = inferenceFieldsMap.values()
+                    .stream()
+                    .flatMap(List::stream)
+                    .map(InferenceFieldMetadata::getSearchInferenceId)
+                    .collect(Collectors.toSet());
+
+                getInferenceResults(query, inferenceIds, inferenceFieldsMap, listener);
+            } else {
+                listener.onResponse(new GetInferenceFieldsAction.Response(inferenceFieldsMap, Map.of()));
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -121,11 +140,9 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         boolean resolveWildcards,
         boolean useDefaultFields
     ) {
-        ProjectId projectId = projectResolver.getProjectId();
-        ClusterState clusterState = clusterService.state();
-        IndexMetadata indexMetadata = clusterState.getMetadata().getProject(projectId).indices().get(index);
+        IndexMetadata indexMetadata = projectResolver.getProjectMetadata(clusterService.state()).indices().get(index);
         if (indexMetadata == null) {
-            return null;
+            throw new ResourceNotFoundException("Index [" + index + "] does not exist");
         }
 
         Map<String, InferenceFieldMetadata> inferenceFieldsMap = indexMetadata.getInferenceFields();

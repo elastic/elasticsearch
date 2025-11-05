@@ -546,7 +546,7 @@ serverless: ga
 
 :::{important}
 The recommended method for retrieving embeddings differs between {{es}} versions 9.2 and earlier.
-For instructions on retrieving embeddings in versions earlier than 9.2, refer to [Retrieve semantic field embeddings using `fields`](#retrieve-embeddings-9.0-9.1).
+For instructions on retrieving embeddings in versions earlier than 9.2, refer to [Returning semantic field embeddings using `fields`](#retrieve-embeddings-9.0-9.1).
 :::
 
 By default, the embeddings generated for `semantic_text` fields are stored internally and **not included in `_source`** when retrieving documents.

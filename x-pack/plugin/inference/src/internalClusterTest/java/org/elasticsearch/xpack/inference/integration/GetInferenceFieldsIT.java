@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
@@ -175,14 +177,26 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     }
 
     public void testMissingIndexName() {
+        Set<String> indicesWithIndex1 = Set.of(INDEX_1, "missing-index");
+        assertFailedRequest(
+            new GetInferenceFieldsAction.Request(indicesWithIndex1, ALL_FIELDS, false, false, "foo"),
+            IndexNotFoundException.class,
+            e -> assertThat(e.getMessage(), containsString("no such index [missing-index]"))
+        );
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of(INDEX_1, "missing-index"), ALL_FIELDS, false, false, "foo"),
+            new GetInferenceFieldsAction.Request(indicesWithIndex1, ALL_FIELDS, false, false, "foo", IndicesOptions.LENIENT_EXPAND_OPEN),
             Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
 
+        Set<String> indicesWithoutIndex1 = Set.of("missing-index");
+        assertFailedRequest(
+            new GetInferenceFieldsAction.Request(indicesWithoutIndex1, ALL_FIELDS, false, false, "foo"),
+            IndexNotFoundException.class,
+            e -> assertThat(e.getMessage(), containsString("no such index [missing-index]"))
+        );
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of("missing-index"), ALL_FIELDS, false, false, "foo"),
+            new GetInferenceFieldsAction.Request(indicesWithoutIndex1, ALL_FIELDS, false, false, "foo", IndicesOptions.LENIENT_EXPAND_OPEN),
             Map.of(),
             Map.of()
         );
@@ -203,7 +217,19 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     }
 
     public void testNoIndices() {
-        assertSuccessfulRequest(new GetInferenceFieldsAction.Request(Set.of(), ALL_FIELDS, false, false, "foo"), Map.of(), Map.of());
+        // By default, an empty index set will be interpreted as _all
+        assertSuccessfulRequest(
+            new GetInferenceFieldsAction.Request(Set.of(), ALL_FIELDS, false, false, "foo"),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
+            ALL_EXPECTED_INFERENCE_RESULTS
+        );
+
+        // We can provide an IndicesOptions that changes this behavior to interpret an empty index set as no indices
+        assertSuccessfulRequest(
+            new GetInferenceFieldsAction.Request(Set.of(), ALL_FIELDS, false, false, "foo", IndicesOptions.STRICT_NO_EXPAND_FORBID_CLOSED),
+            Map.of(),
+            Map.of()
+        );
     }
 
     public void testNoFields() {

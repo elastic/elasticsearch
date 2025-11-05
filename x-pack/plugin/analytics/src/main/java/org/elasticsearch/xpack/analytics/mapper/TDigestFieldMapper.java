@@ -86,7 +86,7 @@ public class TDigestFieldMapper extends FieldMapper {
                 ignoreMalformedByDefault
             );
             this.digestType = Parameter.enumParam(
-                "digestType",
+                "digest_type",
                 false,
                 m -> toType(m).digestType,
                 TDigestState.Type.HYBRID,
@@ -101,7 +101,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { ignoreMalformed, meta };
+            return new Parameter<?>[] { digestType, compression, ignoreMalformed, meta };
         }
 
         @Override
@@ -136,6 +136,14 @@ public class TDigestFieldMapper extends FieldMapper {
     @Override
     public boolean ignoreMalformed() {
         return ignoreMalformed.value();
+    }
+
+    public TDigestState.Type digestType() {
+        return digestType;
+    }
+
+    public int compression() {
+        return compression;
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -156,6 +157,26 @@ public class SearchContextStats implements SearchStats {
     @Override
     public boolean hasDocValues(FieldName field) {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
+    }
+
+    @Override
+    public boolean supportsLoaderConfig(
+        FieldName name,
+        BlockLoaderFunctionConfig config,
+        MappedFieldType.FieldExtractPreference preference
+    ) {
+        for (SearchExecutionContext context : contexts) {
+            MappedFieldType ft = context.getFieldType(name.string());
+            if (ft == null) {
+                // Missing fields are always null, no matter what we try to push.
+                continue;
+            }
+            if (ft.supportsBlockLoaderConfig(config, preference) == false) {
+                // If any one field doesn't support the loader config we'll disable pushing the expression to the field
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

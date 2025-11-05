@@ -73,6 +73,12 @@ public class FunctionEsField extends EsField {
 
     @Override
     public Exact getExactInfo() {
+        /*
+         * We force and "inexact" field info to prevent pushing
+         * expressions like `WHERE LENGTH(kwd) > 2`. `LENGTH(kwd)`
+         * is a `FunctionEsField` which *looks* pushable without
+         * the inexact match.
+         */
         return new Exact(false, "merged with " + functionConfig.name());
     }
 }

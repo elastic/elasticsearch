@@ -2865,7 +2865,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         new DenseVectorBlockLoaderProcessor.DenseVectorLoaderProcessor()
                     );
                 } else if (functionConfig instanceof VectorSimilarityFunctionConfig similarityConfig) {
-                    if (getElementType() == ElementType.BYTE) {
+                    if (getElementType() == ElementType.BYTE || getElementType() == ElementType.BIT) {
                         similarityConfig = similarityConfig.forByteVector();
                     }
                     return new DenseVectorBlockLoader<>(
@@ -2898,6 +2898,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 lookup,
                 dims
             );
+        }
+
+        @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            if (dims == null) {
+                // No data has been indexed yet
+                return true;
+            }
+
+            if (indexed) {
+                return config instanceof VectorSimilarityFunctionConfig;
+            }
+            return false;
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {

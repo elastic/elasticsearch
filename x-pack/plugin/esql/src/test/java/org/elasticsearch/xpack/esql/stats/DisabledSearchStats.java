@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 
 public class DisabledSearchStats implements SearchStats {
@@ -32,6 +34,15 @@ public class DisabledSearchStats implements SearchStats {
     @Override
     public boolean hasExactSubfield(FieldName field) {
         return true;
+    }
+
+    @Override
+    public boolean supportsLoaderConfig(
+        FieldName name,
+        BlockLoaderFunctionConfig config,
+        MappedFieldType.FieldExtractPreference preference
+    ) {
+        return false;
     }
 
     @Override

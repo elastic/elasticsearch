@@ -643,6 +643,10 @@ public abstract class MappedFieldType {
         return null;
     }
 
+    public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+        return false;
+    }
+
     public enum FieldExtractPreference {
         /**
          * Load the field from doc-values into a BlockLoader supporting doc-values.

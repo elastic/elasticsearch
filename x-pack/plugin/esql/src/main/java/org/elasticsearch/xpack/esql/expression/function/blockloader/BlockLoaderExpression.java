@@ -48,6 +48,15 @@ public interface BlockLoaderExpression {
     /**
      * The field and loading configuration that replaces this expression, effectively
      * "fusing" the expression into the load. Or null if the fusion isn't possible.
+     * <p>
+     *     {@link SearchStats#supportsLoaderConfig} checks that the configuration is
+     *     supported by all field mappers. Callers to this method <strong>must</strong>
+     *     call that to confirm that configurations returned are supported. Implementations
+     *     of this method do not need to call it, though they <strong>may</strong> use
+     *     methods like {@link SearchStats#hasDocValues} and {@link SearchStats#isIndexed}
+     *     as preflight checks. They <strong>should</strong> use those methods if it is
+     *     expensive to build the {@link BlockLoaderFunctionConfig}.
+     * </p>
      */
     @Nullable
     PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats);

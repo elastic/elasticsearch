@@ -50,7 +50,13 @@ public class PushExpressionsToFieldLoad extends OptimizerRules.ParameterizedOpti
             LogicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
                 if (e instanceof BlockLoaderExpression ble) {
                     BlockLoaderExpression.PushedBlockLoaderExpression fuse = ble.tryPushToFieldLoading(context.searchStats());
-                    if (fuse != null) {
+                    if (fuse != null
+                        && context.searchStats()
+                            .supportsLoaderConfig(
+                                fuse.field().fieldName(),
+                                fuse.config(),
+                                context.configuration().pragmas().fieldExtractPreference()
+                            )) {
                         return replaceFieldsForFieldTransformations(e, addedAttrs, fuse);
                     }
                 }

@@ -22,9 +22,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
@@ -56,14 +58,51 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
 
-    public void testLength() throws IOException {
+    @Before
+    public void checkPushCapability() throws IOException {
+        assumeTrue(
+            "requires " + EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.capabilityName(),
+            clusterHasCapability(
+                "POST",
+                "_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.capabilityName())
+            ).orElseGet(() -> false)
+        );
+    }
+
+    public void testLengthToKeyword() throws IOException {
         String value = "v".repeat(between(0, 256));
         test(
             justType("keyword"),
             b -> b.value(value),
             "LENGTH(test)",
             matchesList().item(value.length()),
-            "Utf8CodePointsFromOrds.SingletonOrdinals"
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1)
+        );
+    }
+
+    public void testLengthNotPushedToWildcard() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        test(
+            justType("wildcard"),
+            b -> b.value(value),
+            "LENGTH(test)",
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:BlockDocValuesReader.BytesCustom", 1)
+        );
+    }
+
+    public void testLengthNotPushedToText() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        test(
+            justType("text"),
+            b -> b.value(value),
+            "LENGTH(test)",
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:null", 1)
+                .entry("stored_fields[requires_source:true, fields:0, sequential: false]", 1)
+                .entry("test:row_stride:BlockSourceReader.Bytes", 1)
         );
     }
 
@@ -73,7 +112,27 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray().value(128).value(128).value(0).endArray(),
             "V_COSINE(test, [0, 255, 255])",
             matchesList().item(0.5),
-            "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader"
+            matchesMap().entry("test:column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Cosine", 1)
+        );
+    }
+
+    public void testVHammingToByte() throws IOException {
+        test(
+            b -> b.field("type", "dense_vector").field("element_type", "byte"),
+            b -> b.startArray().value(100).value(100).value(0).endArray(),
+            "V_HAMMING(test, [0, 100, 100])",
+            matchesList().item(6.0),
+            matchesMap().entry("test:column_at_a_time:ByteDenseVectorFromDocValues.Hamming", 1)
+        );
+    }
+
+    public void testVHammingToBit() throws IOException {
+        test(
+            b -> b.field("type", "dense_vector").field("element_type", "bit"),
+            b -> b.startArray().value(100).value(100).value(0).endArray(),
+            "V_HAMMING(test, [0, 100, 100])",
+            matchesList().item(6.0),
+            matchesMap().entry("test:column_at_a_time:BitDenseVectorFromDocValues.Hamming", 1)
         );
     }
 
@@ -82,7 +141,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         CheckedConsumer<XContentBuilder, IOException> value,
         String functionInvocation,
         Matcher<?> expectedValue,
-        String expectedLoader
+        MapMatcher expectedLoaders
     ) throws IOException {
         indexValue(mapping, value);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query("""
@@ -124,7 +183,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o, expectedLoader));
+                sig.add(checkOperatorProfile(o, expectedLoaders));
             }
             String description = p.get("description").toString();
             switch (description) {
@@ -199,15 +258,12 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         return b -> b.field("type", type);
     }
 
-    private static String checkOperatorProfile(Map<String, Object> o, String expectedLoader) {
+    private static String checkOperatorProfile(Map<String, Object> o, MapMatcher expectedLoaders) {
         String name = (String) o.get("operator");
         name = PushQueriesIT.TO_NAME.matcher(name).replaceAll("");
         if (name.equals("ValuesSourceReaderOperator")) {
             MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))
-                .entry(
-                    "status",
-                    matchesMap().entry("readers_built", matchesMap().entry("test:column_at_a_time:" + expectedLoader, 1)).extraOk()
-                );
+                .entry("status", matchesMap().entry("readers_built", expectedLoaders).extraOk());
             assertMap(o, expectedOp);
         }
         return name;

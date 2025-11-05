@@ -288,6 +288,10 @@ public class SnapshotStressTestsHelper {
             shuffledNodes = newNodes;
         }
 
+        protected int numberOfReplicasUpperBound() {
+            return cluster.numDataNodes() - 1;
+        }
+
         public void run() throws InterruptedException {
             shuffleNodes();
 
@@ -1530,7 +1534,7 @@ public class SnapshotStressTestsHelper {
                 client().admin()
                     .indices()
                     .prepareCreate(indexName)
-                    .setSettings(indexSettings(shardCount, between(0, cluster.numDataNodes() - 1)))
+                    .setSettings(indexSettings(shardCount, between(0, numberOfReplicasUpperBound())))
                     .execute(mustSucceed(response -> {
                         assertTrue(response.isAcknowledged());
                         logger.info("--> finished create index [{}]", indexName);

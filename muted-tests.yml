@@ -458,6 +458,9 @@ tests:
   method: testTopNSimilarityBetweenConstantVectorAndField {functionName=v_l2_norm
     similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.L2Norm$1@5b068087 elementType=byte}
   issue: https://github.com/elastic/elasticsearch/issues/137625
+- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
+  method: testGet_ThrowsResourceNotFoundException_WhenCCMIndexDoesNotExist
+  issue: https://github.com/elastic/elasticsearch/issues/137627
 
 # Examples:
 #

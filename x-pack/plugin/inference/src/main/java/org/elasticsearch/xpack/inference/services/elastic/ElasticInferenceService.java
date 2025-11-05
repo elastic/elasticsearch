@@ -38,11 +38,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -114,15 +114,15 @@ public class ElasticInferenceService extends SenderService {
 
     // elser-2
     static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
-    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
+    public static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
 
     // multilingual-text-embed
-    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
-    static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
+    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "jina-embeddings-v3";
+    static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = ".jina-embeddings-v3";
 
     // rerank-v1
-    static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
-    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
+    static final String DEFAULT_RERANK_MODEL_ID_V1 = "elastic-rerank-v1";
+    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = ".elastic-rerank-v1";
 
     /**
      * The task types that the {@link InferenceAction.Request} can accept.

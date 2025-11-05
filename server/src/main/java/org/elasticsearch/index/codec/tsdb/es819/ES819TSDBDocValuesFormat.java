@@ -118,7 +118,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     final int skipIndexIntervalSize;
     final int minDocsPerOrdinalForRangeEncoding;
-    private final boolean enableOptimizedMerge;
+    final boolean enableOptimizedMerge;
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {

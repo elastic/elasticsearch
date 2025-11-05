@@ -54,7 +54,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
         "there was an error fetching the searchable snapshot shared cache state from this node"
     );
 
-    private static final Decision UNKNOWN_NODE = Decision.single(
+    private static final Decision NO_UNKNOWN_NODE = Decision.single(
         Decision.Type.NO,
         NAME,
         "this node is unknown to the searchable snapshot shared cache state"
@@ -86,6 +86,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
         return canAllocateToNode(indexMetadata, node, allocation);
     }
 
+    // Package private for tests
     private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode, RoutingAllocation allocation) {
         if (indexMetadata.isPartialSearchableSnapshot() == false) {
             return Decision.ALWAYS;
@@ -95,8 +96,9 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
             case HAS_CACHE -> HAS_FROZEN_CACHE;
             case NO_CACHE -> NO_FROZEN_CACHE;
             case FAILED -> UNKNOWN_FROZEN_CACHE;
+            // TODO: considering returning NO as well for non-simulation https://elasticco.atlassian.net/browse/ES-13378
             case FETCHING -> allocation.isSimulating() ? NO_STILL_FETCHING : STILL_FETCHING;
-            case UNKNOWN -> UNKNOWN_NODE;
+            case UNKNOWN -> NO_UNKNOWN_NODE;
         };
     }
 

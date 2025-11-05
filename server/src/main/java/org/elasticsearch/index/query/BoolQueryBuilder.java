@@ -476,6 +476,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     @Override
     public List<QueryBuilder> getPrefilters() {
+        // We declare as prefilters clauses run in the filter context, namely filter and must_not
         return Stream.of(prefilters, filterClauses, mustNotClauses.stream().map(c -> QueryBuilders.boolQuery().mustNot(c)).toList())
             .flatMap(Collection::stream)
             .collect(Collectors.toList());

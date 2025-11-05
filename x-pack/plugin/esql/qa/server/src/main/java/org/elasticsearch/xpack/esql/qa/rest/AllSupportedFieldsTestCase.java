@@ -237,7 +237,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     // TODO: Also add a test for _tsid once we can determine the minimum transport version of all nodes.
     public final void testFetchAll() throws IOException {
-        var responseAndCoordinatorVersion = esql("""
+        var responseAndCoordinatorVersion = runFromAllQuery("""
             , _id, _ignored, _index_mode, _score, _source, _version
             | LIMIT 1000
             """);
@@ -304,7 +304,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     | EVAL k = v_l2_norm(f_dense_vector, [1])  // workaround to enable fetching dense_vector
                     """ + request;
             }
-            response = esql(request).v1();
+            response = runFromAllQuery(request).v1();
             if ((Boolean) response.get("is_partial")) {
                 Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
                 Map<?, ?> details = (Map<?, ?>) clusters.get("details");
@@ -371,7 +371,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     | EVAL junk = TO_AGGREGATE_METRIC_DOUBLE(1)  // workaround to enable fetching aggregate_metric_double
                     """ + request;
             }
-            response = esql(request).v1();
+            response = runFromAllQuery(request).v1();
             if ((Boolean) response.get("is_partial")) {
                 Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
                 Map<?, ?> details = (Map<?, ?>) clusters.get("details");
@@ -424,14 +424,44 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(indexToRow(columns, values), expectedAllValues);
     }
 
+    private Tuple<Map<String, Object>, TransportVersion> runFromAllQuery(String restOfQuery) throws IOException {
+        var responseAndCoordinatorVersion = runQuery(
+            "FROM *:%mode%*,%mode%* METADATA _index".replace("%mode%", indexMode.toString()) + restOfQuery
+        );
+        assertMinimumVersionFromAllQueries(responseAndCoordinatorVersion);
+        return responseAndCoordinatorVersion;
+    }
+
+    public void testRow() throws IOException {
+        assumeTrue(
+            "Test has to run only once, skip on other configurations",
+            extractPreference == MappedFieldType.FieldExtractPreference.NONE && indexMode == IndexMode.STANDARD
+        );
+        String query = "ROW x = 1 | LIMIT 1";
+        var responseAndCoordinatorVersion = runQuery(query);
+        var responseMap = responseAndCoordinatorVersion.v1();
+        var coordinatorVersion = responseAndCoordinatorVersion.v2();
+
+        if (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
+            Integer minimumVersion = (Integer) profile.get("minimumVersion");
+            assertNotNull(minimumVersion);
+            // For ROW commands without commands that reach out to other nodes, the minimum version is given by the coordinator.
+            assertEquals(coordinatorVersion.id(), minimumVersion.intValue());
+        }
+    }
+
     /**
      * Run the query and return the response and the version of the coordinator.
+     * <p>
+     * Fails if the response contains any warnings.
      */
     @SuppressWarnings("unchecked")
-    private Tuple<Map<String, Object>, TransportVersion> esql(String query) throws IOException {
+    private Tuple<Map<String, Object>, TransportVersion> runQuery(String query) throws IOException {
         Request request = new Request("POST", "_query");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
-        body.field("query", "FROM *:%mode%*,%mode%* METADATA _index".replace("%mode%", indexMode.toString()) + query);
+        body.field("query", query);
         {
             body.startObject("pragma");
             if (extractPreference != null) {
@@ -450,14 +480,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         HttpHost coordinatorHost = response.getHost();
         NodeInfo coordinator = allNodeToInfo().values().stream().filter(n -> n.boundAddress().contains(coordinatorHost)).findFirst().get();
         TransportVersion coordinatorVersion = coordinator.version();
-        assertMinimumVersion(coordinatorVersion, responseMap);
 
         profileLogger.extractProfile(responseMap, true);
         return new Tuple<>(responseMap, coordinatorVersion);
     }
 
     @SuppressWarnings("unchecked")
-    protected void assertMinimumVersion(TransportVersion coordinatorVersion, Map<String, Object> responseMap) throws IOException {
+    protected void assertMinimumVersionFromAllQueries(Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion)
+        throws IOException {
+        var responseMap = responseAndCoordinatorVersion.v1();
+        var coordinatorVersion = responseAndCoordinatorVersion.v2();
+
         if (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
             Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
             Integer minimumVersion = (Integer) profile.get("minimumVersion");

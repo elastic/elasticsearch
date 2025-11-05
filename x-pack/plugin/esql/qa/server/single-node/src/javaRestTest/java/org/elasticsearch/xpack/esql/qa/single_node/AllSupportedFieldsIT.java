@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -39,7 +40,10 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected void assertMinimumVersion(TransportVersion coordinatorVersion, Map<String, Object> responseMap) throws IOException {
+    protected void assertMinimumVersionFromAllQueries(Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion)
+        throws IOException {
+        var responseMap = responseAndCoordinatorVersion.v1();
+
         Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
         Integer minimumVersion = (Integer) profile.get("minimumVersion");
         assertNotNull(minimumVersion);

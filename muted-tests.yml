@@ -467,6 +467,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
   method: testGetCCMModel_ThrowsException_WhenStoredModelIsCorrupted
   issue: https://github.com/elastic/elasticsearch/issues/137629
+- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
+  method: testStoreAndGetCCMModel
+  issue: https://github.com/elastic/elasticsearch/issues/137630
 
 # Examples:
 #

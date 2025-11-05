@@ -20,7 +20,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -298,8 +298,8 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
-            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
+            assertThat(result, instanceOf(LegacyDenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (LegacyDenseEmbeddingFloatResults) result;
             assertThat(textEmbeddingResults.embeddings(), hasSize(2));
 
             var firstEmbedding = textEmbeddingResults.embeddings().get(0);
@@ -354,8 +354,8 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
-            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
+            assertThat(result, instanceOf(LegacyDenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (LegacyDenseEmbeddingFloatResults) result;
             assertThat(textEmbeddingResults.embeddings(), hasSize(1));
 
             var embedding = textEmbeddingResults.embeddings().get(0);
@@ -447,8 +447,8 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
-            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
+            assertThat(result, instanceOf(LegacyDenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (LegacyDenseEmbeddingFloatResults) result;
             assertThat(textEmbeddingResults.embeddings(), hasSize(0));
 
             assertThat(webServer.requests(), hasSize(1));

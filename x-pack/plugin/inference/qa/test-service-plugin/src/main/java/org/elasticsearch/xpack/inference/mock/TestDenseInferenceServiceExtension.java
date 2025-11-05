@@ -36,7 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -167,8 +167,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             }
         }
 
-        private DenseEmbeddingFloatResults makeResults(List<String> input, ServiceSettings serviceSettings) {
-            List<DenseEmbeddingFloatResults.Embedding> embeddings = new ArrayList<>();
+        private LegacyDenseEmbeddingFloatResults makeResults(List<String> input, ServiceSettings serviceSettings) {
+            List<LegacyDenseEmbeddingFloatResults.Embedding> embeddings = new ArrayList<>();
             for (String inputString : input) {
                 List<Float> floatEmbeddings = generateEmbedding(
                     inputString,
@@ -176,18 +176,18 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                     serviceSettings.elementType(),
                     serviceSettings.similarity()
                 );
-                embeddings.add(DenseEmbeddingFloatResults.Embedding.of(floatEmbeddings));
+                embeddings.add(LegacyDenseEmbeddingFloatResults.Embedding.of(floatEmbeddings));
             }
-            return new DenseEmbeddingFloatResults(embeddings);
+            return new LegacyDenseEmbeddingFloatResults(embeddings);
         }
 
         private List<ChunkedInference> makeChunkedResults(List<ChunkInferenceInput> inputs, ServiceSettings serviceSettings) {
             var results = new ArrayList<ChunkedInference>();
             for (ChunkInferenceInput input : inputs) {
                 List<ChunkedInput> chunkedInput = chunkInputs(input);
-                List<DenseEmbeddingFloatResults.Chunk> chunks = chunkedInput.stream()
+                List<LegacyDenseEmbeddingFloatResults.Chunk> chunks = chunkedInput.stream()
                     .map(
-                        c -> new DenseEmbeddingFloatResults.Chunk(
+                        c -> new LegacyDenseEmbeddingFloatResults.Chunk(
                             makeResults(List.of(c.input()), serviceSettings).embeddings().get(0),
                             new ChunkedInference.TextOffset(c.startOffset(), c.endOffset())
                         )

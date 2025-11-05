@@ -26,8 +26,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -127,7 +127,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         List<ChunkInferenceInput> inputs,
         InferenceServiceResults inferenceResults
     ) {
-        if (inferenceResults instanceof DenseEmbeddingFloatResults denseEmbeddingResults) {
+        if (inferenceResults instanceof LegacyDenseEmbeddingFloatResults denseEmbeddingResults) {
             validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs), denseEmbeddingResults.embeddings().size());
 
             var results = new ArrayList<ChunkedInference>(inputs.size());
@@ -153,7 +153,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         } else {
             String expectedClasses = Strings.format(
                 "One of [%s,%s]",
-                DenseEmbeddingFloatResults.class.getSimpleName(),
+                LegacyDenseEmbeddingFloatResults.class.getSimpleName(),
                 SparseEmbeddingResults.class.getSimpleName()
             );
             throw createInvalidChunkedResultException(expectedClasses, inferenceResults.getWriteableName());

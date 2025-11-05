@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -43,7 +43,9 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
     }
 
     private InferenceServiceResults getRandomResults() {
-        return randomBoolean() ? DenseEmbeddingFloatResultsTests.createRandomResults() : SparseEmbeddingResultsTests.createRandomResults();
+        return randomBoolean()
+            ? LegacyDenseEmbeddingFloatResultsTests.createRandomResults()
+            : SparseEmbeddingResultsTests.createRandomResults();
     }
 
     @Override

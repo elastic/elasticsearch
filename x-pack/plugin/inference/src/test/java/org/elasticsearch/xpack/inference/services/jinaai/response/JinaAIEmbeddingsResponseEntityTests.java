@@ -11,9 +11,9 @@ import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
@@ -69,10 +69,10 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults, instanceOf(DenseEmbeddingFloatResults.class));
+        assertThat(parsedResults, instanceOf(LegacyDenseEmbeddingFloatResults.class));
         assertThat(
-            ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
+            ((LegacyDenseEmbeddingFloatResults) parsedResults).embeddings(),
+            is(List.of(new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
         );
     }
 
@@ -123,13 +123,13 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults, instanceOf(DenseEmbeddingFloatResults.class));
+        assertThat(parsedResults, instanceOf(LegacyDenseEmbeddingFloatResults.class));
         assertThat(
-            ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
+            ((LegacyDenseEmbeddingFloatResults) parsedResults).embeddings(),
             is(
                 List.of(
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })
+                    new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
+                    new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })
                 )
             )
         );
@@ -363,8 +363,12 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(
-            ((DenseEmbeddingBitResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 })))
+            ((LegacyDenseEmbeddingBitResults) parsedResults).embeddings(),
+            is(
+                List.of(
+                    new LegacyDenseEmbeddingByteResults.Embedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 })
+                )
+            )
         );
     }
 
@@ -411,8 +415,12 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(
-            ((DenseEmbeddingBitResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 })))
+            ((LegacyDenseEmbeddingBitResults) parsedResults).embeddings(),
+            is(
+                List.of(
+                    new LegacyDenseEmbeddingByteResults.Embedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 })
+                )
+            )
         );
     }
 
@@ -504,7 +512,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
                 }
             }""";
 
-        DenseEmbeddingFloatResults parsedResults = (DenseEmbeddingFloatResults) JinaAIEmbeddingsResponseEntity.fromResponse(
+        LegacyDenseEmbeddingFloatResults parsedResults = (LegacyDenseEmbeddingFloatResults) JinaAIEmbeddingsResponseEntity.fromResponse(
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
                 InputTypeTests.randomWithNull(),
@@ -525,9 +533,9 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.5F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
+                    new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
+                    new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.5F }),
+                    new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
                 )
             )
         );

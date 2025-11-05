@@ -16,7 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -250,7 +250,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
     }
 
     private InferenceAction.Response inferenceResponse(float[] embedding) {
-        DenseEmbeddingFloatResults.Embedding embeddingResult = new DenseEmbeddingFloatResults.Embedding(embedding);
-        return new InferenceAction.Response(new DenseEmbeddingFloatResults(List.of(embeddingResult)));
+        LegacyDenseEmbeddingFloatResults.Embedding embeddingResult = new LegacyDenseEmbeddingFloatResults.Embedding(embedding);
+        return new InferenceAction.Response(new LegacyDenseEmbeddingFloatResults(List.of(embeddingResult)));
     }
 }

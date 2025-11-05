@@ -21,7 +21,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -50,7 +50,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
-import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests.buildExpectationRerank;
 import static org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
@@ -88,7 +88,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         float[] values = { 0.1111111f, 0.2222222f, 0.3333333f };
         doAnswer(invocation -> {
             ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
-            listener.onResponse(new DenseEmbeddingFloatResults(List.of(new DenseEmbeddingFloatResults.Embedding(values))));
+            listener.onResponse(new LegacyDenseEmbeddingFloatResults(List.of(new LegacyDenseEmbeddingFloatResults.Embedding(values))));
 
             return Void.TYPE;
         }).when(sender).send(any(), any(), any(), any());

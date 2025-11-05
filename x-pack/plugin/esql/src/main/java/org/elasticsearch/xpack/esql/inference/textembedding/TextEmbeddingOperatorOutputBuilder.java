@@ -12,9 +12,9 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 
 /**
@@ -91,15 +91,15 @@ class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuil
      */
     private static float[] getEmbeddingAsFloatArray(DenseEmbeddingResults<?> embedding) {
         return switch (embedding.embeddings().get(0)) {
-            case DenseEmbeddingFloatResults.Embedding floatEmbedding -> floatEmbedding.values();
-            case DenseEmbeddingByteResults.Embedding byteEmbedding -> toFloatArray(byteEmbedding.values());
+            case LegacyDenseEmbeddingFloatResults.Embedding floatEmbedding -> floatEmbedding.values();
+            case LegacyDenseEmbeddingByteResults.Embedding byteEmbedding -> toFloatArray(byteEmbedding.values());
             default -> throw new IllegalArgumentException(
                 "Unsupported embedding type: "
                     + embedding.embeddings().get(0).getClass().getName()
                     + ". Expected "
-                    + DenseEmbeddingFloatResults.Embedding.class.getSimpleName()
+                    + LegacyDenseEmbeddingFloatResults.Embedding.class.getSimpleName()
                     + " or "
-                    + DenseEmbeddingByteResults.Embedding.class.getSimpleName()
+                    + LegacyDenseEmbeddingByteResults.Embedding.class.getSimpleName()
                     + "."
             );
         };

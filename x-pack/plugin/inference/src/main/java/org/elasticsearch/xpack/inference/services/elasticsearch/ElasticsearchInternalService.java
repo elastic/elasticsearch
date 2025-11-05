@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.RerankRequestChunker;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
@@ -642,7 +642,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
-            (l, inferenceResult) -> l.onResponse(DenseEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
+            (l, inferenceResult) -> l.onResponse(LegacyDenseEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
         );
 
         var maybeDeployListener = mlResultsListener.delegateResponse(
@@ -772,11 +772,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         ActionListener<InferenceServiceResults> chunkPartListener
     ) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
-            var translated = new ArrayList<DenseEmbeddingFloatResults.Embedding>();
+            var translated = new ArrayList<LegacyDenseEmbeddingFloatResults.Embedding>();
 
             for (var inferenceResult : inferenceResults) {
                 if (inferenceResult instanceof MlDenseEmbeddingResults mlTextEmbeddingResult) {
-                    translated.add(new DenseEmbeddingFloatResults.Embedding(mlTextEmbeddingResult.getInferenceAsFloat()));
+                    translated.add(new LegacyDenseEmbeddingFloatResults.Embedding(mlTextEmbeddingResult.getInferenceAsFloat()));
                 } else if (inferenceResult instanceof ErrorInferenceResults error) {
                     chunkPartListener.onFailure(error.getException());
                     return;
@@ -787,7 +787,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     return;
                 }
             }
-            chunkPartListener.onResponse(new DenseEmbeddingFloatResults(translated));
+            chunkPartListener.onResponse(new LegacyDenseEmbeddingFloatResults(translated));
         } else { // sparse
             var translated = new ArrayList<SparseEmbeddingResults.Embedding>();
 

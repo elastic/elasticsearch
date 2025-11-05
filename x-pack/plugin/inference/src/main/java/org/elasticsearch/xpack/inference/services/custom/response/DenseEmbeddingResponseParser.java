@@ -14,9 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
 
@@ -174,7 +174,7 @@ public class DenseEmbeddingResponseParser extends BaseCustomResponseParser {
 
     private static class FloatEmbeddings implements EmbeddingConverter {
 
-        private final List<DenseEmbeddingFloatResults.Embedding> embeddings;
+        private final List<LegacyDenseEmbeddingFloatResults.Embedding> embeddings;
 
         FloatEmbeddings() {
             this.embeddings = new ArrayList<>();
@@ -182,17 +182,17 @@ public class DenseEmbeddingResponseParser extends BaseCustomResponseParser {
 
         public void toEmbedding(Object entry, String fieldName) {
             var embeddingsAsListFloats = convertToListOfFloats(entry, fieldName);
-            embeddings.add(DenseEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
+            embeddings.add(LegacyDenseEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
         }
 
-        public DenseEmbeddingFloatResults getResults() {
-            return new DenseEmbeddingFloatResults(embeddings);
+        public LegacyDenseEmbeddingFloatResults getResults() {
+            return new LegacyDenseEmbeddingFloatResults(embeddings);
         }
     }
 
     private static class ByteEmbeddings implements EmbeddingConverter {
 
-        private final List<DenseEmbeddingByteResults.Embedding> embeddings;
+        private final List<LegacyDenseEmbeddingByteResults.Embedding> embeddings;
 
         ByteEmbeddings() {
             this.embeddings = new ArrayList<>();
@@ -200,17 +200,17 @@ public class DenseEmbeddingResponseParser extends BaseCustomResponseParser {
 
         public void toEmbedding(Object entry, String fieldName) {
             var convertedEmbeddings = convertToListOfBytes(entry, fieldName);
-            this.embeddings.add(DenseEmbeddingByteResults.Embedding.of(convertedEmbeddings));
+            this.embeddings.add(LegacyDenseEmbeddingByteResults.Embedding.of(convertedEmbeddings));
         }
 
-        public DenseEmbeddingByteResults getResults() {
-            return new DenseEmbeddingByteResults(embeddings);
+        public LegacyDenseEmbeddingByteResults getResults() {
+            return new LegacyDenseEmbeddingByteResults(embeddings);
         }
     }
 
     private static class BitEmbeddings implements EmbeddingConverter {
 
-        private final List<DenseEmbeddingByteResults.Embedding> embeddings;
+        private final List<LegacyDenseEmbeddingByteResults.Embedding> embeddings;
 
         BitEmbeddings() {
             this.embeddings = new ArrayList<>();
@@ -218,11 +218,11 @@ public class DenseEmbeddingResponseParser extends BaseCustomResponseParser {
 
         public void toEmbedding(Object entry, String fieldName) {
             var convertedEmbeddings = convertToListOfBits(entry, fieldName);
-            this.embeddings.add(DenseEmbeddingByteResults.Embedding.of(convertedEmbeddings));
+            this.embeddings.add(LegacyDenseEmbeddingByteResults.Embedding.of(convertedEmbeddings));
         }
 
-        public DenseEmbeddingBitResults getResults() {
-            return new DenseEmbeddingBitResults(embeddings);
+        public LegacyDenseEmbeddingBitResults getResults() {
+            return new LegacyDenseEmbeddingBitResults(embeddings);
         }
     }
 }

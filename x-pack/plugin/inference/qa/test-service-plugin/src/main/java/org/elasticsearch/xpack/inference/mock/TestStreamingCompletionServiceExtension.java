@@ -35,7 +35,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 
@@ -189,16 +189,16 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             });
         }
 
-        private DenseEmbeddingFloatResults makeDenseEmbeddingResults(List<String> input) {
-            var embeddings = new ArrayList<DenseEmbeddingFloatResults.Embedding>();
+        private LegacyDenseEmbeddingFloatResults makeDenseEmbeddingResults(List<String> input) {
+            var embeddings = new ArrayList<LegacyDenseEmbeddingFloatResults.Embedding>();
             for (int i = 0; i < input.size(); i++) {
                 var values = new float[5];
                 for (int j = 0; j < 5; j++) {
                     values[j] = random.nextFloat();
                 }
-                embeddings.add(new DenseEmbeddingFloatResults.Embedding(values));
+                embeddings.add(new LegacyDenseEmbeddingFloatResults.Embedding(values));
             }
-            return new DenseEmbeddingFloatResults(embeddings);
+            return new LegacyDenseEmbeddingFloatResults(embeddings);
         }
 
         private InferenceServiceResults.Result completionChunk(String delta) {

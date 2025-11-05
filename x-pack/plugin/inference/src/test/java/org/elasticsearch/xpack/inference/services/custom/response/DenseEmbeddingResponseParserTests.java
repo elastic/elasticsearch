@@ -16,9 +16,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
@@ -121,15 +121,15 @@ public class DenseEmbeddingResponseParserTests extends AbstractBWCWireSerializat
             """;
 
         var parser = new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
-        DenseEmbeddingFloatResults parsedResults = (DenseEmbeddingFloatResults) parser.parse(
+        LegacyDenseEmbeddingFloatResults parsedResults = (LegacyDenseEmbeddingFloatResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
             parsedResults,
             is(
-                new DenseEmbeddingFloatResults(
-                    List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }))
+                new LegacyDenseEmbeddingFloatResults(
+                    List.of(new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }))
                 )
             )
         );
@@ -158,13 +158,13 @@ public class DenseEmbeddingResponseParserTests extends AbstractBWCWireSerializat
             """;
 
         var parser = new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BYTE);
-        DenseEmbeddingByteResults parsedResults = (DenseEmbeddingByteResults) parser.parse(
+        LegacyDenseEmbeddingByteResults parsedResults = (LegacyDenseEmbeddingByteResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
             parsedResults,
-            is(new DenseEmbeddingByteResults(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { 1, -2 }))))
+            is(new LegacyDenseEmbeddingByteResults(List.of(new LegacyDenseEmbeddingByteResults.Embedding(new byte[] { 1, -2 }))))
         );
     }
 
@@ -191,11 +191,14 @@ public class DenseEmbeddingResponseParserTests extends AbstractBWCWireSerializat
             """;
 
         var parser = new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BIT);
-        DenseEmbeddingBitResults parsedResults = (DenseEmbeddingBitResults) parser.parse(
+        LegacyDenseEmbeddingBitResults parsedResults = (LegacyDenseEmbeddingBitResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults, is(new DenseEmbeddingBitResults(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { 1, -2 })))));
+        assertThat(
+            parsedResults,
+            is(new LegacyDenseEmbeddingBitResults(List.of(new LegacyDenseEmbeddingByteResults.Embedding(new byte[] { 1, -2 }))))
+        );
     }
 
     public void testParse_MultipleEmbeddings() throws IOException {
@@ -229,17 +232,17 @@ public class DenseEmbeddingResponseParserTests extends AbstractBWCWireSerializat
             """;
 
         var parser = new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
-        DenseEmbeddingFloatResults parsedResults = (DenseEmbeddingFloatResults) parser.parse(
+        LegacyDenseEmbeddingFloatResults parsedResults = (LegacyDenseEmbeddingFloatResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
             parsedResults,
             is(
-                new DenseEmbeddingFloatResults(
+                new LegacyDenseEmbeddingFloatResults(
                     List.of(
-                        new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
-                        new DenseEmbeddingFloatResults.Embedding(new float[] { 1F, -2F })
+                        new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
+                        new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 1F, -2F })
                     )
                 )
             )

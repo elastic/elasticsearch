@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.core.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -1136,20 +1136,20 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
             assertThat(result1.chunks(), hasSize(1));
-            assertThat(result1.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(LegacyDenseEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
                 ((MlDenseEmbeddingResults) mlTrainedModelResults.get(0)).getInferenceAsFloat(),
-                ((DenseEmbeddingFloatResults.Embedding) result1.chunks().get(0).embedding()).values(),
+                ((LegacyDenseEmbeddingFloatResults.Embedding) result1.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
             assertThat(result2.chunks(), hasSize(1));
-            assertThat(result2.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(LegacyDenseEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
                 ((MlDenseEmbeddingResults) mlTrainedModelResults.get(1)).getInferenceAsFloat(),
-                ((DenseEmbeddingFloatResults.Embedding) result2.chunks().get(0).embedding()).values(),
+                ((LegacyDenseEmbeddingFloatResults.Embedding) result2.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());

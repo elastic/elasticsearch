@@ -19,7 +19,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
@@ -233,7 +233,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             assertThat(
                 result.asMap(),
-                is(DenseEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F })))
+                is(LegacyDenseEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F })))
             );
 
             assertThat(webServer.requests(), hasSize(1));
@@ -421,7 +421,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             assertThat(
                 result.asMap(),
-                is(DenseEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F })))
+                is(LegacyDenseEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F })))
             );
 
             assertThat(webServer.requests(), hasSize(2));
@@ -486,7 +486,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             assertThat(
                 result.asMap(),
-                is(DenseEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F })))
+                is(LegacyDenseEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F })))
             );
 
             assertThat(webServer.requests(), hasSize(1));

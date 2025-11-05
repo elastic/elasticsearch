@@ -17,9 +17,9 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResultsTests;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingByteResultsTests;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.EmptyTaskSettingsTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
@@ -113,7 +113,7 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
     }
 
     public void testValidate_RetrievingEmbeddingSizeThrowsIllegalStateException() {
-        DenseEmbeddingFloatResults results = new DenseEmbeddingFloatResults(List.of());
+        LegacyDenseEmbeddingFloatResults results = new LegacyDenseEmbeddingFloatResults(List.of());
 
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(true);
         when(mockServiceSettings.dimensions()).thenReturn(randomNonNegativeInt());
@@ -129,7 +129,7 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
     }
 
     public void testValidate_DimensionsSetByUserDoNotEqualEmbeddingSize() {
-        DenseEmbeddingByteResults results = DenseEmbeddingByteResultsTests.createRandomResults();
+        LegacyDenseEmbeddingByteResults results = LegacyDenseEmbeddingByteResultsTests.createRandomResults();
         int embeddingSize = results.getFirstEmbeddingSize();
         int dimensions = randomValueOtherThan(embeddingSize, ESTestCase::randomNonNegativeInt);
 
@@ -168,7 +168,7 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
     }
 
     private void mockSuccessfulValidation(Boolean dimensionsSetByUser) {
-        DenseEmbeddingByteResults results = DenseEmbeddingByteResultsTests.createRandomResults();
+        LegacyDenseEmbeddingByteResults results = LegacyDenseEmbeddingByteResultsTests.createRandomResults();
         when(mockModel.getConfigurations()).thenReturn(ModelConfigurationsTests.createRandomInstance());
         when(mockModel.getTaskSettings()).thenReturn(EmptyTaskSettingsTests.createRandom());
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(dimensionsSetByUser);

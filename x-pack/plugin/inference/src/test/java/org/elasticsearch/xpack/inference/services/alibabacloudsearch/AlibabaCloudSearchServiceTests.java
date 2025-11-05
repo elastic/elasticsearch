@@ -34,7 +34,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.InputTypeTests;
@@ -516,7 +516,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var firstResult = results.getFirst();
             assertThat(firstResult, instanceOf(ChunkedInferenceEmbedding.class));
             Class<?> expectedClass = switch (taskType) {
-                case TEXT_EMBEDDING -> DenseEmbeddingFloatResults.Chunk.class;
+                case TEXT_EMBEDDING -> LegacyDenseEmbeddingFloatResults.Chunk.class;
                 case SPARSE_EMBEDDING -> SparseEmbeddingResults.Chunk.class;
                 default -> null;
             };
@@ -650,10 +650,10 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         ) {
             public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings) {
                 return (inferenceInputs, timeout, listener) -> {
-                    DenseEmbeddingFloatResults results = new DenseEmbeddingFloatResults(
+                    LegacyDenseEmbeddingFloatResults results = new LegacyDenseEmbeddingFloatResults(
                         List.of(
-                            new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123f, -0.0123f }),
-                            new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0456f, -0.0456f })
+                            new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.0123f, -0.0123f }),
+                            new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.0456f, -0.0456f })
                         )
                     );
 

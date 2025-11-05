@@ -17,8 +17,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandEmbeddingModel;
 
 public class ElasticsearchInternalServiceModelValidator implements ModelValidator {
@@ -79,7 +79,7 @@ public class ElasticsearchInternalServiceModelValidator implements ModelValidato
             throw new ElasticsearchStatusException(
                 "Validation call did not return expected results type."
                     + "Expected a result of type ["
-                    + DenseEmbeddingFloatResults.NAME
+                    + LegacyDenseEmbeddingFloatResults.NAME
                     + "] got ["
                     + (results == null ? "null" : results.getWriteableName())
                     + "]",

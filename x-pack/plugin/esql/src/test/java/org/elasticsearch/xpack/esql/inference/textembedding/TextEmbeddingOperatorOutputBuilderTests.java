@@ -15,8 +15,8 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 
 import java.util.List;
 
@@ -206,19 +206,19 @@ public class TextEmbeddingOperatorOutputBuilderTests extends ComputeTestCase {
     }
 
     private static InferenceAction.Response createFloatEmbeddingResponse(float[] embedding) {
-        var embeddingResult = new DenseEmbeddingFloatResults.Embedding(embedding);
-        var denseEmbeddingResults = new DenseEmbeddingFloatResults(List.of(embeddingResult));
+        var embeddingResult = new LegacyDenseEmbeddingFloatResults.Embedding(embedding);
+        var denseEmbeddingResults = new LegacyDenseEmbeddingFloatResults(List.of(embeddingResult));
         return new InferenceAction.Response(denseEmbeddingResults);
     }
 
     private static InferenceAction.Response createByteEmbeddingResponse(byte[] embedding) {
-        var embeddingResult = new DenseEmbeddingByteResults.Embedding(embedding);
-        var denseEmbeddingResults = new DenseEmbeddingByteResults(List.of(embeddingResult));
+        var embeddingResult = new LegacyDenseEmbeddingByteResults.Embedding(embedding);
+        var denseEmbeddingResults = new LegacyDenseEmbeddingByteResults(List.of(embeddingResult));
         return new InferenceAction.Response(denseEmbeddingResults);
     }
 
     private static InferenceAction.Response createEmptyFloatEmbeddingResponse() {
-        var denseEmbeddingResults = new DenseEmbeddingFloatResults(List.of());
+        var denseEmbeddingResults = new LegacyDenseEmbeddingFloatResults(List.of());
         return new InferenceAction.Response(denseEmbeddingResults);
     }
 

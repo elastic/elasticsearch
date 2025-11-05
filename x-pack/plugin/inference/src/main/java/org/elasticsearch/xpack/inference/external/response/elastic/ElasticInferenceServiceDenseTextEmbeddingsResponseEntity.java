@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -57,7 +57,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsResponseEntity {
      *     </code>
      * </pre>
      */
-    public static DenseEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static LegacyDenseEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
         try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response.body())) {
             return EmbeddingFloatResult.PARSER.apply(p, null).toDenseEmbeddingFloatResults();
         }
@@ -81,9 +81,9 @@ public class ElasticInferenceServiceDenseTextEmbeddingsResponseEntity {
             }, new ParseField("data"), org.elasticsearch.xcontent.ObjectParser.ValueType.OBJECT_ARRAY);
         }
 
-        public DenseEmbeddingFloatResults toDenseEmbeddingFloatResults() {
-            return new DenseEmbeddingFloatResults(
-                embeddingResults.stream().map(entry -> DenseEmbeddingFloatResults.Embedding.of(entry.embedding)).toList()
+        public LegacyDenseEmbeddingFloatResults toDenseEmbeddingFloatResults() {
+            return new LegacyDenseEmbeddingFloatResults(
+                embeddingResults.stream().map(entry -> LegacyDenseEmbeddingFloatResults.Embedding.of(entry.embedding)).toList()
             );
         }
     }

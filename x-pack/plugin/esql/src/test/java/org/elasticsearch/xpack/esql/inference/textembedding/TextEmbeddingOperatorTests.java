@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -23,7 +23,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbeddingFloatResults> {
+public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<LegacyDenseEmbeddingFloatResults> {
     private static final String SIMPLE_INFERENCE_ID = "test_text_embedding";
     private static final int EMBEDDING_DIMENSION = 384; // Common embedding dimension
 
@@ -89,15 +89,15 @@ public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseE
     }
 
     @Override
-    protected DenseEmbeddingFloatResults mockInferenceResult(InferenceAction.Request request) {
+    protected LegacyDenseEmbeddingFloatResults mockInferenceResult(InferenceAction.Request request) {
         // For text embedding, we expect one input text per request
         String inputText = request.getInput().get(0);
 
         // Generate a deterministic mock embedding based on the input text
         float[] mockEmbedding = generateMockEmbedding(inputText, EMBEDDING_DIMENSION);
 
-        var embeddingResult = new DenseEmbeddingFloatResults.Embedding(mockEmbedding);
-        return new DenseEmbeddingFloatResults(List.of(embeddingResult));
+        var embeddingResult = new LegacyDenseEmbeddingFloatResults.Embedding(mockEmbedding);
+        return new LegacyDenseEmbeddingFloatResults(List.of(embeddingResult));
     }
 
     @Override

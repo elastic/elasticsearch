@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -64,7 +64,7 @@ public class GoogleVertexAiEmbeddingsResponseEntity {
      * </pre>
      */
 
-    public static DenseEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static LegacyDenseEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -75,16 +75,16 @@ public class GoogleVertexAiEmbeddingsResponseEntity {
 
             positionParserAtTokenAfterField(jsonParser, "predictions", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-            List<DenseEmbeddingFloatResults.Embedding> embeddingList = parseList(
+            List<LegacyDenseEmbeddingFloatResults.Embedding> embeddingList = parseList(
                 jsonParser,
                 GoogleVertexAiEmbeddingsResponseEntity::parseEmbeddingObject
             );
 
-            return new DenseEmbeddingFloatResults(embeddingList);
+            return new LegacyDenseEmbeddingFloatResults(embeddingList);
         }
     }
 
-    private static DenseEmbeddingFloatResults.Embedding parseEmbeddingObject(XContentParser parser) throws IOException {
+    private static LegacyDenseEmbeddingFloatResults.Embedding parseEmbeddingObject(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         positionParserAtTokenAfterField(parser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
@@ -99,7 +99,7 @@ public class GoogleVertexAiEmbeddingsResponseEntity {
         consumeUntilObjectEnd(parser);
         consumeUntilObjectEnd(parser);
 
-        return DenseEmbeddingFloatResults.Embedding.of(embeddingValueList);
+        return LegacyDenseEmbeddingFloatResults.Embedding.of(embeddingValueList);
     }
 
     private static float parseEmbeddingList(XContentParser parser) throws IOException {

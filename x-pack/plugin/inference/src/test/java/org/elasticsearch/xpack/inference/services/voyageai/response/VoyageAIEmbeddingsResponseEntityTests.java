@@ -11,7 +11,7 @@ import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
@@ -60,8 +60,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(
-            ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
+            ((LegacyDenseEmbeddingFloatResults) parsedResults).embeddings(),
+            is(List.of(new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
         );
     }
 
@@ -106,11 +106,11 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(
-            ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
+            ((LegacyDenseEmbeddingFloatResults) parsedResults).embeddings(),
             is(
                 List.of(
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })
+                    new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
+                    new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })
                 )
             )
         );
@@ -299,8 +299,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(
-            ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 1.0F })))
+            ((LegacyDenseEmbeddingFloatResults) parsedResults).embeddings(),
+            is(List.of(new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 1.0F })))
         );
     }
 
@@ -336,8 +336,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(
-            ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 4.0294965E10F })))
+            ((LegacyDenseEmbeddingFloatResults) parsedResults).embeddings(),
+            is(List.of(new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 4.0294965E10F })))
         );
     }
 
@@ -427,15 +427,15 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), response.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults, instanceOf(DenseEmbeddingFloatResults.class));
+        assertThat(parsedResults, instanceOf(LegacyDenseEmbeddingFloatResults.class));
 
         assertThat(
-            ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
+            ((LegacyDenseEmbeddingFloatResults) parsedResults).embeddings(),
             is(
                 List.of(
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.5F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
+                    new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
+                    new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.5F }),
+                    new LegacyDenseEmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
                 )
             )
         );

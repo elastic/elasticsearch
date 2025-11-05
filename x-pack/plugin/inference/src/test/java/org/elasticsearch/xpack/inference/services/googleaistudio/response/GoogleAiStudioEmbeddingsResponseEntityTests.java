@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.googleaistudio.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -36,12 +36,15 @@ public class GoogleAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        DenseEmbeddingFloatResults parsedResults = GoogleAiStudioEmbeddingsResponseEntity.fromResponse(
+        LegacyDenseEmbeddingFloatResults parsedResults = GoogleAiStudioEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.embeddings(), is(List.of(DenseEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)))));
+        assertThat(
+            parsedResults.embeddings(),
+            is(List.of(LegacyDenseEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F))))
+        );
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
@@ -64,7 +67,7 @@ public class GoogleAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        DenseEmbeddingFloatResults parsedResults = GoogleAiStudioEmbeddingsResponseEntity.fromResponse(
+        LegacyDenseEmbeddingFloatResults parsedResults = GoogleAiStudioEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -73,8 +76,8 @@ public class GoogleAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    DenseEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)),
-                    DenseEmbeddingFloatResults.Embedding.of(List.of(0.030681048F, 0.01714732F))
+                    LegacyDenseEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)),
+                    LegacyDenseEmbeddingFloatResults.Embedding.of(List.of(0.030681048F, 0.01714732F))
                 )
             )
         );

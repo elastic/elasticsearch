@@ -15,9 +15,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
@@ -75,9 +75,9 @@ public class VoyageAIEmbeddingsResponseEntity {
             }
         }
 
-        public DenseEmbeddingByteResults.Embedding toInferenceByteEmbedding() {
+        public LegacyDenseEmbeddingByteResults.Embedding toInferenceByteEmbedding() {
             embedding.forEach(EmbeddingInt8ResultEntry::checkByteBounds);
-            return DenseEmbeddingByteResults.Embedding.of(embedding.stream().map(Integer::byteValue).toList());
+            return LegacyDenseEmbeddingByteResults.Embedding.of(embedding.stream().map(Integer::byteValue).toList());
         }
     }
 
@@ -108,8 +108,8 @@ public class VoyageAIEmbeddingsResponseEntity {
             PARSER.declareFloatArray(constructorArg(), new ParseField("embedding"));
         }
 
-        public DenseEmbeddingFloatResults.Embedding toInferenceFloatEmbedding() {
-            return DenseEmbeddingFloatResults.Embedding.of(embedding);
+        public LegacyDenseEmbeddingFloatResults.Embedding toInferenceFloatEmbedding() {
+            return LegacyDenseEmbeddingFloatResults.Embedding.of(embedding);
         }
     }
 
@@ -166,22 +166,22 @@ public class VoyageAIEmbeddingsResponseEntity {
             if (embeddingType == null || embeddingType == VoyageAIEmbeddingType.FLOAT) {
                 var embeddingResult = EmbeddingFloatResult.PARSER.apply(jsonParser, null);
 
-                List<DenseEmbeddingFloatResults.Embedding> embeddingList = embeddingResult.entries.stream()
+                List<LegacyDenseEmbeddingFloatResults.Embedding> embeddingList = embeddingResult.entries.stream()
                     .map(EmbeddingFloatResultEntry::toInferenceFloatEmbedding)
                     .toList();
-                return new DenseEmbeddingFloatResults(embeddingList);
+                return new LegacyDenseEmbeddingFloatResults(embeddingList);
             } else if (embeddingType == VoyageAIEmbeddingType.INT8) {
                 var embeddingResult = EmbeddingInt8Result.PARSER.apply(jsonParser, null);
-                List<DenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
+                List<LegacyDenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
                     .map(EmbeddingInt8ResultEntry::toInferenceByteEmbedding)
                     .toList();
-                return new DenseEmbeddingByteResults(embeddingList);
+                return new LegacyDenseEmbeddingByteResults(embeddingList);
             } else if (embeddingType == VoyageAIEmbeddingType.BIT || embeddingType == VoyageAIEmbeddingType.BINARY) {
                 var embeddingResult = EmbeddingInt8Result.PARSER.apply(jsonParser, null);
-                List<DenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
+                List<LegacyDenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
                     .map(EmbeddingInt8ResultEntry::toInferenceByteEmbedding)
                     .toList();
-                return new DenseEmbeddingBitResults(embeddingList);
+                return new LegacyDenseEmbeddingBitResults(embeddingList);
             } else {
                 throw new IllegalArgumentException(
                     "Illegal embedding_type value: " + embeddingType + ". Supported types are: " + VALID_EMBEDDING_TYPES_STRING

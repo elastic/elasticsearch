@@ -80,6 +80,9 @@ public final class MlIndexAndAlias {
     private static final Predicate<String> IS_ANOMALIES_SHARED_INDEX = Pattern.compile(
         AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "-\\d{6}"
     ).asMatchPredicate();
+    private static final Predicate<String> IS_ANOMALIES_STATE_INDEX = Pattern.compile(
+        AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-\\d{6}"
+    ).asMatchPredicate();
     public static final String ROLLOVER_ALIAS_SUFFIX = ".rollover_alias";
 
     static final Comparator<String> INDEX_NAME_COMPARATOR = (index1, index2) -> {
@@ -496,6 +499,16 @@ public final class MlIndexAndAlias {
     }
 
     /**
+     * Checks if an index name matches the pattern for the ML anomalies state indices  (e.g., ".ml-state-000001").
+     *
+     * @param indexName The name of the index to check.
+     * @return {@code true} if the index is an anomalies state index, {@code false} otherwise.
+     */
+    public static boolean isAnomaliesStateIndex(String indexName) {
+        return IS_ANOMALIES_STATE_INDEX.test(indexName);
+    }
+
+    /**
      * Returns the latest index. Latest is the index with the highest
      * 6 digit suffix.
      * @param concreteIndices List of index names
@@ -631,6 +644,47 @@ public final class MlIndexAndAlias {
     }
 
     /**
+     * Adds alias actions to a request builder to move the ML state write alias from an old index to a new one after a rollover.
+     * This method is robust and will move the correct alias regardless of the current alias state on the old index.
+     *
+     * @param aliasRequestBuilder The request builder to add actions to.
+     * @param oldIndex            The index from which the alias is being moved.
+     * @param newIndex            The new index to which the alias will be moved.
+     * @param clusterState        The current cluster state, used to inspect existing aliases on the old index.
+     * @param allStateIndices     A list of all current .ml-state indices
+     * @return The modified {@link IndicesAliasesRequestBuilder}.
+     */
+    public static IndicesAliasesRequestBuilder addStateIndexRolloverAliasActions(
+        IndicesAliasesRequestBuilder aliasRequestBuilder,
+        String oldIndex,
+        String newIndex,
+        ClusterState clusterState,
+        String[] allStateIndices
+    ) {
+        var meta = clusterState.metadata().getProject().index(oldIndex);
+        if (meta == null) {
+            // This should not happen in practice as we are iterating over existing indices, but we defend against it.
+            return aliasRequestBuilder;
+        }
+
+        // Remove the write alias from ALL state indices to handle any inconsistencies where it might exist on more than one.
+        aliasRequestBuilder.addAliasAction(
+            IndicesAliasesRequest.AliasActions.remove().indices(allStateIndices).alias(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+        );
+
+        aliasRequestBuilder.addAliasAction(
+            IndicesAliasesRequest.AliasActions.add()
+                .index(newIndex)
+                .alias(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+                .isHidden(true)
+                .writeIndex(true)
+        );
+
+        return aliasRequestBuilder;
+
+    }
+
+    /**
      * Adds alias actions to a request builder to move ML job aliases from an old index to a new one after a rollover.
      * This includes moving the write alias and re-creating the filtered read aliases on the new index.
      *
@@ -640,7 +694,7 @@ public final class MlIndexAndAlias {
      * @param clusterState        The current cluster state, used to inspect existing aliases on the old index.
      * @return The modified {@link IndicesAliasesRequestBuilder}.
      */
-    public static IndicesAliasesRequestBuilder addIndexAliasesRequests(
+    public static IndicesAliasesRequestBuilder addResultsIndexRolloverAliasActions(
         IndicesAliasesRequestBuilder aliasRequestBuilder,
         String oldIndex,
         String newIndex,

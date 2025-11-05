@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.hamcrest.TypeSafeMatcher;
 
 /**
- * Test matcher for ESQL BytesRef that expects BytesRefs, but describes the errors as strings, for better readability.
+ * Test matcher for BytesRef that expects BytesRefs, but describes the errors as strings, for better readability.
  */
 public class StringBytesRefMatcher extends TypeSafeMatcher<BytesRef> {
     private final String string;

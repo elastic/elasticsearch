@@ -46,6 +46,9 @@
         "description": "Ignore if the source indices expressions resolves to no concrete indices (default: true)"
       },
       "ignore_throttled": {
+        "deprecated": {
+          "version": "7.16.0"
+        },
         "type": "boolean",
         "default": true,
         "description": "Ignore indices that are marked as throttled (default: true)"

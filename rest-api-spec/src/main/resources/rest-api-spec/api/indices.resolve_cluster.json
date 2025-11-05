@@ -40,6 +40,9 @@
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed). Only allowed when providing an index expression."
       },
       "ignore_throttled": {
+        "deprecated": {
+          "version": "7.16.0"
+        },
         "type": "boolean",
         "default": false,
         "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled. Only allowed when providing an index expression."

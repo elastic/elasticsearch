@@ -95,7 +95,10 @@
         "description": "Return settings in flat format (default: false)"
       },
       "local": {
-        "deprecated": true,
+        "deprecated": {
+          "version": "9.1.0",
+          "description": "This parameter is a no-op and settings are always retrieved locally."
+        },
         "type": "boolean",
         "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"

@@ -6,6 +6,9 @@
     },
     "stability": "experimental",
     "visibility": "public",
+    "deprecated": {
+      "version": "8.11.0"
+    },
     "headers": {
       "accept": [
         "application/json"

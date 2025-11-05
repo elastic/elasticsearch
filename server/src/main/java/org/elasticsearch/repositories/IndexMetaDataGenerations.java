@@ -198,14 +198,11 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Given a blobId, returns the index UUID associated with it.
-     * @param blobId The blob ID
-     * @return the index UUID associated with the blobId, or null if the blobId is not found
+     * Generates a map of blob id to Index UUID. This is a reverse lookup of {@code identifiers}
+     * @return A map of blob id to index UUID
      */
-    @Nullable
-    public String getIndexUUIDFromBlobId(String blobId) {
-        // Map of blob id to index uuid. This is a reverse lookup of the identifiers map.
-        final Map<String, String> blobUuidToIndexUUIDMap = identifiers.entrySet()
+    public Map<String, String> getBlobIdToIndexUuidMap() {
+        return identifiers.entrySet()
             .stream()
             .collect(
                 Collectors.toUnmodifiableMap(
@@ -214,8 +211,5 @@ public final class IndexMetaDataGenerations {
                     entry -> entry.getKey().substring(0, RANDOM_BASED_UUID_STRING_LENGTH)
                 )
             );
-
-        // Find the unique identifier for this blobId
-        return blobUuidToIndexUUIDMap.get(blobId);
     }
 }

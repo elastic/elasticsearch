@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -73,7 +74,7 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         assertEquals(indexUUID + "-_na_-" + settingsVersion + "-" + mappingVersion + "-" + aliasesVersion, result);
     }
 
-    public void testGetIndexUUIDFromBlobIdReturnsIndexUUID() {
+    public void testGetBlobIdToIndexUuidMap() {
         String indexUUID = generateUUID();
         String randomSetting = randomAlphaOfLength(randomIntBetween(5, 10));
         long settingsVersion = randomNonNegativeLong();
@@ -88,16 +89,18 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         Map<SnapshotId, Map<IndexId, String>> lookup = Map.of(snapshotId, Map.of(indexId, uniqueIdentifier));
 
         IndexMetaDataGenerations generations = new IndexMetaDataGenerations(lookup, Map.of(uniqueIdentifier, blobId));
-        assertEquals(indexUUID, generations.getIndexUUIDFromBlobId(blobId));
+
+        Map<String, String> expectedBlobIdToindexUuidMap = Map.of(blobId, indexUUID);
+        assertEquals(expectedBlobIdToindexUuidMap, generations.getBlobIdToIndexUuidMap());
     }
 
-    public void testGetIndexUUIDFromBlobIdReturnsNullWhenBlobIdIsNotFound() {
+    public void testGetBlobIdToIndexUuidMapWithNoIdentifierMap() {
         IndexMetaDataGenerations generations = new IndexMetaDataGenerations(Map.of(), Map.of());
-        assertNull(generations.getIndexUUIDFromBlobId(randomAlphanumericOfLength(randomIntBetween(5, 10))));
+        assertEquals(Collections.emptyMap(), generations.getBlobIdToIndexUuidMap());
     }
 
     private String generateUUID() {
-        return usually() ? UUIDs.randomBase64UUID(random()) : ClusterState.UNKNOWN_UUID;
+        return UUIDs.randomBase64UUID(random());
     }
 
     private String generateMetaIdentifier(String indexUUID) {

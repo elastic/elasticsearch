@@ -523,7 +523,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         );
 
         var newIndex = anomaliesIndex + "-000001";
-        var request = MlIndexAndAlias.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());
+        var request = MlIndexAndAlias.addResultsIndexRolloverAliasActions(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());
         var actions = request.request().getAliasActions();
         assertThat(actions, hasSize(6));
 

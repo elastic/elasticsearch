@@ -8,8 +8,12 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -17,7 +21,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -33,12 +36,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlIntegTestCase {
+public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestCase {
 
     private MlDailyMaintenanceService maintenanceService;
 
@@ -64,45 +69,80 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         );
     }
 
+    /**
+     * In production the only way to create a model snapshot is to open a job, and
+     * opening a job ensures that the state index exists. This suite does not open jobs
+     * but instead inserts snapshot and state documents directly to the results and
+     * state indices. This means it needs to create the state index explicitly. This
+     * method should not be copied to test suites that run jobs in the way they are
+     * run in production.
+     */
+    @Before
+    public void addMlState() {
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        createStateIndexAndAliasIfNecessary(
+            client(),
+            ClusterState.EMPTY_STATE,
+            TestIndexNameExpressionResolver.newInstance(),
+            TEST_REQUEST_TIMEOUT,
+            future
+        );
+        future.actionGet();
+    }
+
     private void initClusterAndJob() {
         internalCluster().ensureAtLeastNumDataNodes(1);
         ensureStableCluster(1);
     }
 
-    public void testTriggerRollResultsIndicesIfNecessaryTask_givenNoIndices() throws Exception {
+    public void testTriggerIndicesIfNecessaryTask_givenNoIndices() throws Exception {
         // The null case, nothing to do.
 
-        // set the rollover max size to 0B so we can roll the index unconditionally
+        // Delete the .ml-state-000001 index for this particular test
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+        DeleteIndexRequest request = new DeleteIndexRequest(".ml-state-000001");
+        client().admin().indices().delete(request).actionGet();
+
+        // set the rollover max size to 0B so we can roll the indices unconditionally
         // It's not the conditions or even the rollover itself we are testing but the state of the indices and aliases afterwards.
         maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
-        {
-            GetIndexResponse getIndexResponse = client().admin()
-                .indices()
-                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                .setIndices(".ml-anomalies*")
-                .get();
-            logger.warn("get_index_response: {}", getIndexResponse.toString());
-            assertThat(getIndexResponse.getIndices().length, is(0));
-            var aliases = getIndexResponse.getAliases();
-            assertThat(aliases.size(), is(0));
-        }
 
-        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+        Map<String, Consumer<ActionListener<AcknowledgedResponse>>> params = Map.of(".ml-anomalies*", (listener) -> {
+            maintenanceService.triggerRollResultsIndicesIfNecessaryTask(listener);
+        }, ".ml-state*", (listener) -> { maintenanceService.triggerRollStateIndicesIfNecessaryTask(listener); });
 
-        {
-            GetIndexResponse getIndexResponse = client().admin()
-                .indices()
-                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                .setIndices(".ml-anomalies*")
-                .get();
-            logger.warn("get_index_response: {}", getIndexResponse.toString());
-            assertThat(getIndexResponse.getIndices().length, is(0));
-            var aliases = getIndexResponse.getAliases();
-            assertThat(aliases.size(), is(0));
+        for (Map.Entry<String, Consumer<ActionListener<AcknowledgedResponse>>> param : params.entrySet()) {
+            String indexPattern = param.getKey();
+            Consumer<ActionListener<AcknowledgedResponse>> function = param.getValue();
+            {
+                GetIndexResponse getIndexResponse = client().admin()
+                    .indices()
+                    .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                    .setIndices(indexPattern)
+                    .get();
+                logger.warn("get_index_response: {}", getIndexResponse.toString());
+                assertThat(getIndexResponse.getIndices().length, is(0));
+                var aliases = getIndexResponse.getAliases();
+                assertThat(aliases.size(), is(0));
+            }
+
+            blockingCall(function);
+
+            {
+                GetIndexResponse getIndexResponse = client().admin()
+                    .indices()
+                    .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                    .setIndices(indexPattern)
+                    .get();
+                logger.warn("get_index_response: {}", getIndexResponse.toString());
+                assertThat(getIndexResponse.getIndices().length, is(0));
+                var aliases = getIndexResponse.getAliases();
+                assertThat(aliases.size(), is(0));
+            }
         }
     }
 
-    public void testTriggerRollResultsIndicesIfNecessaryTask_givenMinusOnRolloverMaxSize() throws Exception {
+    public void testTriggerRollResultsIndicesIfNecessaryTask_givenMinusOneRolloverMaxSize() throws Exception {
         // The null case, nothing to do.
 
         // set the rollover max size to -1B so the indices should not be rolled over
@@ -225,6 +265,127 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         runTestScenario(jobs_with_custom_index, "custom-fred");
     }
 
+    public void testTriggerRollStateIndicesIfNecessaryTask() throws Exception {
+        // 1. Ensure that rollover tasks will always execute
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
+
+        // 2. Check the state index exists and has the expected write alias
+        assertIndicesAndAliases(
+            "Before rollover (state)",
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            Map.of(".ml-state-000001", List.of(".ml-state-write"))
+        );
+
+        // 3. Trigger a single maintenance run
+        blockingCall(maintenanceService::triggerRollStateIndicesIfNecessaryTask);
+
+        // 4. Verify state index was rolled over correctly
+        assertIndicesAndAliases(
+            "After rollover (state)",
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            Map.of(".ml-state-000001", List.of(), ".ml-state-000002", List.of(".ml-state-write"))
+        );
+
+        // 5. Trigger another maintenance run
+        blockingCall(maintenanceService::triggerRollStateIndicesIfNecessaryTask);
+
+        // 6. Verify state index was rolled over correctly
+        assertIndicesAndAliases(
+            "After rollover (state)",
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            Map.of(".ml-state-000001", List.of(), ".ml-state-000002", List.of(), ".ml-state-000003", List.of(".ml-state-write"))
+        );
+    }
+
+    public void testTriggerRollStateIndicesIfNecessaryTask_givenMinusOneRolloverMaxSize() throws Exception {
+        // The null case, nothing to do.
+
+        // set the rollover max size to -1B so the indices should not be rolled over
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.MINUS_ONE);
+        {
+            GetIndexResponse getIndexResponse = client().admin()
+                .indices()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .setIndices(".ml-state*")
+                .get();
+            logger.warn("get_index_response: {}", getIndexResponse.toString());
+            assertIndicesAndAliases(
+                "Before rollover (state)",
+                AnomalyDetectorsIndex.jobStateIndexPattern(),
+                Map.of(".ml-state-000001", List.of(".ml-state-write"))
+            );
+        }
+
+        blockingCall(maintenanceService::triggerRollStateIndicesIfNecessaryTask);
+
+        {
+            GetIndexResponse getIndexResponse = client().admin()
+                .indices()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .setIndices(".ml-state*")
+                .get();
+            assertIndicesAndAliases(
+                "After rollover (state)",
+                AnomalyDetectorsIndex.jobStateIndexPattern(),
+                Map.of(".ml-state-000001", List.of(".ml-state-write"))
+            );
+        }
+    }
+
+    public void testTriggerRollStateIndicesIfNecessaryTask_givenMissingWriteAlias() throws Exception {
+        // 1. Ensure that rollover tasks will always attempt to execute
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
+
+        // 2. Remove the write alias to create an inconsistent state
+        client().admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .removeAlias(".ml-state-000001", AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+            .get();
+
+        assertIndicesAndAliases(
+            "Before rollover (state, missing alias)",
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            Map.of(".ml-state-000001", List.of())
+        );
+
+        // 3. Trigger a maintenance run and expect it to gracefully handle the missing write alias
+        blockingCall(maintenanceService::triggerRollStateIndicesIfNecessaryTask);
+
+        // 4. Verify the index rolled over correctly and the write alias was added
+        assertIndicesAndAliases(
+            "After rollover (state, missing alias)",
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            Map.of(".ml-state-000001", List.of(), ".ml-state-000002", List.of(".ml-state-write"))
+        );
+    }
+
+    public void testTriggerRollStateIndicesIfNecessaryTask_givenWriteAliasOnWrongIndex() throws Exception {
+        // 1. Ensure that rollover tasks will always attempt to execute
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
+
+        // 2. Create a second, newer state index
+        createIndex(".ml-state-000002");
+
+        // 3. Verify the initial state (write alias is on the older index)
+        assertIndicesAndAliases(
+            "Before rollover (state, alias on wrong index)",
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            Map.of(".ml-state-000001", List.of(".ml-state-write"), ".ml-state-000002", List.of())
+        );
+
+        // 4. The service finds .ml-state-000002 as the latest, but the rollover alias points to ...000001
+        // Trigger a maintenance run and expect it to gracefully repair the wrongly seated write alias
+        blockingCall(maintenanceService::triggerRollStateIndicesIfNecessaryTask);
+
+        // 5. Verify the index rolled over correctly and the write alias was moved to the latest index
+        assertIndicesAndAliases(
+            "After rollover (state, alias on wrong index)",
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            Map.of(".ml-state-000001", List.of(), ".ml-state-000002", List.of(), ".ml-state-000003", List.of(".ml-state-write"))
+        );
+    }
+
     private void runTestScenarioWithNoRolloverOccurring(Job.Builder[] jobs, String indexNamePart) throws Exception {
         String firstJobId = jobs[0].getId();
         String secondJobId = jobs[1].getId();
@@ -335,7 +496,8 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         expectedAliases.forEach((indexName, expectedAliasList) -> {
             assertThat("Context: " + context, indices.size(), is(expectedAliases.size()));
             if (expectedAliasList.isEmpty()) {
-                assertThat("Context: " + context, aliases.size(), is(0));
+                List<AliasMetadata> actualAliasMetadata = aliases.get(indexName);
+                assertThat("Context: " + context, actualAliasMetadata, is(nullValue()));
             } else {
                 List<AliasMetadata> actualAliasMetadata = aliases.get(indexName);
                 List<String> actualAliasList = actualAliasMetadata.stream().map(AliasMetadata::alias).toList();
@@ -375,13 +537,5 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
     private PutJobAction.Response putJob(Job.Builder job) {
         PutJobAction.Request request = new PutJobAction.Request(job);
         return client().execute(PutJobAction.INSTANCE, request).actionGet();
-    }
-
-    private void deleteJob(String jobId) {
-        try {
-            client().execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId)).actionGet();
-        } catch (Exception e) {
-            // noop
-        }
     }
 }

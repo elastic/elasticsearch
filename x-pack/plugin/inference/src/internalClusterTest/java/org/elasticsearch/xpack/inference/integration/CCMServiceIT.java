@@ -7,137 +7,55 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMIndex;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModel;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.junit.Before;
 
-import java.util.Collection;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMPersistentStorageService.CCM_DOC_ID;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
+public class CCMServiceIT extends BaseCCMIT {
+    private static final AtomicReference<CCMService> ccmService = new AtomicReference<>();
 
-public class CCMServiceIT extends ESSingleNodeTestCase {
-    private CCMService ccmService;
+    public CCMServiceIT() {
+        super(new Provider() {
+            @Override
+            public void store(CCMModel ccmModel, ActionListener<Void> listener) {
+                ccmService.get().storeConfiguration(ccmModel, listener);
+            }
+
+            @Override
+            public void get(ActionListener<CCMModel> listener) {
+                ccmService.get().getConfiguration(listener);
+            }
+
+            @Override
+            public void delete(ActionListener<Void> listener) {
+                ccmService.get().disableCCM(listener);
+            }
+        });
+    }
 
     @Before
     public void createComponents() {
-        ccmService = node().injector().getInstance(CCMService.class);
+        ccmService.set(node().injector().getInstance(CCMService.class));
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
+    public void testIsEnabled_ReturnsFalse_WhenNoCCMConfigurationStored() {
+        var listener = new PlainActionFuture<Boolean>();
+        ccmService.get().isEnabled(listener);
+
+        assertFalse(listener.actionGet(TimeValue.THIRTY_SECONDS));
     }
 
-    public void testStoreAndGetCCMModel() {
-        assertStoreCCMConfiguration();
-    }
-
-    private void assertStoreCCMConfiguration() {
-        assertStoreCCMConfiguration("secret");
-    }
-
-    private void assertStoreCCMConfiguration(String apiKey) {
-        var ccmModel = new CCMModel(new SecureString(apiKey.toCharArray()));
-        var storeListener = new PlainActionFuture<Void>();
-        ccmService.store(ccmModel, storeListener);
-
-        assertNull(storeListener.actionGet(TimeValue.THIRTY_SECONDS));
-
-        var getListener = new PlainActionFuture<CCMModel>();
-        ccmService.get(getListener);
-
-        assertThat(getListener.actionGet(TimeValue.THIRTY_SECONDS), is(ccmModel));
-    }
-
-    public void testStore_OverwritesConfiguration_WhenItAlreadyExists() {
-        assertStoreCCMConfiguration();
-        assertStoreCCMConfiguration("new_secret");
-
-        var results = client().prepareSearch(CCMIndex.INDEX_PATTERN)
-            .setQuery(QueryBuilders.idsQuery().addIds(CCM_DOC_ID))
-            .execute().actionGet(TimeValue.THIRTY_SECONDS);
-
-        assertThat(results.getHits().getHits().length, is(1));
-    }
-
-    public void testGet_ThrowsResourceNotFoundException_WhenCCMIndexDoesNotExist() {
-        assertCCMResourceDoesNotExist();
-    }
-
-    private void assertCCMResourceDoesNotExist() {
-        var getListener = new PlainActionFuture<CCMModel>();
-        ccmService.get(getListener);
-
-        var exception = expectThrows(ResourceNotFoundException.class, () -> getListener.actionGet(TimeValue.THIRTY_SECONDS));
-        assertThat(exception.getMessage(), is("CCM configuration not found"));
-    }
-
-    public void testGet_ThrowsResourceNotFoundException_WhenCCMConfigurationDocumentDoesNotExist() {
-        storeCorruptCCMModel("id");
-
-        assertCCMResourceDoesNotExist();
-    }
-
-    public void testGetCCMModel_ThrowsException_WhenStoredModelIsCorrupted() {
-        storeCorruptCCMModel(CCM_DOC_ID);
-
-        var getListener = new PlainActionFuture<CCMModel>();
-        ccmService.get(getListener);
-
-        var exception = expectThrows(ElasticsearchException.class, () -> getListener.actionGet(TimeValue.THIRTY_SECONDS));
-        assertThat(exception.getMessage(), containsString("Failed to retrieve CCM configuration"));
-        assertThat(exception.getCause().getMessage(), containsString("Required [api_key]"));
-    }
-
-    private void storeCorruptCCMModel(String id) {
-        var corruptedSource = """
-            {
-
-            }
-            """;
-
-        var response = client().prepareIndex()
-            .setSource(corruptedSource, XContentType.JSON)
-            .setIndex(CCMIndex.INDEX_NAME)
-            .setId(id)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .execute()
-            .actionGet(TimeValue.THIRTY_SECONDS);
-
-        assertThat(response.getResult(), is(DocWriteResponse.Result.CREATED));
-    }
-
-    public void testDelete_DoesNotThrow_WhenTheConfigurationDoesNotExist() {
-        var listener = new PlainActionFuture<Void>();
-        ccmService.delete(listener);
-
-        assertNull(listener.actionGet(TimeValue.THIRTY_SECONDS));
-        assertCCMResourceDoesNotExist();
-    }
-
-    public void testDelete_RemovesCCMConfiguration() {
+    public void testIsEnabled_ReturnsTrue_WhenCCMConfigurationIsPresent() {
         assertStoreCCMConfiguration();
 
-        var listener = new PlainActionFuture<Void>();
-        ccmService.delete(listener);
+        var listener = new PlainActionFuture<Boolean>();
+        ccmService.get().isEnabled(listener);
 
-        assertNull(listener.actionGet(TimeValue.THIRTY_SECONDS));
-        assertCCMResourceDoesNotExist();
+        assertTrue(listener.actionGet(TimeValue.THIRTY_SECONDS));
     }
 }

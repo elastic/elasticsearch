@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 
 public abstract class BaseCCMIT extends ESSingleNodeTestCase {
 
-    private Provider provider;
+    private final Provider provider;
 
     public interface Provider {
         void store(CCMModel ccmModel, ActionListener<Void> listener);
@@ -54,11 +54,11 @@ public abstract class BaseCCMIT extends ESSingleNodeTestCase {
         assertStoreCCMConfiguration();
     }
 
-    private void assertStoreCCMConfiguration() {
+    protected void assertStoreCCMConfiguration() {
         assertStoreCCMConfiguration("secret");
     }
 
-    private void assertStoreCCMConfiguration(String apiKey) {
+    protected void assertStoreCCMConfiguration(String apiKey) {
         var ccmModel = new CCMModel(new SecureString(apiKey.toCharArray()));
         var storeListener = new PlainActionFuture<Void>();
         provider.store(ccmModel, storeListener);
@@ -86,7 +86,7 @@ public abstract class BaseCCMIT extends ESSingleNodeTestCase {
         assertCCMResourceDoesNotExist();
     }
 
-    private void assertCCMResourceDoesNotExist() {
+    protected void assertCCMResourceDoesNotExist() {
         var getListener = new PlainActionFuture<CCMModel>();
         provider.get(getListener);
 
@@ -111,7 +111,7 @@ public abstract class BaseCCMIT extends ESSingleNodeTestCase {
         assertThat(exception.getCause().getMessage(), containsString("Required [api_key]"));
     }
 
-    private void storeCorruptCCMModel(String id) {
+    protected void storeCorruptCCMModel(String id) {
         var corruptedSource = """
             {
 

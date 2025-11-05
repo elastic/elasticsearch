@@ -14,21 +14,18 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
 import org.elasticsearch.xpack.core.inference.action.GetCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 
 public class TransportGetCCMConfigurationAction extends HandledTransportAction<
     GetCCMConfigurationAction.Request,
-    GetCCMConfigurationAction.Response> {
+    CCMEnabledActionResponse> {
 
     private final CCMService ccmService;
 
     @Inject
-    public TransportGetCCMConfigurationAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        CCMService ccmService
-    ) {
+    public TransportGetCCMConfigurationAction(TransportService transportService, ActionFilters actionFilters, CCMService ccmService) {
         super(
             GetCCMConfigurationAction.NAME,
             transportService,
@@ -40,12 +37,9 @@ public class TransportGetCCMConfigurationAction extends HandledTransportAction<
     }
 
     @Override
-    protected void doExecute(Task task, GetCCMConfigurationAction.Request request, ActionListener<GetCCMConfigurationAction.Response> listener) {
-        var enabledListener = ActionListener.<Boolean>wrap(
-            enabled -> listener.onResponse(new GetCCMConfigurationAction.Response(enabled)),
-            listener::onFailure
+    protected void doExecute(Task task, GetCCMConfigurationAction.Request request, ActionListener<CCMEnabledActionResponse> listener) {
+        ccmService.isEnabled(
+            listener.delegateFailureAndWrap((delegate, enabled) -> delegate.onResponse(new CCMEnabledActionResponse(enabled)))
         );
-
-        ccmService.isEnabled(enabledListener);
     }
 }

@@ -188,7 +188,7 @@ public class TDigestFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            // NOCOMMIT - This needs to be changed to a custom values source type
+            // TODO - This needs to be changed to a custom values source type
             return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                 @Override
@@ -332,7 +332,7 @@ public class TDigestFieldMapper extends FieldMapper {
                 subParser = new XContentSubParser(context.parser());
             }
             subParser.nextToken();
-            // NOCOMMIT TODO: Here we should build a t-digest out of the input, based on the settings on the field
+            // TODO: Here we should build a t-digest out of the input, based on the settings on the field
             TDigestParser.ParsedHistogram parsedHistogram = TDigestParser.parse(fullPath(), subParser);
 
             BytesStreamOutput streamOutput = new BytesStreamOutput();
@@ -340,13 +340,8 @@ public class TDigestFieldMapper extends FieldMapper {
                 long count = parsedHistogram.counts().get(i);
                 assert count >= 0;
                 // we do not add elements with count == 0
-                // NOCOMMIT - Can just do the new behavior for the new field
                 if (count > 0) {
-                    if (streamOutput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                        streamOutput.writeVLong(count);
-                    } else {
-                        streamOutput.writeVInt(Math.toIntExact(count));
-                    }
+                    streamOutput.writeVLong(count);
                     streamOutput.writeLong(Double.doubleToRawLongBits(parsedHistogram.values().get(i)));
                 }
             }

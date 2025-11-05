@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
@@ -9590,5 +9591,69 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         Attribute attribute = relation.output().get(0);
         assertThat(attribute.name(), equalTo("@timestamp"));
+    }
+
+    /**
+     * EsqlProject[[to_long{r}#5]]
+     * \_Eval[[TOLONG(string{f}#8) AS to_long#5]]
+     *         ┗━━━━┛
+     *           one argument to_long(value) is rewritten to ToLong
+     *
+     *   \_Limit[10[INTEGER],false,false]
+     *     \_EsRelation[base_conversion][base{f}#9, expect_long{f}#10, group{f}#7, notes{f}#..]
+     */
+    public void testToLongSurrogateFoldsToLong() {
+        LogicalPlan statement = parser.createStatement("""
+            FROM  base_conversion
+            | EVAL to_long = TO_LONG(string)
+            | KEEP to_long
+            | LIMIT 10
+            """);
+        LogicalPlan analyze = baseConversionAnalyzer.analyze(statement);
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), instanceOf(ToLong.class));
+
+        Limit limit = asLimit(eval.child(), 10, false);
+        assertThat(limit.children(), hasSize(1));
+
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertThat(relation.children(), hasSize(0));
+        assertThat(relation.indexPattern(), equalTo("base_conversion"));
+    }
+
+    /**
+     * EsqlProject[[to_long{r}#6]]
+     * \_Eval[[TOLONGBASE(string{f}#9,base{f}#10) AS to_long#6]]
+     *         ┗━━━━━━━━┛
+     *           two argument to_long(string, base) is rewritten to ToLongBase
+     *
+     *   \_Limit[10[INTEGER],false,false]
+     *     \_EsRelation[base_conversion][base{f}#10, expect_long{f}#11, group{f}#8, notes{f}..]
+     */
+    public void testToLongSurrogateFoldsToLongBase() {
+        LogicalPlan statement = parser.createStatement("""
+            FROM  base_conversion
+            | EVAL to_long = TO_LONG(string, base)
+            | KEEP to_long
+            | LIMIT 10
+            """);
+        LogicalPlan analyze = baseConversionAnalyzer.analyze(statement);
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), instanceOf(ToLongBase.class));
+
+        Limit limit = asLimit(eval.child(), 10, false);
+        assertThat(limit.children(), hasSize(1));
+
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertThat(relation.children(), hasSize(0));
+        assertThat(relation.indexPattern(), equalTo("base_conversion"));
     }
 }

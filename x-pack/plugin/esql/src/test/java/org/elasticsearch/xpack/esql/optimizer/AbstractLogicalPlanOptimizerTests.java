@@ -61,6 +61,8 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Analyzer metricsAnalyzer;
     protected static Analyzer multiIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
+    protected static Map<String, EsField> mappingBaseConversion;
+    protected static Analyzer baseConversionAnalyzer;
 
     protected static EnrichResolution enrichResolution;
 
@@ -207,6 +209,21 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 indexResolutions(sampleDataIndex),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+
+        // Some tests use data from the baseConversion index, so we load it here
+        mappingBaseConversion = loadMapping("mapping-base_conversion.json");
+        EsIndex baseConversion = new EsIndex("base_conversion", mappingBaseConversion, Map.of("base_conversion", IndexMode.STANDARD));
+        baseConversionAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(baseConversion),
+                defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()
             ),

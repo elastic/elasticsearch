@@ -12,7 +12,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -85,9 +85,9 @@ public final class ToAscii extends UnaryScalarFunction {
         var field = toEvaluator.apply(field());
         return new ToAsciiEvaluator.Factory(
             source(),
+            field,
             context -> new BreakingBytesRefBuilder(context.breaker(), "to_ascii"),
-            context -> new UnicodeUtil.UTF8CodePoint(),
-            field
+            context -> new UnicodeUtil.UTF8CodePoint()
         );
     }
 
@@ -101,11 +101,11 @@ public final class ToAscii extends UnaryScalarFunction {
         return NodeInfo.create(this, ToAscii::new, field());
     }
 
-    @Evaluator
+    @ConvertEvaluator
     static BytesRef process(
+        BytesRef val,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
-        @Fixed(includeInToString = false, scope = THREAD_LOCAL) UnicodeUtil.UTF8CodePoint codePoint,
-        BytesRef val
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) UnicodeUtil.UTF8CodePoint codePoint
     ) {
         // Pre-reserve at least as much as the input.
         scratch.grow(val.length);

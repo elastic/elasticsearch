@@ -84,66 +84,25 @@ public class IndexResolver {
     }
 
     /**
-     * Like {@link #resolveAsMergedMapping(String, Set, QueryBuilder, boolean, boolean, boolean, ActionListener)},
-     * but uses a pre-determined minimum transport version.
-     */
-    public void resolveAsMergedMappingForVersion(
-        String indexPattern,
-        Set<String> fieldNames,
-        QueryBuilder requestFilter,
-        boolean includeAllDimensions,
-        boolean useAggregateMetricDoubleWhenNotSupported,
-        boolean useDenseVectorWhenNotSupported,
-        TransportVersion minimumVersion,
-        ActionListener<IndexResolution> listener
-    ) {
-        ActionListener<Versioned<IndexResolution>> versionIgnoringListener = listener.delegateFailureAndWrap(
-            (l, versionedResolution) -> l.onResponse(versionedResolution.inner())
-        );
-
-        resolveAsMergedMapping(
-            indexPattern,
-            fieldNames,
-            requestFilter,
-            includeAllDimensions,
-            useAggregateMetricDoubleWhenNotSupported,
-            useDenseVectorWhenNotSupported,
-            minimumVersion,
-            versionIgnoringListener
-        );
-    }
-
-    /**
      * Perform a field caps request to resolve a pattern to one mapping (potentially compound, meaning it spans multiple indices).
      * The field caps response contains the minimum transport version of all clusters that apply to the pattern,
      * and it is used to deal with previously unsupported data types during resolution.
      * <p>
-     * The retrieved minimum version is passed on to the listener.
-     * <p>
      * If a field's type is not supported on the minimum version, it will be {@link DataType#UNSUPPORTED}.
+     * <p>
+     * If the nodes are too old to include their minimum transport version in the field caps response, we'll assume
+     * {@link TransportVersion#minimumCompatible()}.
+     * <p>
+     * Optionally, a {@code minimumVersion} can be passed in that will be used instead if it is lower than the transport
+     * version from the field caps response. It's meant to be the minimum version determined when resolving {@code FROM}
+     * and is required to correctly resolve {@code ENRICH} queries in CCS (enrich policies are resolved locally and thus
+     * might have a higher transport version in their field caps response than when resolving the main indices in {@code FROM}).
+     * In case of {@code ROW}, it's also okay to pass in the version from the main index resolution; that will be the coordinator
+     * version, which cannot be higher than the minimum version from the field caps response.
+     * <p>
+     * The overall minimum version which is used to determine data type support is passed on to the listener.
      */
     public void resolveAsMergedMapping(
-        String indexPattern,
-        Set<String> fieldNames,
-        QueryBuilder requestFilter,
-        boolean includeAllDimensions,
-        boolean useAggregateMetricDoubleWhenNotSupported,
-        boolean useDenseVectorWhenNotSupported,
-        ActionListener<Versioned<IndexResolution>> listener
-    ) {
-        resolveAsMergedMapping(
-            indexPattern,
-            fieldNames,
-            requestFilter,
-            includeAllDimensions,
-            useAggregateMetricDoubleWhenNotSupported,
-            useDenseVectorWhenNotSupported,
-            null,
-            listener
-        );
-    }
-
-    private void resolveAsMergedMapping(
         String indexPattern,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
@@ -157,9 +116,15 @@ public class IndexResolver {
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexPattern, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> {
+                TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
+                // If we don't know the overall minimum version, it stays null to avoid faking knowledge we don't have.
+                TransportVersion overallMinimumVersion = responseMinimumVersion == null ? null
+                    : minimumVersion == null ? responseMinimumVersion
+                    : TransportVersion.min(minimumVersion, responseMinimumVersion);
+
                 FieldsInfo info = new FieldsInfo(
                     response.caps(),
-                    minimumVersion == null ? response.caps().minTransportVersion() : minimumVersion,
+                    overallMinimumVersion,
                     Build.current().isSnapshot(),
                     useAggregateMetricDoubleWhenNotSupported,
                     useDenseVectorWhenNotSupported

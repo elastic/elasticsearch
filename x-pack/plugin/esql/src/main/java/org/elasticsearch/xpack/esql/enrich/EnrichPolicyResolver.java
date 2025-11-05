@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -474,7 +475,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMappingForVersion(
+                        indexResolver.resolveAsMergedMapping(
                             indexName,
                             IndexResolver.ALL_FIELDS,
                             null,
@@ -483,7 +484,8 @@ public class EnrichPolicyResolver {
                             false,
                             false,
                             request.minimumVersion,
-                            refs.acquire(indexResult -> {
+                            refs.acquire(versionedIndexResult -> {
+                                IndexResolution indexResult = versionedIndexResult.inner();
                                 if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
                                     EsIndex esIndex = indexResult.get();
                                     var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));

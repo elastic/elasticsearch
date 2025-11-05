@@ -608,7 +608,7 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        indexResolver.resolveAsMergedMappingForVersion(
+        indexResolver.resolveAsMergedMapping(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
@@ -642,8 +642,9 @@ public class EsqlSession {
         PreAnalysisResult result,
         String index,
         EsqlExecutionInfo executionInfo,
-        IndexResolution lookupIndexResolution
+        Versioned<IndexResolution> versionedLookupIndexResolution
     ) {
+        IndexResolution lookupIndexResolution = versionedLookupIndexResolution.inner();
         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, lookupIndexResolution.failures());
         if (lookupIndexResolution.isValid() == false) {
             // If the index resolution is invalid, don't bother with the rest of the analysis
@@ -673,7 +674,9 @@ public class EsqlSession {
                         + "] mode"
                 );
             }
-            return result.addLookupIndexResolution(index, lookupIndexResolution);
+
+            return result.addLookupIndexResolution(index, lookupIndexResolution)
+                .withMinimumTransportVersion(versionedLookupIndexResolution.minimumVersion());
         }
 
         if (lookupIndexResolution.get().indexNameWithModes().isEmpty() && lookupIndexResolution.resolvedIndices().isEmpty() == false) {
@@ -860,6 +863,7 @@ public class EsqlSession {
                 indexMode == IndexMode.TIME_SERIES,
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
+                null,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     l.onResponse(

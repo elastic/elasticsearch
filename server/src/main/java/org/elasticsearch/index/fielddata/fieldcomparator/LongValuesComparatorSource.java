@@ -228,7 +228,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
             @Override
             public int advance(int target) throws IOException {
-                if (target > maxDoc) {
+                if (target >= maxDoc) {
                     return doc = NO_MORE_DOCS;
                 }
                 // All documents are guaranteed to have a value, as all invocations of getLongValues

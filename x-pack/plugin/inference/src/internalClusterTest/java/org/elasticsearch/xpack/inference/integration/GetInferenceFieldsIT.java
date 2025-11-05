@@ -7,14 +7,19 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -23,10 +28,18 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class GetInferenceFieldsIT extends ESIntegTestCase {
@@ -47,12 +60,38 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     private static final String INDEX_1 = "index-1";
     private static final String INDEX_2 = "index-2";
+    private static final Set<String> ALL_INDICES = Set.of(INDEX_1, INDEX_2);
 
     private static final String INFERENCE_FIELD_1 = "inference-field-1";
     private static final String INFERENCE_FIELD_2 = "inference-field-2";
     private static final String INFERENCE_FIELD_3 = "inference-field-3";
     private static final String TEXT_FIELD_1 = "text-field-1";
     private static final String TEXT_FIELD_2 = "text-field-2";
+    private static final Set<String> ALL_FIELDS = Set.of(
+        INFERENCE_FIELD_1,
+        INFERENCE_FIELD_2,
+        INFERENCE_FIELD_3,
+        TEXT_FIELD_1,
+        TEXT_FIELD_2
+    );
+
+    private static final Set<InferenceFieldAndId> INDEX_1_EXPECTED_INFERENCE_FIELDS = Set.of(
+        new InferenceFieldAndId(INFERENCE_FIELD_1, SPARSE_EMBEDDING_INFERENCE_ID),
+        new InferenceFieldAndId(INFERENCE_FIELD_2, TEXT_EMBEDDING_INFERENCE_ID),
+        new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)
+    );
+    private static final Set<InferenceFieldAndId> INDEX_2_EXPECTED_INFERENCE_FIELDS = Set.of(
+        new InferenceFieldAndId(INFERENCE_FIELD_1, TEXT_EMBEDDING_INFERENCE_ID),
+        new InferenceFieldAndId(INFERENCE_FIELD_2, SPARSE_EMBEDDING_INFERENCE_ID),
+        new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)
+    );
+
+    private static final Map<String, Class<? extends InferenceResults>> ALL_EXPECTED_INFERENCE_RESULTS = Map.of(
+        SPARSE_EMBEDDING_INFERENCE_ID,
+        TextExpansionResults.class,
+        TEXT_EMBEDDING_INFERENCE_ID,
+        MlDenseEmbeddingResults.class
+    );
 
     private boolean clusterConfigured = false;
 
@@ -76,11 +115,89 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     }
 
     public void testNullQuery() {
-        // TODO: Implement
+        var allIndicesAllFieldsRequest = new GetInferenceFieldsAction.Request(ALL_INDICES, ALL_FIELDS, false, false, null);
+        var allIndicesAllFieldsResponse = executeRequest(allIndicesAllFieldsRequest);
+        assertInferenceFieldsMap(
+            allIndicesAllFieldsResponse.getInferenceFieldsMap(),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS)
+        );
+        assertThat(allIndicesAllFieldsResponse.getInferenceResultsMap().isEmpty(), is(true));
+
+        var allIndicesSingleFieldRequest = new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(INFERENCE_FIELD_3), false, false, null);
+        var allIndicesSingleFieldResponse = executeRequest(allIndicesSingleFieldRequest);
+        assertInferenceFieldsMap(
+            allIndicesSingleFieldResponse.getInferenceFieldsMap(),
+            Map.of(
+                INDEX_1,
+                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)),
+                INDEX_2,
+                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID))
+            )
+        );
+        assertThat(allIndicesSingleFieldResponse.getInferenceResultsMap().isEmpty(), is(true));
+
+        var singleIndexSingleFieldRequest = new GetInferenceFieldsAction.Request(
+            Set.of(INDEX_1),
+            Set.of(INFERENCE_FIELD_3),
+            false,
+            false,
+            null
+        );
+        var singleIndexSingleFieldResponse = executeRequest(singleIndexSingleFieldRequest);
+        assertInferenceFieldsMap(
+            singleIndexSingleFieldResponse.getInferenceFieldsMap(),
+            Map.of(INDEX_1, Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)))
+        );
+        assertThat(singleIndexSingleFieldResponse.getInferenceResultsMap().isEmpty(), is(true));
     }
 
     public void testNonNullQuery() {
-        // TODO: Implement
+        var allIndicesAllFieldsRequest = new GetInferenceFieldsAction.Request(ALL_INDICES, ALL_FIELDS, false, false, "foo");
+        var allIndicesAllFieldsResponse = executeRequest(allIndicesAllFieldsRequest);
+        assertInferenceFieldsMap(
+            allIndicesAllFieldsResponse.getInferenceFieldsMap(),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS)
+        );
+        assertInferenceResultsMap(allIndicesAllFieldsResponse.getInferenceResultsMap(), ALL_EXPECTED_INFERENCE_RESULTS);
+
+        var allIndicesSingleFieldRequest = new GetInferenceFieldsAction.Request(
+            ALL_INDICES,
+            Set.of(INFERENCE_FIELD_3),
+            false,
+            false,
+            "foo"
+        );
+        var allIndicesSingleFieldResponse = executeRequest(allIndicesSingleFieldRequest);
+        assertInferenceFieldsMap(
+            allIndicesSingleFieldResponse.getInferenceFieldsMap(),
+            Map.of(
+                INDEX_1,
+                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)),
+                INDEX_2,
+                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID))
+            )
+        );
+        assertInferenceResultsMap(
+            allIndicesSingleFieldResponse.getInferenceResultsMap(),
+            Map.of(SPARSE_EMBEDDING_INFERENCE_ID, TextExpansionResults.class)
+        );
+
+        var singleIndexSingleFieldRequest = new GetInferenceFieldsAction.Request(
+            Set.of(INDEX_1),
+            Set.of(INFERENCE_FIELD_3),
+            false,
+            false,
+            "foo"
+        );
+        var singleIndexSingleFieldResponse = executeRequest(singleIndexSingleFieldRequest);
+        assertInferenceFieldsMap(
+            singleIndexSingleFieldResponse.getInferenceFieldsMap(),
+            Map.of(INDEX_1, Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)))
+        );
+        assertInferenceResultsMap(
+            singleIndexSingleFieldResponse.getInferenceResultsMap(),
+            Map.of(SPARSE_EMBEDDING_INFERENCE_ID, TextExpansionResults.class)
+        );
     }
 
     public void testBlankQuery() {
@@ -140,6 +257,8 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         addTextField(TEXT_FIELD_1, mapping);
         addTextField(TEXT_FIELD_2, mapping);
         mapping.endObject().endObject();
+
+        assertAcked(prepareCreate(indexName).setMapping(mapping));
     }
 
     private void addSemanticTextField(String fieldName, String inferenceId, XContentBuilder mapping) throws IOException {
@@ -154,4 +273,49 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         mapping.field("type", TextFieldMapper.CONTENT_TYPE);
         mapping.endObject();
     }
+
+    private static GetInferenceFieldsAction.Response executeRequest(GetInferenceFieldsAction.Request request) {
+        return client().execute(GetInferenceFieldsAction.INSTANCE, request).actionGet(TEST_REQUEST_TIMEOUT);
+    }
+
+    private static void assertInferenceFieldsMap(
+        Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap,
+        Map<String, Set<InferenceFieldAndId>> expectedInferenceFields
+    ) {
+        assertThat(inferenceFieldsMap.size(), equalTo(expectedInferenceFields.size()));
+        for (var entry : inferenceFieldsMap.entrySet()) {
+            String indexName = entry.getKey();
+            List<InferenceFieldMetadata> indexInferenceFields = entry.getValue();
+
+            Set<InferenceFieldAndId> expectedIndexInferenceFields = expectedInferenceFields.get(indexName);
+            assertThat(expectedIndexInferenceFields, notNullValue());
+
+            Set<InferenceFieldAndId> remainingExpectedIndexInferenceFields = new HashSet<>(expectedIndexInferenceFields);
+            for (InferenceFieldMetadata indexInferenceField : indexInferenceFields) {
+                InferenceFieldAndId inferenceFieldAndId = new InferenceFieldAndId(
+                    indexInferenceField.getName(),
+                    indexInferenceField.getInferenceId()
+                );
+                assertThat(remainingExpectedIndexInferenceFields.remove(inferenceFieldAndId), is(true));
+            }
+            assertThat(remainingExpectedIndexInferenceFields, empty());
+        }
+    }
+
+    private static void assertInferenceResultsMap(
+        Map<String, InferenceResults> inferenceResultsMap,
+        Map<String, Class<? extends InferenceResults>> expectedInferenceResults
+    ) {
+        assertThat(inferenceResultsMap.size(), equalTo(expectedInferenceResults.size()));
+        for (var entry : inferenceResultsMap.entrySet()) {
+            String inferenceId = entry.getKey();
+            InferenceResults inferenceResults = entry.getValue();
+
+            Class<? extends InferenceResults> expectedInferenceResultsClass = expectedInferenceResults.get(inferenceId);
+            assertThat(expectedInferenceResultsClass, notNullValue());
+            assertThat(inferenceResults, instanceOf(expectedInferenceResultsClass));
+        }
+    }
+
+    private record InferenceFieldAndId(String field, String inferenceId) {}
 }

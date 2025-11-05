@@ -707,7 +707,7 @@ semantic search for `semantic_text` fields:
 ## Returning semantic field embeddings using `fields` [retrieve-embeddings-9.0-9.1]
 
 :::{warning}
-This method is only recommended for {{es}} versions earlier than 9.2
+This method is only recommended for {{es}} versions earlier than 9.2.
 For version 9.2 and later, use the [`exclude_vectors`](#troubleshooting-semantic-text-fields) parameter instead.
 :::
 

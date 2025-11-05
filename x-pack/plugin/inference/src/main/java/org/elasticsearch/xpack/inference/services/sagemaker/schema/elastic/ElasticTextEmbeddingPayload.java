@@ -24,10 +24,11 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
@@ -58,7 +59,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
  */
 public class ElasticTextEmbeddingPayload implements ElasticPayload {
     private static final EnumSet<TaskType> SUPPORTED_TASKS = EnumSet.of(TaskType.TEXT_EMBEDDING);
-    private static final ParseField EMBEDDING = new ParseField("embedding");
+    private static final ParseField EMBEDDING = new ParseField(EmbeddingResults.EMBEDDING);
 
     private static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC = TransportVersion.fromName("ml_inference_sagemaker_elastic");
 
@@ -120,12 +121,12 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
      * }
      */
     private static class TextEmbeddingBinary {
-        private static final ParseField TEXT_EMBEDDING_BITS = new ParseField(DenseEmbeddingBitResults.TEXT_EMBEDDING_BITS);
+        private static final ParseField TEXT_EMBEDDING_BITS = new ParseField(LegacyDenseEmbeddingBitResults.TEXT_EMBEDDING_BITS);
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<DenseEmbeddingBitResults, Void> PARSER = new ConstructingObjectParser<>(
-            DenseEmbeddingBitResults.class.getSimpleName(),
+        private static final ConstructingObjectParser<LegacyDenseEmbeddingBitResults, Void> PARSER = new ConstructingObjectParser<>(
+            LegacyDenseEmbeddingBitResults.class.getSimpleName(),
             IGNORE_UNKNOWN_FIELDS,
-            args -> new DenseEmbeddingBitResults((List<DenseEmbeddingByteResults.Embedding>) args[0])
+            args -> new LegacyDenseEmbeddingBitResults((List<LegacyDenseEmbeddingByteResults.Embedding>) args[0])
         );
 
         static {
@@ -151,20 +152,20 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
      * }
      */
     private static class TextEmbeddingBytes {
-        private static final ParseField TEXT_EMBEDDING_BYTES = new ParseField(DenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES);
+        private static final ParseField TEXT_EMBEDDING_BYTES = new ParseField(LegacyDenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES);
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<DenseEmbeddingByteResults, Void> PARSER = new ConstructingObjectParser<>(
-            DenseEmbeddingByteResults.class.getSimpleName(),
+        private static final ConstructingObjectParser<LegacyDenseEmbeddingByteResults, Void> PARSER = new ConstructingObjectParser<>(
+            LegacyDenseEmbeddingByteResults.class.getSimpleName(),
             IGNORE_UNKNOWN_FIELDS,
-            args -> new DenseEmbeddingByteResults((List<DenseEmbeddingByteResults.Embedding>) args[0])
+            args -> new LegacyDenseEmbeddingByteResults((List<LegacyDenseEmbeddingByteResults.Embedding>) args[0])
         );
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<DenseEmbeddingByteResults.Embedding, Void> BYTE_PARSER =
+        private static final ConstructingObjectParser<LegacyDenseEmbeddingByteResults.Embedding, Void> BYTE_PARSER =
             new ConstructingObjectParser<>(
-                DenseEmbeddingByteResults.Embedding.class.getSimpleName(),
+                LegacyDenseEmbeddingByteResults.Embedding.class.getSimpleName(),
                 IGNORE_UNKNOWN_FIELDS,
-                args -> DenseEmbeddingByteResults.Embedding.of((List<Byte>) args[0])
+                args -> LegacyDenseEmbeddingByteResults.Embedding.of((List<Byte>) args[0])
             );
 
         static {
@@ -197,20 +198,20 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
      * }
      */
     private static class TextEmbeddingFloat {
-        private static final ParseField TEXT_EMBEDDING_FLOAT = new ParseField(DenseEmbeddingFloatResults.TEXT_EMBEDDING);
+        private static final ParseField TEXT_EMBEDDING_FLOAT = new ParseField(LegacyDenseEmbeddingFloatResults.TEXT_EMBEDDING);
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<DenseEmbeddingFloatResults, Void> PARSER = new ConstructingObjectParser<>(
-            DenseEmbeddingFloatResults.class.getSimpleName(),
+        private static final ConstructingObjectParser<LegacyDenseEmbeddingFloatResults, Void> PARSER = new ConstructingObjectParser<>(
+            LegacyDenseEmbeddingFloatResults.class.getSimpleName(),
             IGNORE_UNKNOWN_FIELDS,
-            args -> new DenseEmbeddingFloatResults((List<DenseEmbeddingFloatResults.Embedding>) args[0])
+            args -> new LegacyDenseEmbeddingFloatResults((List<LegacyDenseEmbeddingFloatResults.Embedding>) args[0])
         );
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<DenseEmbeddingFloatResults.Embedding, Void> FLOAT_PARSER =
+        private static final ConstructingObjectParser<LegacyDenseEmbeddingFloatResults.Embedding, Void> FLOAT_PARSER =
             new ConstructingObjectParser<>(
-                DenseEmbeddingFloatResults.Embedding.class.getSimpleName(),
+                LegacyDenseEmbeddingFloatResults.Embedding.class.getSimpleName(),
                 IGNORE_UNKNOWN_FIELDS,
-                args -> DenseEmbeddingFloatResults.Embedding.of((List<Float>) args[0])
+                args -> LegacyDenseEmbeddingFloatResults.Embedding.of((List<Float>) args[0])
             );
 
         static {

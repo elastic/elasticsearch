@@ -11,6 +11,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.LegacyDenseEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,9 +43,12 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
             TaskType.TEXT_EMBEDDING,
             List.of("hello world", "this is the second document")
         );
-        assertTrue(((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
+        assertTrue(
+            ((List) ((Map) ((List) results.get(LegacyDenseEmbeddingFloatResults.TEXT_EMBEDDING)).get(0)).get(EmbeddingResults.EMBEDDING))
+                .size() > 1
+        );
         // there exists embeddings
-        assertTrue(((List) results.get("text_embedding")).size() == 2);
+        assertTrue(((List) results.get(LegacyDenseEmbeddingFloatResults.TEXT_EMBEDDING)).size() == 2);
         // there are two sets of embeddings
         deleteTextEmbeddingModel(inferenceEntityId);
     }
@@ -60,9 +65,13 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
                 TaskType.TEXT_EMBEDDING,
                 List.of("hello world", "this is the second document")
             );
-            assertTrue(((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
+            assertTrue(
+                ((List) ((Map) ((List) results.get(LegacyDenseEmbeddingFloatResults.TEXT_EMBEDDING)).get(0)).get(
+                    EmbeddingResults.EMBEDDING
+                )).size() > 1
+            );
             // there exists embeddings
-            assertTrue(((List) results.get("text_embedding")).size() == 2);
+            assertTrue(((List) results.get(LegacyDenseEmbeddingFloatResults.TEXT_EMBEDDING)).size() == 2);
             // there are two sets of embeddings
             deleteTextEmbeddingModel(inferenceEntityId);
         } else {

@@ -49,7 +49,7 @@ public class DenseEmbeddingByteResultsTests extends AbstractWireSerializingTestC
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
-              "text_embedding_bytes" : [
+              "embeddings_bytes" : [
                 {
                   "embedding" : [
                     23
@@ -70,7 +70,7 @@ public class DenseEmbeddingByteResultsTests extends AbstractWireSerializingTestC
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
-              "text_embedding_bytes" : [
+              "embeddings_bytes" : [
                 {
                   "embedding" : [
                     23
@@ -97,8 +97,8 @@ public class DenseEmbeddingByteResultsTests extends AbstractWireSerializingTestC
             results,
             is(
                 List.of(
-                    new MlDenseEmbeddingResults(DenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES, new double[] { 23F, 24F }, false),
-                    new MlDenseEmbeddingResults(DenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES, new double[] { 25F, 26F }, false)
+                    new MlDenseEmbeddingResults(DenseEmbeddingByteResults.EMBEDDINGS_BYTES, new double[] { 23F, 24F }, false),
+                    new MlDenseEmbeddingResults(DenseEmbeddingByteResults.EMBEDDINGS_BYTES, new double[] { 25F, 26F }, false)
                 )
             )
         );
@@ -149,10 +149,10 @@ public class DenseEmbeddingByteResultsTests extends AbstractWireSerializingTestC
         }
     }
 
-    public static Map<String, Object> buildExpectationByte(List<List<Byte>> embeddings) {
+    public static Map<String, Object> buildExpectationByte(List<byte[]> embeddings) {
         return Map.of(
-            DenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-            embeddings.stream().map(embedding -> Map.of(DenseEmbeddingByteResults.Embedding.EMBEDDING, embedding)).toList()
+            DenseEmbeddingByteResults.EMBEDDINGS_BYTES,
+            embeddings.stream().map(DenseEmbeddingByteResults.Embedding::new).toList()
         );
     }
 }

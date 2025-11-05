@@ -31,10 +31,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Writes a dense embedding result in the follow json format
+ * Writes a dense embedding result in the following json format
  * <pre>
  * {
- *     "text_embedding_bytes": [
+ *     "embedding_bytes": [
  *         {
  *             "embedding": [
  *                 23
@@ -50,9 +50,8 @@ import java.util.Objects;
  * </pre>
  */
 public record DenseEmbeddingByteResults(List<Embedding> embeddings) implements DenseEmbeddingResults<DenseEmbeddingByteResults.Embedding> {
-    // This name is a holdover from before this class was renamed
-    public static final String NAME = "text_embedding_service_byte_results";
-    public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
+    public static final String NAME = "dense_embedding_byte_results";
+    public static final String EMBEDDINGS_BYTES = "embeddings_bytes";
 
     public DenseEmbeddingByteResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(DenseEmbeddingByteResults.Embedding::new));
@@ -68,7 +67,7 @@ public record DenseEmbeddingByteResults(List<Embedding> embeddings) implements D
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(TEXT_EMBEDDING_BYTES, embeddings.iterator());
+        return ChunkedToXContentHelper.array(EMBEDDINGS_BYTES, embeddings.iterator());
     }
 
     @Override
@@ -84,13 +83,13 @@ public record DenseEmbeddingByteResults(List<Embedding> embeddings) implements D
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(embedding -> new MlDenseEmbeddingResults(TEXT_EMBEDDING_BYTES, embedding.toDoubleArray(), false))
+            .map(embedding -> new MlDenseEmbeddingResults(EMBEDDINGS_BYTES, embedding.toDoubleArray(), false))
             .toList();
     }
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(TEXT_EMBEDDING_BYTES, embeddings);
+        map.put(EMBEDDINGS_BYTES, embeddings);
 
         return map;
     }
@@ -115,8 +114,6 @@ public record DenseEmbeddingByteResults(List<Embedding> embeddings) implements D
             Writeable,
             ToXContentObject,
             EmbeddingResults.Embedding<Embedding> {
-
-        public static final String EMBEDDING = "embedding";
 
         public Embedding(byte[] values) {
             this(values, null, 1);

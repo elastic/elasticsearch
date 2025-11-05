@@ -9,7 +9,6 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
@@ -25,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -34,60 +31,36 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Writes a dense embedding result in the following json format
+ * Writes a dense embedding result in the follow json format
  * <pre>
  * {
- *     "embeddings": [
+ *     "text_embedding_bytes": [
  *         {
  *             "embedding": [
- *                 0.1
+ *                 23
  *             ]
  *         },
  *         {
  *             "embedding": [
- *                 0.2
+ *                 -23
  *             ]
  *         }
  *     ]
  * }
  * </pre>
+ * @deprecated for removal in the next major, to be replaced with {@link DenseEmbeddingByteResults}, which is identical to this class other
+ * than using {@value DenseEmbeddingByteResults#EMBEDDINGS_BYTES} instead of {@value #TEXT_EMBEDDING_BYTES} in the result
  */
-public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
+@Deprecated(forRemoval = true)
+public record LegacyDenseEmbeddingByteResults(List<Embedding> embeddings)
     implements
-        DenseEmbeddingResults<DenseEmbeddingFloatResults.Embedding> {
-    public static final String NAME = "dense_embedding_float_results";
-    public static final String EMBEDDINGS = "embeddings";
+        DenseEmbeddingResults<LegacyDenseEmbeddingByteResults.Embedding> {
+    // This name is a holdover from before this class was renamed
+    public static final String NAME = "text_embedding_service_byte_results";
+    public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
 
-    public DenseEmbeddingFloatResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(DenseEmbeddingFloatResults.Embedding::new));
-    }
-
-    public static DenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {
-        List<Embedding> embeddings = new ArrayList<>(results.size());
-        for (InferenceResults result : results) {
-            if (result instanceof MlDenseEmbeddingResults embeddingResult) {
-                embeddings.add(DenseEmbeddingFloatResults.Embedding.of(embeddingResult));
-            } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
-                if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
-                    throw statusException;
-                } else {
-                    throw new ElasticsearchStatusException(
-                        "Received error inference result.",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        errorResult.getException()
-                    );
-                }
-            } else {
-                throw new IllegalArgumentException(
-                    "Received invalid inference result, of type "
-                        + result.getClass().getName()
-                        + " but expected "
-                        + MlDenseEmbeddingResults.class.getName()
-                        + "."
-                );
-            }
-        }
-        return new DenseEmbeddingFloatResults(embeddings);
+    public LegacyDenseEmbeddingByteResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(LegacyDenseEmbeddingByteResults.Embedding::new));
     }
 
     @Override
@@ -100,7 +73,7 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(EMBEDDINGS, embeddings.iterator());
+        return ChunkedToXContentHelper.array(TEXT_EMBEDDING_BYTES, embeddings.iterator());
     }
 
     @Override
@@ -115,12 +88,14 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
 
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
-        return embeddings.stream().map(embedding -> new MlDenseEmbeddingResults(EMBEDDINGS, embedding.asDoubleArray(), false)).toList();
+        return embeddings.stream()
+            .map(embedding -> new MlDenseEmbeddingResults(TEXT_EMBEDDING_BYTES, embedding.toDoubleArray(), false))
+            .toList();
     }
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(EMBEDDINGS, embeddings);
+        map.put(TEXT_EMBEDDING_BYTES, embeddings);
 
         return map;
     }
@@ -129,7 +104,7 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DenseEmbeddingFloatResults that = (DenseEmbeddingFloatResults) o;
+        LegacyDenseEmbeddingByteResults that = (LegacyDenseEmbeddingByteResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 
@@ -140,27 +115,27 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
 
     // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging
     // embeddings should happen inbetween serializations.
-    public record Embedding(float[] values, int numberOfMergedEmbeddings)
+    public record Embedding(byte[] values, int[] sumMergedValues, int numberOfMergedEmbeddings)
         implements
             Writeable,
             ToXContentObject,
             EmbeddingResults.Embedding<Embedding> {
 
-        public Embedding(float[] values) {
-            this(values, 1);
+        public Embedding(byte[] values) {
+            this(values, null, 1);
         }
 
         public Embedding(StreamInput in) throws IOException {
-            this(in.readFloatArray());
+            this(in.readByteArray());
         }
 
-        public static Embedding of(MlDenseEmbeddingResults embeddingResult) {
-            float[] embeddingAsArray = embeddingResult.getInferenceAsFloat();
-            return new Embedding(embeddingAsArray);
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByteArray(values);
         }
 
-        public static Embedding of(List<Float> embeddingValuesList) {
-            float[] embeddingValues = new float[embeddingValuesList.size()];
+        public static Embedding of(List<Byte> embeddingValuesList) {
+            byte[] embeddingValues = new byte[embeddingValuesList.size()];
             for (int i = 0; i < embeddingValuesList.size(); i++) {
                 embeddingValues[i] = embeddingValuesList.get(i);
             }
@@ -168,16 +143,11 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeFloatArray(values);
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
 
             builder.startArray(EMBEDDING);
-            for (float value : values) {
+            for (byte value : values) {
                 builder.value(value);
             }
             builder.endArray();
@@ -191,12 +161,20 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
             return Strings.toString(this);
         }
 
-        private double[] asDoubleArray() {
-            double[] doubles = new double[values.length];
+        float[] toFloatArray() {
+            float[] floatArray = new float[values.length];
             for (int i = 0; i < values.length; i++) {
-                doubles[i] = values[i];
+                floatArray[i] = ((Byte) values[i]).floatValue();
             }
-            return doubles;
+            return floatArray;
+        }
+
+        double[] toDoubleArray() {
+            double[] doubleArray = new double[values.length];
+            for (int i = 0; i < values.length; i++) {
+                doubleArray[i] = ((Byte) values[i]).doubleValue();
+            }
+            return doubleArray;
         }
 
         @Override
@@ -214,23 +192,28 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
 
         @Override
         public Embedding merge(Embedding embedding) {
-            float[] mergedValues = new float[values.length];
+            byte[] newValues = new byte[values.length];
+            int[] newSumMergedValues = new int[values.length];
+            int newNumberOfMergedEmbeddings = numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings;
             for (int i = 0; i < values.length; i++) {
-                mergedValues[i] = (numberOfMergedEmbeddings * values[i] + embedding.numberOfMergedEmbeddings * embedding.values[i])
-                    / (numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings);
+                newSumMergedValues[i] = (numberOfMergedEmbeddings == 1 ? values[i] : sumMergedValues[i])
+                    + (embedding.numberOfMergedEmbeddings == 1 ? embedding.values[i] : embedding.sumMergedValues[i]);
+                // Add (newNumberOfMergedEmbeddings / 2) in the numerator to round towards the
+                // closest byte instead of truncating.
+                newValues[i] = (byte) ((newSumMergedValues[i] + newNumberOfMergedEmbeddings / 2) / newNumberOfMergedEmbeddings);
             }
-            return new Embedding(mergedValues, numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings);
+            return new Embedding(newValues, newSumMergedValues, newNumberOfMergedEmbeddings);
         }
 
         @Override
         public BytesReference toBytesRef(XContent xContent) throws IOException {
-            XContentBuilder b = XContentBuilder.builder(xContent);
-            b.startArray();
-            for (float value : values) {
-                b.value(value);
+            XContentBuilder builder = XContentBuilder.builder(xContent);
+            builder.startArray();
+            for (byte value : values) {
+                builder.value(value);
             }
-            b.endArray();
-            return BytesReference.bytes(b);
+            builder.endArray();
+            return BytesReference.bytes(builder);
         }
     }
 }

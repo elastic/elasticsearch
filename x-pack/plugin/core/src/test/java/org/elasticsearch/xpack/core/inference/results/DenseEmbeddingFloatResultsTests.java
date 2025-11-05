@@ -48,7 +48,7 @@ public class DenseEmbeddingFloatResultsTests extends AbstractWireSerializingTest
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
-              "text_embedding" : [
+              "embeddings" : [
                 {
                   "embedding" : [
                     0.1
@@ -70,7 +70,7 @@ public class DenseEmbeddingFloatResultsTests extends AbstractWireSerializingTest
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
-              "text_embedding" : [
+              "embeddings" : [
                 {
                   "embedding" : [
                     0.1
@@ -97,8 +97,8 @@ public class DenseEmbeddingFloatResultsTests extends AbstractWireSerializingTest
             results,
             is(
                 List.of(
-                    new MlDenseEmbeddingResults(DenseEmbeddingFloatResults.TEXT_EMBEDDING, new double[] { 0.1F, 0.2F }, false),
-                    new MlDenseEmbeddingResults(DenseEmbeddingFloatResults.TEXT_EMBEDDING, new double[] { 0.3F, 0.4F }, false)
+                    new MlDenseEmbeddingResults(DenseEmbeddingFloatResults.EMBEDDINGS, new double[] { 0.1F, 0.2F }, false),
+                    new MlDenseEmbeddingResults(DenseEmbeddingFloatResults.EMBEDDINGS, new double[] { 0.3F, 0.4F }, false)
                 )
             )
         );
@@ -150,20 +150,17 @@ public class DenseEmbeddingFloatResultsTests extends AbstractWireSerializingTest
     }
 
     public static Map<String, Object> buildExpectationFloat(List<float[]> embeddings) {
-        return Map.of(
-            DenseEmbeddingFloatResults.TEXT_EMBEDDING,
-            embeddings.stream().map(DenseEmbeddingFloatResults.Embedding::new).toList()
-        );
+        return Map.of(DenseEmbeddingFloatResults.EMBEDDINGS, embeddings.stream().map(DenseEmbeddingFloatResults.Embedding::new).toList());
     }
 
     public static Map<String, Object> buildExpectationByte(List<byte[]> embeddings) {
         return Map.of(
-            DenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
+            DenseEmbeddingByteResults.EMBEDDINGS_BYTES,
             embeddings.stream().map(DenseEmbeddingByteResults.Embedding::new).toList()
         );
     }
 
     public static Map<String, Object> buildExpectationBinary(List<byte[]> embeddings) {
-        return Map.of("text_embedding_bits", embeddings.stream().map(DenseEmbeddingByteResults.Embedding::new).toList());
+        return Map.of(DenseEmbeddingBitResults.EMBEDDINGS_BITS, embeddings.stream().map(DenseEmbeddingByteResults.Embedding::new).toList());
     }
 }

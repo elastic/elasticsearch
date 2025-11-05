@@ -24,10 +24,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Writes a dense embedding result in the following json format.
+ * Writes a dense embedding result in the follow json format.
  * <pre>
  * {
- *     "embeddings_bits": [
+ *     "text_embedding_bits": [
  *         {
  *             "embedding": [
  *                 23
@@ -41,17 +41,22 @@ import java.util.Objects;
  *     ]
  * }
  * </pre>
+ *
+ * @deprecated for removal in the next major, to be replaced with {@link DenseEmbeddingBitResults}, which is identical to this class other
+ * than using {@value DenseEmbeddingBitResults#EMBEDDINGS_BITS} instead of {@value #TEXT_EMBEDDING_BITS} in the result
  */
 // Note: inheriting from DenseEmbeddingByteResults gives a bad implementation of the
 // Embedding.merge method for bits. TODO: implement a proper merge method
-public record DenseEmbeddingBitResults(List<DenseEmbeddingByteResults.Embedding> embeddings)
+@Deprecated(forRemoval = true)
+public record LegacyDenseEmbeddingBitResults(List<LegacyDenseEmbeddingByteResults.Embedding> embeddings)
     implements
-        DenseEmbeddingResults<DenseEmbeddingByteResults.Embedding> {
-    public static final String NAME = "dense_embedding_bit_results";
-    public static final String EMBEDDINGS_BITS = "embeddings_bits";
+        DenseEmbeddingResults<LegacyDenseEmbeddingByteResults.Embedding> {
+    // This name is a holdover from before this class was renamed
+    public static final String NAME = "text_embedding_service_bit_results";
+    public static final String TEXT_EMBEDDING_BITS = "text_embedding_bits";
 
-    public DenseEmbeddingBitResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(DenseEmbeddingByteResults.Embedding::new));
+    public LegacyDenseEmbeddingBitResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(LegacyDenseEmbeddingByteResults.Embedding::new));
     }
 
     @Override
@@ -65,7 +70,7 @@ public record DenseEmbeddingBitResults(List<DenseEmbeddingByteResults.Embedding>
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(EMBEDDINGS_BITS, embeddings.iterator());
+        return ChunkedToXContentHelper.array(TEXT_EMBEDDING_BITS, embeddings.iterator());
     }
 
     @Override
@@ -81,13 +86,13 @@ public record DenseEmbeddingBitResults(List<DenseEmbeddingByteResults.Embedding>
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(embedding -> new MlDenseEmbeddingResults(EMBEDDINGS_BITS, embedding.toDoubleArray(), false))
+            .map(embedding -> new MlDenseEmbeddingResults(TEXT_EMBEDDING_BITS, embedding.toDoubleArray(), false))
             .toList();
     }
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(EMBEDDINGS_BITS, embeddings);
+        map.put(TEXT_EMBEDDING_BITS, embeddings);
 
         return map;
     }
@@ -96,7 +101,7 @@ public record DenseEmbeddingBitResults(List<DenseEmbeddingByteResults.Embedding>
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DenseEmbeddingBitResults that = (DenseEmbeddingBitResults) o;
+        LegacyDenseEmbeddingBitResults that = (LegacyDenseEmbeddingBitResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 

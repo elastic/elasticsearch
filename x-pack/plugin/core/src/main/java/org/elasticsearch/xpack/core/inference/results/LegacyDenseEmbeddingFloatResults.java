@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,10 +35,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Writes a dense embedding result in the following json format
+ * Writes a dense embedding result in the follow json format
  * <pre>
  * {
- *     "embeddings": [
+ *     "text_embedding": [
  *         {
  *             "embedding": [
  *                 0.1
@@ -51,22 +52,26 @@ import java.util.Objects;
  *     ]
  * }
  * </pre>
+ * @deprecated for removal in the next major, to be replaced with {@link DenseEmbeddingFloatResults}, which is identical to this class other
+ * than using {@value DenseEmbeddingFloatResults#EMBEDDINGS} instead of {@link #TEXT_EMBEDDING "text_embedding"} in the result
  */
-public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
+@Deprecated(forRemoval = true)
+public record LegacyDenseEmbeddingFloatResults(List<Embedding> embeddings)
     implements
-        DenseEmbeddingResults<DenseEmbeddingFloatResults.Embedding> {
-    public static final String NAME = "dense_embedding_float_results";
-    public static final String EMBEDDINGS = "embeddings";
+        DenseEmbeddingResults<LegacyDenseEmbeddingFloatResults.Embedding> {
+    // This name is a holdover from before this class was renamed
+    public static final String NAME = "text_embedding_service_results";
+    public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
-    public DenseEmbeddingFloatResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(DenseEmbeddingFloatResults.Embedding::new));
+    public LegacyDenseEmbeddingFloatResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(LegacyDenseEmbeddingFloatResults.Embedding::new));
     }
 
-    public static DenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {
+    public static LegacyDenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {
         List<Embedding> embeddings = new ArrayList<>(results.size());
         for (InferenceResults result : results) {
             if (result instanceof MlDenseEmbeddingResults embeddingResult) {
-                embeddings.add(DenseEmbeddingFloatResults.Embedding.of(embeddingResult));
+                embeddings.add(LegacyDenseEmbeddingFloatResults.Embedding.of(embeddingResult));
             } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
                 if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
                     throw statusException;
@@ -87,7 +92,7 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
                 );
             }
         }
-        return new DenseEmbeddingFloatResults(embeddings);
+        return new LegacyDenseEmbeddingFloatResults(embeddings);
     }
 
     @Override
@@ -100,7 +105,7 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(EMBEDDINGS, embeddings.iterator());
+        return ChunkedToXContentHelper.array(TEXT_EMBEDDING, embeddings.iterator());
     }
 
     @Override
@@ -115,12 +120,12 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
 
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
-        return embeddings.stream().map(embedding -> new MlDenseEmbeddingResults(EMBEDDINGS, embedding.asDoubleArray(), false)).toList();
+        return embeddings.stream().map(embedding -> new MlDenseEmbeddingResults(TEXT_EMBEDDING, embedding.asDoubleArray(), false)).toList();
     }
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(EMBEDDINGS, embeddings);
+        map.put(TEXT_EMBEDDING, embeddings);
 
         return map;
     }
@@ -129,7 +134,7 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DenseEmbeddingFloatResults that = (DenseEmbeddingFloatResults) o;
+        LegacyDenseEmbeddingFloatResults that = (LegacyDenseEmbeddingFloatResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 

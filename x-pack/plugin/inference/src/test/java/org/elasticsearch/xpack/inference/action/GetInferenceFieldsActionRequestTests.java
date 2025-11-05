@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -28,47 +29,61 @@ public class GetInferenceFieldsActionRequestTests extends AbstractWireSerializin
             randomIndentifierSet(),
             randomBoolean(),
             randomBoolean(),
-            randomQuery()
+            randomQuery(),
+            randomIndicesOptions()
         );
     }
 
     @Override
     protected GetInferenceFieldsAction.Request mutateInstance(GetInferenceFieldsAction.Request instance) throws IOException {
-        return switch (between(0, 4)) {
+        return switch (between(0, 5)) {
             case 0 -> new GetInferenceFieldsAction.Request(
                 randomValueOtherThan(instance.getIndices(), GetInferenceFieldsActionRequestTests::randomIndentifierSet),
                 instance.getFields(),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                instance.getQuery()
+                instance.getQuery(),
+                instance.getIndicesOptions()
             );
             case 1 -> new GetInferenceFieldsAction.Request(
                 instance.getIndices(),
                 randomValueOtherThan(instance.getFields(), GetInferenceFieldsActionRequestTests::randomIndentifierSet),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                instance.getQuery()
+                instance.getQuery(),
+                instance.getIndicesOptions()
             );
             case 2 -> new GetInferenceFieldsAction.Request(
                 instance.getIndices(),
                 instance.getFields(),
                 randomValueOtherThan(instance.resolveWildcards(), ESTestCase::randomBoolean),
                 instance.useDefaultFields(),
-                instance.getQuery()
+                instance.getQuery(),
+                instance.getIndicesOptions()
             );
             case 3 -> new GetInferenceFieldsAction.Request(
                 instance.getIndices(),
                 instance.getFields(),
                 instance.resolveWildcards(),
                 randomValueOtherThan(instance.useDefaultFields(), ESTestCase::randomBoolean),
-                instance.getQuery()
+                instance.getQuery(),
+                instance.getIndicesOptions()
             );
             case 4 -> new GetInferenceFieldsAction.Request(
                 instance.getIndices(),
                 instance.getFields(),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                randomValueOtherThan(instance.getQuery(), GetInferenceFieldsActionRequestTests::randomQuery)
+                randomValueOtherThan(instance.getQuery(), GetInferenceFieldsActionRequestTests::randomQuery),
+                instance.getIndicesOptions()
+            );
+            case 5 -> new GetInferenceFieldsAction.Request(
+                instance.getIndices(),
+                instance.getFields(),
+                instance.resolveWildcards(),
+                instance.useDefaultFields(),
+                instance.getQuery(),
+                randomValueOtherThan(instance.getIndicesOptions(), GetInferenceFieldsActionRequestTests::randomIndicesOptions)
             );
             default -> throw new AssertionError("Invalid value");
         };
@@ -80,5 +95,22 @@ public class GetInferenceFieldsActionRequestTests extends AbstractWireSerializin
 
     private static String randomQuery() {
         return randomBoolean() ? randomAlphaOfLength(10) : null;
+    }
+
+    private static IndicesOptions randomIndicesOptions() {
+        // This isn't an exhaustive list of possible indices options, but there are enough for effective serialization tests
+        return switch(between(0, 9)) {
+            case 0 -> null;
+            case 1 -> IndicesOptions.strictExpandOpen();
+            case 2 -> IndicesOptions.strictExpandOpenFailureNoSelectors();
+            case 3 -> IndicesOptions.strictExpandOpenAndForbidClosed();
+            case 4 -> IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+            case 5 -> IndicesOptions.strictExpand();
+            case 6 -> IndicesOptions.strictExpandHidden();
+            case 7 -> IndicesOptions.strictExpandHiddenNoSelectors();
+            case 8 -> IndicesOptions.strictExpandHiddenFailureNoSelectors();
+            case 9 -> IndicesOptions.strictNoExpandForbidClosed();
+            default -> throw new AssertionError("Invalid value");
+        };
     }
 }

@@ -106,7 +106,6 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testNullValue() throws Exception {
-        // NOCOMMIT - what exactly is this testing?
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("pre_aggregated")));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());

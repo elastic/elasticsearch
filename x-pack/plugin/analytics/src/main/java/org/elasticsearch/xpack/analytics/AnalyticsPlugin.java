@@ -141,12 +141,15 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Map.of(
-            HistogramFieldMapper.CONTENT_TYPE,
-            HistogramFieldMapper.PARSER,
-            TDigestFieldMapper.CONTENT_TYPE,
-            TDigestFieldMapper.PARSER
-        );
+        if (TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled()) {
+            return Map.of(
+                HistogramFieldMapper.CONTENT_TYPE,
+                HistogramFieldMapper.PARSER,
+                TDigestFieldMapper.CONTENT_TYPE,
+                TDigestFieldMapper.PARSER
+            );
+        }
+        return Map.of(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER);
     }
 
     @Override

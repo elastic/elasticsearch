@@ -46,7 +46,7 @@ public class UndesiredAllocationsTracker {
      */
     public static final Setting<Integer> MAX_UNDESIRED_ALLOCATIONS_TO_TRACK = Setting.intSetting(
         "cluster.routing.allocation.desired_balance.undesired_duration_logging.max_to_track",
-        50,
+        10,
         0,
         200,
         Setting.Property.Dynamic,

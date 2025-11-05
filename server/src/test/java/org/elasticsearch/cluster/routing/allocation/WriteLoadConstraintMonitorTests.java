@@ -283,7 +283,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsWithExtraHotSpot = new HashMap<>();
         for (var entry : testState.clusterInfo.getNodeUsageStatsForThreadPools().entrySet()) {
             if (thresholdIncreased.get() == false
-                && nonSearchNodeBelowQueueLatencyThreshold(
+                && indexingNodeBelowQueueLatencyThreshold(
                     testState.clusterState,
                     entry.getKey(),
                     entry.getValue(),
@@ -317,13 +317,15 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
     }
 
-    private boolean nonSearchNodeBelowQueueLatencyThreshold(
+    private boolean indexingNodeBelowQueueLatencyThreshold(
         ClusterState clusterState,
         String nodeId,
         NodeUsageStatsForThreadPools nodeUsageStats,
         long latencyThresholdMillis
     ) {
-        return clusterState.getNodes().get(nodeId).getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE) == false
+        final var nodeRoles = clusterState.getNodes().get(nodeId).getRoles();
+        return nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) == false
+            && nodeRoles.contains(DiscoveryNodeRole.ML_ROLE) == false
             && nodeUsageStats.threadPoolUsageStatsMap()
                 .get(ThreadPool.Names.WRITE)
                 .maxThreadPoolQueueLatencyMillis() < latencyThresholdMillis;

@@ -115,6 +115,8 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "UTC", "2020-01-01T03:00:00Z"),
             new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
             new DurationTestCaseData(Duration.ofMinutes(3 * 60), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
+            new DurationTestCaseData(Duration.ofHours(6), "2024-03-01T00:30:00Z", "-03", "2024-02-29T21:00:00Z"),
+            new DurationTestCaseData(Duration.ofHours(24), "2024-03-01T00:30:00Z", "-03", "2024-02-29T03:00:00Z"),
             new DurationTestCaseData(Duration.ofHours(5), "2020-01-01T05:30:00Z", "+01", "2020-01-01T01:00:00Z"),
 
             ///
@@ -164,6 +166,11 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             // arbitrary period of months and years
             new PeriodTestCaseData(Period.ofMonths(7), ts, "UTC", "2022-11-01T00:00:00.00Z"),
             new PeriodTestCaseData(Period.ofYears(5), ts, "UTC", "2021-01-01T00:00:00.00Z"),
+
+            ///
+            /// Timezones
+            ///
+            new PeriodTestCaseData(Period.ofDays(1), "2024-03-01T00:30:00Z", "-03", "2024-02-29T03:00:00Z"),
 
             ///
             /// Timezone with DST (-5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)

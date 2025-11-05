@@ -257,7 +257,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.inferenceResultsMapSupplier = inferenceResultsMapSupplier;
         this.lenient = other.lenient;
         this.ccsRequest = ccsRequest;
-        this.prefilters.addAll(other.prefilters);
+        this.prefilters = other.prefilters;
     }
 
     @Override

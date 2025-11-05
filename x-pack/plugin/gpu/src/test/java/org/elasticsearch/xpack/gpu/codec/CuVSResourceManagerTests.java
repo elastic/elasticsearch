@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class CuVSResourceManagerTests extends ESTestCase {
@@ -55,6 +56,27 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     public void testBasicWithIvfPq() throws InterruptedException {
         testBasic(createIvfPqParams());
+    }
+
+    public void testMultipleAcquireRelease() throws InterruptedException {
+        var mgr = new MockPoolingCuVSResourceManager(2);
+        var res1 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT, createNnDescentParams());
+        var res2 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT, createIvfPqParams());
+        assertThat(res1.toString(), containsString("id=0"));
+        assertThat(res2.toString(), containsString("id=1"));
+        assertThat(mgr.availableMemory(), lessThan(TOTAL_DEVICE_MEMORY_IN_BYTES / 2));
+        mgr.release(res1);
+        mgr.release(res2);
+        assertThat(mgr.availableMemory(), equalTo(TOTAL_DEVICE_MEMORY_IN_BYTES));
+        res1 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT, createNnDescentParams());
+        res2 = mgr.acquire(16 * 1024, 1024, CuVSMatrix.DataType.FLOAT, createIvfPqParams());
+        assertThat(res1.toString(), containsString("id=0"));
+        assertThat(res2.toString(), containsString("id=1"));
+        assertThat(mgr.availableMemory(), lessThan(TOTAL_DEVICE_MEMORY_IN_BYTES / 2));
+        mgr.release(res1);
+        mgr.release(res2);
+        assertThat(mgr.availableMemory(), equalTo(TOTAL_DEVICE_MEMORY_IN_BYTES));
+        mgr.shutdown();
     }
 
     private static void testBlocking(CagraIndexParams params) throws Exception {
@@ -185,13 +207,23 @@ public class CuVSResourceManagerTests extends ESTestCase {
     static class MockPoolingCuVSResourceManager extends CuVSResourceManager.PoolingCuVSResourceManager {
 
         private final AtomicInteger idGenerator = new AtomicInteger();
+        private final GPUMemoryService gpuMemoryService;
 
         MockPoolingCuVSResourceManager(int capacity) {
             this(capacity, TOTAL_DEVICE_MEMORY_IN_BYTES);
         }
 
         MockPoolingCuVSResourceManager(int capacity, long totalMemoryInBytes) {
-            super(capacity, new TrackingGPUMemoryService(totalMemoryInBytes));
+            this(capacity, new TrackingGPUMemoryService(totalMemoryInBytes));
+        }
+
+        private MockPoolingCuVSResourceManager(int capacity, GPUMemoryService gpuMemoryService) {
+            super(capacity, gpuMemoryService);
+            this.gpuMemoryService = gpuMemoryService;
+        }
+
+        long availableMemory() {
+            return gpuMemoryService.availableMemoryInBytes(null);
         }
 
         @Override

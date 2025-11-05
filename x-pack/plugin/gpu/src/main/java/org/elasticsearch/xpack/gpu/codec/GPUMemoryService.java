@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.gpu.codec;
 
 import com.nvidia.cuvs.CuVSResources;
 
+/**
+ * Abstracts GPU memory tracking (total vs available)
+ */
 interface GPUMemoryService {
 
     long totalMemoryInBytes(CuVSResources res);

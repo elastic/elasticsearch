@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.gpu.codec;
 import com.nvidia.cuvs.CuVSResources;
 import com.nvidia.cuvs.GPUInfoProvider;
 
+/**
+ * A {@link GPUMemoryService} that tracks how much memory is currently used/available on a GPU by using the GPU free/total memory APIs
+ * (via a {@link GPUInfoProvider})
+ */
 class RealGPUMemoryService implements GPUMemoryService {
     private final GPUInfoProvider gpuInfoProvider;
 

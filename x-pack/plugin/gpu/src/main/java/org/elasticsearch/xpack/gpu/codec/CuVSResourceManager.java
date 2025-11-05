@@ -290,6 +290,7 @@ public interface CuVSResourceManager {
         }
 
         void unlock() {
+            unlockAction.run();
             unlockAction = NOT_LOCKED;
         }
 

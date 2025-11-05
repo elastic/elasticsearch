@@ -39,7 +39,6 @@ import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionS
 import static org.elasticsearch.transport.RemoteClusterSettings.toConfig;
 import static org.elasticsearch.transport.RemoteConnectionStrategy.buildConnectionProfile;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class RemoteConnectionStrategyTests extends ESTestCase {

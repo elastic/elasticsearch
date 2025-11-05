@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RankDocsQueryBuilder;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -135,8 +136,10 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         if (sourceHasMinScore()) {
             searchSourceBuilder.minScore(this.minScore == null ? Float.MIN_VALUE : this.minScore);
         }
-        if (searchSourceBuilder.size() + searchSourceBuilder.from() > rankDocResults.length) {
-            searchSourceBuilder.size(Math.max(0, rankDocResults.length - searchSourceBuilder.from()));
+
+        int from = searchSourceBuilder.from() < 0 ? SearchService.DEFAULT_FROM : searchSourceBuilder.from();
+        if (searchSourceBuilder.size() + from > rankDocResults.length) {
+            searchSourceBuilder.size(Math.max(0, rankDocResults.length - from));
         }
     }
 

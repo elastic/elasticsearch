@@ -129,13 +129,6 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             return Decision.single(Decision.Type.YES, NAME, "canRemain() is not enabled");
         }
 
-        // Check whether the shard being relocated has any write load estimate. If it does not, then this decider has no opinion.
-        var allShardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
-        var shardWriteLoad = allShardWriteLoads.get(shardRouting.shardId());
-        if (shardWriteLoad == null || shardWriteLoad == 0) {
-            return Decision.single(Decision.Type.YES, NAME, "Shard has no estimated write load. Decider takes no action.");
-        }
-
         var allNodeUsageStats = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
         var nodeUsageStatsForThreadPools = allNodeUsageStats.get(node.nodeId());
         if (nodeUsageStatsForThreadPools == null) {

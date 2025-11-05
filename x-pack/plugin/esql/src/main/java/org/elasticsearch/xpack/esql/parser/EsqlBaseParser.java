@@ -8070,7 +8070,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(954); 
         _errHandler.sync(this);
         _la = _input.LA(1);
-      } while ( _la==QUOTED_IDENTIFIER || _la==PROMQL_UNQUOTED_IDENTIFIER );
+      } while ( _la==QUOTED_STRING || ((((_la - 95)) & ~0x3f) == 0 && ((1L << (_la - 95)) & 140737488355457L) != 0) );
       setState(956);
       match(LP);
       setState(960);
@@ -8159,6 +8159,8 @@ public class EsqlBaseParser extends ParserConfig {
   public static class PromqlParamContentContext extends ParserRuleContext {
     public TerminalNode PROMQL_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.PROMQL_UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.QUOTED_IDENTIFIER, 0); }
+    public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
+    public TerminalNode NAMED_OR_POSITIONAL_PARAM() { return getToken(EsqlBaseParser.NAMED_OR_POSITIONAL_PARAM, 0); }
     @SuppressWarnings("this-escape")
     public PromqlParamContentContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -8188,7 +8190,7 @@ public class EsqlBaseParser extends ParserConfig {
       {
       setState(968);
       _la = _input.LA(1);
-      if ( !(_la==QUOTED_IDENTIFIER || _la==PROMQL_UNQUOTED_IDENTIFIER) ) {
+      if ( !(_la==QUOTED_STRING || ((((_la - 95)) & ~0x3f) == 0 && ((1L << (_la - 95)) & 140737488355457L) != 0)) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -8529,7 +8531,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u00ac\u00ae\u00b0\u00b2\u00b4\u00b6\u00b8\u00ba\u00bc\u00be\u00c0\u0000"+
     "\u000b\u0002\u000044kk\u0001\u0000ef\u0002\u000088??\u0002\u0000BBEE\u0002"+
     "\u0000))44\u0001\u0000WX\u0001\u0000Y[\u0002\u0000AANN\u0002\u0000PPR"+
-    "V\u0002\u0000\u0018\u0018\u001a\u001b\u0002\u0000ff\u008e\u008e\u0402"+
+    "V\u0002\u0000\u0018\u0018\u001a\u001b\u0004\u000044__ff\u008e\u008e\u0402"+
     "\u0000\u00c5\u0001\u0000\u0000\u0000\u0002\u00cb\u0001\u0000\u0000\u0000"+
     "\u0004\u00ce\u0001\u0000\u0000\u0000\u0006\u00df\u0001\u0000\u0000\u0000"+
     "\b\u00fb\u0001\u0000\u0000\u0000\n\u00fd\u0001\u0000\u0000\u0000\f\u0100"+

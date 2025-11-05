@@ -1257,7 +1257,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return plan -> new PromqlCommand(source, plan, promqlPlan, params);
     }
 
-    private static PromqlParams parsePromqlParams(EsqlBaseParser.PromqlCommandContext ctx, Source source) {
+    private PromqlParams parsePromqlParams(EsqlBaseParser.PromqlCommandContext ctx, Source source) {
         Instant time = null;
         Instant start = null;
         Instant end = null;
@@ -1265,12 +1265,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Set<String> paramsSeen = new HashSet<>();
         for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
-            String name = param(paramCtx.name);
+            var paramNameCtx = paramCtx.name;
+            String name = parseParamName(paramCtx.name);
             if (paramsSeen.add(name) == false) {
-                throw new ParsingException(source(paramCtx.name), "[{}] already specified", name);
+                throw new ParsingException(source(paramNameCtx), "[{}] already specified", name);
             }
             Source valueSource = source(paramCtx.value);
-            String valueString = param(paramCtx.value);
+            String valueString = parseParamValue(paramCtx.value);
             switch (name) {
                 case TIME -> time = PromqlParserUtils.parseDate(valueSource, valueString);
                 case START -> start = PromqlParserUtils.parseDate(valueSource, valueString);
@@ -1288,7 +1289,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     if (CollectionUtils.isEmpty(similar) == false) {
                         message += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
                     }
-                    throw new ParsingException(source(paramCtx.name), message, name);
+                    throw new ParsingException(source(paramNameCtx), message, name);
                 }
             }
         }
@@ -1298,7 +1299,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (start != null || end != null || step != null) {
                 throw new ParsingException(
                     source,
-                    "Specify either [{}] for instant query or [{}}], [{}] or [{}}] for a range query",
+                    "Specify either [{}] for instant query or [{}], [{}] or [{}] for a range query",
                     TIME,
                     STEP,
                     START,
@@ -1338,11 +1339,29 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new PromqlParams(time, start, end, step);
     }
 
-    private static String param(EsqlBaseParser.PromqlParamContentContext paramCtx) {
-        if (paramCtx.QUOTED_IDENTIFIER() != null) {
-            return AbstractBuilder.unquote(paramCtx.QUOTED_IDENTIFIER().getText());
+    private String parseParamName(EsqlBaseParser.PromqlParamContentContext ctx) {
+        if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
+            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        } else if (ctx.QUOTED_IDENTIFIER() != null) {
+            return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
         } else {
-            return paramCtx.getText();
+            throw new ParsingException(source(ctx), "Parameter name [{}] must be an identifier", ctx.getText());
         }
     }
+
+    private String parseParamValue(EsqlBaseParser.PromqlParamContentContext ctx) {
+        if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
+            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        } else if (ctx.QUOTED_STRING() != null) {
+            return AbstractBuilder.unquote(ctx.QUOTED_STRING().getText());
+        } else if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+            QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+            return param.value().toString();
+        } else if (ctx.QUOTED_IDENTIFIER() != null) {
+            throw new ParsingException(source(ctx), "Parameter value [{}] must not be a quoted identifier", ctx.getText());
+        } else {
+            throw new ParsingException(source(ctx), "Invalid parameter value [{}]", ctx.getText());
+        }
+    }
+
 }

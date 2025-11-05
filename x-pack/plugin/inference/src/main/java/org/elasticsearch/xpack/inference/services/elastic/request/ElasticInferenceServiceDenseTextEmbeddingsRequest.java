@@ -56,7 +56,12 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequest extends ElasticIn
         var httpPost = new HttpPost(uri);
         var usageContext = ElasticInferenceServiceUsageContext.fromInputType(inputType);
         var requestEntity = Strings.toString(
-            new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(inputs, model.getServiceSettings().modelId(), usageContext)
+            new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
+                inputs,
+                model.getServiceSettings().modelId(),
+                usageContext,
+                model.getServiceSettings().dimensions()
+            )
         );
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));

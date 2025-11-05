@@ -23,6 +23,7 @@ steps:
               - rhel-7
               - rhel-8
               - rhel-9
+              - rhel-10
               - almalinux-8
               - almalinux-9
         agents:

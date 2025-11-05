@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -139,6 +141,12 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testResolveWildcards() {
         assertRequest(
+            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("*"), true, false, "foo"),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
+            ALL_EXPECTED_INFERENCE_RESULTS
+        );
+
+        assertRequest(
             new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("*-field-1", "inference-*-3"), true, false, "foo"),
             Map.of(
                 INDEX_1,
@@ -151,27 +159,50 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     }
 
     public void testUseDefaultFields() {
-        assertRequest(new GetInferenceFieldsAction.Request(Set.of(INDEX_1), Set.of(), true, true, "foo"),
+        assertRequest(
+            new GetInferenceFieldsAction.Request(Set.of(INDEX_1), Set.of(), true, true, "foo"),
             Map.of(INDEX_1, filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_1))),
             filterExpectedInferenceResults(ALL_EXPECTED_INFERENCE_RESULTS, Set.of(SPARSE_EMBEDDING_INFERENCE_ID))
         );
 
-        assertRequest(new GetInferenceFieldsAction.Request(Set.of(INDEX_2), Set.of(), true, true, "foo"),
+        assertRequest(
+            new GetInferenceFieldsAction.Request(Set.of(INDEX_2), Set.of(), true, true, "foo"),
             Map.of(INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
     }
 
     public void testMissingIndexName() {
-        // TODO: Implement
+        assertRequest(
+            new GetInferenceFieldsAction.Request(Set.of(INDEX_1, "missing-index"), ALL_FIELDS, false, false, "foo"),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS),
+            ALL_EXPECTED_INFERENCE_RESULTS
+        );
+
+        assertRequest(new GetInferenceFieldsAction.Request(Set.of("missing-index"), ALL_FIELDS, false, false, "foo"), Map.of(), Map.of());
     }
 
     public void testMissingFieldName() {
-        // TODO: Implement
+        assertRequest(
+            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("missing-field"), false, false, "foo"),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of()
+        );
+
+        assertRequest(
+            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("missing-*"), true, false, "foo"),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of()
+        );
     }
 
     public void testInvalidRequest() {
-        // TODO: Implement
+        assertInvalidRequest(new GetInferenceFieldsAction.Request(null, Set.of(), false, false, null), List.of("indices is null"));
+        assertInvalidRequest(new GetInferenceFieldsAction.Request(Set.of(), null, false, false, null), List.of("fields is null"));
+        assertInvalidRequest(
+            new GetInferenceFieldsAction.Request(null, null, false, false, null),
+            List.of("indices is null", "fields is null")
+        );
     }
 
     private void explicitInferenceFieldsTestCase(String query) {
@@ -200,6 +231,12 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             new GetInferenceFieldsAction.Request(Set.of(INDEX_1), Set.of(INFERENCE_FIELD_3), false, false, query),
             Map.of(INDEX_1, filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3))),
             query == null || query.isBlank() ? Map.of() : expectedInferenceResultsSparseOnly
+        );
+
+        assertRequest(
+            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("*"), false, false, query),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of()
         );
 
         assertRequest(
@@ -272,6 +309,11 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         var response = executeRequest(request);
         assertInferenceFieldsMap(response.getInferenceFieldsMap(), expectedInferenceFields);
         assertInferenceResultsMap(response.getInferenceResultsMap(), expectedInferenceResults);
+    }
+
+    private static void assertInvalidRequest(GetInferenceFieldsAction.Request request, List<String> validationErrors) {
+        ActionRequestValidationException e = assertThrows(ActionRequestValidationException.class, () -> executeRequest(request));
+        validationErrors.forEach(s -> assertThat(e.getMessage(), containsString(s)));
     }
 
     private static void assertInferenceFieldsMap(

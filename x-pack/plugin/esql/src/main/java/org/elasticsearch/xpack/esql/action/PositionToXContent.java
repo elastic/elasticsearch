@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
 import java.io.IOException;
 
@@ -107,6 +108,10 @@ public abstract class PositionToXContent {
                         // cbor needs a zero offset because of a bug in jackson
                         // https://github.com/FasterXML/jackson-dataformats-binary/issues/366
                         val = BytesRef.deepCopyOf(scratch);
+                    }
+
+                    if (columnInfo.name().equalsIgnoreCase(MetadataAttribute.TSID_FIELD)) {
+                        return builder.value(TimeSeriesIdFieldMapper.encodeTsid(val));
                     }
                     return builder.utf8Value(val.bytes, val.offset, val.length);
                 }

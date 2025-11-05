@@ -49,6 +49,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -64,6 +65,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
@@ -1083,6 +1085,36 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     ]
                   }
                 }"""));
+        }
+    }
+
+    public void testKeywordTsidFieldEncoding() {
+        BytesRef tsidValue = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value();
+        Object expectedEncoded = TimeSeriesIdFieldMapper.encodeTsid(tsidValue);
+
+        for (String columnName : List.of(
+            MetadataAttribute.TSID_FIELD.toLowerCase(Locale.ROOT),
+            MetadataAttribute.TSID_FIELD.toUpperCase(Locale.ROOT)
+        )) {
+            for (String dataType : List.of(DataType.KEYWORD.esType(), DataType.TEXT.esType())) {
+                try (
+                    BytesRefBlock.Builder refBlockBuilder = blockFactory.newBytesRefBlockBuilder(1);
+
+                    EsqlQueryResponse response = new EsqlQueryResponse(
+                        List.of(new ColumnInfoImpl(columnName, dataType, null)),
+                        List.of(new Page(refBlockBuilder.appendBytesRef(tsidValue).build())),
+                        1,
+                        1,
+                        null,
+                        false,
+                        false,
+                        null
+                    )
+                ) {
+                    String json = Strings.toString(wrapAsToXContent(response), true, false);
+                    assertThat(json, org.hamcrest.Matchers.containsString("\"" + expectedEncoded + "\""));
+                }
+            }
         }
     }
 

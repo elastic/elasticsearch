@@ -168,3 +168,21 @@ FROM employees
 avg_worked_seconds:long | birth_date:date      | emp_no:i | gender:k | height:d | height.float:d     | height.half_float:d | height.scaled_float:d | hire_date:date       | is_rehired:bool      | job_positions:k     | languages:i | languages.byte:i | languages.long:l | languages.short:short | salary:i | salary_change:d | salary_change.int:i | salary_change.keyword:k | salary_change.long:l | still_hired:bool | name:k  | first_name:k | last_name:k
 349086555               | 1961-09-01T00:00:00Z | 10056    | F        | 1.57     | 1.5700000524520874 | 1.5703125           | 1.57                  | 1990-02-01T00:00:00Z | [false, false, true] | [Senior Team Lead]  | 2           | 2                | 2                | 2                     | 33370    | [-5.17, 10.99]  | [-5, 10]            | [-5.17, 10.99]          | [-5, 10]             | true             | Brendon | Bernini      | Brendon
 ;
+
+sortingByTsidMetadataField
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+
+TS k8s METADATA _tsid
+| SORT events_received ASC
+| LIMIT 5
+| KEEP events_received, @timestamp, cluster, pod
+;
+
+events_received:long | @timestamp:datetime | cluster:keyword | pod:keyword
+1                    | 2024-05-10T00:00:00.000Z | qa              | one
+1                    | 2024-05-10T00:00:00.000Z | qa              | two
+1                    | 2024-05-10T00:00:00.000Z | qa              | three
+1                    | 2024-05-10T00:00:00.000Z | prod            | one
+1                    | 2024-05-10T00:00:00.000Z | prod            | two
+;

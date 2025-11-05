@@ -99,7 +99,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractWireSerializin
 
     private static IndicesOptions randomIndicesOptions() {
         // This isn't an exhaustive list of possible indices options, but there are enough for effective serialization tests
-        return switch(between(0, 9)) {
+        return switch (between(0, 9)) {
             case 0 -> null;
             case 1 -> IndicesOptions.strictExpandOpen();
             case 2 -> IndicesOptions.strictExpandOpenFailureNoSelectors();

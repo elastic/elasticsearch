@@ -58,7 +58,6 @@ public class TDigestParser {
                     double val = parser.doubleValue();
                     if (val < previousVal) {
                         // values must be in increasing order
-                        // NOCOMMIT - Do we still want this restriction?
                         throw new DocumentParsingException(
                             parser.getTokenLocation(),
                             "error parsing field ["

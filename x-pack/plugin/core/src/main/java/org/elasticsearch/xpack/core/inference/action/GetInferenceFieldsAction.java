@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +44,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         private final boolean resolveWildcards;
         private final boolean useDefaultFields;
         private final String query;
+        private final IndicesOptions indicesOptions;
 
         public Request(
             Set<String> indices,
@@ -51,11 +53,23 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             boolean useDefaultFields,
             @Nullable String query
         ) {
+            this(indices, fields, resolveWildcards, useDefaultFields, query, null);
+        }
+
+        public Request(
+            Set<String> indices,
+            Set<String> fields,
+            boolean resolveWildcards,
+            boolean useDefaultFields,
+            @Nullable String query,
+            @Nullable IndicesOptions indicesOptions
+        ) {
             this.indices = indices;
             this.fields = fields;
             this.resolveWildcards = resolveWildcards;
             this.useDefaultFields = useDefaultFields;
             this.query = query;
+            this.indicesOptions = indicesOptions == null ? IndicesOptions.DEFAULT : indicesOptions;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -65,6 +79,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             this.resolveWildcards = in.readBoolean();
             this.useDefaultFields = in.readBoolean();
             this.query = in.readOptionalString();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
@@ -75,6 +90,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             out.writeBoolean(resolveWildcards);
             out.writeBoolean(useDefaultFields);
             out.writeOptionalString(query);
+            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override
@@ -110,6 +126,10 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return query;
         }
 
+        public IndicesOptions getIndicesOptions() {
+            return indicesOptions;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -119,12 +139,13 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
                 && Objects.equals(fields, request.fields)
                 && resolveWildcards == request.resolveWildcards
                 && useDefaultFields == request.useDefaultFields
-                && Objects.equals(query, request.query);
+                && Objects.equals(query, request.query)
+                && Objects.equals(indicesOptions, request.indicesOptions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, fields, resolveWildcards, useDefaultFields, query);
+            return Objects.hash(indices, fields, resolveWildcards, useDefaultFields, query, indicesOptions);
         }
     }
 

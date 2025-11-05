@@ -47,7 +47,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
@@ -1194,8 +1193,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 new TypedDataSupplier("<near the end of time>", () -> ESTestCase.randomLongBetween(lower3, upper3), DataType.DATETIME)
             );
         }
-
-
 
         return cases;
     }

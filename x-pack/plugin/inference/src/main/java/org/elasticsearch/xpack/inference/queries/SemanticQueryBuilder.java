@@ -24,7 +24,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.Prefiltering;
+import org.elasticsearch.index.query.PrefilteredQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -63,7 +63,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> implements Prefiltering<SemanticQueryBuilder> {
+public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> implements PrefilteredQuery<SemanticQueryBuilder> {
     public static final String NAME = "semantic";
 
     public static final NodeFeature SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = new NodeFeature("semantic_query.multiple_inference_ids");
@@ -180,7 +180,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             this.ccsRequest = false;
         }
 
-        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             this.prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
 
@@ -237,7 +237,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             );
         }
 
-        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             out.writeNamedWriteableCollection(prefilters);
         }
     }

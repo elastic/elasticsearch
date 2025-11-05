@@ -36,7 +36,7 @@ import java.util.Objects;
  * Match query is a query that analyzes the text and constructs a query as the
  * result of the analysis.
  */
-public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> implements Prefiltering<MatchQueryBuilder> {
+public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> implements PrefilteredQuery<MatchQueryBuilder> {
 
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -121,7 +121,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
             in.readOptionalFloat();
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
-        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
@@ -146,7 +146,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
             out.writeOptionalFloat(null);
         }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
-        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             out.writeNamedWriteableCollection(prefilters);
         }
     }

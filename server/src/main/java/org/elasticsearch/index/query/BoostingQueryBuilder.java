@@ -36,7 +36,7 @@ import java.util.Objects;
  * multiplied by the supplied "boost" parameter, so this should be less than 1 to achieve a
  * demoting effect
  */
-public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> implements Prefiltering<BoostingQueryBuilder> {
+public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> implements PrefilteredQuery<BoostingQueryBuilder> {
     public static final String NAME = "boosting";
 
     private static final ParseField POSITIVE_FIELD = new ParseField("positive");
@@ -76,7 +76,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         positiveQuery = in.readNamedWriteable(QueryBuilder.class);
         negativeQuery = in.readNamedWriteable(QueryBuilder.class);
         negativeBoost = in.readFloat();
-        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
@@ -86,7 +86,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         out.writeNamedWriteable(positiveQuery);
         out.writeNamedWriteable(negativeQuery);
         out.writeFloat(negativeBoost);
-        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             out.writeNamedWriteableCollection(prefilters);
         }
     }

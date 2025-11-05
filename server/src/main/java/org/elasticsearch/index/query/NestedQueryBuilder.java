@@ -54,7 +54,7 @@ import java.util.Objects;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
 
-public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> implements Prefiltering<NestedQueryBuilder> {
+public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> implements PrefilteredQuery<NestedQueryBuilder> {
     public static final String NAME = "nested";
     /**
      * The default value for ignore_unmapped.
@@ -95,7 +95,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         query = in.readNamedWriteable(QueryBuilder.class);
         innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         ignoreUnmapped = in.readBoolean();
-        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
@@ -107,7 +107,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         out.writeNamedWriteable(query);
         out.writeOptionalWriteable(innerHitBuilder);
         out.writeBoolean(ignoreUnmapped);
-        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             out.writeNamedWriteableCollection(prefilters);
         }
     }

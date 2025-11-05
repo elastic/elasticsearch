@@ -13,7 +13,7 @@ import org.elasticsearch.TransportVersion;
 
 import java.util.List;
 
-public interface Prefiltering<T extends QueryBuilder> {
+public interface PrefilteredQuery<T extends QueryBuilder> {
 
     TransportVersion QUERY_PREFILTERING = TransportVersion.fromName("query_prefiltering");
 
@@ -27,7 +27,7 @@ public interface Prefiltering<T extends QueryBuilder> {
         List<QueryBuilder> prefilters = getPrefilters();
         if (prefilters.isEmpty() == false) {
             for (QueryBuilder targetQuery : getPrefilteringTargetQueries()) {
-                if (targetQuery instanceof Prefiltering<?> prefilteredQuery) {
+                if (targetQuery instanceof PrefilteredQuery<?> prefilteredQuery) {
                     prefilteredQuery.setPrefilters(prefilters.stream().filter(q -> q != targetQuery).toList());
                 }
             }

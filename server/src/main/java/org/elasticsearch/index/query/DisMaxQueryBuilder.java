@@ -32,7 +32,7 @@ import java.util.Objects;
  * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
  * additional matching sub-queries.
  */
-public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder> implements Prefiltering<DisMaxQueryBuilder> {
+public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder> implements PrefilteredQuery<DisMaxQueryBuilder> {
     public static final String NAME = "dis_max";
 
     /** Default multiplication factor for breaking ties in document scores.*/
@@ -55,7 +55,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         super(in);
         queries.addAll(readQueries(in));
         tieBreaker = in.readFloat();
-        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             prefilters = readQueries(in);
         }
     }
@@ -64,7 +64,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     protected void doWriteTo(StreamOutput out) throws IOException {
         writeQueries(out, queries);
         out.writeFloat(tieBreaker);
-        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             out.writeNamedWriteableCollection(prefilters);
         }
     }

@@ -39,7 +39,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
 /**
  * A Query that matches documents matching boolean combinations of other queries.
  */
-public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> implements Prefiltering<BoolQueryBuilder> {
+public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> implements PrefilteredQuery<BoolQueryBuilder> {
     public static final String NAME = "bool";
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
@@ -81,7 +81,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
         filterClauses.addAll(readQueries(in));
         adjustPureNegative = in.readBoolean();
         minimumShouldMatch = in.readOptionalString();
-        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
@@ -94,7 +94,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
         writeQueries(out, filterClauses);
         out.writeBoolean(adjustPureNegative);
         out.writeOptionalString(minimumShouldMatch);
-        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             out.writeNamedWriteableCollection(prefilters);
         }
     }

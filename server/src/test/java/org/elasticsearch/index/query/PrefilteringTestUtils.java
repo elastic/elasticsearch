@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class PrefilteringTestUtils {
 
-    public static void setRandomTermQueryPrefilters(Prefiltering<?> queryBuilder, String... termFieldNames) {
+    public static void setRandomTermQueryPrefilters(PrefilteredQuery<?> queryBuilder, String... termFieldNames) {
         List<QueryBuilder> filters = new ArrayList<>();
         int numFilters = randomIntBetween(1, 5);
         for (int i = 0; i < numFilters; i++) {
@@ -41,7 +41,7 @@ public class PrefilteringTestUtils {
         queryBuilder.setPrefilters(filters);
     }
 
-    public static void assertQueryHasPrefilters(Prefiltering<?> queryBuilder, Query query, SearchExecutionContext context)
+    public static void assertQueryHasPrefilters(PrefilteredQuery<?> queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
         assertThat(query, anyOf(instanceOf(KnnFloatVectorQuery.class), instanceOf(KnnByteVectorQuery.class)));
         Query queryFilter;

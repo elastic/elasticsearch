@@ -23,7 +23,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.Prefiltering;
+import org.elasticsearch.index.query.PrefilteredQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -47,7 +47,7 @@ import java.util.Objects;
  */
 public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder>
     implements
-        Prefiltering<FunctionScoreQueryBuilder> {
+        PrefilteredQuery<FunctionScoreQueryBuilder> {
 
     public static final String NAME = "function_score";
 
@@ -150,7 +150,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         minScore = in.readOptionalFloat();
         boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);
         scoreMode = FunctionScoreQuery.ScoreMode.readFromStream(in);
-        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
@@ -163,7 +163,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         out.writeOptionalFloat(minScore);
         out.writeOptionalWriteable(boostMode);
         scoreMode.writeTo(out);
-        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             out.writeNamedWriteableCollection(prefilters);
         }
     }

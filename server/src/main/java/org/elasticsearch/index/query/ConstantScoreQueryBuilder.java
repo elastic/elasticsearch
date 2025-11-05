@@ -30,7 +30,7 @@ import java.util.Objects;
  */
 public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder>
     implements
-        Prefiltering<ConstantScoreQueryBuilder> {
+        PrefilteredQuery<ConstantScoreQueryBuilder> {
 
     public static final String NAME = "constant_score";
 
@@ -59,7 +59,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     public ConstantScoreQueryBuilder(StreamInput in) throws IOException {
         super(in);
         filterBuilder = in.readNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         }
     }
@@ -67,7 +67,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(filterBuilder);
-        if (out.getTransportVersion().supports(Prefiltering.QUERY_PREFILTERING)) {
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
             out.writeNamedWriteableCollection(prefilters);
         }
     }

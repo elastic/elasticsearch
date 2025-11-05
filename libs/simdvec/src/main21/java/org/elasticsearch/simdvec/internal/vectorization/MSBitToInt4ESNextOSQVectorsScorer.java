@@ -14,7 +14,6 @@ import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ShortVector;
 import jdk.incubator.vector.VectorOperators;
-import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
@@ -30,23 +29,6 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
-
-    private static final int BULK_SIZE = MemorySegmentESNextOSQVectorsScorer.BULK_SIZE;
-    private static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
-
-    private static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
-
-    private static final VectorSpecies<Long> LONG_SPECIES_128 = LongVector.SPECIES_128;
-    private static final VectorSpecies<Long> LONG_SPECIES_256 = LongVector.SPECIES_256;
-
-    private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
-    private static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
-
-    private static final VectorSpecies<Short> SHORT_SPECIES_128 = ShortVector.SPECIES_128;
-    private static final VectorSpecies<Short> SHORT_SPECIES_256 = ShortVector.SPECIES_256;
-
-    private static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
-    private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
 
     MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, memorySegment);

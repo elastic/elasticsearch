@@ -391,8 +391,8 @@ public class SearchTransportService {
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
-            logger.trace("releasing search context [{}]", request.id());
             boolean freed = searchService.freeReaderContext(request.id());
+            logger.trace("releasing search context [{}], [{}]", request.id(), freed);
             channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
         final Executor freeContextExecutor = buildFreeContextExecutor(transportService);

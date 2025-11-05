@@ -12,14 +12,13 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQueryBuilder> {
+public class BoostingQueryBuilderTests extends AbstractPrefilteredQueryTestCase<BoostingQueryBuilder> {
 
     @Override
     protected BoostingQueryBuilder doCreateTestQueryBuilder() {

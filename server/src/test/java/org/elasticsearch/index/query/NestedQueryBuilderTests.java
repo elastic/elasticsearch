@@ -31,7 +31,6 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -51,7 +50,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBuilder> {
+public class NestedQueryBuilderTests extends AbstractPrefilteredQueryTestCase<NestedQueryBuilder> {
 
     private static final String VECTOR_FIELD = "vector";
     private static final int VECTOR_DIMENSION = 3;

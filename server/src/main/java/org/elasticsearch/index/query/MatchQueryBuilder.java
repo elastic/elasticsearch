@@ -439,7 +439,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
             && Objects.equals(lenient, other.lenient)
             && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions)
             && Objects.equals(zeroTermsQuery, other.zeroTermsQuery)
-            && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
+            && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery)
+            && Objects.equals(prefilters, other.prefilters);
     }
 
     @Override
@@ -457,7 +458,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
             lenient,
             fuzzyTranspositions,
             zeroTermsQuery,
-            autoGenerateSynonymsPhraseQuery
+            autoGenerateSynonymsPhraseQuery,
+            prefilters
         );
     }
 

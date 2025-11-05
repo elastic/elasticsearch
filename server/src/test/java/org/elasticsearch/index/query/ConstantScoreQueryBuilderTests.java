@@ -14,7 +14,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -22,7 +21,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
 
-public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<ConstantScoreQueryBuilder> {
+public class ConstantScoreQueryBuilderTests extends AbstractPrefilteredQueryTestCase<ConstantScoreQueryBuilder> {
     /**
      * @return a {@link ConstantScoreQueryBuilder} with random boost between 0.1f and 2.0f
      */

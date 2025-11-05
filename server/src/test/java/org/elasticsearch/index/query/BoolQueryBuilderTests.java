@@ -14,7 +14,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -37,7 +36,7 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
+public class BoolQueryBuilderTests extends AbstractPrefilteredQueryTestCase<BoolQueryBuilder> {
     @Override
     protected BoolQueryBuilder doCreateTestQueryBuilder() {
         BoolQueryBuilder query = new BoolQueryBuilder();

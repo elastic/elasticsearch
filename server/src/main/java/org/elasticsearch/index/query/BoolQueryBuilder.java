@@ -343,7 +343,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(adjustPureNegative, minimumShouldMatch, mustClauses, shouldClauses, mustNotClauses, filterClauses);
+        return Objects.hash(adjustPureNegative, minimumShouldMatch, mustClauses, shouldClauses, mustNotClauses, filterClauses, prefilters);
     }
 
     @Override
@@ -353,7 +353,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> imp
             && Objects.equals(mustClauses, other.mustClauses)
             && Objects.equals(shouldClauses, other.shouldClauses)
             && Objects.equals(mustNotClauses, other.mustNotClauses)
-            && Objects.equals(filterClauses, other.filterClauses);
+            && Objects.equals(filterClauses, other.filterClauses)
+            && Objects.equals(prefilters, other.prefilters);
     }
 
     @Override

@@ -43,13 +43,12 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
+import org.elasticsearch.index.query.AbstractPrefilteredQueryTestCase;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
-import org.elasticsearch.index.query.PrefilteredQuery;
 import org.elasticsearch.index.query.PrefilteringTestUtils;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InferenceResults;
@@ -61,7 +60,6 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.client.NoOpClient;
@@ -106,7 +104,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQueryBuilder> {
+public class SemanticQueryBuilderTests extends AbstractPrefilteredQueryTestCase<SemanticQueryBuilder> {
     private static final String SEMANTIC_TEXT_FIELD = "semantic";
     private static final float TOKEN_WEIGHT = 0.5f;
     private static final int QUERY_TOKEN_LENGTH = 4;
@@ -577,34 +575,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             case SPARSE_EMBEDDING -> assertThat(nestedQueryBuilder.query(), instanceOf(SparseVectorQueryBuilder.class));
             case TEXT_EMBEDDING -> assertVectorQueryBuilderWithPrefilters(nestedQueryBuilder.query(), queryBuilder.getPrefilters());
             default -> fail("Unexpected inference result type [" + inferenceResultType + "]");
-        }
-    }
-
-    public void testSerializationPrefiltersBwc() throws Exception {
-        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        if (randomBoolean()) {
-            originalQuery.setPrefilters(randomList(1, 5, () -> RandomQueryBuilder.createQuery(random())));
-        }
-
-        for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                originalQuery.getMinimalSupportedVersion(),
-                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-            );
-
-            QueryBuilder deserializedQuery = copyNamedWriteable(
-                originalQuery,
-                namedWriteableRegistry(),
-                QueryBuilder.class,
-                transportVersion
-            );
-
-            if (transportVersion.supports(PrefilteredQuery.QUERY_PREFILTERING) == false) {
-                ((SemanticQueryBuilder) deserializedQuery).setPrefilters(List.of());
-            }
-
-            assertThat(deserializedQuery, instanceOf(SemanticQueryBuilder.class));
         }
     }
 

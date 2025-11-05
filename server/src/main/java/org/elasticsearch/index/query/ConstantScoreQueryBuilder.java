@@ -147,12 +147,12 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(filterBuilder);
+        return Objects.hash(filterBuilder, prefilters);
     }
 
     @Override
     protected boolean doEquals(ConstantScoreQueryBuilder other) {
-        return Objects.equals(filterBuilder, other.filterBuilder);
+        return Objects.equals(filterBuilder, other.filterBuilder) && Objects.equals(prefilters, other.prefilters);
     }
 
     @Override

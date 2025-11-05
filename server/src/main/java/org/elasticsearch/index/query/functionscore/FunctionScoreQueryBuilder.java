@@ -289,7 +289,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             && Objects.equals(this.boostMode, other.boostMode)
             && Objects.equals(this.scoreMode, other.scoreMode)
             && Objects.equals(this.minScore, other.minScore)
-            && Objects.equals(this.maxBoost, other.maxBoost);
+            && Objects.equals(this.maxBoost, other.maxBoost)
+            && Objects.equals(this.prefilters, other.prefilters);
     }
 
     @Override
@@ -300,7 +301,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             this.boostMode,
             this.scoreMode,
             this.minScore,
-            this.maxBoost
+            this.maxBoost,
+            this.prefilters
         );
     }
 

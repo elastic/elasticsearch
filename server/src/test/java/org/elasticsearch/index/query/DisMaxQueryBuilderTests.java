@@ -15,7 +15,6 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -23,7 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
+public class DisMaxQueryBuilderTests extends AbstractPrefilteredQueryTestCase<DisMaxQueryBuilder> {
     /**
      * @return a {@link DisMaxQueryBuilder} with random inner queries
      */

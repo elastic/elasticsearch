@@ -266,12 +266,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             && Objects.equals(path, that.path)
             && Objects.equals(scoreMode, that.scoreMode)
             && Objects.equals(innerHitBuilder, that.innerHitBuilder)
-            && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
+            && Objects.equals(ignoreUnmapped, that.ignoreUnmapped)
+            && Objects.equals(prefilters, that.prefilters);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, path, scoreMode, innerHitBuilder, ignoreUnmapped);
+        return Objects.hash(query, path, scoreMode, innerHitBuilder, ignoreUnmapped, prefilters);
     }
 
     @Override

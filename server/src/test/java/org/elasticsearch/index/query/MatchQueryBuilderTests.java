@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.MatchQueryParser.Type;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -57,7 +56,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
+public class MatchQueryBuilderTests extends AbstractPrefilteredQueryTestCase<MatchQueryBuilder> {
 
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {

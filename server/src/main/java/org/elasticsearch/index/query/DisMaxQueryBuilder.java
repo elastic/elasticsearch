@@ -212,12 +212,14 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(queries, tieBreaker);
+        return Objects.hash(queries, tieBreaker, prefilters);
     }
 
     @Override
     protected boolean doEquals(DisMaxQueryBuilder other) {
-        return Objects.equals(queries, other.queries) && Objects.equals(tieBreaker, other.tieBreaker);
+        return Objects.equals(queries, other.queries)
+            && Objects.equals(tieBreaker, other.tieBreaker)
+            && Objects.equals(prefilters, other.prefilters);
     }
 
     @Override

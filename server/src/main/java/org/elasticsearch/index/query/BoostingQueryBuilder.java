@@ -206,14 +206,15 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(negativeBoost, positiveQuery, negativeQuery);
+        return Objects.hash(negativeBoost, positiveQuery, negativeQuery, prefilters);
     }
 
     @Override
     protected boolean doEquals(BoostingQueryBuilder other) {
         return Objects.equals(negativeBoost, other.negativeBoost)
             && Objects.equals(positiveQuery, other.positiveQuery)
-            && Objects.equals(negativeQuery, other.negativeQuery);
+            && Objects.equals(negativeQuery, other.negativeQuery)
+            && Objects.equals(prefilters, other.prefilters);
     }
 
     @Override

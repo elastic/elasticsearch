@@ -173,7 +173,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             new PeriodTestCaseData(Period.ofDays(1), "2024-03-01T00:30:00Z", "-03", "2024-02-29T03:00:00Z"),
 
             ///
-            /// Timezone with DST (-5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)
+            /// Timezone with DST (e.g. New York: -5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)
             ///
             new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-09T00:00:00-05:00"),
             new PeriodTestCaseData(Period.ofMonths(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-01T00:00:00-05:00"),
@@ -182,6 +182,8 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             new PeriodTestCaseData(Period.ofDays(1), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00"),
             new PeriodTestCaseData(Period.ofDays(7), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-10-27T00:00:00-04:00"),
             new PeriodTestCaseData(Period.ofMonths(3), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-10-01T00:00:00-04:00"),
+            new PeriodTestCaseData(Period.ofDays(1), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
+            new PeriodTestCaseData(Period.ofMonths(3), "2025-11-02T05:00:00-05:00", "Europe/Rome", "2025-10-01T00:00:00-04:00"),
 
             ///
             /// Partial hours timezones

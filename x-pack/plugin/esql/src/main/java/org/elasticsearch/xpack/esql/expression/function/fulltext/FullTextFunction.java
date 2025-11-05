@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -381,6 +382,10 @@ public abstract class FullTextFunction extends Function
         // This is to avoid running the check multiple times in the same plan
         // Field can be null when the field does not exist in the mapping
         if (isInCurrentNode(plan, function) == false || ((field instanceof Literal literal) && literal.value() == null)) {
+            return;
+        }
+        // Accept null as a field
+        if (Expressions.isGuaranteedNull(field)) {
             return;
         }
         var fieldAttribute = fieldAsFieldAttribute(field);

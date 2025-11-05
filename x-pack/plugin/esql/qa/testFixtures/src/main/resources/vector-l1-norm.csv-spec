@@ -1,17 +1,16 @@
- # Tests for l1_norm similarity function
- 
- similarityWithVectorField
- required_capability: l1_norm_vector_similarity_function
- required_capability: dense_vector_field_type_released
- 
+# Tests for l1_norm similarity function
+
+similarityWithVectorField
+required_capability: vector_similarity_functions_pushdown
+
 // tag::vector-l1-norm[]
- from colors
- | eval similarity = v_l1_norm(rgb_vector, [0, 255, 255]) 
- | sort similarity desc, color asc 
+from colors
+| eval similarity = v_l1_norm(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
 // end::vector-l1-norm[]
- | limit 10
- | keep color, similarity
- ;
+| limit 10
+| keep color, similarity
+;
  
 // tag::vector-l1-norm-result[]
 color:text | similarity:double
@@ -29,8 +28,7 @@ gold       | 550.0
 ;
 
 similarityAsPartOfExpression
-required_capability: l1_norm_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval score = round((1 + v_l1_norm(rgb_vector, [0, 255, 255]) / 2), 3) 
@@ -53,8 +51,7 @@ gold       | 276.0
 ;
 
 similarityWithLiteralVectors
-required_capability: l1_norm_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row a = 1
 | eval similarity = round(v_l1_norm([1, 2, 3], [0, 1, 2]), 3) 
@@ -66,8 +63,7 @@ similarity:double
 ;
 
 similarityWithStats
-required_capability: l1_norm_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = round(v_l1_norm(rgb_vector, [0, 255, 255]), 3) 
@@ -79,9 +75,7 @@ avg:double | min:double | max:double
 ;
 
 similarityWithNull
-required_capability: l1_norm_vector_similarity_function
-required_capability: vector_similarity_functions_support_null
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = v_l1_norm(rgb_vector, null) 
@@ -93,9 +87,7 @@ total_null:long
 ;
 
 similarityWithRow
-required_capability: l1_norm_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row vector = to_dense_vector([1, 2, 3]) 
 | eval similarity = round(v_l1_norm(vector, [0, 1, 2]), 3) 
@@ -105,28 +97,123 @@ vector: dense_vector | similarity:double
 [1.0, 2.0, 3.0]      | 3.0
 ;
 
-similarityWithVectorField
-required_capability: l1_norm_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
+multipleEvalSimilarityWithVectorFields
+required_capability: vector_similarity_functions_pushdown
 
 from colors
-| eval query = to_dense_vector([0, 255, 255])
-| eval similarity = v_l1_norm(rgb_vector, query) 
+| eval similarity1 = v_l1_norm(rgb_vector, [0, 255, 255]), similarity2 = v_l1_norm(rgb_vector, [255, 0, 255]) / 2 + 1
+| sort similarity1 desc, similarity2 desc, color asc 
+| limit 10
+| keep color, similarity1, similarity2
+;
+
+color:text | similarity1:double | similarity2:double
+red        | 765.0              | 128.5
+crimson    | 650.0              | 126.0
+maroon     | 638.0              | 192.0
+firebrick  | 620.0              | 167.0
+orange     | 600.0              | 211.0
+tomato     | 595.0              | 142.5
+brown      | 591.0              | 173.5
+chocolate  | 585.0              | 188.5
+coral      | 558.0              | 152.0
+gold       | 550.0              | 236.0
+;
+
+multipleSimilarityWithVectorFields
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval similarity = v_l1_norm(rgb_vector, [0, 255, 255]) / 2 + v_l1_norm(rgb_vector, [255, 0, 255]) / 2 + 1
 | sort similarity desc, color asc 
 | limit 10
 | keep color, similarity
 ;
- 
+
 color:text | similarity:double
-red        | 765.0
-crimson    | 650.0
-maroon     | 638.0
-firebrick  | 620.0
-orange     | 600.0
-tomato     | 595.0
-brown      | 591.0
-chocolate  | 585.0
-coral      | 558.0
-gold       | 550.0
+black      | 511.0
+chartreuse | 511.0
+gold       | 511.0
+green      | 511.0
+lime       | 511.0
+maroon     | 511.0
+olive      | 511.0
+orange     | 511.0
+red        | 511.0
+yellow     | 511.0
+;
+
+l1NormWithLookupJoin
+required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
+
+from colors
+| eval s = v_l1_norm(rgb_vector, [1, 2, 3])
+| lookup join colors_cmyk on id
+| keep color, s, cmyk_vector
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double | cmyk_vector:dense_vector
+white      | 759.0    | [0.0, 0.0, 0.0, 0.0]
+snow       | 749.0    | [0.0, 2.0, 2.0, 0.0]
+azure      | 744.0    | [6.0, 0.0, 0.0, 0.0]
+ivory      | 744.0    | [0.0, 0.0, 6.0, 0.0]
+mint cream | 744.0    | [4.0, 0.0, 2.0, 0.0]
+sea shell  | 732.0    | [0.0, 4.0, 7.0, 0.0]
+honeydew   | 729.0    | [6.0, 0.0, 6.0, 0.0]
+old lace   | 722.0    | [0.0, 3.0, 9.0, 1.0]
+corn silk  | 717.0    | [0.0, 3.0, 14.0, 0.0]
+linen      | 714.0    | [0.0, 4.0, 8.0, 2.0]
+;
+
+l1NormWithLookupJoinOnJoinedField
+required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
+
+from colors
+| lookup join colors_cmyk on id
+| eval s = v_l1_norm(cmyk_vector, [1, 2, 3, 4])
+| keep color, s
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double
+navy       | 246.0
+green      | 244.0
+maroon     | 242.0
+blue       | 204.0
+lime       | 202.0
+red        | 200.0
+indigo     | 187.0
+firebrick  | 184.0
+brown      | 177.0
+crimson    | 170.0
+;
+
+l1NormWithEnrich
+required_capability: vector_similarity_functions_pushdown
+required_capability: enrich_load
+
+from colors
+| eval s = v_l1_norm(rgb_vector, [1, 2, 3])
+| enrich colors_policy
+| keep color_name, s
+| sort s desc, color_name asc
+| limit 10
+;
+
+color_name:text | s:double
+white           | 759.0
+snow            | 749.0
+azure           | 744.0
+ivory           | 744.0
+mint cream      | 744.0
+sea shell       | 732.0
+honeydew        | 729.0
+old lace        | 722.0
+corn silk       | 717.0
+linen           | 714.0
 ;

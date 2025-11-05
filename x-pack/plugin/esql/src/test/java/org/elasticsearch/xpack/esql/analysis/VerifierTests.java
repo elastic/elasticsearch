@@ -3271,6 +3271,43 @@ public class VerifierTests extends ESTestCase {
         assertThat(errorMessage, containsString("5:3: [MATCH] function cannot be used after test, (FROM test_mixed_types"));
     }
 
+    public void testChunkFunctionInvalidInputs() {
+        if (EsqlCapabilities.Cap.CHUNK_FUNCTION.isEnabled()) {
+            assertThat(
+                error(
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": null, \"chunk_size\": 20})",
+                    fullTextAnalyzer,
+                    ParsingException.class
+                ),
+                equalTo("1:39: Invalid named parameter [\"num_chunks\":null], NULL is not supported")
+            );
+            assertThat(
+                error(
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": 3, \"chunk_size\": null})",
+                    fullTextAnalyzer,
+                    ParsingException.class
+                ),
+                equalTo("1:39: Invalid named parameter [\"chunk_size\":null], NULL is not supported")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":\"foo\"})", fullTextAnalyzer),
+                equalTo("1:27: Invalid option [num_chunks] in [CHUNK(body, {\"num_chunks\":\"foo\"})], cannot cast [foo] to [integer]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":\"foo\"})", fullTextAnalyzer),
+                equalTo("1:27: Invalid option [chunk_size] in [CHUNK(body, {\"chunk_size\":\"foo\"})], cannot cast [foo] to [integer]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":-1})", fullTextAnalyzer),
+                equalTo("1:27: [num_chunks] cannot be negative, found [-1]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":-1})", fullTextAnalyzer),
+                equalTo("1:27: [chunk_size] cannot be negative, found [-1]")
+            );
+        }
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -151,7 +152,7 @@ public class FuseScoreEval extends UnaryPlan
         Expression aggFilter = new Literal(source(), true, DataType.BOOLEAN);
 
         for (Attribute attr : child().output()) {
-            var valuesAgg = new Values(source(), attr, aggFilter);
+            var valuesAgg = new Values(source(), attr, aggFilter, AggregateFunction.NO_WINDOW);
 
             if (valuesAgg.resolved() == false) {
                 failures.add(

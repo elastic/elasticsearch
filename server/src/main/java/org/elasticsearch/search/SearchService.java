@@ -50,7 +50,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.IOUtils;
@@ -372,8 +371,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final String sessionId;
 
     private final Tracer tracer;
-    private Map<ShardId, Set<Supplier<ReaderContext>>> relocatingContexts = ConcurrentCollections
-        .newConcurrentMapWithAggressiveConcurrency();
 
     public SearchService(
         ClusterService clusterService,
@@ -1382,10 +1379,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public void addRelocatingContext(ShardId shardId, Supplier<ReaderContext> readerContext) {
-        this.relocatingContexts.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentSet()).add(readerContext);
-    }
-
     /**
      * Opens the reader context for given shardId. The newly opened reader context will be keep
      * until the {@code keepAlive} elapsed unless it is manually released.
@@ -1423,19 +1416,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 listener.onFailure(exc);
             }
         });
-    }
-
-    public void afterIndexShardStarted(IndexShard indexShard) {
-        logger.debug("afterIndexShardStarted [{}]", indexShard);
-        ShardId shardId = indexShard.shardId();
-        if (relocatingContexts.containsKey(shardId)) {
-            Set<Supplier<ReaderContext>> readerContexts = relocatingContexts.get(shardId);
-            for (Supplier<ReaderContext> readerContext : readerContexts) {
-                ReaderContext newReaderContext = readerContext.get();
-                logger.debug("added context [{}] to active readers", newReaderContext.id());
-            }
-            relocatingContexts.remove(shardId);
-        }
     }
 
     protected SearchContext createContext(
@@ -1987,15 +1967,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     freeReaderContext(context.id());
                 }
             }
-            // TODO clean up pending relocating contexts. How long to wait for a relocation to complete?
-            // for (Set<Supplier<ReaderContext>> contexts : relocatingContexts.values()) {
-            // for (Supplier<ReaderContext> context : contexts) {
-            // if (context.isExpired()) {
-            // logger.debug("freeing relocating search context [{}]", context.id());
-            // freeReaderContext(context.id());
-            // }
-            // }
-            // }<
         }
 
         @Override

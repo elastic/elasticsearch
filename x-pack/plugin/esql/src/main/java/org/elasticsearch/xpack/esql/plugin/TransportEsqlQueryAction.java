@@ -294,7 +294,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {
-        if (executionInfo.isCrossClusterSearch() == false) {
+        if (executionInfo.isCrossClusterSearch() == false && executionInfo.includeExecutionMetadata() == false) {
             return;
         }
 
@@ -331,7 +331,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 remotesCount.getAndIncrement();
             }
         });
-        assert remotesCount.get() > 0 : "Got cross-cluster search telemetry without any remote clusters";
+        if (remotesCount.get() == 0) {
+            return;
+        }
         usageBuilder.setRemotesCount(remotesCount.get());
         usageService.getEsqlUsageHolder().updateUsage(usageBuilder.build());
     }
@@ -355,19 +357,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (request.includeCCSMetadata() != null && request.includeExecutionMetadata() != null) {
             throw new VerificationException(
                 "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. "
-                    + "Use only [include_execution_metadata]"
+                    + "Use only one"
             );
         }
 
-        Boolean includeCcsMetadata = request.includeExecutionMetadata();
-        if (includeCcsMetadata == null) {
-            // include_ccs_metadata is considered only if include_execution_metadata is not set
-            includeCcsMetadata = Boolean.TRUE.equals(request.includeCCSMetadata());
-        }
+        boolean includeCcsMetadata = Boolean.TRUE.equals(request.includeCCSMetadata());
+        boolean includeExecutionMetadata = Boolean.TRUE.equals(request.includeExecutionMetadata());
         Boolean allowPartialResults = request.allowPartialResults() != null ? request.allowPartialResults() : defaultAllowPartialResults;
         return new EsqlExecutionInfo(
             clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults),
-            includeCcsMetadata
+            includeCcsMetadata,
+            includeExecutionMetadata
         );
     }
 

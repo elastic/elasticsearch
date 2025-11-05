@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -51,6 +52,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
 
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
 
     @Inject
@@ -59,6 +61,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         ActionFilters actionFilters,
         ClusterService clusterService,
         ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
         super(
@@ -70,6 +73,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         );
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
     }
 

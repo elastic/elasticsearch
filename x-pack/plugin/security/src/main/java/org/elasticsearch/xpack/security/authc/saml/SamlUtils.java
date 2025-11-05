@@ -42,6 +42,7 @@ import java.security.PrivilegedExceptionAction;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -62,6 +63,7 @@ import javax.xml.validation.Validator;
 public class SamlUtils {
 
     private static final String SAML_EXCEPTION_KEY = "es.security.saml";
+    private static final String SAML_UNSOLICITED_RESPONSE_KEY = "es.security.saml.unsolicited_in_response_to";
     private static final String SAML_MARSHALLING_ERROR_STRING = "_unserializable_";
 
     private static final AtomicBoolean INITIALISED = new AtomicBoolean(false);
@@ -112,6 +114,26 @@ public class SamlUtils {
     public static ElasticsearchSecurityException samlException(String msg, Exception cause, Object... args) {
         final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, cause, args);
         exception.addMetadata(SAML_EXCEPTION_KEY);
+        return exception;
+    }
+
+    /**
+     * Constructs exception for a specific case where the in-response-to value in the SAML content does not match any of the values
+     * provided by the client. One example situation when this can happen is when user spent too much time on the IdP site and the
+     * initial SAML request has expired. In that case the IdP would send a SAML response which content includes an in-response-to value
+     * matching the initial request, however that initial request is now gone, so the client sends an empty in-response-to parameter causing
+     * a mismatch between the two.
+     */
+    public static ElasticsearchSecurityException samlUnsolicitedInResponseToException(
+        String samlContentInResponseTo,
+        Collection<String> expectedInResponseTos
+    ) {
+        final ElasticsearchSecurityException exception = samlException(
+            "SAML content is in-response-to [{}] but expected one of {} ",
+            samlContentInResponseTo,
+            expectedInResponseTos
+        );
+        exception.addMetadata(SAML_UNSOLICITED_RESPONSE_KEY, samlContentInResponseTo);
         return exception;
     }
 

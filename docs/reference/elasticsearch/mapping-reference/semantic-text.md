@@ -546,7 +546,7 @@ serverless: ga
 
 :::{important}
 The recommended method for retrieving embeddings differs between {{es}} versions 9.2 and earlier.
-For instructions on retrieving embeddings in versions earlier than 9.2, refer to [Returning semantic field embeddings using `fields`](#retrieve-embeddings-9.0-9.1).
+For instructions on retrieving embeddings in versions earlier than 9.2, refer to [Returning semantic field embeddings using `fields`](#return-embeddings-fields).
 :::
 
 By default, the embeddings generated for `semantic_text` fields are stored internally and **not included in `_source`** when retrieving documents.
@@ -704,14 +704,15 @@ semantic search for `semantic_text` fields:
 2. Lists details about the model used to generate embeddings, such as the service name and task type.
 3. The embeddings generated for this chunk.
 
-## Returning semantic field embeddings using `fields` [retrieve-embeddings-9.0-9.1]
+## Returning semantic field embeddings using `fields` [return-embeddings-fields]
 
-:::{warning}
-This method is only recommended for {{es}} versions earlier than 9.2.
+:::{important}
+This method for returning semantic field embeddings is recommended only for {{es}} versions earlier than 9.2.
 For version 9.2 and later, use the [`exclude_vectors`](#troubleshooting-semantic-text-fields) parameter instead.
 :::
 
 To retrieve stored embeddings, use the `fields` parameter with `_inference_fields`. This lets you include the vector data that is not shown by default in the response.
+The `fields` parameter only works with the `_search` endpoint.  
 
 ```console
 POST my-index/_search

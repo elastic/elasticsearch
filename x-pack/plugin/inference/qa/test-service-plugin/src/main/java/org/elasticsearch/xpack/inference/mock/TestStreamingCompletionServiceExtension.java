@@ -59,7 +59,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
     }
 
     public static class TestInferenceService extends AbstractTestInferenceService {
-        private static final String NAME = "streaming_completion_test_service";
+        public static final String NAME = "streaming_completion_test_service";
         private static final String ALIAS = "streaming_completion_test_service_alias";
         private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
@@ -343,12 +343,15 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         public static TestServiceSettings fromMap(Map<String, Object> map) {
-            var modelId = map.remove("model").toString();
+            String modelId = (String) map.remove("model_id");
 
             if (modelId == null) {
-                ValidationException validationException = new ValidationException();
-                validationException.addValidationError("missing model id");
-                throw validationException;
+                modelId = (String) map.remove("model");
+                if (modelId == null) {
+                    ValidationException validationException = new ValidationException();
+                    validationException.addValidationError("missing model id");
+                    throw validationException;
+                }
             }
 
             return new TestServiceSettings(modelId);

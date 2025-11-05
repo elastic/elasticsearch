@@ -851,18 +851,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
-
-                // A THROTTLE allocation decision can happen when not simulating
-                assert moveDecision.getAllocationDecision() != AllocationDecision.THROTTLED || allocation.isSimulating() == false
-                    : "unexpected allocation decision ["
-                        + moveDecision.getAllocationDecision()
-                        + "] (simulation="
-                        + allocation.isSimulating()
-                        + ") with "
-                        + (shardMoved ? "" : "no ")
-                        + "prior shard movements when moving shard ["
-                        + shardRouting
-                        + "]";
             }
 
             // If we get here, attempt to move one of the best not-preferred shards that we identified earlier

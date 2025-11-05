@@ -38,6 +38,8 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
         suppliers.add(allBucketsFilled());
         suppliers.add(nanBuckets_ignoreNan());
         suppliers.add(nanBuckets_zeroNan());
+        suppliers.add(inconsistentData());
+        suppliers.add(manyNans());
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 
@@ -56,7 +58,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
             List.of(DataType.DOUBLE, DataType.DOUBLE, DataType.INTEGER, DataType.INTEGER, DataType.DOUBLE),
             () -> {
                 int trialCount = randomIntBetween(1, 10);
-                int bucketCount = randomIntBetween(3, 10);
+                int bucketCount = randomIntBetween(4, 10);
                 double confidenceLevel = randomDoubleBetween(0.8, 0.95, true);
                 double bestEstimate = bucketCount / 2.0;
                 List<Double> estimates = IntStream.range(0, trialCount * bucketCount)
@@ -76,7 +78,8 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                     DataType.DOUBLE,
                     contains(
                         both(greaterThan(0.0)).and(lessThan(bestEstimate)),
-                        both(greaterThan(bestEstimate)).and(lessThan((double) bucketCount))
+                        both(greaterThan(bestEstimate)).and(lessThan((double) bucketCount)),
+                        closeTo(1.0, 1e-9)
                     )
                 );
             }
@@ -102,7 +105,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                 "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], trialCountBlock="
                     + "Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]",
                 DataType.DOUBLE,
-                contains(closeTo(1.8293144967855208, 1e-9), closeTo(2.164428203663303, 1e-9))
+                contains(closeTo(1.8293144967855208, 1e-9), closeTo(2.164428203663303, 1e-9), closeTo(1.0, 1e-9))
             )
         );
     }
@@ -126,7 +129,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                 "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], trialCountBlock="
                     + "Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]",
                 DataType.DOUBLE,
-                contains(closeTo(1.8443260740876288, 1e-9), closeTo(2.164997868635109, 1e-9))
+                contains(closeTo(1.8443260740876288, 1e-9), closeTo(2.164997868635109, 1e-9), closeTo(0.0, 1e-9))
             )
         );
     }
@@ -150,20 +153,44 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                 "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], trialCountBlock="
                     + "Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]",
                 DataType.DOUBLE,
-                contains(closeTo(0.4041519539094244, 1e-9), closeTo(1.6023321533418913, 1e-9))
+                contains(closeTo(0.4041519539094244, 1e-9), closeTo(1.6023321533418913, 1e-9), closeTo(0.0, 1e-9))
             )
         );
     }
 
     private static TestCaseSupplier inconsistentData() {
         return new TestCaseSupplier(
-            "nanBuckets_zeroNan",
+            "inconsistentData",
             List.of(DataType.DOUBLE, DataType.DOUBLE, DataType.INTEGER, DataType.INTEGER, DataType.DOUBLE),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(123.456, DataType.DOUBLE, "bestEstimate"),
                     new TestCaseSupplier.TypedData(
                         List.of(2.15, NaN, NaN, 2.49, 2.41, NaN, 2.29, NaN, 1.54, 1.97, 2.41, NaN, 1.55, NaN, 1.64),
+                        DataType.DOUBLE,
+                        "estimates"
+                    ),
+                    new TestCaseSupplier.TypedData(3, DataType.INTEGER, "trialCount"),
+                    new TestCaseSupplier.TypedData(5, DataType.INTEGER, "bucketCount"),
+                    new TestCaseSupplier.TypedData(0.8, DataType.DOUBLE, "confidence_level")
+                ),
+                "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], trialCountBlock="
+                    + "Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]",
+                DataType.DOUBLE,
+                nullValue()
+            )
+        );
+    }
+
+    private static TestCaseSupplier manyNans() {
+        return new TestCaseSupplier(
+            "manyNans",
+            List.of(DataType.DOUBLE, DataType.DOUBLE, DataType.INTEGER, DataType.INTEGER, DataType.DOUBLE),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(2.0, DataType.DOUBLE, "bestEstimate"),
+                    new TestCaseSupplier.TypedData(
+                        List.of(2.15, NaN, NaN, NaN, NaN, NaN, 2.29, NaN, NaN, NaN, 2.41, NaN, NaN, NaN, 1.64),
                         DataType.DOUBLE,
                         "estimates"
                     ),

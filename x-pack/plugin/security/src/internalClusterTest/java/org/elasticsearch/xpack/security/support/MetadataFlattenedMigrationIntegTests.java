@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
@@ -49,7 +48,7 @@ import static org.elasticsearch.xpack.security.support.SecurityMigrations.ROLE_M
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class MetadataFlattenedMigrationIT extends SecurityIntegTestCase {
+public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase {
 
     private final AtomicLong versionCounter = new AtomicLong(1);
 
@@ -63,7 +62,7 @@ public class MetadataFlattenedMigrationIT extends SecurityIntegTestCase {
         internalCluster().startNode();
         ensureGreen();
 
-        waitForMigrationCompletion(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
+        waitForMigrationCompletion();
         var roles = createRoles();
         final var nativeRoleStore = internalCluster().getInstance(NativeRolesStore.class);
 
@@ -99,7 +98,7 @@ public class MetadataFlattenedMigrationIT extends SecurityIntegTestCase {
 
             resetMigration();
             try {
-                waitForMigrationCompletion(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
+                waitForMigrationCompletion();
             } finally {
                 runUpdateRolesBackground.set(false);
                 executor.shutdown();
@@ -157,25 +156,17 @@ public class MetadataFlattenedMigrationIT extends SecurityIntegTestCase {
         return builder;
     }
 
-    private void assertMigrationVersionAtLeast(int expectedVersion) {
-        assertThat(getCurrentMigrationVersion(), greaterThanOrEqualTo(expectedVersion));
-    }
-
-    private int getCurrentMigrationVersion(ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().getProject().index(INTERNAL_SECURITY_MAIN_INDEX_7);
+    private int getCurrentMigrationVersion() {
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+        IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(INTERNAL_SECURITY_MAIN_INDEX_7);
         if (indexMetadata == null || indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) == null) {
             return 0;
         }
         return Integer.parseInt(indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY).get(MIGRATION_VERSION_CUSTOM_DATA_KEY));
     }
 
-    private int getCurrentMigrationVersion() {
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        return getCurrentMigrationVersion(clusterService.state());
-    }
-
-    private void waitForMigrationCompletion(int version) throws Exception {
-        assertBusy(() -> assertMigrationVersionAtLeast(version));
+    private void waitForMigrationCompletion() throws Exception {
+        assertBusy(() -> assertThat(getCurrentMigrationVersion(), greaterThanOrEqualTo(ROLE_METADATA_FLATTENED_MIGRATION_VERSION)));
     }
 
     private void assertAllRolesHaveMetadataFlattened() {

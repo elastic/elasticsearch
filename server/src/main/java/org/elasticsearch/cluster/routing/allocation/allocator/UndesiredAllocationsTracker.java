@@ -77,11 +77,9 @@ public class UndesiredAllocationsTracker {
      * Track an allocation as being undesired
      */
     public void trackUndesiredAllocation(ShardRouting shardRouting) {
-        if (undesiredAllocations.containsKey(shardRouting) == false) {
-            assert shardRouting.unassigned() == false : "Shouldn't record unassigned shards as undesired allocations";
-            if (undesiredAllocations.size() < maxUndesiredAllocationsToTrack) {
-                undesiredAllocations.put(shardRouting, timeProvider.relativeTimeInMillis());
-            }
+        assert shardRouting.unassigned() == false : "Shouldn't record unassigned shards as undesired allocations";
+        if (undesiredAllocations.containsKey(shardRouting) == false && undesiredAllocations.size() < maxUndesiredAllocationsToTrack) {
+            undesiredAllocations.put(shardRouting, timeProvider.relativeTimeInMillis());
         }
     }
 

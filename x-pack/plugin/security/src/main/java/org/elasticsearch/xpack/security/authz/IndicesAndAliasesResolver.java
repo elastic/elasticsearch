@@ -396,13 +396,13 @@ class IndicesAndAliasesResolver {
                             replaceable.getProjectRouting(),
                             authorizedProjects
                         );
-                        final var expr = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                        final var rewritten = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                             indexExpression,
                             resolvedProjects.originProjectAlias(),
                             resolvedProjects.allProjectAliases()
                         );
-                        remoteIndices = expr.remoteExpressions();
-                        if (resolvedProjects.originProject() == null || expr.localExpression() == null) {
+                        remoteIndices = rewritten.remoteExpressions();
+                        if (resolvedProjects.originProject() == null || rewritten.localExpression() == null) {
                             shouldExcludeLocalResolution = true;
                         }
                     }

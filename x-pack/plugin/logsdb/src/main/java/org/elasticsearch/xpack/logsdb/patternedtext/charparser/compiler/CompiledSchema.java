@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskReg
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenDelimiterCharParsingInfo;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToBitmaskMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.Schema;
 
@@ -44,6 +45,11 @@ public final class CompiledSchema {
      * This means that the array is sparse and only contains information for characters that are defined as delimiters in the schema.
      */
     public final SubTokenDelimiterCharParsingInfo[] subTokenDelimiterCharParsingInfos;
+
+    /**
+     * A fast-access map for retrieving the numeric value representation for String subTokens.
+     */
+    public final SubstringToBitmaskMap subTokenNumericValueRepresentation;
 
     /**
      * The maximum number of subTokens that can be parsed from a single token.
@@ -142,6 +148,7 @@ public final class CompiledSchema {
         int[] charToSubTokenBitmask,
         byte[] charToCharType,
         SubTokenDelimiterCharParsingInfo[] subTokenDelimiterCharParsingInfos,
+        SubstringToBitmaskMap subTokenNumericValueRepresentation,
         int maxSubTokensPerToken,
         int maxTokensPerMultiToken,
         int maxSubTokensPerMultiToken,
@@ -161,6 +168,7 @@ public final class CompiledSchema {
         this.charToSubTokenBitmask = charToSubTokenBitmask;
         this.charToCharType = charToCharType;
         this.subTokenDelimiterCharParsingInfos = subTokenDelimiterCharParsingInfos;
+        this.subTokenNumericValueRepresentation = subTokenNumericValueRepresentation;
         this.maxSubTokensPerToken = maxSubTokensPerToken;
         this.maxTokensPerMultiToken = maxTokensPerMultiToken;
         this.maxSubTokensPerMultiToken = maxSubTokensPerMultiToken;

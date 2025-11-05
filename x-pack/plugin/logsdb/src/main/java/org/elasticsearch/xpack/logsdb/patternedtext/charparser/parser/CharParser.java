@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.ToIntFunction;
 
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.DIGIT_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.LINE_END_CODE;
@@ -54,6 +55,7 @@ public final class CharParser implements Parser {
     private final byte[] charToCharType;
 
     private final SubTokenDelimiterCharParsingInfo[] subTokenDelimiterCharParsingInfos;
+    private final SubstringToBitmaskMap subTokenNumericValueRepresentationMap;
 
     // special bitmasks
     private final int intSubTokenBitmask;
@@ -97,6 +99,7 @@ public final class CharParser implements Parser {
         this.numUsedCharacters = this.charToSubTokenBitmask.length;
         this.charToCharType = compiledSchema.charToCharType;
         this.subTokenDelimiterCharParsingInfos = compiledSchema.subTokenDelimiterCharParsingInfos;
+        this.subTokenNumericValueRepresentationMap = compiledSchema.subTokenNumericValueRepresentation;
         this.intSubTokenBitmask = compiledSchema.intSubTokenBitmask;
         this.allSubTokenBitmask = subTokenBitmaskRegistry.getCombinedBitmask();
         this.allTokenBitmask = tokenBitmaskRegistry.getCombinedBitmask();
@@ -294,18 +297,18 @@ public final class CharParser implements Parser {
                             }
                         } else {
                             // general string subToken
-                            SubTokenEvaluator<SubstringView> subTokenEvaluator =
-                                subTokenDelimiterCharParsingInfo.subTokenEvaluatorPerSubTokenIndices[currentSubTokenIndex];
-                            if (subTokenEvaluator != null) {
+                            ToIntFunction<SubstringView> subTokenBitmaskGenerator =
+                                subTokenDelimiterCharParsingInfo.subTokenBitmaskGeneratorPerSubTokenIndices[currentSubTokenIndex];
+                            if (subTokenBitmaskGenerator != null) {
                                 substringView.set(currentSubTokenStartIndex, indexWithinRawMessage);
-                                int bitmaskNumericRepresentation = subTokenEvaluator.evaluate(substringView);
-                                if (bitmaskNumericRepresentation < 0) {
-                                    // the subToken is not valid, so we set the bitmask to 0
+                                int substringBitmask = subTokenBitmaskGenerator.applyAsInt(substringView);
+                                if (substringBitmask == 0) {
+                                    // not a valid subToken, so we set the bitmask to 0
                                     currentSubTokenBitmask = 0;
                                 } else {
                                     // the subToken is valid, so we set the bitmask to the evaluated value
-                                    currentSubTokenBitmask &= subTokenEvaluator.bitmask;
-                                    currentSubTokenIntValue = bitmaskNumericRepresentation;
+                                    currentSubTokenBitmask &= substringBitmask;
+                                    currentSubTokenIntValue = subTokenNumericValueRepresentationMap.applyAsInt(substringView);
                                 }
                             } else {
                                 // no bitmask generator for this subToken, meaning no known token expects this delimiter character

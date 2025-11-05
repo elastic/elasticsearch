@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.TimestampC
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskRegistry;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenDelimiterCharParsingInfo;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenEvaluator;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToBitmaskMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TimestampFormat;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TokenType;
@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenForma
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.IntConstraint;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.IntConstraints;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.StringConstraint;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.StringToIntMapConstraint;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.ALPHABETIC_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.DIGIT_CHAR_CODE;
@@ -50,6 +52,7 @@ public class SchemaCompiler {
     public static final String INTEGER_SUBTOKEN_NAME = "integer";
     public static final String HEX_SUBTOKEN_NAME = "hex";
 
+    // todo - try to break this method into smaller methods
     public static CompiledSchema compile(Schema schema) {
 
         byte[] charToCharType = new byte[ASCII_RANGE];
@@ -63,11 +66,13 @@ public class SchemaCompiler {
         Map<Character, ArrayList<Integer>> delimiterCharToTokenBitmaskPerSubTokenIndex = new HashMap<>();
         // for each token format, the last subToken is not identified by a subToken delimiter, but rather by a token delimiter
         ArrayList<Integer> tokenBitmaskForLastSubToken = new ArrayList<>();
-        // for each delimiter char, we store a list of sub token evaluators that can generate the token bitmask for this delimiter at
-        // each subToken index within the token format.
-        Map<Character, ArrayList<SubTokenEvaluator<SubstringView>>> delimiterCharToSubTokenEvaluatorPerSubTokenIndex = new HashMap<>();
+        // for each delimiter char, we store a list of functions that can generate a token bitmask based on the string value of the
+        // subToken, the subToken index, and the delimiter char
+        Map<Character, ArrayList<SubstringToBitmaskChain.Builder>> delimiterCharToBitmaskGeneratorPerSubTokenIndex = new HashMap<>();
         // for each token format, the last subToken is not identified by a subToken delimiter, but rather by a token delimiter
-        ArrayList<SubTokenEvaluator<SubstringView>> subTokenEvaluatorForLastSubToken = new ArrayList<>();
+        ArrayList<SubstringToBitmaskChain.Builder> bitmaskGeneratorForLastSubToken = new ArrayList<>();
+        // a global map for all string subToken types, that maps a string value to the corresponding subToken bitmask
+        SubstringToBitmaskMap.Builder subTokenValueToBitmaskMapBuilder = SubstringToBitmaskMap.builder();
 
         int allSubTokenBitmask = 0;
         int intSubTokenBitmask;
@@ -280,40 +285,41 @@ public class SchemaCompiler {
 
             StringConstraint stringConstraint = subTokenType.getStringConstraint();
             if (stringConstraint != null) {
-                SubTokenEvaluator<SubstringView> tokenSubTokenEvaluator = SubTokenEvaluatorFactory.from(subTokenBitmask, stringConstraint);
                 Map<Character, Set<Integer>> delimiterCharToPositions = subTokenTypeToDelimiterCharToPositions.get(subTokenType);
                 if (delimiterCharToPositions != null) {
                     for (Map.Entry<Character, Set<Integer>> entry : delimiterCharToPositions.entrySet()) {
                         char subTokenDelimiter = entry.getKey();
-                        ArrayList<SubTokenEvaluator<SubstringView>> subTokenEvaluatorPerSubTokenIndex =
-                            delimiterCharToSubTokenEvaluatorPerSubTokenIndex.computeIfAbsent(subTokenDelimiter, input -> new ArrayList<>());
+                        ArrayList<SubstringToBitmaskChain.Builder> bitmaskGeneratorPerSubTokenIndex =
+                            delimiterCharToBitmaskGeneratorPerSubTokenIndex.computeIfAbsent(subTokenDelimiter, input -> new ArrayList<>());
                         Set<Integer> positions = entry.getValue();
-                        positions.forEach(position -> {
-                            fillListUpToIndex(subTokenEvaluatorPerSubTokenIndex, position, () -> null);
-                            SubTokenEvaluator<SubstringView> existingEvaluator = subTokenEvaluatorPerSubTokenIndex.get(position);
-                            subTokenEvaluatorPerSubTokenIndex.set(
-                                position,
-                                // todo - the usage of or operator is flawed here, as it uses a combined bitmask for the chained evaluators,
-                                // while what we really need is a chain the returns the combined bitmask of only evaluators that produce
-                                // a non-negative value
-                                existingEvaluator == null ? tokenSubTokenEvaluator : existingEvaluator.or(tokenSubTokenEvaluator)
-                            );
-                        });
+                        fillListUpToIndex(bitmaskGeneratorPerSubTokenIndex, Collections.max(positions), () -> null);
+                        addConstraintToChain(bitmaskGeneratorPerSubTokenIndex, subTokenBitmask, stringConstraint, positions);
                     }
                 }
                 // for the last subToken, we use the token delimiter to identify it, so we add it to the subTokenEvaluatorForLastSubToken
                 Set<Integer> lastPositionIndices = subTokenTypeToLastSubTokenIndex.get(subTokenType);
                 if (lastPositionIndices != null) {
-                    lastPositionIndices.forEach(position -> {
-                        fillListUpToIndex(subTokenEvaluatorForLastSubToken, position, () -> null);
-                        SubTokenEvaluator<SubstringView> existingEvaluator = subTokenEvaluatorForLastSubToken.get(position);
-                        subTokenEvaluatorForLastSubToken.set(
-                            position,
-                            // todo - the usage of or operator is flawed here, as it uses a combined bitmask for the chained evaluators,
-                            // while what we really need is a chain the returns the combined bitmask of only evaluators that produce
-                            // a non-negative value
-                            existingEvaluator == null ? tokenSubTokenEvaluator : existingEvaluator.or(tokenSubTokenEvaluator)
-                        );
+                    fillListUpToIndex(bitmaskGeneratorForLastSubToken, Collections.max(lastPositionIndices), () -> null);
+                    addConstraintToChain(bitmaskGeneratorForLastSubToken, subTokenBitmask, stringConstraint, lastPositionIndices);
+                }
+
+                // add mapping for string subTokens that map specific string values to specific numeric values
+                if (stringConstraint instanceof StringToIntMapConstraint(Map<String, Integer> map)) {
+                    map.forEach((key, value) -> {
+                        Integer existing = subTokenValueToBitmaskMapBuilder.get(key);
+                        if (existing != null) {
+                            throw new IllegalArgumentException(
+                                "SubToken value '"
+                                    + key
+                                    + "' is mapped to multiple numeric values: "
+                                    + existing
+                                    + " and "
+                                    + value
+                                    + ". Each subToken value can only be mapped to a single bitmask."
+                            );
+                        } else {
+                            subTokenValueToBitmaskMapBuilder.add(key, value);
+                        }
                     });
                 }
             }
@@ -335,20 +341,16 @@ public class SchemaCompiler {
                     }
                     tokenBitmaskPerSubTokenIndex = tokenBitmaskPerSubTokenIndexArray.stream().mapToInt(Integer::intValue).toArray();
                 }
-                ArrayList<SubTokenEvaluator<SubstringView>> tokenSubTokenEvaluatorPerSubTokenIndexArray =
-                    delimiterCharToSubTokenEvaluatorPerSubTokenIndex.get(delimiter);
-                @SuppressWarnings({ "unchecked", "rawtypes" })
-                SubTokenEvaluator<SubstringView>[] tokenSubTokenEvaluatorPerSubTokenIndices = new SubTokenEvaluator[maxSubTokensPerToken];
-                if (tokenSubTokenEvaluatorPerSubTokenIndexArray != null) {
-                    fillListUpToIndex(tokenSubTokenEvaluatorPerSubTokenIndexArray, maxSubTokensPerToken - 1, () -> null);
-                    for (int i = 0; i < tokenSubTokenEvaluatorPerSubTokenIndexArray.size(); i++) {
-                        tokenSubTokenEvaluatorPerSubTokenIndices[i] = tokenSubTokenEvaluatorPerSubTokenIndexArray.get(i);
-                    }
-                }
+                ArrayList<SubstringToBitmaskChain.Builder> subTokenBitmaskGeneratorPerSubTokenIndexList =
+                    delimiterCharToBitmaskGeneratorPerSubTokenIndex.get(delimiter);
+                ToIntFunction<SubstringView>[] subTokenBitmaskGeneratorPerSubTokenIndices = turnChainBuilderListToFunctionArray(
+                    subTokenBitmaskGeneratorPerSubTokenIndexList,
+                    maxSubTokensPerToken
+                );
                 subTokenDelimiterCharParsingInfos[delimiter] = new SubTokenDelimiterCharParsingInfo(
                     delimiter,
                     tokenBitmaskPerSubTokenIndex,
-                    tokenSubTokenEvaluatorPerSubTokenIndices
+                    subTokenBitmaskGeneratorPerSubTokenIndices
                 );
             } else {
                 throw new IllegalArgumentException(
@@ -358,9 +360,9 @@ public class SchemaCompiler {
         }
 
         int[] tokenBitmaskPerSubTokenIndex = tokenBitmaskForLastSubToken.stream().mapToInt(Integer::intValue).toArray();
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        SubTokenEvaluator<SubstringView>[] subTokenEvaluatorPerSubTokenIndex = subTokenEvaluatorForLastSubToken.toArray(
-            new SubTokenEvaluator[0]
+        ToIntFunction<SubstringView>[] subTokenBitmaskGeneratorForLastIndex = turnChainBuilderListToFunctionArray(
+            bitmaskGeneratorForLastSubToken,
+            maxSubTokensPerToken
         );
         for (char delimiter : schema.getTokenDelimiters()) {
             if (delimiter < ASCII_RANGE) {
@@ -370,7 +372,7 @@ public class SchemaCompiler {
                 SubTokenDelimiterCharParsingInfo tokenDelimiterCharParsingInfo = new SubTokenDelimiterCharParsingInfo(
                     delimiter,
                     tokenBitmaskPerSubTokenIndex,
-                    subTokenEvaluatorPerSubTokenIndex
+                    subTokenBitmaskGeneratorForLastIndex
                 );
                 subTokenDelimiterCharParsingInfos[delimiter] = tokenDelimiterCharParsingInfo;
             } else {
@@ -456,6 +458,7 @@ public class SchemaCompiler {
             charToSubTokenBitmask,
             charToCharType,
             subTokenDelimiterCharParsingInfos,
+            subTokenValueToBitmaskMapBuilder.build(),
             maxSubTokensPerToken,
             maxTokensPerMultiToken,
             maxSubTokensPerMultiToken,
@@ -472,6 +475,30 @@ public class SchemaCompiler {
             tokenBitmaskRegistry,
             multiTokenBitmaskRegistry
         );
+    }
+
+    /**
+     * Adds a string constraint to the all chains at the specified positions.
+     * The addition step actually includes the compilation of the constraint into a runtime evaluation function.
+     * @param chainForIndex the list of chains, one per subToken index
+     * @param subTokenBitmask the subToken bitmask associated with the constraint
+     * @param stringConstraint the string constraint to compile and add
+     * @param positionIndices the delimiter positions within the subToken type where the constraint should be added
+     */
+    private static void addConstraintToChain(
+        ArrayList<SubstringToBitmaskChain.Builder> chainForIndex,
+        int subTokenBitmask,
+        StringConstraint stringConstraint,
+        Set<Integer> positionIndices
+    ) {
+        positionIndices.forEach(position -> {
+            SubstringToBitmaskChain.Builder chainBuilder = chainForIndex.get(position);
+            if (chainBuilder == null) {
+                chainBuilder = SubstringToBitmaskChain.builder();
+                chainForIndex.set(position, chainBuilder);
+            }
+            chainBuilder.add(stringConstraint, subTokenBitmask);
+        });
     }
 
     public static byte getCharCode(char c, Schema schema) {
@@ -527,6 +554,25 @@ public class SchemaCompiler {
         while (list.size() <= index) {
             list.addLast(supplier.get());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ToIntFunction<SubstringView>[] turnChainBuilderListToFunctionArray(
+        ArrayList<SubstringToBitmaskChain.Builder> buildersList,
+        int maxSubTokensPerToken
+    ) {
+        if (buildersList != null) {
+            ArrayList<ToIntFunction<SubstringView>> tmpList = new ArrayList<>();
+            fillListUpToIndex(tmpList, maxSubTokensPerToken - 1, () -> null);
+            for (int i = 0; i < buildersList.size(); i++) {
+                SubstringToBitmaskChain.Builder chainBuilder = buildersList.get(i);
+                if (chainBuilder != null) {
+                    tmpList.set(i, chainBuilder.build());
+                }
+            }
+            return tmpList.toArray(ToIntFunction[]::new);
+        }
+        return null;
     }
 
     // ===================================================== int ranges =============================================================
@@ -608,6 +654,7 @@ public class SchemaCompiler {
             return new IntRangeBitmask(new IntConstraints.Range(lowerBound, upperBound), bitmask);
         }
 
+        @SuppressWarnings("NullableProblems")
         @Override
         public String toString() {
             return "IntRangeBitmask{" + "range=" + range + ", bitmask=" + Integer.toBinaryString(bitmask) + '}';

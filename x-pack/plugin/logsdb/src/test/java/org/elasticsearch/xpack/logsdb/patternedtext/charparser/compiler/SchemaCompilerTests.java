@@ -13,117 +13,20 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.TimestampC
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskRegistry;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenDelimiterCharParsingInfo;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenEvaluator;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToBitmaskMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TimestampFormat;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.MultiTokenFormat;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.PatternUtils;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.Schema;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.EqualsStringConstraint;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.LengthStringConstraint;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.NotEqualsStringConstraint;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.StringConstraint;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.StringSetConstraint;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.StringToIntMapConstraint;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.function.ToIntFunction;
 
 public class SchemaCompilerTests extends ESTestCase {
-
-    public void testCreateSubTokenEvaluatorEqualsConstraint() {
-        StringConstraint constraint = new EqualsStringConstraint("test");
-        SubTokenEvaluator<SubstringView> evaluator = SubTokenEvaluatorFactory.from(0x01, constraint);
-
-        assertEquals(0x01, evaluator.bitmask);
-        assertTrue(evaluator.evaluate(new SubstringView("test")) >= 0);
-        assertTrue(evaluator.evaluate(new SubstringView("other")) < 0);
-    }
-
-    public void testCreateSubTokenEvaluatorNotEqualsConstraint() {
-        StringConstraint constraint = new NotEqualsStringConstraint("test");
-        SubTokenEvaluator<SubstringView> evaluator = SubTokenEvaluatorFactory.from(0x02, constraint);
-
-        assertEquals(0x02, evaluator.bitmask);
-        assertTrue(evaluator.evaluate(new SubstringView("other")) >= 0);
-        assertTrue(evaluator.evaluate(new SubstringView("test")) < 0);
-    }
-
-    public void testCreateSubTokenEvaluatorSetConstraint() {
-        StringConstraint constraint = new StringSetConstraint(Set.of("One", "Two", "Three"));
-        SubTokenEvaluator<SubstringView> evaluator = SubTokenEvaluatorFactory.from(0x04, constraint);
-
-        assertEquals(0x04, evaluator.bitmask);
-        assertEquals(1, evaluator.evaluate(new SubstringView("One")));
-        assertEquals(1, evaluator.evaluate(new SubstringView("Two")));
-        assertEquals(1, evaluator.evaluate(new SubstringView("Three")));
-        assertTrue(evaluator.evaluate(new SubstringView("Four")) < 0);
-    }
-
-    public void testCreateSubTokenEvaluatorMapConstraint() {
-        StringConstraint constraint = new StringToIntMapConstraint(Map.of("One", 1, "Two", 2, "Three", 3));
-        SubTokenEvaluator<SubstringView> evaluator = SubTokenEvaluatorFactory.from(0x08, constraint);
-
-        assertEquals(0x08, evaluator.bitmask);
-        assertEquals(1, evaluator.evaluate(new SubstringView("One")));
-        assertEquals(2, evaluator.evaluate(new SubstringView("Two")));
-        assertEquals(3, evaluator.evaluate(new SubstringView("Three")));
-        assertTrue(evaluator.evaluate(new SubstringView("Four")) < 0);
-    }
-
-    public void testCreateSubTokenEvaluatorLengthConstraint() {
-        StringConstraint constraint = new LengthStringConstraint(3);
-        SubTokenEvaluator<SubstringView> evaluator = SubTokenEvaluatorFactory.from(0x08, constraint);
-
-        assertEquals(0x08, evaluator.bitmask);
-        assertTrue(evaluator.evaluate(new SubstringView("abc")) >= 0);
-        assertTrue(evaluator.evaluate(new SubstringView("abcd")) < 0);
-    }
-
-    public void testCreateSubTokenEvaluatorAndConstraint() {
-        StringConstraint constraint1 = new EqualsStringConstraint("test");
-        StringConstraint constraint2 = new LengthStringConstraint(4);
-        StringConstraint combined = constraint1.and(constraint2);
-
-        SubTokenEvaluator<SubstringView> evaluator = SubTokenEvaluatorFactory.from(0x10, combined);
-
-        assertEquals(0x10, evaluator.bitmask);
-        assertTrue(evaluator.evaluate(new SubstringView("test")) >= 0);
-        assertTrue(evaluator.evaluate(new SubstringView("testing")) < 0);
-        assertTrue(evaluator.evaluate(new SubstringView("Test")) < 0);
-    }
-
-    public void testCreateSubTokenEvaluatorOrConstraint() {
-        StringConstraint constraint1 = new EqualsStringConstraint("test");
-        StringConstraint constraint2 = new EqualsStringConstraint("Test");
-        StringConstraint combined = constraint1.or(constraint2);
-
-        SubTokenEvaluator<SubstringView> evaluator = SubTokenEvaluatorFactory.from(0x20, combined);
-
-        assertEquals(0x20, evaluator.bitmask);
-        assertTrue(evaluator.evaluate(new SubstringView("test")) >= 0);
-        assertTrue(evaluator.evaluate(new SubstringView("Test")) >= 0);
-        assertTrue(evaluator.evaluate(new SubstringView("testing")) < 0);
-    }
-
-    public void testCreateSubTokenEvaluatorComplexAndOrConstraint() {
-        StringConstraint constraint1 = new EqualsStringConstraint("One");
-        StringConstraint constraint2 = new StringSetConstraint(Set.of("One", "Two", "Three"));
-        StringConstraint constraint3 = new LengthStringConstraint(4);
-        StringConstraint combined = constraint1.and(constraint2).or(constraint3);
-
-        SubTokenEvaluator<SubstringView> evaluator = SubTokenEvaluatorFactory.from(0x40, combined);
-
-        assertEquals(0x40, evaluator.bitmask);
-        assertTrue(evaluator.evaluate(new SubstringView("One")) >= 0);
-        assertTrue(evaluator.evaluate(new SubstringView("Four")) >= 0);
-        assertTrue(evaluator.evaluate(new SubstringView("Two")) < 0);
-        assertTrue(evaluator.evaluate(new SubstringView("Three")) < 0);
-    }
 
     public void testMergeIntRangeBitmasks_OverlappingRanges() {
         ArrayList<SchemaCompiler.IntRangeBitmask> input = new ArrayList<>();
@@ -340,9 +243,6 @@ public class SchemaCompilerTests extends ESTestCase {
         assertNotNull(subTokenDelimiterCharParsingInfos);
         SubTokenDelimiterCharParsingInfo spaceDelimiterInfo = subTokenDelimiterCharParsingInfos[' '];
 
-        SubTokenEvaluator<SubstringView> subTokenEvaluator_Space_0 = spaceDelimiterInfo.subTokenEvaluatorPerSubTokenIndices[0];
-        assertNotEquals(0x00, Mon_subToken_bitmask & subTokenEvaluator_Space_0.bitmask);
-
         BitmaskRegistry<TokenType> tokenBitmaskRegistry = compiledSchema.tokenBitmaskRegistry;
 
         tokenBitmaskRegistry.getAllRegisteredTypes().forEach(tokenType -> {
@@ -385,53 +285,63 @@ public class SchemaCompilerTests extends ESTestCase {
         // UUID standard format is defined in the schema as: "(%X{8})-(%X{4})-(%X{4})-(%X{4})-(%X{12})"
         int tokenBitmaskForUUID = tokenBitmaskRegistry.getCombinedBitmask();
         String testUuid = "123e4567-e89b-12d3-a456-426614174000";
-        SubTokenEvaluator<SubstringView>[] dashTokenSubTokenEvaluatorPerIndex = dashDelimiterInfo.subTokenEvaluatorPerSubTokenIndices;
-        assertNotNull(dashTokenSubTokenEvaluatorPerIndex);
-        SubTokenEvaluator<SubstringView> subTokenEvaluator = dashTokenSubTokenEvaluatorPerIndex[0];
-        assertNotNull(subTokenEvaluator);
+        ToIntFunction<SubstringView>[] dashSubTokenBitmaskGeneratorPerIndex = dashDelimiterInfo.subTokenBitmaskGeneratorPerSubTokenIndices;
+        assertNotNull(dashSubTokenBitmaskGeneratorPerIndex);
+        ToIntFunction<SubstringView> subTokenBitmaskGenerator = dashSubTokenBitmaskGeneratorPerIndex[0];
+        assertNotNull(subTokenBitmaskGenerator);
         int firstSubTokenBitmask = subTokenBitmaskRegistry.getBitmask(
             org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.SubTokenType.ADHOC_PREFIX + "%X{8}"
         );
         assertNotEquals(0x00, firstSubTokenBitmask);
-        assertTrue(subTokenEvaluator.evaluate(new SubstringView(testUuid, 0, 8)) >= 0);
-        assertTrue(subTokenEvaluator.evaluate(new SubstringView(testUuid, 0, 7)) < 0);
-        assertNotEquals(0x00, subTokenEvaluator.bitmask & firstSubTokenBitmask);
+        assertEquals(0, subTokenBitmaskGenerator.applyAsInt(new SubstringView(testUuid, 0, 7)));
+        SubstringView testedSubstring = new SubstringView(testUuid, 0, 8);
+        assertTrue(subTokenBitmaskGenerator.applyAsInt(testedSubstring) > 0);
+        assertNotEquals(0x00, subTokenBitmaskGenerator.applyAsInt(testedSubstring) & firstSubTokenBitmask);
         tokenBitmaskForUUID &= subTokenBitmaskRegistry.getHigherLevelBitmaskByPosition(firstSubTokenBitmask, 0);
-        subTokenEvaluator = dashTokenSubTokenEvaluatorPerIndex[1];
-        assertNotNull(subTokenEvaluator);
+        subTokenBitmaskGenerator = dashSubTokenBitmaskGeneratorPerIndex[1];
+        assertNotNull(subTokenBitmaskGenerator);
         int middleSubTokensBitmask = subTokenBitmaskRegistry.getBitmask(
             org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.SubTokenType.ADHOC_PREFIX + "%X{4}"
         );
-        assertTrue(subTokenEvaluator.evaluate(new SubstringView(testUuid, 9, 13)) >= 0);
-        assertTrue(subTokenEvaluator.evaluate(new SubstringView(testUuid, 9, 12)) < 0);
-        assertNotEquals(0x00, subTokenEvaluator.bitmask & middleSubTokensBitmask);
+        assertEquals(0, subTokenBitmaskGenerator.applyAsInt(new SubstringView(testUuid, 9, 12)));
+        testedSubstring = new SubstringView(testUuid, 9, 13);
+        assertTrue(subTokenBitmaskGenerator.applyAsInt(testedSubstring) > 0);
+        assertNotEquals(0x00, subTokenBitmaskGenerator.applyAsInt(testedSubstring) & middleSubTokensBitmask);
         tokenBitmaskForUUID &= subTokenBitmaskRegistry.getHigherLevelBitmaskByPosition(middleSubTokensBitmask, 1);
-        subTokenEvaluator = dashTokenSubTokenEvaluatorPerIndex[2];
-        assertNotNull(subTokenEvaluator);
-        assertTrue(subTokenEvaluator.evaluate(new SubstringView(testUuid, 14, 18)) >= 0);
-        assertTrue(subTokenEvaluator.evaluate(new SubstringView(testUuid, 14, 17)) < 0);
-        assertNotEquals(0x00, subTokenEvaluator.bitmask & middleSubTokensBitmask);
+        subTokenBitmaskGenerator = dashSubTokenBitmaskGeneratorPerIndex[2];
+        assertNotNull(subTokenBitmaskGenerator);
+        assertEquals(0, subTokenBitmaskGenerator.applyAsInt(new SubstringView(testUuid, 14, 17)));
+        testedSubstring = new SubstringView(testUuid, 14, 18);
+        assertTrue(subTokenBitmaskGenerator.applyAsInt(testedSubstring) > 0);
+        assertNotEquals(0x00, subTokenBitmaskGenerator.applyAsInt(testedSubstring) & middleSubTokensBitmask);
         tokenBitmaskForUUID &= subTokenBitmaskRegistry.getHigherLevelBitmaskByPosition(middleSubTokensBitmask, 2);
-        subTokenEvaluator = dashTokenSubTokenEvaluatorPerIndex[3];
-        assertNotNull(subTokenEvaluator);
-        assertTrue(subTokenEvaluator.evaluate(new SubstringView(testUuid, 19, 23)) >= 0);
-        assertTrue(subTokenEvaluator.evaluate(new SubstringView(testUuid, 19, 22)) < 0);
-        assertNotEquals(0x00, subTokenEvaluator.bitmask & middleSubTokensBitmask);
+        subTokenBitmaskGenerator = dashSubTokenBitmaskGeneratorPerIndex[3];
+        assertNotNull(subTokenBitmaskGenerator);
+        assertEquals(0, subTokenBitmaskGenerator.applyAsInt(new SubstringView(testUuid, 19, 22)));
+        testedSubstring = new SubstringView(testUuid, 19, 23);
+        assertTrue(subTokenBitmaskGenerator.applyAsInt(testedSubstring) > 0);
+        assertNotEquals(0x00, subTokenBitmaskGenerator.applyAsInt(testedSubstring) & middleSubTokensBitmask);
         tokenBitmaskForUUID &= subTokenBitmaskRegistry.getHigherLevelBitmaskByPosition(middleSubTokensBitmask, 3);
         // the fifth sub-token of a UUID should be tested against the token (not sub-token) delimiter info because it is the last sub-token
         int lastSubTokenBitmask = subTokenBitmaskRegistry.getBitmask(
             org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.SubTokenType.ADHOC_PREFIX + "%X{12}"
         );
-        subTokenEvaluator = dashTokenSubTokenEvaluatorPerIndex[4];
-        assertNull(subTokenEvaluator);
-        subTokenEvaluator = spaceDelimiterInfo.subTokenEvaluatorPerSubTokenIndices[4];
-        assertNotNull(subTokenEvaluator);
-        assertTrue(subTokenEvaluator.evaluate(new SubstringView(testUuid, 24, 36)) >= 0);
-        assertTrue(subTokenEvaluator.evaluate(new SubstringView(testUuid, 24, 35)) < 0);
-        assertNotEquals(0x00, subTokenEvaluator.bitmask & lastSubTokenBitmask);
+        subTokenBitmaskGenerator = dashSubTokenBitmaskGeneratorPerIndex[4];
+        assertNull(subTokenBitmaskGenerator);
+        subTokenBitmaskGenerator = spaceDelimiterInfo.subTokenBitmaskGeneratorPerSubTokenIndices[4];
+        assertNotNull(subTokenBitmaskGenerator);
+        assertEquals(0, subTokenBitmaskGenerator.applyAsInt(new SubstringView(testUuid, 24, 35)));
+        testedSubstring = new SubstringView(testUuid, 24, 36);
+        assertTrue(subTokenBitmaskGenerator.applyAsInt(testedSubstring) > 0);
+        assertNotEquals(0x00, subTokenBitmaskGenerator.applyAsInt(testedSubstring) & lastSubTokenBitmask);
         tokenBitmaskForUUID &= subTokenBitmaskRegistry.getHigherLevelBitmaskByPosition(lastSubTokenBitmask, 4);
         tokenBitmaskForUUID &= compiledSchema.subTokenCountToTokenBitmask[4];
         assertEquals("The combined UUID token bitmask should match the expected UUID bitmask", uuid_bitmask, tokenBitmaskForUUID);
+
+        SubstringToBitmaskMap subTokenNumericValueRepresentation = compiledSchema.subTokenNumericValueRepresentation;
+        assertEquals(3, subTokenNumericValueRepresentation.applyAsInt(new SubstringView("Mar")));
+        assertEquals(0, subTokenNumericValueRepresentation.applyAsInt(new SubstringView("Mac")));
+        assertEquals(200, subTokenNumericValueRepresentation.applyAsInt(new SubstringView("CEST")));
 
         // Mon
         assertNotEquals(0x00, tokenBitmaskPerSubTokenIndex_space[0] & Mon_token_bitmask);
@@ -440,7 +350,6 @@ public class SchemaCompilerTests extends ESTestCase {
         assertEquals(0x00, tokenBitmaskPerSubTokenIndex_space[1] & Mon_token_bitmask);
         assertEquals(0x00, tokenBitmaskPerSubTokenIndex_dot[1] & Mon_token_bitmask);
         assertEquals(0x00, tokenBitmaskPerSubTokenIndex_dash[1] & Mon_token_bitmask);
-        // todo - verify that using the single Mon sub-token bitmask we get the expected Mon token bitmask
 
         int[] subTokenCountToTokenBitmask = compiledSchema.subTokenCountToTokenBitmask;
         assertEquals(0x00, subTokenCountToTokenBitmask[2] & ipv4_bitmask);

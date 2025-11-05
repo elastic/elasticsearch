@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser;
 
+import java.util.function.ToIntFunction;
+
 /**
  * An immutable class that holds information about a subToken delimiter character.
  */
@@ -25,22 +27,22 @@ public final class SubTokenDelimiterCharParsingInfo {
     public final int[] tokenBitmaskPerSubTokenIndex;
 
     /**
-     * A fast-access lookup table for finding the token bitmask generator based on the subToken index.
-     * This array contains instances of {@link SubTokenEvaluator} for each subToken index, specific to the delimiter character represented
+     * A fast-access lookup table for finding the sub-token bitmask generator based on the subToken index.
+     * This array contains instances of {@link ToIntFunction} for each subToken index, specific to the delimiter character represented
      * by the current instance.
      * The index in the array corresponds to the index of the subToken within the parsed token.
-     * For example, the generator at index 2 is used to generate the bitmask for the third subToken of the currently parsed token.
+     * For example, the generator function at index 2 is used to generate the bitmask for the third subToken of the currently parsed token.
      * This array is relevant only for subTokens of type string.
      */
-    public final SubTokenEvaluator<SubstringView>[] subTokenEvaluatorPerSubTokenIndices;
+    public final ToIntFunction<SubstringView>[] subTokenBitmaskGeneratorPerSubTokenIndices;
 
     public SubTokenDelimiterCharParsingInfo(
         char character,
         int[] tokenBitmaskPerSubTokenIndex,
-        SubTokenEvaluator<SubstringView>[] subTokenEvaluatorPerSubTokenIndices
+        ToIntFunction<SubstringView>[] subTokenBitmaskGeneratorPerSubTokenIndices
     ) {
         this.character = character;
         this.tokenBitmaskPerSubTokenIndex = tokenBitmaskPerSubTokenIndex;
-        this.subTokenEvaluatorPerSubTokenIndices = subTokenEvaluatorPerSubTokenIndices;
+        this.subTokenBitmaskGeneratorPerSubTokenIndices = subTokenBitmaskGeneratorPerSubTokenIndices;
     }
 }

@@ -679,12 +679,23 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         );
 
         {
+            // From a version before the rerouting logic was added
+            InferenceAction.Request deserializedInstance = copyWriteable(
+                instance,
+                getNamedWriteableRegistry(),
+                instanceReader(),
+                TransportVersions.V_8_17_0
+            );
+
+            assertEquals(instance, deserializedInstance);
+        }
+        {
             // From a version with rerouting
             InferenceAction.Request deserializedInstance = copyWriteable(
                 instance,
                 getNamedWriteableRegistry(),
                 instanceReader(),
-                TransportVersion.minimumCompatible()
+                TransportVersions.V_8_18_0
             );
 
             assertEquals(instance, deserializedInstance);

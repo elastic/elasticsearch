@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.node.ReportingService;
@@ -41,7 +42,11 @@ public class PluginsAndModules implements ReportingService.Info {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(plugins);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+            out.writeCollection(plugins);
+        } else {
+            out.writeCollection(plugins.stream().map(PluginRuntimeInfo::descriptor).toList());
+        }
         out.writeCollection(modules);
     }
 

@@ -38,6 +38,7 @@ dependencies {
   api project(":libs:plugin-analysis-api")
   api project(':libs:grok')
   api project(":libs:tdigest")
+  api project(":libs:exponential-histogram")
   implementation project(":libs:simdvec")
   implementation project(":libs:entitlement")
 
@@ -77,6 +78,11 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
   }
+  testImplementation(testArtifact(project(":libs:exponential-histogram"))) {
+    // The test framework is manually included with excludes above
+    exclude group: 'org.elasticsearch.test', module: 'framework'
+  }
+
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
@@ -145,30 +151,6 @@ if (buildParams.snapshotBuild == false) {
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
-  filter {
-    excludeTestsMatching("*.TransportServiceHandshakeTests.testAcceptsMismatchedServerlessBuildHash")
-  }
-  excludes << '**/IndexSettingsOverrideTests.class'
-}
-
-// There are tests rely on system properties to be configured differently. They must run in a separate test job
-// since the default does not work for them and configuring the system properties inside the test class/method
-// is too late because fields based on the system properties are often initialized statically.
-TaskProvider<Test> systemPropertiesOverrideTest = tasks.register("systemPropertiesOverrideTest", Test) {
-  include '**/IndexSettingsOverrideTests.class'
-  include '**/TransportServiceHandshakeTests.class'
-  filter {
-    includeTestsMatching("*.TransportServiceHandshakeTests.testAcceptsMismatchedServerlessBuildHash")
-    includeTestsMatching("*.IndexSettingsOverrideTests.*")
-  }
-  systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
-  systemProperty 'es.serverless_transport', 'true'
-  classpath = sourceSets.test.runtimeClasspath
-  testClassesDirs = sourceSets.test.output.classesDirs
-}
-
-tasks.named("check").configure {
-  dependsOn(systemPropertiesOverrideTest)
 }
 
 tasks.named("thirdPartyAudit").configure {

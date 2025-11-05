@@ -60,7 +60,8 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
-    KnnVectorsFormat format;
+
+    private KnnVectorsFormat format;
 
     @Before
     @Override

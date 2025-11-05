@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -26,6 +25,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -53,13 +53,7 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
 
         assertThat(
             serviceSettings,
-            is(
-                new HuggingFaceChatCompletionServiceSettings(
-                    MODEL_ID,
-                    ServiceUtils.createUri(CORRECT_URL),
-                    new RateLimitSettings(RATE_LIMIT)
-                )
-            )
+            is(new HuggingFaceChatCompletionServiceSettings(MODEL_ID, createUri(CORRECT_URL), new RateLimitSettings(RATE_LIMIT)))
         );
     }
 
@@ -78,7 +72,7 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
 
         assertThat(
             serviceSettings,
-            is(new HuggingFaceChatCompletionServiceSettings(null, ServiceUtils.createUri(CORRECT_URL), new RateLimitSettings(RATE_LIMIT)))
+            is(new HuggingFaceChatCompletionServiceSettings(null, createUri(CORRECT_URL), new RateLimitSettings(RATE_LIMIT)))
         );
     }
 
@@ -88,7 +82,7 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new HuggingFaceChatCompletionServiceSettings(MODEL_ID, ServiceUtils.createUri(CORRECT_URL), null)));
+        assertThat(serviceSettings, is(new HuggingFaceChatCompletionServiceSettings(MODEL_ID, createUri(CORRECT_URL), null)));
     }
 
     public void testFromMap_MissingUrl_ThrowsException() {
@@ -239,7 +233,17 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
     @Override
     protected HuggingFaceChatCompletionServiceSettings mutateInstance(HuggingFaceChatCompletionServiceSettings instance)
         throws IOException {
-        return randomValueOtherThan(instance, HuggingFaceChatCompletionServiceSettingsTests::createRandomWithNonNullUrl);
+        var modelId = instance.modelId();
+        var uri = instance.uri();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(2)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(8));
+            case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new HuggingFaceChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
     }
 
     @Override
@@ -257,7 +261,7 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
     private static HuggingFaceChatCompletionServiceSettings createRandom(String url) {
         var modelId = randomAlphaOfLength(8);
 
-        return new HuggingFaceChatCompletionServiceSettings(modelId, ServiceUtils.createUri(url), RateLimitSettingsTests.createRandom());
+        return new HuggingFaceChatCompletionServiceSettings(modelId, createUri(url), RateLimitSettingsTests.createRandom());
     }
 
     public static Map<String, Object> getServiceSettingsMap(String url, String model) {

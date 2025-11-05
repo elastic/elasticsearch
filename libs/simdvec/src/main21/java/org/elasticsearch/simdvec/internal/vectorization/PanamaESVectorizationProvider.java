@@ -14,6 +14,7 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
 
 import java.io.IOException;
@@ -30,6 +31,21 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     @Override
     public ESVectorUtilSupport getVectorUtilSupport() {
         return vectorUtilSupport;
+    }
+
+    @Override
+    public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(IndexInput input, byte queryBits, byte indexBits, int dimension, int dataLength)
+        throws IOException {
+        if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
+            && input instanceof MemorySegmentAccessInput msai
+            && queryBits == 4
+            && (indexBits == 1 || indexBits == 2 || indexBits == 4)) {
+            MemorySegment ms = msai.segmentSliceOrNull(0, input.length());
+            if (ms != null) {
+                return new MemorySegmentESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, ms);
+            }
+        }
+        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
     }
 
     @Override
@@ -63,6 +79,5 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
             }
         }
         return new ES92Int7VectorsScorer(input, dimension);
-
     }
 }

@@ -11,8 +11,8 @@ package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
 
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.elasticsearch.gradle.internal.transport.TransportVersionResourcesService.IdAndDefinition;
-import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.ServiceReference;
@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
  * Validates that each defined transport version constant is referenced by at least one project.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionResourcesTask extends DefaultTask implements VerificationTask {
+public abstract class ValidateTransportVersionResourcesTask extends PrecommitTask implements VerificationTask {
 
     @InputDirectory
     @Optional
@@ -84,7 +84,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         Map<Integer, List<IdAndDefinition>> idsByBase = resources.getIdsByBase();
         Map<String, TransportVersionUpperBound> upperBounds = resources.getUpperBounds();
         TransportVersionUpperBound currentUpperBound = upperBounds.get(getCurrentUpperBoundName().get());
-        boolean onReleaseBranch = checkIfDefinitelyOnReleaseBranch(upperBounds);
+        boolean onReleaseBranch = resources.checkIfDefinitelyOnReleaseBranch(upperBounds.values(), getCurrentUpperBoundName().get());
         boolean validateModifications = onReleaseBranch == false || getCI().get();
 
         for (var definition : referableDefinitions.values()) {
@@ -328,15 +328,6 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             highestDefinition,
             "has the highest transport version id [" + highestId + "] but is not present in any upper bounds files"
         );
-    }
-
-    private boolean checkIfDefinitelyOnReleaseBranch(Map<String, TransportVersionUpperBound> upperBounds) {
-        // only want to look at definitions <= the current upper bound.
-        // TODO: we should filter all of the upper bounds/definitions that are validated by this, not just in this method
-        String currentUpperBoundName = getCurrentUpperBoundName().get();
-        TransportVersionUpperBound currentUpperBound = upperBounds.get(currentUpperBoundName);
-
-        return upperBounds.values().stream().anyMatch(u -> u.definitionId().complete() > currentUpperBound.definitionId().complete());
     }
 
     private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {

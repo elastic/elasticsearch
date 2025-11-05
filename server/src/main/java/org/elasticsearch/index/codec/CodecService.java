@@ -16,6 +16,8 @@ import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdCodec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -65,12 +67,20 @@ public class CodecService implements CodecProvider {
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
+        final boolean useTsdbSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
+        assert useTsdbSyntheticId == false || mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-            var codec = e.getValue();
-            if (codec instanceof DeduplicateFieldInfosCodec) {
-                return codec;
+            Codec codec;
+            if (e.getValue() instanceof DeduplicateFieldInfosCodec dedupCodec) {
+                codec = dedupCodec;
+            } else {
+                codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
             }
-            return new DeduplicateFieldInfosCodec(codec.getName(), codec);
+            if (useTsdbSyntheticId && codec instanceof TSDBSyntheticIdCodec == false) {
+                codec = new TSDBSyntheticIdCodec(codec.getName(), codec);
+            }
+            return codec;
         }));
     }
 

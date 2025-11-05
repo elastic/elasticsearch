@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +32,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +59,7 @@ public class SamplingServiceTests extends ESTestCase {
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
         final ProjectId projectId = projectBuilder.getId();
         ProjectMetadata projectMetadata = projectBuilder.build();
+        ClusterState originalClusterState = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectMetadata).build();
         Map<String, Object> inputRawDocSource = randomMap(1, 100, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         final IndexRequest indexRequest = new IndexRequest(indexName).id("_id").source(inputRawDocSource);
         samplingService.maybeSample(projectMetadata, indexRequest);
@@ -74,6 +75,26 @@ public class SamplingServiceTests extends ESTestCase {
                 )
             );
         projectMetadata = projectBuilder.build();
+        {
+            /*
+             * First we ingest some docs without notifying samplingService of the cluster state change. It will have cached the fact that
+             * there is no config for this index, and so it will not store any samples.
+             */
+            int docsToSample = randomIntBetween(1, maxSize);
+            for (int i = 0; i < docsToSample; i++) {
+                samplingService.maybeSample(projectMetadata, indexRequest);
+            }
+            List<SamplingService.RawDocument> sample = samplingService.getLocalSample(projectId, indexName);
+            assertThat(sample, empty());
+        }
+        // Now we notify samplingService that the cluster state has changed, and it will pick up the new sampling config
+        samplingService.clusterChanged(
+            new ClusterChangedEvent(
+                "test",
+                ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectMetadata).build(),
+                originalClusterState
+            )
+        );
         int docsToSample = randomIntBetween(1, maxSize);
         for (int i = 0; i < docsToSample; i++) {
             samplingService.maybeSample(projectMetadata, indexRequest);
@@ -250,7 +271,8 @@ public class SamplingServiceTests extends ESTestCase {
             );
         final ProjectId projectId = projectBuilder.getId();
         ProjectMetadata projectMetadata = projectBuilder.build();
-        final IndexRequest indexRequest = new IndexRequest(indexName).id("_id").source(randomByteArrayOfLength(150), XContentType.JSON);
+        final IndexRequest indexRequest = new IndexRequest(indexName).id("_id")
+            .source(randomAlphanumericOfLength(150).getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         for (int i = 0; i < maxSamples; i++) {
             samplingService.maybeSample(projectMetadata, indexRequest);
         }
@@ -259,6 +281,7 @@ public class SamplingServiceTests extends ESTestCase {
     }
 
     public void testClusterChanged() {
+        assumeTrue("Requires sampling feature flag", RANDOM_SAMPLING_FEATURE_FLAG);
         String indexName = randomIdentifier();
         SamplingService samplingService = getTestSamplingService();
         Map<String, Object> inputRawDocSource = randomMap(1, 100, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(10)));
@@ -274,7 +297,7 @@ public class SamplingServiceTests extends ESTestCase {
                         new SamplingConfiguration(
                             1.0,
                             randomIntBetween(1, 1000),
-                            ByteSizeValue.ofBytes(randomLongBetween(100, 1000000)),
+                            ByteSizeValue.ofBytes(randomLongBetween(indexRequest.source().length(), 1_000_000)),
                             TimeValue.timeValueDays(randomIntBetween(1, 10)),
                             null
                         )
@@ -314,7 +337,7 @@ public class SamplingServiceTests extends ESTestCase {
                         new SamplingConfiguration(
                             1.0,
                             1001,
-                            ByteSizeValue.ofBytes(randomLongBetween(100, 1000000)),
+                            ByteSizeValue.ofBytes(randomLongBetween(indexRequest.source().length(), 1_000_000)),
                             TimeValue.timeValueDays(randomIntBetween(1, 10)),
                             null
                         )
@@ -349,8 +372,6 @@ public class SamplingServiceTests extends ESTestCase {
             TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
-        final ProjectId projectId = ProjectId.DEFAULT;
-        final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
-        return new SamplingService(scriptService, clusterService, projectResolver, System::currentTimeMillis);
+        return SamplingService.create(scriptService, clusterService, Settings.EMPTY);
     }
 }

@@ -11,10 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -49,12 +52,12 @@ public class RateTests extends AbstractAggregationTestCase {
                 suppliers.add(testCaseSupplier);
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Rate(source, args.get(0), args.get(1));
+        return new Rate(source, args.get(0), Literal.TRUE, args.get(1), Rate.NO_WINDOW);
     }
 
     @Override
@@ -155,6 +158,8 @@ public class RateTests extends AbstractAggregationTestCase {
         assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
         assertThat(params.get(2).dataType(), equalTo(DataType.INTEGER));
         assertThat(params.get(3).dataType(), equalTo(DataType.LONG));
+        var unavailable = appliesTo(FunctionAppliesToLifecycle.UNAVAILABLE, "9.3.0", "", false);
+        DocsV3Support.Param windowParam = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(unavailable));
         return List.of(params.get(0));
     }
 }

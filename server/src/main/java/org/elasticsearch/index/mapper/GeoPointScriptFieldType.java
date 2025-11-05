@@ -15,6 +15,7 @@ import org.apache.lucene.geo.Point;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -43,6 +45,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+
+import static org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType.GEO_FORMATTER_FACTORY;
 
 public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPointFieldScript.LeafFactory> implements GeoShapeQueryable {
 
@@ -227,4 +231,90 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             }
         };
     }
+
+    @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            BlockLoader.BlockFactory::bytesRefs,
+            this::fallbackSyntheticSourceBlockLoaderReader
+        );
+
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        }
+
+        // the rest is not yet supported, so call super
+        return super.blockLoader(blContext);
+    }
+
+    private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+        // parses Objects into GeoPoints
+        AbstractGeometryFieldMapper.Parser<GeoPoint> geoPointParser = createGeoPointParser();
+
+        // WKB is how what we store geometries as in Lucene, this also matches the format defined in
+        // AbstractGeometryFieldMapper.AbstractGeometryFieldType.GeometriesFallbackSyntheticSourceReader, which GeoPointFieldMapper uses
+        var formatter = GEO_FORMATTER_FACTORY.getFormatter(
+            GeometryFormatterFactory.WKB,
+            p -> new org.elasticsearch.geometry.Point(p.getLon(), p.getLat())
+        );
+
+        return new FallbackSyntheticSourceBlockLoader.Reader<GeoPoint>() {
+            @Override
+            public void convertValue(Object value, List<GeoPoint> accumulator) {
+                geoPointParser.fetchFromSource(value, gp -> {
+                    if (gp != null) {
+                        accumulator.add(gp);
+                    }
+                });
+            }
+
+            @Override
+            public void parse(XContentParser parser, List<GeoPoint> accumulator) throws IOException {
+                // geo objects can be defined in many ways, and these are more complex compared to basic types like text or number, as a
+                // result we must use a dedicated parser here
+                geoPointParser.parseFromSource(parser, gp -> {
+                    if (gp != null) {
+                        accumulator.add(gp);
+                    }
+                });
+            }
+
+            @Override
+            public void writeToBlock(List<GeoPoint> points, BlockLoader.Builder blockBuilder) {
+                var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
+                List<Object> gpBytes = formatter.apply(points);
+
+                for (var bytes : gpBytes) {
+                    // WKB is a binary storage format for geometric data
+                    if (bytes instanceof byte[] wkb) {
+                        bytesRefBuilder.appendBytesRef(new BytesRef(wkb));
+                    }
+                }
+            }
+        };
+    }
+
+    private AbstractGeometryFieldMapper.Parser<GeoPoint> createGeoPointParser() {
+        // only needed during indexing, which is not done for runtime fields
+        boolean ignoredMalformedEnabled = false;
+        boolean storeMalformedDataForSyntheticSource = false;
+
+        // we don't know how we stored things, so we need to enable this otherwise parsing can fail
+        boolean allowMultipleValues = true;
+        boolean ignoreZValue = true;
+
+        GeoPoint nullValue = null;
+
+        return new GeoPointFieldMapper.GeoPointParser(
+            name(),
+            (parser) -> GeoUtils.parseGeoPoint(parser, ignoreZValue),
+            nullValue,
+            ignoreZValue,
+            ignoredMalformedEnabled,
+            allowMultipleValues,
+            storeMalformedDataForSyntheticSource
+        );
+    }
+
 }

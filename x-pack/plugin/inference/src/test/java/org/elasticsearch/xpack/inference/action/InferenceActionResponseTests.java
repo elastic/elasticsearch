@@ -10,9 +10,10 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
@@ -38,16 +39,18 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected InferenceAction.Response createTestInstance() {
-        var result = randomBoolean()
-            ? TextEmbeddingFloatResultsTests.createRandomResults()
-            : SparseEmbeddingResultsTests.createRandomResults();
+        return new InferenceAction.Response(getRandomResults());
+    }
 
-        return new InferenceAction.Response(result);
+    private InferenceServiceResults getRandomResults() {
+        return randomBoolean() ? DenseEmbeddingFloatResultsTests.createRandomResults() : SparseEmbeddingResultsTests.createRandomResults();
     }
 
     @Override
     protected InferenceAction.Response mutateInstance(InferenceAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        var originalResults = instance.getResults();
+
+        return new InferenceAction.Response(randomValueOtherThan(originalResults, this::getRandomResults));
     }
 
     @Override

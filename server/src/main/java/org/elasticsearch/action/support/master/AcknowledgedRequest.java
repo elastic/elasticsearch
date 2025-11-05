@@ -9,6 +9,7 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -42,8 +43,35 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
      *                          TimeValue#MAX_VALUE} (or {@link TimeValue#MINUS_ONE} which means an infinite timeout in 8.15.0 onwards)
      *                          since usually we want internal requests to wait for as long as necessary to complete.
      *
-     * @param ackTimeout        specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to
-     *                          the elected master.
+     * @param ackTimeout Specifies the acknowledgement timeout, i.e. the maximum time interval to wait for a full set of acknowledgements.
+     *                   This timeout is exposed to the {@link org.elasticsearch.cluster.service.MasterService} via
+     *                   {@link ClusterStateAckListener#ackTimeout()}.
+     *                   <p>
+     *                   This time interval is measured from the start of the publication (which is after computing the new cluster state
+     *                   and serializing it as a transport message). If the cluster state is committed (i.e. a quorum of master-eligible
+     *                   nodes have accepted the new state) and then the timeout elapses then the corresponding listener is completed via
+     *                   {@link org.elasticsearch.cluster.ClusterStateAckListener#onAckTimeout()}. Although the time interval is measured
+     *                   from the start of the publication, it does not have any effect until the cluster state is committed:
+     *                   <ul>
+     *                       <li>
+     *                          If the cluster state update fails before committing then the failure is always reported via
+     *                          {@link org.elasticsearch.cluster.ClusterStateAckListener#onAckFailure(Exception)} rather than
+     *                          {@link org.elasticsearch.cluster.ClusterStateAckListener#onAckTimeout()}, and this may therefore
+     *                          happen some time after the timeout period elapses.
+     *                       </li>
+     *                       <li>
+     *                          If the cluster state update is eventually committed, but takes longer than {@code ackTimeout} to do so, then
+     *                          the corresponding listener will be completed via
+     *                          {@link org.elasticsearch.cluster.ClusterStateAckListener#onAckTimeout()} when it is committed, and this may
+     *                          therefore happen some time after the timeout period elapses.
+     *                       </li>
+     *                   </ul>
+     *                   <p>
+     *                   A timeout of {@link TimeValue#MINUS_ONE} means that the master should wait indefinitely for acknowledgements.
+     *                   <p>
+     *                   A timeout of {@link TimeValue#ZERO} means that the master will complete the corresponding listener (via {@link
+     *                   org.elasticsearch.cluster.ClusterStateAckListener#onAckTimeout()}) as soon as the state is committed, before any
+     *                   nodes have applied the new state.
      */
     protected AcknowledgedRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
         super(masterNodeTimeout);

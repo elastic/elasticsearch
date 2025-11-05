@@ -307,16 +307,18 @@ public class JobResultsProvider {
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String tempIndexName = job.getInitialResultsIndexName();
+
+        // Ensure the index name is valid
+        tempIndexName = MlIndexAndAlias.ensureValidResultsIndexName(tempIndexName);
+
         // Find all indices starting with this name and pick the latest one
-        String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName + "*");
-        if (concreteIndices.length > 0) {
-            tempIndexName = MlIndexAndAlias.latestIndex(concreteIndices);
-        }
+        tempIndexName = MlIndexAndAlias.latestIndexMatchingBaseName(tempIndexName, resolver, state);
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
         if (state.getMetadata().getProject().hasAlias(tempIndexName)) {
 
+            String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName + "*");
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
             // if it is closed, we bailout and return an error
             if (concreteIndices.length == 0) {
@@ -526,10 +528,7 @@ public class JobResultsProvider {
             .addAggregation(
                 AggregationBuilders.filters(
                     results,
-                    new FiltersAggregator.KeyedFilter(
-                        dataCounts,
-                        QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId))
-                    ),
+                    new FiltersAggregator.KeyedFilter(dataCounts, QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId))),
                     new FiltersAggregator.KeyedFilter(timingStats, QueryBuilders.idsQuery().addIds(TimingStats.documentId(jobId))),
                     new FiltersAggregator.KeyedFilter(
                         modelSizeStats,
@@ -588,7 +587,7 @@ public class JobResultsProvider {
             .setSize(1)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             // look for both old and new formats
-            .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId)))
+            .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
             // We want to sort on log_time. However, this was added a long time later and before that we used to
             // sort on latest_record_time. Thus we handle older data counts where no log_time exists and we fall back
             // to the prior behaviour.

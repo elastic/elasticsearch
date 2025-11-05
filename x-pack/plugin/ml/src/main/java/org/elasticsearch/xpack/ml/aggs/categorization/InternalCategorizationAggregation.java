@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -107,6 +109,16 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
         public Bucket(StreamInput in) throws IOException {
             // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
+            if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+                throw new ElasticsearchStatusException(
+                    "["
+                        + CategorizeTextAggregationBuilder.NAME
+                        + "] aggregation cannot be used in a cluster where some nodes have version ["
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                        + "] or higher and others have a version before this",
+                    RestStatus.BAD_REQUEST
+                );
+            }
             serializableCategory = new SerializableTokenListCategory(in);
             key = new BucketKey(serializableCategory);
             bucketOrd = -1;
@@ -116,6 +128,16 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
+            if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+                throw new ElasticsearchStatusException(
+                    "["
+                        + CategorizeTextAggregationBuilder.NAME
+                        + "] aggregation cannot be used in a cluster where some nodes have version ["
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                        + "] or higher and others have a version before this",
+                    RestStatus.BAD_REQUEST
+                );
+            }
             serializableCategory.writeTo(out);
             aggregations.writeTo(out);
         }
@@ -217,6 +239,16 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     public InternalCategorizationAggregation(StreamInput in) throws IOException {
         super(in);
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
+        if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+            throw new ElasticsearchStatusException(
+                "["
+                    + CategorizeTextAggregationBuilder.NAME
+                    + "] aggregation cannot be used in a cluster where some nodes have version ["
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                    + "] or higher and others have a version before this",
+                RestStatus.BAD_REQUEST
+            );
+        }
         this.similarityThreshold = in.readVInt();
         this.buckets = in.readCollectionAsList(Bucket::new);
         this.requiredSize = readSize(in);
@@ -226,6 +258,16 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
+        if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+            throw new ElasticsearchStatusException(
+                "["
+                    + CategorizeTextAggregationBuilder.NAME
+                    + "] aggregation cannot be used in a cluster where some nodes have version ["
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                    + "] or higher and others have a version before this",
+                RestStatus.BAD_REQUEST
+            );
+        }
         out.writeVInt(similarityThreshold);
         out.writeCollection(buckets);
         writeSize(requiredSize, out);

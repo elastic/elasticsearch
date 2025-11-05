@@ -70,6 +70,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     private static final String INDEX_1 = "index-1";
     private static final String INDEX_2 = "index-2";
     private static final Set<String> ALL_INDICES = Set.of(INDEX_1, INDEX_2);
+    private static final String INDEX_ALIAS = "index-alias";
 
     private static final String INFERENCE_FIELD_1 = "inference-field-1";
     private static final String INFERENCE_FIELD_2 = "inference-field-2";
@@ -255,6 +256,41 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         );
     }
 
+    public void testIndexAlias() {
+        assertSuccessfulRequest(
+            new GetInferenceFieldsAction.Request(Set.of(INDEX_ALIAS), ALL_FIELDS, false, false, "foo"),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
+            ALL_EXPECTED_INFERENCE_RESULTS
+        );
+    }
+
+    public void testResolveIndexWildcards() {
+        assertSuccessfulRequest(
+            new GetInferenceFieldsAction.Request(Set.of("index-*"), ALL_FIELDS, false, false, "foo"),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
+            ALL_EXPECTED_INFERENCE_RESULTS
+        );
+
+        assertSuccessfulRequest(
+            new GetInferenceFieldsAction.Request(Set.of("*-1"), ALL_FIELDS, false, false, "foo"),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS),
+            ALL_EXPECTED_INFERENCE_RESULTS
+        );
+
+        assertFailedRequest(
+            new GetInferenceFieldsAction.Request(
+                Set.of("index-*"),
+                ALL_FIELDS,
+                false,
+                false,
+                "foo",
+                IndicesOptions.STRICT_NO_EXPAND_FORBID_CLOSED
+            ),
+            IndexNotFoundException.class,
+            e -> assertThat(e.getMessage(), containsString("no such index [index-*]"))
+        );
+    }
+
     public void testNoFields() {
         assertSuccessfulRequest(
             new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(), false, false, "foo"),
@@ -328,6 +364,10 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     private void createTestIndices() throws IOException {
         createTestIndex(INDEX_1, List.of("*-field-1^5"));
         createTestIndex(INDEX_2, null);
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias(new String[] { INDEX_1, INDEX_2 }, INDEX_ALIAS)
+        );
     }
 
     private void createTestIndex(String indexName, @Nullable List<String> defaultFields) throws IOException {

@@ -232,6 +232,29 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         );
     }
 
+    public void testAllIndices() {
+        // By default, _all expands to all indices
+        assertSuccessfulRequest(
+            new GetInferenceFieldsAction.Request(Set.of("_all"), ALL_FIELDS, false, false, "foo"),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
+            ALL_EXPECTED_INFERENCE_RESULTS
+        );
+
+        // We can provide an IndicesOptions that changes this behavior to interpret it as no indices
+        assertSuccessfulRequest(
+            new GetInferenceFieldsAction.Request(
+                Set.of("_all"),
+                ALL_FIELDS,
+                false,
+                false,
+                "foo",
+                IndicesOptions.STRICT_NO_EXPAND_FORBID_CLOSED
+            ),
+            Map.of(),
+            Map.of()
+        );
+    }
+
     public void testNoFields() {
         assertSuccessfulRequest(
             new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(), false, false, "foo"),

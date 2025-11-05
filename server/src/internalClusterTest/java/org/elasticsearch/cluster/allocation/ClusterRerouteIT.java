@@ -200,7 +200,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
     }
 
     public void testDelayWithALargeAmountOfShards() throws Exception {
-        assumeFalse("Windows can be too slow on handling larget amount of cluster state updates", Constants.WINDOWS);
         Settings commonSettings = Settings.builder()
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
@@ -233,8 +232,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         logger.info("--> stopping node1");
         internalCluster().stopNode(node1);
 
-        // This might run slowly on older hardware
-        ensureGreen(TimeValue.timeValueMinutes(2));
+        // This might run slowly on older hardware and on Windows see #137384
+        ensureGreen(TimeValue.timeValueMinutes(Constants.WINDOWS ? 4 : 2));
     }
 
     private void rerouteWithAllocateLocalGateway(Settings commonSettings) throws Exception {

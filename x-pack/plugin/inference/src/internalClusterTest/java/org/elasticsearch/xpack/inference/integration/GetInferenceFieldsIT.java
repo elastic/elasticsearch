@@ -128,7 +128,11 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     }
 
     public void testNoInferenceFields() {
-        // TODO: Implement
+        assertRequest(
+            new GetInferenceFieldsAction.Request(Set.of(INDEX_1, INDEX_2), Set.of(TEXT_FIELD_1, TEXT_FIELD_2), false, false, "foo"),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of()
+        );
     }
 
     public void testResolveWildcards() {

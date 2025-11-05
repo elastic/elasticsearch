@@ -47,7 +47,8 @@
       },
       "ignore_throttled": {
         "deprecated": {
-          "version": "7.16.0"
+          "version": "7.16.0",
+          "description": "This parameter is deprecated because frozen indices have been deprecated."
         },
         "type": "boolean",
         "default": true,

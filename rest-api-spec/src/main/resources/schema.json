@@ -268,10 +268,7 @@
                     "title": "Default value"
                 },
                 "deprecated": {
-                    "oneOf": [
-                      { "$ref": "#/definitions/Deprecated" },
-                      { "type": "boolean" }
-                    ]
+                    "$ref": "#/definitions/Deprecated"
                 },
                 "description": {
                     "type": "string",

@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -200,6 +199,10 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         }
         int trialCount = trialCountBlock.getInt(trialCountBlock.getFirstValueIndex(position));
         int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
+        if (estimates.length != trialCount * bucketCount) {
+            builder.appendNull();
+            return;
+        }
         double confidenceLevel = confidenceLevelBlock.getDouble(confidenceLevelBlock.getFirstValueIndex(position));
         double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel);
         if (confidenceInterval == null) {
@@ -213,50 +216,79 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         }
     }
 
-    public static double[] computeConfidenceInterval(
+    static double[] computeConfidenceInterval(
         double bestEstimate,
         double[] estimates,
         int trialCount,
         int bucketCount,
         double confidenceLevel
     ) {
-        Mean means = new Mean();
+        Mean meansIgnoreNaN = new Mean();
+        Mean meansZeroNaN = new Mean();
+        for (int trial = 0; trial < trialCount; trial++) {
+            Mean meanIgnoreNaN = new Mean();
+            Mean meanZeroNaN = new Mean();
+            for (int bucket = 0; bucket < bucketCount; bucket++) {
+                double estimate = estimates[trial * bucketCount + bucket];
+                if (Double.isNaN(estimate) == false) {
+                    meanIgnoreNaN.increment(estimate);
+                    meanZeroNaN.increment(estimate);
+                } else {
+                    meanZeroNaN.increment(0.0);
+                }
+            }
+            if (meanIgnoreNaN.getN() >= 3) {
+                meansIgnoreNaN.increment(meanIgnoreNaN.getResult());
+            }
+            if (meanZeroNaN.getN() >= 3) {
+                meansZeroNaN.increment(meanZeroNaN.getResult());
+            }
+        }
+
+        double meanIgnoreNan = meansIgnoreNaN.getResult();
+        double meanZeroNan = meansZeroNaN.getResult();
+
+        boolean ignoreNaNs = Math.abs(meanIgnoreNan - bestEstimate) < Math.abs(meanZeroNan - bestEstimate);
+        double mm = ignoreNaNs ? meanIgnoreNan : meanZeroNan;
+
         Mean stddevs = new Mean();
         Mean skews = new Mean();
         for (int trial = 0; trial < trialCount; trial++) {
-            Mean mean = new Mean();
             StandardDeviation stdDev = new StandardDeviation(false);
             Skewness skew = new Skewness();
             for (int bucket = 0; bucket < bucketCount; bucket++) {
                 double estimate = estimates[trial * bucketCount + bucket];
                 if (Double.isNaN(estimate)) {
-                    continue;
+                    if (ignoreNaNs) {
+                        continue;
+                    } else {
+                        estimate = 0.0;
+                    }
                 }
-                mean.increment(estimate);
                 stdDev.increment(estimate);
                 skew.increment(estimate);
             }
             if (skew.getN() >= 3) {
-                means.increment(mean.getResult());
                 stddevs.increment(stdDev.getResult());
                 skews.increment(skew.getResult());
             }
         }
-        if (means.getN() == 0) {
-            return null;
-        }
+
         double sm = stddevs.getResult();
         if (sm == 0.0) {
             return new double[] { bestEstimate, bestEstimate };
         }
-        double mm = means.getResult();
-        double a = skews.getResult() / (6.0 * Math.sqrt(bucketCount));
+
+        // Scale the acceleration to account for the dependence of skewness on sample size.
+        double scale = 1 / Math.sqrt(bucketCount);
+        double a = scale * skews.getResult() / 6.0;
         double z0 = (bestEstimate - mm) / sm;
         double dz = normal.inverseCumulativeProbability((1.0 + confidenceLevel) / 2.0);
         double zl = z0 + (z0 - dz) / (1.0 - Math.min(a * (z0 - dz), 0.9));
         double zu = z0 + (z0 + dz) / (1.0 - Math.min(a * (z0 + dz), 0.9));
-        double scale = Math.max(1.0 / Math.sqrt(bucketCount), z0 < 0.0 ? z0 / zl : z0 / zu);
-        return new double[] { mm + scale * sm * zl, mm + sm * scale * zu };
+        double lower = mm + scale * sm * zl;
+        double upper = mm + scale * sm * zu;
+        return lower <= bestEstimate && bestEstimate <= upper ? new double[] { lower, upper } : null;
     }
 
     @Override

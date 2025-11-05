@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.logging.Loggers
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -57,6 +57,8 @@ import static java.util.Collections.singletonList;
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
 final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable {
+    private final Logger logger = Loggers.getLogger(getClass(), "async");
+
     private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;

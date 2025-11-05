@@ -356,8 +356,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
         if (request.includeCCSMetadata() != null && request.includeExecutionMetadata() != null) {
             throw new VerificationException(
-                "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. "
-                    + "Use only one"
+                "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. " + "Use only one"
             );
         }
 

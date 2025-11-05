@@ -27,12 +27,20 @@ public class SamlAttributes implements Releasable {
 
     private final SamlNameId name;
     private final String session;
+    private final String inResponseTo;
     private final List<SamlAttribute> attributes;
     private final List<SamlPrivateAttribute> privateAttributes;
 
-    SamlAttributes(SamlNameId name, String session, List<SamlAttribute> attributes, List<SamlPrivateAttribute> privateAttributes) {
+    SamlAttributes(
+        SamlNameId name,
+        String session,
+        String inResponseTo,
+        List<SamlAttribute> attributes,
+        List<SamlPrivateAttribute> privateAttributes
+    ) {
         this.name = name;
         this.session = session;
+        this.inResponseTo = inResponseTo;
         this.attributes = attributes;
         this.privateAttributes = privateAttributes;
     }
@@ -89,9 +97,24 @@ public class SamlAttributes implements Releasable {
         return session;
     }
 
+    String inResponseTo() {
+        return inResponseTo;
+    }
+
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(" + name + ")[" + session + "]{" + attributes + "}{" + privateAttributes + "}";
+        return getClass().getSimpleName()
+            + "("
+            + name
+            + ")["
+            + session
+            + "]["
+            + inResponseTo
+            + "]{"
+            + attributes
+            + "}{"
+            + privateAttributes
+            + "}";
     }
 
     @Override

@@ -36,7 +36,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        // NOCOMMIT - In hybrid mode, this will not even build a t-digest. Let's test with bigger data
+        // TODO - In hybrid mode, this will not even build a t-digest. Let's test with bigger data
         return Map.of("centroids", new double[] { 2, 3 }, "counts", new int[] { 0, 4 });
     }
 

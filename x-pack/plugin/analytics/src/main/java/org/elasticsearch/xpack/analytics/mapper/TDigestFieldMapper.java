@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.CopyingXContentParser;
@@ -68,9 +69,13 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
+        private static final int DEFAULT_COMPRESSION = 100;
+        private static final int MAXIMUM_COMPRESSION = 10000;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
+        private final Parameter<TDigestState.Type> digestType;
+        private final Parameter<Integer> compression;
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
@@ -80,6 +85,18 @@ public class TDigestFieldMapper extends FieldMapper {
                 m -> toType(m).ignoreMalformed,
                 ignoreMalformedByDefault
             );
+            this.digestType = Parameter.enumParam(
+                "digestType",
+                false,
+                m -> toType(m).digestType,
+                TDigestState.Type.HYBRID,
+                TDigestState.Type.class
+            );
+            this.compression = Parameter.intParam("compression", false, m -> toType(m).compression, DEFAULT_COMPRESSION).addValidator(c -> {
+                if (c <= 0 || c > MAXIMUM_COMPRESSION) {
+                    throw new IllegalArgumentException("compression must be a positive integer between 1 and " + MAXIMUM_COMPRESSION);
+                }
+            });
         }
 
         @Override
@@ -105,11 +122,15 @@ public class TDigestFieldMapper extends FieldMapper {
 
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
+    private final TDigestState.Type digestType;
+    private final int compression;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
+        this.digestType = builder.digestType.getValue();
+        this.compression = builder.compression.getValue();
     }
 
     @Override
@@ -300,6 +321,7 @@ public class TDigestFieldMapper extends FieldMapper {
                 subParser = new XContentSubParser(context.parser());
             }
             subParser.nextToken();
+            // NOCOMMIT TODO: Here we should build a t-digest out of the input, based on the settings on the field
             TDigestParser.ParsedHistogram parsedHistogram = TDigestParser.parse(fullPath(), subParser);
 
             BytesStreamOutput streamOutput = new BytesStreamOutput();
@@ -307,6 +329,7 @@ public class TDigestFieldMapper extends FieldMapper {
                 long count = parsedHistogram.counts().get(i);
                 assert count >= 0;
                 // we do not add elements with count == 0
+                // NOCOMMIT - Can just do the new behavior for the new field
                 if (count > 0) {
                     if (streamOutput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                         streamOutput.writeVLong(count);

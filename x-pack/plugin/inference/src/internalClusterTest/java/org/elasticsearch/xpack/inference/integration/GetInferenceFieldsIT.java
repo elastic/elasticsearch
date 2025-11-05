@@ -115,93 +115,15 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     }
 
     public void testNullQuery() {
-        var allIndicesAllFieldsRequest = new GetInferenceFieldsAction.Request(ALL_INDICES, ALL_FIELDS, false, false, null);
-        var allIndicesAllFieldsResponse = executeRequest(allIndicesAllFieldsRequest);
-        assertInferenceFieldsMap(
-            allIndicesAllFieldsResponse.getInferenceFieldsMap(),
-            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS)
-        );
-        assertThat(allIndicesAllFieldsResponse.getInferenceResultsMap().isEmpty(), is(true));
-
-        var allIndicesSingleFieldRequest = new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(INFERENCE_FIELD_3), false, false, null);
-        var allIndicesSingleFieldResponse = executeRequest(allIndicesSingleFieldRequest);
-        assertInferenceFieldsMap(
-            allIndicesSingleFieldResponse.getInferenceFieldsMap(),
-            Map.of(
-                INDEX_1,
-                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)),
-                INDEX_2,
-                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID))
-            )
-        );
-        assertThat(allIndicesSingleFieldResponse.getInferenceResultsMap().isEmpty(), is(true));
-
-        var singleIndexSingleFieldRequest = new GetInferenceFieldsAction.Request(
-            Set.of(INDEX_1),
-            Set.of(INFERENCE_FIELD_3),
-            false,
-            false,
-            null
-        );
-        var singleIndexSingleFieldResponse = executeRequest(singleIndexSingleFieldRequest);
-        assertInferenceFieldsMap(
-            singleIndexSingleFieldResponse.getInferenceFieldsMap(),
-            Map.of(INDEX_1, Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)))
-        );
-        assertThat(singleIndexSingleFieldResponse.getInferenceResultsMap().isEmpty(), is(true));
+        explicitInferenceFieldsTestCase(null);
     }
 
     public void testNonNullQuery() {
-        var allIndicesAllFieldsRequest = new GetInferenceFieldsAction.Request(ALL_INDICES, ALL_FIELDS, false, false, "foo");
-        var allIndicesAllFieldsResponse = executeRequest(allIndicesAllFieldsRequest);
-        assertInferenceFieldsMap(
-            allIndicesAllFieldsResponse.getInferenceFieldsMap(),
-            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS)
-        );
-        assertInferenceResultsMap(allIndicesAllFieldsResponse.getInferenceResultsMap(), ALL_EXPECTED_INFERENCE_RESULTS);
-
-        var allIndicesSingleFieldRequest = new GetInferenceFieldsAction.Request(
-            ALL_INDICES,
-            Set.of(INFERENCE_FIELD_3),
-            false,
-            false,
-            "foo"
-        );
-        var allIndicesSingleFieldResponse = executeRequest(allIndicesSingleFieldRequest);
-        assertInferenceFieldsMap(
-            allIndicesSingleFieldResponse.getInferenceFieldsMap(),
-            Map.of(
-                INDEX_1,
-                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)),
-                INDEX_2,
-                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID))
-            )
-        );
-        assertInferenceResultsMap(
-            allIndicesSingleFieldResponse.getInferenceResultsMap(),
-            Map.of(SPARSE_EMBEDDING_INFERENCE_ID, TextExpansionResults.class)
-        );
-
-        var singleIndexSingleFieldRequest = new GetInferenceFieldsAction.Request(
-            Set.of(INDEX_1),
-            Set.of(INFERENCE_FIELD_3),
-            false,
-            false,
-            "foo"
-        );
-        var singleIndexSingleFieldResponse = executeRequest(singleIndexSingleFieldRequest);
-        assertInferenceFieldsMap(
-            singleIndexSingleFieldResponse.getInferenceFieldsMap(),
-            Map.of(INDEX_1, Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)))
-        );
-        assertInferenceResultsMap(
-            singleIndexSingleFieldResponse.getInferenceResultsMap(),
-            Map.of(SPARSE_EMBEDDING_INFERENCE_ID, TextExpansionResults.class)
-        );
+        explicitInferenceFieldsTestCase("foo");
     }
 
     public void testBlankQuery() {
-        // TODO: Implement
+        explicitInferenceFieldsTestCase("   ");
     }
 
     public void testNoInferenceFields() {
@@ -226,6 +148,67 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testInvalidRequest() {
         // TODO: Implement
+    }
+
+    private void explicitInferenceFieldsTestCase(String query) {
+        var allIndicesAllFieldsRequest = new GetInferenceFieldsAction.Request(ALL_INDICES, ALL_FIELDS, false, false, query);
+        var allIndicesAllFieldsResponse = executeRequest(allIndicesAllFieldsRequest);
+        assertInferenceFieldsMap(
+            allIndicesAllFieldsResponse.getInferenceFieldsMap(),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS)
+        );
+        if (query == null || query.isBlank()) {
+            assertThat(allIndicesAllFieldsResponse.getInferenceResultsMap().isEmpty(), is(true));
+        } else {
+            assertInferenceResultsMap(allIndicesAllFieldsResponse.getInferenceResultsMap(), ALL_EXPECTED_INFERENCE_RESULTS);
+        }
+
+        var allIndicesSingleFieldRequest = new GetInferenceFieldsAction.Request(
+            ALL_INDICES,
+            Set.of(INFERENCE_FIELD_3),
+            false,
+            false,
+            query
+        );
+        var allIndicesSingleFieldResponse = executeRequest(allIndicesSingleFieldRequest);
+        assertInferenceFieldsMap(
+            allIndicesSingleFieldResponse.getInferenceFieldsMap(),
+            Map.of(
+                INDEX_1,
+                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)),
+                INDEX_2,
+                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID))
+            )
+        );
+        if (query == null || query.isBlank()) {
+            assertThat(allIndicesSingleFieldResponse.getInferenceResultsMap().isEmpty(), is(true));
+        } else {
+            assertInferenceResultsMap(
+                allIndicesSingleFieldResponse.getInferenceResultsMap(),
+                Map.of(SPARSE_EMBEDDING_INFERENCE_ID, TextExpansionResults.class)
+            );
+        }
+
+        var singleIndexSingleFieldRequest = new GetInferenceFieldsAction.Request(
+            Set.of(INDEX_1),
+            Set.of(INFERENCE_FIELD_3),
+            false,
+            false,
+            query
+        );
+        var singleIndexSingleFieldResponse = executeRequest(singleIndexSingleFieldRequest);
+        assertInferenceFieldsMap(
+            singleIndexSingleFieldResponse.getInferenceFieldsMap(),
+            Map.of(INDEX_1, Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)))
+        );
+        if (query == null || query.isBlank()) {
+            assertThat(singleIndexSingleFieldResponse.getInferenceResultsMap().isEmpty(), is(true));
+        } else {
+            assertInferenceResultsMap(
+                singleIndexSingleFieldResponse.getInferenceResultsMap(),
+                Map.of(SPARSE_EMBEDDING_INFERENCE_ID, TextExpansionResults.class)
+            );
+        }
     }
 
     private void createInferenceEndpoints() throws IOException {

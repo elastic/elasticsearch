@@ -1312,7 +1312,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             private void determineShardCount(ActionListener<Void> listener) {
                 try (var listeners = new RefCountingListener(listener)) {
-                    Map<String, String> blobIdToindexUuidMap = originalRepositoryData.indexMetaDataGenerations().getBlobIdToIndexUuidMap();
+                    Map<String, String> blobIdToIndexUuidMap = originalRepositoryData.indexMetaDataGenerations().getBlobIdToIndexUuidMap();
                     for (final var blobId : snapshotIds.stream()
                         .filter(snapshotsWithIndex::contains)
                         .map(id -> originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
@@ -1321,7 +1321,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         // index UUID; the shard count is going to be the same for all metadata with the same index UUID, so it is
                         // unnecessary to read multiple metadata blobs corresponding to the same index UUID.
                         // NB if the index metadata blob is in the pre-7.9.0 format then this will return null
-                        String indexUUID = blobIdToindexUuidMap.get(blobId);
+                        String indexUUID = blobIdToIndexUuidMap.get(blobId);
 
                         // Without an index UUID, we don't know if we've encountered this index before and must read its IndexMetadata
                         // from heap. If this is a new index UUID, it could have a higher shard count, so we also need to read

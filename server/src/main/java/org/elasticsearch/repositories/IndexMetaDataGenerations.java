@@ -185,7 +185,6 @@ public final class IndexMetaDataGenerations {
      * @return identifier string
      */
     public static String buildUniqueIdentifier(IndexMetadata indexMetaData) {
-        // If modifying this identifier, then also extend the getIndexUUIDFromBlobId function below
         return indexMetaData.getIndexUUID()
             + "-"
             + indexMetaData.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)

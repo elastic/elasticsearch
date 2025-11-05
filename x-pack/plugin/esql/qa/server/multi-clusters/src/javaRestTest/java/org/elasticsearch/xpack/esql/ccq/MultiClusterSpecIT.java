@@ -427,7 +427,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsExponentialHistograms() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM.capabilityName()))
-            && RestEsqlTestCase.hasCapabilities(remoteClusterClient, List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM.capabilityName()));
+        try {
+            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM.capabilityName()))
+                && RestEsqlTestCase.hasCapabilities(remoteClusterClient(), List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM.capabilityName()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

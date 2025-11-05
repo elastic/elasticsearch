@@ -735,6 +735,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return secondQuery;
     }
 
+    @Override
+    protected Settings createTestIndexSettings() {
+        return super.createTestIndexSettings();
+    }
+
     // we use the streaming infra to create a copy of the query provided as argument
     @SuppressWarnings("unchecked")
     protected QB copyQuery(QB query) throws IOException {

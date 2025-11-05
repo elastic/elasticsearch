@@ -663,12 +663,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             && Objects.equals(query, other.query)
             && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
             && Objects.equals(inferenceResultsMapSupplier, other.inferenceResultsMapSupplier)
-            && Objects.equals(ccsRequest, other.ccsRequest);
+            && Objects.equals(ccsRequest, other.ccsRequest)
+            && Objects.equals(prefilters, other.prefilters);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        return Objects.hash(fieldName, query, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest, prefilters);
     }
 
     @Override

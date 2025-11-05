@@ -87,8 +87,8 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
         }
 
         inferenceConfig(requestEntity).ifPresent(converseStreamRequest::inferenceConfig);
-        // return new ToolAwareUnifiedPublisher(awsBedrockClient, converseStreamRequest.build());
-        return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build());
+        return new ToolAwareUnifiedPublisher(awsBedrockClient, converseStreamRequest.build());
+        // return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build());
     }
 
     private Document toDocument(Object value) {

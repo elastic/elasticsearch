@@ -59,9 +59,8 @@ public class UndesiredAllocationsTracker {
     private volatile TimeValue undesiredAllocationDurationLoggingThreshold;
     private volatile int maxUndesiredAllocationsToTrack;
 
-    public UndesiredAllocationsTracker(ClusterSettings clusterSettings, TimeProvider timeProvider, int maxUndesiredAllocationsToTrack) {
+    UndesiredAllocationsTracker(ClusterSettings clusterSettings, TimeProvider timeProvider) {
         this.timeProvider = timeProvider;
-        this.maxUndesiredAllocationsToTrack = maxUndesiredAllocationsToTrack;
         this.undesiredAllocationDurationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.ZERO);
         clusterSettings.initializeAndWatch(
             DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,

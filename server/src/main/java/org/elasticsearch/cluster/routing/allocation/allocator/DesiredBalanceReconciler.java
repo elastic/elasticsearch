@@ -92,7 +92,7 @@ public class DesiredBalanceReconciler {
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
         );
-        this.undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, timeProvider, 50);
+        this.undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, timeProvider);
     }
 
     /**

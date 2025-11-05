@@ -24,11 +24,7 @@ public class TransportGetCCMConfigurationAction extends HandledTransportAction<
     private final CCMService ccmService;
 
     @Inject
-    public TransportGetCCMConfigurationAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        CCMService ccmService
-    ) {
+    public TransportGetCCMConfigurationAction(TransportService transportService, ActionFilters actionFilters, CCMService ccmService) {
         super(
             GetCCMConfigurationAction.NAME,
             transportService,
@@ -40,7 +36,11 @@ public class TransportGetCCMConfigurationAction extends HandledTransportAction<
     }
 
     @Override
-    protected void doExecute(Task task, GetCCMConfigurationAction.Request request, ActionListener<GetCCMConfigurationAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        GetCCMConfigurationAction.Request request,
+        ActionListener<GetCCMConfigurationAction.Response> listener
+    ) {
         var enabledListener = ActionListener.<Boolean>wrap(
             enabled -> listener.onResponse(new GetCCMConfigurationAction.Response(enabled)),
             listener::onFailure

@@ -71,7 +71,8 @@ public class CCMServiceIT extends ESSingleNodeTestCase {
 
         var results = client().prepareSearch(CCMIndex.INDEX_PATTERN)
             .setQuery(QueryBuilders.idsQuery().addIds(CCM_DOC_ID))
-            .execute().actionGet(TimeValue.THIRTY_SECONDS);
+            .execute()
+            .actionGet(TimeValue.THIRTY_SECONDS);
 
         assertThat(results.getHits().getHits().length, is(1));
     }

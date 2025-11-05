@@ -28,12 +28,6 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) and [`INLINE
 :::{include} ../_snippets/functions/layout/count_distinct.md
 :::
 
-:::{include} ../_snippets/functions/layout/first.md
-:::
-
-:::{include} ../_snippets/functions/layout/last.md
-:::
-
 :::{include} ../_snippets/functions/layout/max.md
 :::
 

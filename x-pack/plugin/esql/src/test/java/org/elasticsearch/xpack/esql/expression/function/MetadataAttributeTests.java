@@ -23,7 +23,7 @@ public class MetadataAttributeTests extends AbstractNamedExpressionSerialization
     public static MetadataAttribute randomMetadataAttribute() {
         Source source = Source.EMPTY;
         String name = randomAlphaOfLength(5);
-        DataType type = randomFrom(DataType.types());
+        DataType type = randomValueOtherThanMany(t -> false == t.supportedVersion().supportedLocally(), () -> randomFrom(DataType.types()));
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
         boolean searchable = randomBoolean();

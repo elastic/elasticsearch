@@ -170,7 +170,7 @@ public class UndesiredAllocationsTracker {
             logger.warn("Shard {} has been in an undesired allocation for {}", shardRouting.shardId(), undesiredDuration);
             for (final var nodeId : assignment.nodeIds()) {
                 final var decision = allocation.deciders().canAllocate(shardRouting, routingNodes.node(nodeId), allocation);
-                logger.warn("Shard {} cannot be allocated on node [{}]: {}", shardRouting.shardId(), nodeId, decision);
+                logger.warn("Shard {} allocation decision for node [{}]: {}", shardRouting.shardId(), nodeId, decision);
             }
         } finally {
             allocation.setDebugMode(originalDebugMode);

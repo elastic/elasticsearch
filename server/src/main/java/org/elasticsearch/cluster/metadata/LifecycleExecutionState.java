@@ -287,15 +287,16 @@ public record LifecycleExecutionState(
         return Collections.unmodifiableMap(result);
     }
 
-    public static String truncateWithExplanation(String input) {
-        if (input != null && input.length() > MAXIMUM_STEP_INFO_STRING_LENGTH) {
-            return Strings.cleanTruncate(input, MAXIMUM_STEP_INFO_STRING_LENGTH)
-                + "... ("
-                + (input.length() - MAXIMUM_STEP_INFO_STRING_LENGTH)
-                + " chars truncated)";
-        } else {
-            return input;
+    public static String potentiallyTruncateLongJsonWithExplanation(String json) {
+        if (json == null) {
+            return null;
         }
+        // Avoid no-op truncations: we must append `"}` (2 chars) to the end to keep JSON valid
+        if (json.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH + 2) {
+            return json;
+        }
+        final int actuallyRemovedCharacters = json.length() - MAXIMUM_STEP_INFO_STRING_LENGTH - 2;
+        return Strings.cleanTruncate(json, MAXIMUM_STEP_INFO_STRING_LENGTH) + "... (" + actuallyRemovedCharacters + " chars truncated)\"}";
     }
 
     public static class Builder {
@@ -340,7 +341,7 @@ public record LifecycleExecutionState(
         }
 
         public Builder setStepInfo(String stepInfo) {
-            this.stepInfo = truncateWithExplanation(stepInfo);
+            this.stepInfo = potentiallyTruncateLongJsonWithExplanation(stepInfo);
             return this;
         }
 

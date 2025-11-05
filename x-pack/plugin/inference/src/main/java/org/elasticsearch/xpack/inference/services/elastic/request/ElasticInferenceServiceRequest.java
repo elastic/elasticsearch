@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
@@ -40,15 +39,15 @@ public abstract class ElasticInferenceServiceRequest implements Request {
         var productUseCase = metadata.productUseCase();
         var esVersion = metadata.esVersion();
 
-        if (Objects.nonNull(productOrigin) && productOrigin.isEmpty() == false) {
+        if (Strings.isNullOrEmpty(productOrigin) == false) {
             request.setHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, productOrigin);
         }
 
-        if (Objects.nonNull(productUseCase) && productUseCase.isEmpty() == false) {
+        if (Strings.isNullOrEmpty(productUseCase) == false) {
             request.addHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
         }
 
-        if (Objects.nonNull(esVersion) && esVersion.isEmpty() == false) {
+        if (Strings.isNullOrEmpty(esVersion) == false) {
             request.addHeader(X_ELASTIC_ES_VERSION, esVersion);
         }
 

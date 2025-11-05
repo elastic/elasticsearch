@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -94,7 +96,7 @@ public class ServerlessTransportHandshakeTests extends ESTestCase {
         threadPool = null;
     }
 
-    public void testAcceptsMismatchedServerlessBuildHash() {
+    public void testAcceptsMismatchedServerlessBuildHashWithoutWarning() {
         assumeTrue("Current build needs to be a snapshot", Build.current().isSnapshot());
         final var transportInterceptorA = new BuildHashModifyingTransportInterceptor();
         final var transportInterceptorB = new BuildHashModifyingTransportInterceptor();
@@ -104,8 +106,14 @@ public class ServerlessTransportHandshakeTests extends ESTestCase {
             .build();
         final TransportService transportServiceA = startServices("TS_A", settings, transportInterceptorA);
         final TransportService transportServiceB = startServices("TS_B", settings, transportInterceptorB);
-        AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
-        assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
+        MockLog.assertThatLogger(() -> {
+            AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
+            assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
+        },
+            TransportService.class,
+            new MockLog.UnseenEventExpectation("incompatible wire format log", TransportService.class.getCanonicalName(), Level.WARN, "*")
+        );
+
     }
 
 }

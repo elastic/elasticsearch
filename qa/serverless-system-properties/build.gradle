@@ -7,8 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.apache.tools.ant.filters.ReplaceTokens
-
 apply plugin: 'elasticsearch.build'
 
 dependencies {
@@ -18,5 +16,5 @@ dependencies {
 
 tasks.named("test").configure {
   systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
-//  systemProperty 'es.serverless_transport', 'true'
+  systemProperty 'es.serverless_transport', 'true'
 }

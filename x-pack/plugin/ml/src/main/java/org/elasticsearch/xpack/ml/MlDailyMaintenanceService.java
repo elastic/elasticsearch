@@ -569,7 +569,6 @@ public class MlDailyMaintenanceService implements Releasable {
             }
             chainTaskExecutor.execute(jobsActionListener);
         }, finalListener::onFailure);
-
         ActionListener<GetJobsAction.Response> getJobsActionListener = ActionListener.wrap(getJobsResponse -> {
             Set<String> jobsInState = getJobsResponse.getResponse().results().stream().filter(jobFilter).map(Job::getId).collect(toSet());
             if (jobsInState.isEmpty()) {
@@ -577,6 +576,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 return;
             }
             jobsInStateHolder.set(jobsInState);
+
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
@@ -585,7 +585,6 @@ public class MlDailyMaintenanceService implements Releasable {
                 listTasksActionListener
             );
         }, finalListener::onFailure);
-
         executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, new GetJobsAction.Request("*"), getJobsActionListener);
     }
 

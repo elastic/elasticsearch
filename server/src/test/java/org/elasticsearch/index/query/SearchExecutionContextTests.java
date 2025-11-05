@@ -230,11 +230,11 @@ public class SearchExecutionContextTests extends ESTestCase {
             runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
             runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
             runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
-            runtimeField("4", (leafLookup, docId) -> {
-                if (leafLookup.doc().get("indexed_field").get(0).equals("first")) {
+            runtimeField("4", leafLookup -> {
+                if (leafLookup.doc().get("indexed_field").getFirst().equals("first")) {
                     return "escape!";
                 }
-                return leafLookup.doc().get("4").get(0).toString();
+                return leafLookup.doc().get("4").getFirst().toString();
             })
         );
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(

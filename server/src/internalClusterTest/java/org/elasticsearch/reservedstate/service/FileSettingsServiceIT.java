@@ -369,8 +369,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                     .get(FileSettingsService.NAMESPACE);
                 assertThat(reservedState, notNullValue());
                 assertThat(reservedState.version(), equalTo(EMPTY_VERSION));
-                ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
-                assertThat(handlerMetadata, nullValue());
+                assertTrue(reservedState.handlers().isEmpty());
 
                 logger.info("--> verify settings are no longer reserved and can be modified");
                 ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)

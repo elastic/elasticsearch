@@ -258,6 +258,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     public List<QueryBuilder> getPrefilteringTargetQueries() {
-        return List.of(positiveQuery);
+        return List.of(positiveQuery, negativeQuery);
     }
 }

@@ -112,7 +112,8 @@ public class RdnFieldExtractorTests extends ESTestCase {
         // Multi-valued RDNs use "+" to combine multiple attributes in a single RDN component (SET)
         // Example: "CN=John Doe+OU=Engineering" - both CN and OU are in the same RDN SET
         String multiValuedRdn = "CN=John Smith+OU=Development, O=Acme Corp";
-        assertThat("CN should be null - DN contains multi-valued RDN", extractFromDN(multiValuedRdn, OID_CN), is(nullValue()));
+        assertThat(extractFromDN(multiValuedRdn, OID_CN), is("John Smith"));
+        assertThat(extractFromDN(multiValuedRdn, OID_OU), is("Development"));
         assertThat(extractFromDN(multiValuedRdn, OID_O), is("Acme Corp"));
     }
 }

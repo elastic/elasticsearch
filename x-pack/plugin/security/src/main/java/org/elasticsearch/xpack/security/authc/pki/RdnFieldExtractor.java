@@ -16,40 +16,41 @@ import java.io.IOException;
  */
 public class RdnFieldExtractor {
 
+    // ASN.1 type is the lower 5 bits of the identifier octet
+    // See: ITU-T X.690
+    private static final int ASN1_TYPE_SEQUENCE = 0x10;
+    private static final int ASN1_TYPE_SET = 0x11;
+
     public static String extract(byte[] encoded, String oid) {
         try {
             return doExtract(encoded, oid);
         } catch (IOException e) {
-            return null;
+            return null; // EOF or invalid encoding
         }
     }
 
     private static String doExtract(byte[] encoded, String oid) throws IOException {
         DerParser parser = new DerParser(encoded);
 
-        DerParser.Asn1Object dnSequence = parser.readAsn1Object();
+        DerParser.Asn1Object dnSequence = parser.readAsn1Object(ASN1_TYPE_SEQUENCE);
         DerParser sequenceParser = dnSequence.getParser();
 
         while (true) {
-            DerParser.Asn1Object rdnSet = sequenceParser.readAsn1Object();
-            if (rdnSet.isConstructed() == false) {
-                return null;
-            }
-
+            DerParser.Asn1Object rdnSet = sequenceParser.readAsn1Object(ASN1_TYPE_SET); // allow EOF to propagate
             DerParser setParser = rdnSet.getParser();
-            DerParser.Asn1Object attrSeq = setParser.readAsn1Object();
 
-            if (attrSeq.isConstructed()) {
-                DerParser attrParser = attrSeq.getParser();
-                String attrOid = attrParser.readAsn1Object().getOid();
+            while (true) {
+                try {
+                    DerParser.Asn1Object attrSeq = setParser.readAsn1Object(ASN1_TYPE_SEQUENCE);
+                    DerParser attrParser = attrSeq.getParser();
 
-                if (oid.equals(attrOid)) {
-                    try {
-                        setParser.readAsn1Object();
-                        return null; // abort if additional attributes on the RDN
-                    } catch (IOException e) {
-                        return attrParser.readAsn1Object().getString(); // success if just one attribute in sequence
+                    String attrOid = attrParser.readAsn1Object().getOid();
+                    DerParser.Asn1Object attrValue = attrParser.readAsn1Object();
+                    if (oid.equals(attrOid)) {
+                        return attrValue.getString();
                     }
+                } catch (IOException e) {
+                    break; // EOF
                 }
             }
         }

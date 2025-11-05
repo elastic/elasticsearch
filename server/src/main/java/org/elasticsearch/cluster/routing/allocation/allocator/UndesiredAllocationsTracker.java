@@ -42,6 +42,17 @@ public class UndesiredAllocationsTracker {
     );
 
     /**
+     * The minimum amount of time between warnings about persistent undesired allocations
+     */
+    public static final Setting<TimeValue> UNDESIRED_ALLOCATION_DURATION_LOG_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.desired_balance.undesired_duration_logging.interval",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * The max number of undesired allocations to track. We expect this to be relatively small.
      */
     public static final Setting<Integer> MAX_UNDESIRED_ALLOCATIONS_TO_TRACK = Setting.intSetting(
@@ -63,7 +74,7 @@ public class UndesiredAllocationsTracker {
         this.timeProvider = timeProvider;
         this.undesiredAllocationDurationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.ZERO);
         clusterSettings.initializeAndWatch(
-            DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,
+            UNDESIRED_ALLOCATION_DURATION_LOG_INTERVAL_SETTING,
             undesiredAllocationDurationLogInterval::setMinInterval
         );
         clusterSettings.initializeAndWatch(

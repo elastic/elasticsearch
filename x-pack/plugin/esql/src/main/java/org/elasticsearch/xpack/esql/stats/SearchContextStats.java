@@ -168,8 +168,13 @@ public class SearchContextStats implements SearchStats {
         for (SearchExecutionContext context : contexts) {
             MappedFieldType ft = context.getFieldType(name.string());
             if (ft == null) {
-                // Missing fields are always null, no matter what we try to push.
-                continue;
+                /*
+                 * Missing fields are always null no matter what we try to push so they
+                 * should work, but we need this check here to prevent actually pushing
+                 * to a LOOKUP JOIN. If the field comes from a LOOKUP JOIN  then it'll
+                 * show up as missing here. And we can't push to those fields. Yet.
+                 */
+                return false;
             }
             if (ft.supportsBlockLoaderConfig(config, preference) == false) {
                 // If any one field doesn't support the loader config we'll disable pushing the expression to the field

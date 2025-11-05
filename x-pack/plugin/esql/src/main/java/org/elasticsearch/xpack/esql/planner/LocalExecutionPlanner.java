@@ -388,12 +388,10 @@ public class LocalExecutionPlanner {
         EsStatsQueryExec.Stat stat = statsQuery.stats().get(0);
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
-        final LuceneOperator.Factory luceneFactory = esProvider.countSource(
-            context,
-            stat.filter(statsQuery.query()),
-            null,
-            statsQuery.limit()
-        );
+        final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, switch (stat) {
+            case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplier(basic.filter(statsQuery.query()));
+            case EsStatsQueryExec.ByStat byStat -> esProvider.querySupplier(byStat.queryBuilderAndTags());
+        }, statsQuery.limit());
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(statsQuery.outputSet());

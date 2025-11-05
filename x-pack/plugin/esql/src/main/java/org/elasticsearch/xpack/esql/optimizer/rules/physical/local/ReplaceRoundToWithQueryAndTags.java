@@ -22,14 +22,12 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -49,7 +47,6 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
@@ -333,35 +330,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             return evalExec;
         }
 
-        FieldAttribute fieldAttribute = (FieldAttribute) roundTo.field();
-        String tagFieldName = Attribute.rawTemporaryName(
-            // $$fieldName$round_to$dateType
-            fieldAttribute.fieldName().string(),
-            "round_to",
-            roundTo.field().dataType().typeName()
-        );
-        FieldAttribute tagField = new FieldAttribute(
-            roundTo.source(),
-            tagFieldName,
-            new EsField(tagFieldName, roundTo.dataType(), Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-        );
-        // Add new tag field to attributes/output
-        List<Attribute> newAttributes = new ArrayList<>(queryExec.attrs());
-        newAttributes.add(tagField);
-
-        // create a new EsQueryExec with newAttributes/output and queryBuilderAndTags
-        EsQueryExec queryExecWithTags = new EsQueryExec(
-            queryExec.source(),
-            queryExec.indexPattern(),
-            queryExec.indexMode(),
-            queryExec.indexNameWithModes(),
-            newAttributes,
-            queryExec.limit(),
-            queryExec.sorts(),
-            queryExec.estimatedRowSize(),
-            queryBuilderAndTags
-        );
-        EsStatsQueryExec statsQueryExec = new EsStatsQueryExec(
+        return new EsStatsQueryExec(
             queryExec.source(),
             queryExec.indexPattern(),
             queryExec.query(),
@@ -369,16 +338,6 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             queryExec.attrs(),
             List.of(new EsStatsQueryExec.ByStat(aggregateExec, queryBuilderAndTags))
         );
-
-        return statsQueryExec;
-
-        // // Replace RoundTo with new tag field in EvalExec
-        // List<Alias> updatedFields = evalExec.fields()
-        // .stream()
-        // .map(alias -> alias.child() instanceof RoundTo ? alias.replaceChild(tagField) : alias)
-        // .toList();
-
-        // return new EvalExec(evalExec.source(), queryExecWithTags, updatedFields);
     }
 
     private static List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags(

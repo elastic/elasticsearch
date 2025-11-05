@@ -35,6 +35,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -59,6 +60,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -100,7 +102,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     /**
      * Context of each shard we're operating against. Note these objects are shared across multiple operators as
-     * {@link org.elasticsearch.core.RefCounted}.
+     * {@link RefCounted}.
      */
     public abstract static class ShardContext implements org.elasticsearch.compute.lucene.ShardContext, Releasable {
         private final AbstractRefCounted refCounted = new AbstractRefCounted() {
@@ -392,13 +394,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
      */
     public LuceneCountOperator.Factory countSource(
         LocalExecutionPlannerContext context,
-        QueryBuilder queryBuilder,
-        List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags,
+        Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         Expression limit
     ) {
         return new LuceneCountOperator.Factory(
             shardContexts,
-            querySupplier(queryBuilderAndTags),
+            queryFunction,
             context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
             List.of(ElementType.LONG),
@@ -427,7 +428,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final int index;
 
         /**
-         * In production, this will be a {@link org.elasticsearch.search.internal.SearchContext}, but we don't want to drag that huge
+         * In production, this will be a {@link SearchContext}, but we don't want to drag that huge
          * dependency here.
          */
         private final Releasable releasable;

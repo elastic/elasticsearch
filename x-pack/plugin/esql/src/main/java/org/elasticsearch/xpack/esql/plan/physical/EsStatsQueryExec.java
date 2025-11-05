@@ -36,9 +36,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         EXISTS
     }
 
-    public sealed interface Stat {
-        QueryBuilder filter(QueryBuilder sourceQuery);
-    }
+    public sealed interface Stat {}
 
     public record BasicStat(String name, StatsType type, QueryBuilder query) implements Stat {
         public QueryBuilder filter(QueryBuilder sourceQuery) {
@@ -46,11 +44,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
-    public record ByStat(AggregateExec aggExec, List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {
-        public QueryBuilder filter(QueryBuilder sourceQuery) {
-            throw new AssertionError("TODO(gal) NOCOMMIT");
-        }
-    }
+    public record ByStat(AggregateExec aggExec, List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {}
 
     private final String indexPattern;
     private final QueryBuilder query;

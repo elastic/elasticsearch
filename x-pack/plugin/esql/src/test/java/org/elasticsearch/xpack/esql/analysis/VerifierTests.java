@@ -3298,6 +3298,20 @@ public class VerifierTests extends ESTestCase {
                 equalTo("1:39: Invalid named parameter [\"query\":null], NULL is not supported")
             );
             assertThat(
+                error(
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": 3, \"chunk_size\": 20, \"query\": 123})",
+                    fullTextAnalyzer,
+                    VerificationException.class
+                ),
+                equalTo("1:27: [query] must be of type keyword, found [INTEGER]")
+            );
+            assertThat(error("""
+                from test | EVAL chunks = CHUNK(body, {"num_chunks": 3, "chunk_size": 20, "query": ["puggles", "chiweenies"]})
+                """, fullTextAnalyzer, VerificationException.class), equalTo("1:27: [query] must be a single keyword value"));
+            assertThat(error("""
+                from test | EVAL chunks = CHUNK(body, {"num_chunks": 3, "chunk_size": 20, "query": ["puggles"]})
+                """, fullTextAnalyzer, VerificationException.class), equalTo("1:27: [query] must be a single keyword value"));
+            assertThat(
                 error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":\"foo\"})", fullTextAnalyzer),
                 equalTo("1:27: Invalid option [num_chunks] in [CHUNK(body, {\"num_chunks\":\"foo\"})], cannot cast [foo] to [integer]")
             );
@@ -3320,6 +3334,13 @@ public class VerifierTests extends ESTestCase {
             assertThat(
                 error("from test | EVAL chunks = CHUNK(body, \"puggles\")", fullTextAnalyzer),
                 equalTo("1:27: second argument of [CHUNK(body, \"puggles\")] must be a map expression, received [\"puggles\"]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, MATCH(\"chunks\", \"puggles\"))", fullTextAnalyzer),
+                equalTo(
+                    "1:27: second argument of [CHUNK(body, MATCH(\"chunks\", \"puggles\"))] "
+                        + "must be a map expression, received [MATCH(\"chunks\", \"puggles\")]"
+                )
             );
         }
     }

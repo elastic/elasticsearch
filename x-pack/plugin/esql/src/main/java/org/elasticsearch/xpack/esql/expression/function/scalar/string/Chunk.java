@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +87,8 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 If no chunks match the provided text query, chunks will be returned in the order in which they appear in the document.
             """,
         examples = {
+            @Example(file = "chunk", tag = "chunk-with-row", applies_to = "stack: preview 9.3.0"),
+            @Example(file = "chunk", tag = "chunk-with-row-and-query", applies_to = "stack: preview 9.3.0"),
             @Example(file = "chunk", tag = "chunk-with-field", applies_to = "stack: preview 9.3.0"),
             @Example(file = "chunk", tag = "chunk-with-query", applies_to = "stack: preview 9.3.0"),
             @Example(file = "chunk", tag = "chunk-with-query-and-options", applies_to = "stack: preview 9.3.0") }
@@ -112,17 +116,6 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             description = "Options to customize chunking behavior.",
             optional = true
         ) Expression options
-    ) {
-        super(source, options == null ? List.of(field) : List.of(field, options));
-        this.field = field;
-        this.options = options;
-    }
-
-    private Chunk(
-        Source source,
-        Expression field,
-        Expression options,
-        boolean unused // dummy parameter to differentiate constructors
     ) {
         super(source, options == null ? List.of(field) : List.of(field, options));
         this.field = field;
@@ -159,17 +152,11 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-
-        TypeResolution resolution = isString(field(), sourceText(), FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        return Options.resolve(options(), source(), SECOND, ALLOWED_OPTIONS, this::verifyOptions);
+        return isString(field, sourceText(), FIRST).and(Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS, this::verifyOptions));
     }
 
     private void verifyOptions(Map<String, Object> optionsMap) {
-        if (options() == null) {
+        if (options == null) {
             return;
         }
 
@@ -181,11 +168,32 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         if (chunkSize != null && chunkSize < 0) {
             throw new InvalidArgumentException("[{}] cannot be negative, found [{}]", CHUNK_SIZE, chunkSize);
         }
+
+        String query = (String) optionsMap.get(QUERY);
+        if (query != null) {
+            verifyQueryType();
+        }
+    }
+
+    private void verifyQueryType() {
+        Expression query = ((MapExpression) options).get(QUERY);
+        if (query instanceof Literal queryLiteral) {
+            DataType dataType = queryLiteral.dataType();
+            if (dataType != DataType.KEYWORD && dataType != DataType.TEXT) {
+                throw new InvalidArgumentException("[{}] must be of type keyword, found [{}]", QUERY, dataType.name());
+            }
+            if (queryLiteral.value() instanceof Collection<?>) {
+                throw new InvalidArgumentException("[{}] must be a single keyword value", QUERY, dataType.name());
+            }
+        } else {
+            // Should not happen
+            throw new InvalidArgumentException("[{}] must be a literal, found [{}]", QUERY, query.getClass());
+        }
     }
 
     @Override
     public boolean foldable() {
-        return field().foldable() && (options() == null || options().foldable());
+        return field.foldable() && (options == null || options.foldable());
     }
 
     @Override
@@ -200,14 +208,6 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Chunk::new, field, options);
-    }
-
-    Expression field() {
-        return field;
-    }
-
-    Expression options() {
-        return options;
     }
 
     @Evaluator(extraName = "BytesRefRescore")
@@ -253,20 +253,20 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         Chunk chunk = (Chunk) o;
-        return Objects.equals(field(), chunk.field()) && Objects.equals(options(), chunk.options());
+        return Objects.equals(field, chunk.field) && Objects.equals(options, chunk.options);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), options());
+        return Objects.hash(field, options);
     }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
 
         Map<String, Object> optionsMap = new HashMap<>();
-        if (options() != null) {
-            Options.populateMap(((MapExpression) options()), optionsMap, source(), SECOND, ALLOWED_OPTIONS);
+        if (options != null) {
+            Options.populateMap(((MapExpression) options), optionsMap, source(), SECOND, ALLOWED_OPTIONS);
         }
 
         int numChunks = (Integer) optionsMap.getOrDefault(NUM_CHUNKS, DEFAULT_NUM_CHUNKS);
@@ -274,9 +274,9 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
         if (optionsMap.containsKey(QUERY)) {
             String query = ((String) optionsMap.get(QUERY));
-            return new ChunkBytesRefRescoreEvaluator.Factory(source(), toEvaluator.apply(field()), query, numChunks, chunkSize);
+            return new ChunkBytesRefRescoreEvaluator.Factory(source(), toEvaluator.apply(field), query, numChunks, chunkSize);
         }
 
-        return new ChunkBytesRefEvaluator.Factory(source(), toEvaluator.apply(field()), numChunks, chunkSize);
+        return new ChunkBytesRefEvaluator.Factory(source(), toEvaluator.apply(field), numChunks, chunkSize);
     }
 }

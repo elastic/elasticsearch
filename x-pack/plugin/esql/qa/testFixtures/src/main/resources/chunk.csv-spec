@@ -2,7 +2,73 @@
 # Tests for Chunk function
 #
 
-chunkExample
+chunkWithRows
+required_capability: chunk_function_v2
+
+// tag::chunk-with-row[]
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins. In a sleepy village in the Shire, young Frodo Baggins finds himself faced with an immense task, as his elderly cousin Bilbo entrusts the Ring to his care. Frodo must leave his home and make a perilous journey across Middle-earth to the Cracks of Doom, there to destroy the Ring and foil the Dark Lord in his evil purpose. JRR Tolkien's great work of imaginative fiction has been labelled both a heroic romance and a classic fantasy fiction. By turns comic and homely, epic and diabolic, the narrative moves through countless changes of scene and character in an imaginary world which is totally convincing in its detail."
+| EVAL chunks = chunk(content, {"num_chunks": 1, "chunk_size": 50 })
+// end::chunk-with-row[]
+| KEEP chunks
+;
+
+// tag::chunk-with-row-result[]
+chunks:keyword
+Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth.
+// end::chunk-with-row-result[]
+;
+
+multipleChunksWithRows
+required_capability: chunk_function_v2
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins. In a sleepy village in the Shire, young Frodo Baggins finds himself faced with an immense task, as his elderly cousin Bilbo entrusts the Ring to his care. Frodo must leave his home and make a perilous journey across Middle-earth to the Cracks of Doom, there to destroy the Ring and foil the Dark Lord in his evil purpose. JRR Tolkien's great work of imaginative fiction has been labelled both a heroic romance and a classic fantasy fiction. By turns comic and homely, epic and diabolic, the narrative moves through countless changes of scene and character in an imaginary world which is totally convincing in its detail."
+| EVAL chunks = chunk(content, {"num_chunks": 3, "chunk_size": 50 })
+| MV_EXPAND chunks
+| KEEP chunks
+;
+
+chunks:keyword
+Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth.
+All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins.
+In a sleepy village in the Shire, young Frodo Baggins finds himself faced with an immense task, as his elderly cousin Bilbo entrusts the Ring to his care.
+;
+
+chunkWithRowsAndQuery
+required_capability: chunk_function_v2
+
+// tag::chunk-with-row-and-query[]
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins. In a sleepy village in the Shire, young Frodo Baggins finds himself faced with an immense task, as his elderly cousin Bilbo entrusts the Ring to his care. Frodo must leave his home and make a perilous journey across Middle-earth to the Cracks of Doom, there to destroy the Ring and foil the Dark Lord in his evil purpose. JRR Tolkien's great work of imaginative fiction has been labelled both a heroic romance and a classic fantasy fiction. By turns comic and homely, epic and diabolic, the narrative moves through countless changes of scene and character in an imaginary world which is totally convincing in its detail."
+| EVAL chunks = chunk(content, {"query": "Tolkien", "chunk_size": 50 })
+// end::chunk-with-row-and-query[]
+| MV_EXPAND chunks
+| KEEP chunks
+;
+
+// tag::chunk-with-row-and-query-result[]
+chunks:keyword
+Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth.
+All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins.
+In a sleepy village in the Shire, young Frodo Baggins finds himself faced with an immense task, as his elderly cousin Bilbo entrusts the Ring to his care.
+Frodo must leave his home and make a perilous journey across Middle-earth to the Cracks of Doom, there to destroy the Ring and foil the Dark Lord in his evil purpose.
+JRR Tolkien's great work of imaginative fiction has been labelled both a heroic romance and a classic fantasy fiction. By turns comic and homely, epic and diabolic, the narrative moves through countless changes of scene and character in an imaginary world which is totally convincing in its detail.
+// end::chunk-with-row-and-query-result[]
+;
+
+multipleChunksWithRowsAndNoMatchQuery
+required_capability: chunk_function_v2
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins. In a sleepy village in the Shire, young Frodo Baggins finds himself faced with an immense task, as his elderly cousin Bilbo entrusts the Ring to his care. Frodo must leave his home and make a perilous journey across Middle-earth to the Cracks of Doom, there to destroy the Ring and foil the Dark Lord in his evil purpose. JRR Tolkien's great work of imaginative fiction has been labelled both a heroic romance and a classic fantasy fiction. By turns comic and homely, epic and diabolic, the narrative moves through countless changes of scene and character in an imaginary world which is totally convincing in its detail."
+| EVAL chunks = chunk(content, {"query": "Bilbo Baggins", "num_chunks": 3, "chunk_size": 50 })
+| MV_EXPAND chunks
+| KEEP chunks
+;
+
+chunks:keyword
+In a sleepy village in the Shire, young Frodo Baggins finds himself faced with an immense task, as his elderly cousin Bilbo entrusts the Ring to his care.
+All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins.
+;
+
+chunkWithField
 required_capability: chunk_function_v2
 
 // tag::chunk-with-field[]
@@ -112,7 +178,7 @@ chunkTextWithConcatenatedField
 required_capability: chunk_function_v2
 
 FROM books
-| EVAL title_description = CONCAT(title, description)
+| EVAL title_description = CONCAT(title, " ", description)
 | EVAL chunks = CHUNK(title_description, {"num_chunks":1, "chunk_size":20})
 | KEEP book_no, title, chunks
 | SORT book_no
@@ -120,11 +186,11 @@ FROM books
 ;
 
 book_no:keyword | title:text                                            | chunks:keyword
-1211            | The brothers Karamazov                                | The brothers KaramazovIn 1880 Dostoevsky completed The Brothers Karamazov, the literary effort for which he had been preparing all his
-1463            | Realms of Tolkien: Images of Middle-earth             | Realms of Tolkien: Images of Middle-earthTwenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an
-1502            | Selected Passages from Correspondence with Friends    | Selected Passages from Correspondence with FriendsNikolai Gogol wrote some letters to his friends, none of which were a nose of
-1937            | The Best Short Stories of Dostoevsky (Modern Library) | The Best Short Stories of Dostoevsky (Modern Library)This collection, unique to the Modern Library, gathers seven of Dostoevsky's key
-1985            | Brothers Karamazov                                    | Brothers KaramazovFour brothers reunite in their hometown in Russia.
+1211            | The brothers Karamazov                                | The brothers Karamazov In 1880 Dostoevsky completed The Brothers Karamazov, the literary effort for which he had been preparing all
+1463            | Realms of Tolkien: Images of Middle-earth             | Realms of Tolkien: Images of Middle-earth Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing
+1502            | Selected Passages from Correspondence with Friends    | Selected Passages from Correspondence with Friends Nikolai Gogol wrote some letters to his friends, none of which were a nose
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | The Best Short Stories of Dostoevsky (Modern Library) This collection, unique to the Modern Library, gathers seven of Dostoevsky's key
+1985            | Brothers Karamazov                                    | Brothers Karamazov Four brothers reunite in their hometown in Russia.
 ;
 
 chunkTextWithMultivaluedField
@@ -145,6 +211,17 @@ emp_no:integer | first_name:keyword | last_name:keyword | chunks:keyword
 10003          | Parto              | Bamford           | null
 10004          | Chirstian          | Koblick           | null
 10005          | Kyoichi            | Maliniak          | null
+;
+
+chunkTextWithNullField
+required_capability: chunk_function_v2
+
+ROW content = "foo"
+| EVAL chunks = CHUNK(null)
+;
+
+content:keyword | chunks:keyword
+foo             | null
 ;
 
 chunkExampleWithQuery
@@ -245,8 +322,5 @@ book_no:keyword | title:text                                                    
 7350            | Return of the Shadow                                             | The character of the hobbit called Trotter (afterwards Strider or Aragorn) is developed while his indentity remains an absolute puzzle
 7350            | Return of the Shadow                                             | Tolkien for long believed would be a far shorter book, 'a sequel to The Hobbit'.
 ;
-
-
-
 
 

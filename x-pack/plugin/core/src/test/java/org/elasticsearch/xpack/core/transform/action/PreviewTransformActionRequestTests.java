@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -29,7 +30,9 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -87,12 +90,35 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             : new Request(instance.getConfig(), instance.ackTimeout(), instance.previewAsIndexRequest() == false);
     }
 
-    @Override
-    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
-        if (version.supports(Request.PREVIEW_AS_INDEX_REQUEST)) {
-            return instance;
-        } else {
-            return new Request(instance.getConfig(), instance.ackTimeout(), false);
+    public void testAsIndexRequestIsNotBackwardsCompatible() throws IOException {
+        var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream()
+            .filter(Predicate.not(version -> version.supports(Request.PREVIEW_AS_INDEX_REQUEST)))
+            .toList();
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            var testInstance = createTestInstance();
+            for (var unsupportedVersion : unsupportedVersions) {
+                if (testInstance.previewAsIndexRequest()) {
+                    var statusException = assertThrows(
+                        ElasticsearchStatusException.class,
+                        () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
+                    );
+                    assertThat(statusException.status(), equalTo(RestStatus.FORBIDDEN));
+                    assertThat(
+                        statusException.getMessage(),
+                        equalTo("_preview with as_index_request set to true only works if all the nodes support it.")
+                    );
+                } else {
+                    var deserializedInstance = copyWriteable(
+                        testInstance,
+                        getNamedWriteableRegistry(),
+                        instanceReader(),
+                        unsupportedVersion
+                    );
+                    assertNotSame(unsupportedVersion.toString(), deserializedInstance, testInstance);
+                    assertEquals(unsupportedVersion.toString(), deserializedInstance, testInstance);
+                    assertEquals(unsupportedVersion.toString(), deserializedInstance.hashCode(), testInstance.hashCode());
+                }
+            }
         }
     }
 

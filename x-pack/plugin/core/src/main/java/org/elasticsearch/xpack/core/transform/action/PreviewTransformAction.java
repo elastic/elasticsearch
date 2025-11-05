@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -131,6 +133,13 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             this.config.writeTo(out);
             if (out.getTransportVersion().supports(PREVIEW_AS_INDEX_REQUEST)) {
                 out.writeBoolean(previewAsIndexRequest);
+            } else if (previewAsIndexRequest) {
+                throw new ElasticsearchStatusException(
+                    "_preview with "
+                        + TransformField.PREVIEW_AS_INDEX_REQUEST.getPreferredName()
+                        + " set to true only works if all the nodes support it.",
+                    RestStatus.FORBIDDEN
+                );
             }
         }
 

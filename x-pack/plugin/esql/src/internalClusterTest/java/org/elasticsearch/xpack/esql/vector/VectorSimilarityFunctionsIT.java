@@ -158,7 +158,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         var query = String.format(Locale.ROOT, """
                 FROM test
                 | EVAL similarity = %s(one_dim_vector, %s)
-                | KEEP left_vector, similarity
+                | KEEP one_dim_vector, similarity
             """, functionName, randomVector);
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);

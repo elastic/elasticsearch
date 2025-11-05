@@ -87,7 +87,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     }
 
     // Package private for tests
-    private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode, RoutingAllocation allocation) {
+    Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode, RoutingAllocation allocation) {
         if (indexMetadata.isPartialSearchableSnapshot() == false) {
             return Decision.ALWAYS;
         }

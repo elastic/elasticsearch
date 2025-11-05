@@ -534,23 +534,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (g instanceof UnresolvedAttribute ua && ua.name().equals(MetadataAttribute.TSID_FIELD)) {
                         boolean foundInOutput = childrenOutput.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TSID_FIELD));
                         if (foundInOutput == false) {
-                            MetadataAttribute tsid = MetadataAttribute.create(g.source(), MetadataAttribute.TSID_FIELD);
-                            if (tsid != null) {
-                                tsidAttribute.set(tsid);
-                                newChild = aggregate.child().transformUp(EsRelation.class, r -> {
-                                    if (r.indexMode() == IndexMode.TIME_SERIES && r.outputSet().contains(tsid) == false) {
-                                        return new EsRelation(
-                                            r.source(),
-                                            r.indexPattern(),
-                                            r.indexMode(),
-                                            r.indexNameWithModes(),
-                                            CollectionUtils.combine(r.output(), tsid)
-                                        );
-                                    }
-                                    return r;
-                                });
-                                childrenOutput.add(tsid);
-                            }
+                            MetadataAttribute tsid = new MetadataAttribute(
+                                aggregate.source(),
+                                MetadataAttribute.TSID_FIELD,
+                                DataType.KEYWORD,
+                                false
+                            );
+
+                            tsidAttribute.set(tsid);
+                            newChild = aggregate.child().transformUp(EsRelation.class, r -> {
+                                if (r.indexMode() == IndexMode.TIME_SERIES && r.outputSet().contains(tsid) == false) {
+                                    return new EsRelation(
+                                        r.source(),
+                                        r.indexPattern(),
+                                        r.indexMode(),
+                                        r.indexNameWithModes(),
+                                        CollectionUtils.combine(r.output(), tsid)
+                                    );
+                                }
+                                return r;
+                            });
+                            childrenOutput.add(tsid);
                         }
                         break;
                     }

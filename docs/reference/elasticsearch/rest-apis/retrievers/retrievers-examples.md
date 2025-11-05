@@ -113,7 +113,9 @@ First, let’s examine how to combine two different types of queries: a `kNN` qu
 While these queries may produce scores in different ranges, we can use Reciprocal Rank Fusion (`rrf`) to combine the results and generate a merged final result list.
 
 To implement this in the retriever framework, we start with the top-level element: our `rrf` retriever.
-This retriever operates on top of two other retrievers: a `knn` retriever and a `standard` retriever. Our query structure would look like this:
+This retriever operates on top of two other retrievers: a `knn` retriever and a `standard` retriever.
+We can specify weights to adjust the influence of each retriever on the final ranking.
+In this example, we're giving the `standard` retriever twice the influence of the `knn` retriever:
 
 ```console
 GET /retrievers_example/_search
@@ -196,6 +198,57 @@ This returns the following response based on the final rrf score for each result
 % TESTRESPONSE[s/"value": 3/"value": $body.hits.total.value/]
 ::::
 
+
+### Using the expanded format with weights 
+```{applies_to}
+stack: ga 9.2
+```
+
+The same query can be written using the expanded format, which allows you to specify custom weights to adjust the influence of each retriever on the final ranking.
+In this example, we're giving the `standard` retriever twice the influence of the `knn` retriever:
+
+```console
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "retriever": {
+                        "standard": {
+                            "query": {
+                                "query_string": {
+                                    "query": "(information retrieval) OR (artificial intelligence)",
+                                    "default_field": "text"
+                                }
+                            }
+                        }
+                    },
+                    "weight": 2.0
+                },
+                {
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "weight": 1.0
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": false
+}
+```
 
 
 ## Example: Hybrid search with linear retriever [retrievers-examples-linear-retriever]

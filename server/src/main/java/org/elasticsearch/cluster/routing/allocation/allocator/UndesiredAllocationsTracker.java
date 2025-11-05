@@ -84,9 +84,9 @@ public class UndesiredAllocationsTracker {
     }
 
     /**
-     * Clear any tracking of the provided allocation
+     * Remove any tracking of the specified allocation (a no-op if the allocation isn't being tracked)
      */
-    public void clear(ShardRouting shardRouting) {
+    public void removeTracking(ShardRouting shardRouting) {
         undesiredAllocations.remove(shardRouting);
     }
 

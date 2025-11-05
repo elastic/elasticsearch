@@ -494,7 +494,7 @@ public class DesiredBalanceReconciler {
 
                 if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                     // shard is already on a desired node
-                    undesiredAllocationsTracker.clear(shardRouting);
+                    undesiredAllocationsTracker.removeTracking(shardRouting);
                     continue;
                 }
 
@@ -535,7 +535,7 @@ public class DesiredBalanceReconciler {
                     }
                 } finally {
                     if (movedUndesiredShard) {
-                        undesiredAllocationsTracker.clear(shardRouting);
+                        undesiredAllocationsTracker.removeTracking(shardRouting);
                     } else {
                         undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
                     }
@@ -572,7 +572,7 @@ public class DesiredBalanceReconciler {
 
                 if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                     // shard is already on a desired node
-                    undesiredAllocationsTracker.clear(shardRouting);
+                    undesiredAllocationsTracker.removeTracking(shardRouting);
                     continue;
                 }
 
@@ -621,7 +621,7 @@ public class DesiredBalanceReconciler {
                     }
                 } finally {
                     if (movedUndesiredShard) {
-                        undesiredAllocationsTracker.clear(shardRouting);
+                        undesiredAllocationsTracker.removeTracking(shardRouting);
                     } else {
                         undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
                     }

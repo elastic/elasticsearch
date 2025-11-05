@@ -24,7 +24,7 @@ public class RdnFieldExtractor {
     public static String extract(byte[] encoded, String oid) {
         try {
             return doExtract(encoded, oid);
-        } catch (IOException e) {
+        } catch (IOException | IllegalStateException e) {
             return null; // EOF or invalid encoding
         }
     }

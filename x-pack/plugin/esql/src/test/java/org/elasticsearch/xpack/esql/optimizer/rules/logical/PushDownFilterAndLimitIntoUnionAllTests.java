@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.junit.Before;
 
 import java.util.List;
 
@@ -46,6 +47,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlanOptimizerTests {
+
+    @Before
+    public void checkSubqueryInFromCommandSupport() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    }
 
     /*
      *Limit[1000[INTEGER],false,false]
@@ -71,7 +77,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *                               language_name{f}#29],EMPTY]
      */
     public void testPushDownSimpleFilterPastUnionAll() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | WHERE languages > 0), (FROM languages | WHERE language_code > 0)
             | WHERE emp_no > 10000
@@ -131,7 +136,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      */
     public void testPushDownLimitPastSubqueryWithSort() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | WHERE languages > 0 | SORT emp_no)
             """);
@@ -175,7 +179,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      */
     public void testPushDownFilterAndLimitPastSubqueryWithSort() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | WHERE languages > 0 | SORT emp_no)
             | WHERE emp_no > 10000
@@ -239,7 +242,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *                               language_name{f}#30], EMPTY]
      */
     public void testPushDownConjunctiveFilterPastUnionAll() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | WHERE languages > 0), (FROM languages | WHERE language_code > 0)
             | WHERE emp_no > 10000 and salary > 50000
@@ -319,7 +321,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *                              language_name{f}#30],EMPTY]
      */
     public void testPushDownDisjunctiveFilterPastUnionAll() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | WHERE languages > 0), (FROM languages | WHERE language_code > 0)
             | WHERE emp_no > 10000 or salary > 50000
@@ -399,7 +400,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *                               language_name{f}#30],EMPTY]
      */
     public void testPushDownFilterPastUnionAllAndCombineWithFilterInSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | where salary < 100000), (FROM languages  | WHERE language_code > 0)
             | WHERE emp_no > 10000 and salary < 50000
@@ -509,7 +509,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *                   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#80, language_name{f}#81]
      */
     public void testPushDownFilterOnReferenceAttributesPastUnionAll() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test
                        , (FROM test
@@ -647,7 +646,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *               \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
      */
     public void testPushDownFilterOnReferenceAttributesAndFieldAttributesPastUnionAll() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | where salary < 100000 | EVAL x = 1, y = emp_no + 1)
             | WHERE x is not null and y > 0 and emp_no > 0
@@ -744,7 +742,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *                 \_EsRelation[test_mixed_types][avg_worked_seconds{f}#46, birth_date{f}#34, emp_no{..]
      */
     public void testFilterOnMixedDataTypesFields() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test_mixed_types | WHERE languages > 1)
             | EVAL x = emp_no::double,  emp_no = emp_no::long, gender = gender::keyword, y = languages
@@ -811,7 +808,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      */
     public void testPushDownSingleFullTextFunctionPastUnionAll() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | WHERE languages > 0)
             | WHERE first_name:"first"
@@ -869,7 +865,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
     public void testPushDownFullTextFunctionNoFieldRequiredPastUnionAll() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | WHERE languages > 0 AND qstr("gender:female"))
             | WHERE qstr("first_name:first") == true AND kql("last_name:last") == false
@@ -937,7 +932,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      */
     public void testPushDownConjunctiveFullTextFunctionPastUnionAll() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | WHERE languages > 0)
             | WHERE first_name:"first" and match(last_name, "last") and qstr("gender:female")
@@ -1015,7 +1009,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testPushDownDisjunctiveFullTextFunctionPastUnionAll() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
             FROM test, (FROM test | WHERE languages > 0 and match(gender , "F"))
             | WHERE first_name:"first" or match_phrase(last_name, "last") or kql("gender:female")
@@ -1083,10 +1076,9 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
     /*
      * If the field used in the full text function is not present in one of the indices in the UnionAll branches,
-     * the full text function cannot be pushed down.
+     * the full text function can be pushed down.
      */
-    public void testFullTextFunctionCannotBePushedDownPastUnionAll() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    public void testFullTextFunctionCanBePushedDownPastUnionAll() {
         var plan = planSubquery("""
             FROM test, (FROM languages)
             | WHERE match(language_name, "text")
@@ -1097,31 +1089,25 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        // First child: test index
-        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
-        Eval eval1 = as(child1.child(), Eval.class);
-        Filter filter1 = as(eval1.child(), Filter.class);
-        Expression condition = filter1.condition();
-        // The Match function on a field that doesn't exist in the table should fold to null[BOOLEAN]
-        // The condition is a Literal wrapping Literal.NULL
-        Literal nullBooleanCondition = as(condition, Literal.class);
-        assertEquals(Literal.NULL, nullBooleanCondition.value());
+        // First child: LocalRelation with EMPTY data since filter on language_name can't be applied to test index
+        LocalRelation child1 = as(unionAll.children().get(0), LocalRelation.class);
 
-        Limit childLimit1 = as(filter1.child(), Limit.class);
-        as(childLimit1.child(), EsRelation.class);
-
-        // Second child: languages subquery
+        // Second child: languages subquery with MATCH filter pushed down
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
         Eval eval2 = as(child2.child(), Eval.class);
-        Subquery subquery = as(eval2.child(), Subquery.class);
-        Limit childLimit2 = as(subquery.child(), Limit.class);
+        List<Alias> aliases = eval2.fields();
+        assertEquals(11, aliases.size());
 
-        // Match exists in the second subquery
-        Filter filter2 = as(childLimit2.child(), Filter.class);
-        Match match = as(filter2.condition(), Match.class);
+        Subquery subquery = as(eval2.child(), Subquery.class);
+        Limit childLimit = as(subquery.child(), Limit.class);
+        Filter filter = as(childLimit.child(), Filter.class);
+        Match match = as(filter.condition(), Match.class);
         FieldAttribute languageName = as(match.field(), FieldAttribute.class);
         assertEquals("language_name", languageName.name());
+        Literal queryLiteral = as(match.query(), Literal.class);
+        assertEquals(new BytesRef("text"), queryLiteral.value());
 
-        as(filter2.child(), EsRelation.class);
+        EsRelation relation = as(filter.child(), EsRelation.class);
+        assertEquals("languages", relation.indexPattern());
     }
 }

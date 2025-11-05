@@ -165,7 +165,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
     @Override
     public Object fold(FoldContext ctx) {
         // We only fold when the field is null (it's not present in the mapping), so we return null
-        return Literal.NULL;
+        return null;
     }
 
     @Override

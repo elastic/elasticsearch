@@ -31,8 +31,43 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
 
+/**
+ * Plugin for asynchronous search functionality in Elasticsearch.
+ * <p>
+ * This plugin enables long-running search requests to execute asynchronously,
+ * allowing clients to submit a search, disconnect, and retrieve results later.
+ * This is particularly useful for searches that may take a long time to complete.
+ * </p>
+ * <p><b>Usage Example:</b></p>
+ * <pre>{@code
+ * POST /my-index/_async_search?wait_for_completion_timeout=2s
+ * {
+ *   "query": {
+ *     "match_all": {}
+ *   }
+ * }
+ *
+ * // Returns an ID to retrieve results later
+ * GET /_async_search/<id>
+ *
+ * // Check status without retrieving results
+ * GET /_async_search/status/<id>
+ *
+ * // Delete the async search
+ * DELETE /_async_search/<id>
+ * }</pre>
+ */
 public final class AsyncSearch extends Plugin implements ActionPlugin {
 
+    /**
+     * Returns the list of action handlers provided by this plugin.
+     * <p>
+     * Registers transport actions for submitting async searches, retrieving results,
+     * and checking search status.
+     * </p>
+     *
+     * @return a list of action handlers for async search operations
+     */
     @Override
     public List<ActionHandler> getActions() {
         return Arrays.asList(
@@ -42,6 +77,24 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
         );
     }
 
+    /**
+     * Returns the REST handlers provided by this plugin.
+     * <p>
+     * Registers REST endpoints for async search operations including submit, get,
+     * status, and delete operations.
+     * </p>
+     *
+     * @param settings the node settings
+     * @param namedWriteableRegistry the named writeable registry
+     * @param restController the REST controller
+     * @param clusterSettings the cluster settings
+     * @param indexScopedSettings the index-scoped settings
+     * @param settingsFilter the settings filter
+     * @param indexNameExpressionResolver the index name expression resolver
+     * @param nodesInCluster supplier for discovery nodes
+     * @param clusterSupportsFeature predicate to check feature support
+     * @return a list of REST handlers for async search endpoints
+     */
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
@@ -62,6 +115,11 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
         );
     }
 
+    /**
+     * Returns the list of settings provided by this plugin.
+     *
+     * @return a list containing the async search cleanup interval setting
+     */
     @Override
     public List<Setting<?>> getSettings() {
         return Collections.singletonList(ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING);

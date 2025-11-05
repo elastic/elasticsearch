@@ -28,10 +28,38 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 
+/**
+ * Utility class providing static methods for working with {@link Iterator} instances.
+ * This class offers various operations for creating, combining, and transforming iterators
+ * in a functional style.
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Create a single-element iterator
+ * Iterator<String> singleIter = Iterators.single("hello");
+ *
+ * // Concatenate multiple iterators
+ * Iterator<Integer> iter1 = Arrays.asList(1, 2, 3).iterator();
+ * Iterator<Integer> iter2 = Arrays.asList(4, 5, 6).iterator();
+ * Iterator<Integer> combined = Iterators.concat(iter1, iter2);
+ *
+ * // Map iterator elements
+ * Iterator<String> mapped = Iterators.map(combined, Object::toString);
+ *
+ * // Filter iterator elements
+ * Iterator<Integer> filtered = Iterators.filter(combined, n -> n % 2 == 0);
+ * }</pre>
+ */
 public class Iterators {
 
     /**
-     * Returns a single element iterator over the supplied value.
+     * Returns a single-element iterator over the supplied value.
+     * The returned iterator will produce exactly one element before being exhausted.
+     *
+     * @param element the single element to iterate over (must not be null)
+     * @param <T> the type of the element
+     * @return an iterator containing only the given element
+     * @throws NullPointerException if element is null
      */
     public static <T> Iterator<T> single(T element) {
         return new SingleIterator<>(element);
@@ -57,6 +85,16 @@ public class Iterators {
         }
     }
 
+    /**
+     * Combines multiple iterators into a single iterator that returns all elements from all
+     * iterators in sequence. The returned iterator will exhaust each iterator in order before
+     * moving to the next one.
+     *
+     * @param iterators the iterators to concatenate
+     * @param <T> the type of elements
+     * @return an iterator that iterates over all elements from all input iterators
+     * @throws NullPointerException if iterators is null
+     */
     @SafeVarargs
     @SuppressWarnings("varargs")
     public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {

@@ -104,6 +104,19 @@ public final class DissectParser {
     private final int referenceCount;
     private final String appendSeparator;
 
+    /**
+     * Constructs a DissectParser with the specified pattern and append separator.
+     *
+     * @param pattern the dissect pattern string containing keys and delimiters
+     * @param appendSeparator the separator to use when appending values with the '+' modifier (null treated as empty string)
+     * @throws DissectException.PatternParse if the pattern is invalid or contains no keys/delimiters
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * DissectParser parser = new DissectParser("%{timestamp} %{+timestamp} %{level} %{message}", " ");
+     * Map<String, String> result = parser.parse("2020-01-01 10:30:00 INFO Application started");
+     * }</pre>
+     */
     public DissectParser(String pattern, String appendSeparator) {
         this.pattern = pattern;
         this.appendSeparator = appendSeparator == null ? "" : appendSeparator;

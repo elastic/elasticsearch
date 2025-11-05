@@ -13,6 +13,25 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Represents a duration or time value with a specific time unit.
+ *
+ * <p>This class provides a convenient way to represent and manipulate time durations
+ * in various units (nanoseconds, milliseconds, seconds, minutes, hours, days).
+ * It supports conversion between units and parsing from string representations.
+ *
+ * <p><b>Usage Example:</b></p>
+ * <pre>{@code
+ * TimeValue fiveSeconds = TimeValue.timeValueSeconds(5);
+ * TimeValue twoMinutes = TimeValue.timeValueMinutes(2);
+ * TimeValue thirtySeconds = TimeValue.THIRTY_SECONDS;
+ *
+ * long millis = fiveSeconds.millis(); // Returns 5000
+ * long seconds = twoMinutes.seconds(); // Returns 120
+ *
+ * TimeValue parsed = TimeValue.parseTimeValue("10m", "timeout");
+ * }</pre>
+ */
 public class TimeValue implements Comparable<TimeValue> {
 
     /** How many nano-seconds in one milli-second */
@@ -36,10 +55,29 @@ public class TimeValue implements Comparable<TimeValue> {
     private final long duration;
     private final TimeUnit timeUnit;
 
+    /**
+     * Constructs a TimeValue with the specified duration in milliseconds.
+     *
+     * @param millis the duration in milliseconds (must be -1 or greater)
+     * @throws IllegalArgumentException if duration is less than -1
+     */
     public TimeValue(long millis) {
         this(millis, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Constructs a TimeValue with the specified duration and time unit.
+     *
+     * @param duration the duration value (must be -1 or greater; -1 is a special value)
+     * @param timeUnit the time unit for the duration
+     * @throws IllegalArgumentException if duration is less than -1
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * TimeValue fiveMinutes = new TimeValue(5, TimeUnit.MINUTES);
+     * TimeValue tenSeconds = new TimeValue(10, TimeUnit.SECONDS);
+     * }</pre>
+     */
     public TimeValue(long duration, TimeUnit timeUnit) {
         if (duration < -1) {
             throw new IllegalArgumentException("duration cannot be negative, was given [" + duration + "]");
@@ -48,10 +86,24 @@ public class TimeValue implements Comparable<TimeValue> {
         this.timeUnit = timeUnit;
     }
 
+    /**
+     * Creates a TimeValue representing the specified number of nanoseconds.
+     *
+     * @param nanos the duration in nanoseconds
+     * @return a TimeValue representing the specified duration
+     */
     public static TimeValue timeValueNanos(long nanos) {
         return new TimeValue(nanos, TimeUnit.NANOSECONDS);
     }
 
+    /**
+     * Creates a TimeValue representing the specified number of milliseconds.
+     *
+     * <p>This method returns singleton instances for common values (0 and -1).
+     *
+     * @param millis the duration in milliseconds
+     * @return a TimeValue representing the specified duration
+     */
     public static TimeValue timeValueMillis(long millis) {
         if (millis == 0) {
             return ZERO;
@@ -62,6 +114,14 @@ public class TimeValue implements Comparable<TimeValue> {
         return new TimeValue(millis, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Creates a TimeValue representing the specified number of seconds.
+     *
+     * <p>This method returns a singleton instance for 30 seconds.
+     *
+     * @param seconds the duration in seconds
+     * @return a TimeValue representing the specified duration
+     */
     public static TimeValue timeValueSeconds(long seconds) {
         if (seconds == 30) {
             // common value, no need to allocate each time
@@ -70,6 +130,14 @@ public class TimeValue implements Comparable<TimeValue> {
         return new TimeValue(seconds, TimeUnit.SECONDS);
     }
 
+    /**
+     * Creates a TimeValue representing the specified number of minutes.
+     *
+     * <p>This method returns a singleton instance for 1 minute.
+     *
+     * @param minutes the duration in minutes
+     * @return a TimeValue representing the specified duration
+     */
     public static TimeValue timeValueMinutes(long minutes) {
         if (minutes == 1) {
             // common value, no need to allocate each time
@@ -78,10 +146,23 @@ public class TimeValue implements Comparable<TimeValue> {
         return new TimeValue(minutes, TimeUnit.MINUTES);
     }
 
+    /**
+     * Creates a TimeValue representing the specified number of hours.
+     *
+     * @param hours the duration in hours
+     * @return a TimeValue representing the specified duration
+     */
     public static TimeValue timeValueHours(long hours) {
         return new TimeValue(hours, TimeUnit.HOURS);
     }
 
+    /**
+     * Creates a TimeValue representing the specified number of days.
+     *
+     * @param days the duration in days (must not exceed 106751 days)
+     * @return a TimeValue representing the specified duration
+     * @throws IllegalArgumentException if days exceeds 106751 (due to internal nanosecond representation limits)
+     */
     public static TimeValue timeValueDays(long days) {
         // 106751.9 days is Long.MAX_VALUE nanoseconds, so we cannot store 106752 days
         if (days > 106751) {

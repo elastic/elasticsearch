@@ -16,7 +16,24 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 
 /**
- * A set of utilities for numbers.
+ * A set of utilities for numbers. This class provides methods for converting between
+ * primitive numeric types and byte arrays, as well as performing exact numeric conversions
+ * with overflow checking.
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Convert primitives to byte arrays
+ * byte[] intBytes = Numbers.intToBytes(12345);
+ * byte[] longBytes = Numbers.longToBytes(123456789L);
+ *
+ * // Convert byte arrays to primitives
+ * int value = Numbers.bytesToInt(intBytes, 0);
+ * long longValue = Numbers.bytesToLong(longBytes, 0);
+ *
+ * // Exact conversions with overflow checking
+ * Number num = BigDecimal.valueOf(123.0);
+ * long exactValue = Numbers.toLongExact(num);
+ * }</pre>
  */
 public final class Numbers {
     private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
@@ -24,18 +41,45 @@ public final class Numbers {
 
     private Numbers() {}
 
+    /**
+     * Converts a byte array to a short value using big-endian byte order.
+     *
+     * @param bytes the byte array to read from
+     * @param offset the offset in the array to start reading from
+     * @return the short value read from the byte array
+     */
     public static short bytesToShort(byte[] bytes, int offset) {
         return ByteUtils.readShortBE(bytes, offset);
     }
 
+    /**
+     * Converts a byte array to an int value using big-endian byte order.
+     *
+     * @param bytes the byte array to read from
+     * @param offset the offset in the array to start reading from
+     * @return the int value read from the byte array
+     */
     public static int bytesToInt(byte[] bytes, int offset) {
         return ByteUtils.readIntBE(bytes, offset);
     }
 
+    /**
+     * Converts a byte array to a long value using big-endian byte order.
+     *
+     * @param bytes the byte array to read from
+     * @param offset the offset in the array to start reading from
+     * @return the long value read from the byte array
+     */
     public static long bytesToLong(byte[] bytes, int offset) {
         return ByteUtils.readLongBE(bytes, offset);
     }
 
+    /**
+     * Converts a {@link BytesRef} to a long value using big-endian byte order.
+     *
+     * @param bytes the BytesRef containing the bytes to convert
+     * @return the long value read from the BytesRef
+     */
     public static long bytesToLong(BytesRef bytes) {
         return bytesToLong(bytes.bytes, bytes.offset);
     }

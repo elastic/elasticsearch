@@ -92,11 +92,49 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         super(tag, description);
     }
 
+    /**
+     * Returns the processor type name.
+     *
+     * @return the string "normalize_for_stream" identifying this processor type
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * String type = processor.getType();
+     * // Returns: "normalize_for_stream"
+     * }</pre>
+     */
     @Override
     public String getType() {
         return TYPE;
     }
 
+    /**
+     * Executes the normalization processor on an ingest document.
+     * <p>
+     * This method transforms non-OpenTelemetry-compliant documents by performing the following operations:
+     * <ul>
+     *   <li>Checks if the document is already OpenTelemetry-compliant; if so, returns unchanged</li>
+     *   <li>Handles structured JSON messages, either merging ECS-JSON format or moving to body.structured</li>
+     *   <li>Renames ECS fields to OpenTelemetry-compatible counterparts (e.g., message to body.text)</li>
+     *   <li>Moves non-standard fields to the "attributes" namespace and flattens them</li>
+     *   <li>Separates resource-related attributes into "resource.attributes" namespace</li>
+     * </ul>
+     * </p>
+     *
+     * @param document the ingest document to normalize
+     * @return the normalized ingest document with OpenTelemetry-compatible structure
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Executed automatically as part of an ingest pipeline
+     * IngestDocument doc = new IngestDocument(...);
+     * doc.setFieldValue("message", "Log message");
+     * doc.setFieldValue("span.id", "abc123");
+     * IngestDocument result = processor.execute(doc);
+     * // result now has "body.text" instead of "message"
+     * // and "span_id" instead of "span.id"
+     * }</pre>
+     */
     @Override
     public IngestDocument execute(IngestDocument document) {
         Map<String, Object> source = document.getSource();
@@ -398,7 +436,35 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
         }
     }
 
+    /**
+     * Factory for creating NormalizeForStreamProcessor instances.
+     * <p>
+     * This factory creates processors with default configuration, as the normalize_for_stream
+     * processor does not require any configuration parameters. It operates based on predefined
+     * rules for OpenTelemetry normalization.
+     * </p>
+     */
     public static final class Factory implements Processor.Factory {
+        /**
+         * Creates a NormalizeForStreamProcessor instance.
+         * <p>
+         * This processor requires no configuration and is created with only tag and description.
+         * </p>
+         *
+         * @param registry the processor factory registry (unused)
+         * @param tag the processor tag for identification
+         * @param description the processor description
+         * @param config the configuration map (unused, no configuration required)
+         * @param projectId the project identifier (unused)
+         * @return a new NormalizeForStreamProcessor instance
+         *
+         * <p><b>Usage Examples:</b></p>
+         * <pre>{@code
+         * // Configuration in pipeline definition:
+         * Map<String, Object> config = Map.of();  // No config needed
+         * Processor processor = factory.create(registry, "tag1", "desc", config, projectId);
+         * }</pre>
+         */
         @Override
         public Processor create(
             Map<String, Processor.Factory> registry,

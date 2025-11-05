@@ -28,6 +28,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+/**
+ * Elasticsearch plugin that provides EC2-based node discovery for Amazon Web Services.
+ * This plugin enables automatic discovery of Elasticsearch nodes running on EC2 instances
+ * by querying the AWS EC2 API, allowing for dynamic cluster formation without manual configuration.
+ */
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
 
     private static final Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
@@ -41,10 +46,22 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     // protected for testing
     protected final AwsEc2Service ec2Service;
 
+    /**
+     * Constructs an EC2 discovery plugin with default EC2 service implementation.
+     *
+     * @param settings the plugin settings
+     */
     public Ec2DiscoveryPlugin(Settings settings) {
         this(settings, new AwsEc2ServiceImpl());
     }
 
+    /**
+     * Constructs an EC2 discovery plugin with a custom EC2 service implementation.
+     * Protected constructor primarily for testing purposes.
+     *
+     * @param settings the plugin settings
+     * @param ec2Service the EC2 service implementation to use
+     */
     @SuppressWarnings("this-escape")
     protected Ec2DiscoveryPlugin(Settings settings, AwsEc2ServiceImpl ec2Service) {
         this.settings = settings;
@@ -53,17 +70,46 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         reload(settings);
     }
 
+    /**
+     * Provides a custom network name resolver for EC2-specific network addresses.
+     * Enables usage of special network identifiers like "_ec2_" and "_ec2:xxx_" in network bindings.
+     *
+     * @param _settings the settings (unused in this implementation)
+     * @return a {@link Ec2NameResolver} for resolving EC2-specific network names
+     */
     @Override
     public NetworkService.CustomNameResolver getCustomNameResolver(Settings _settings) {
         logger.debug("Register _ec2_, _ec2:xxx_ network names");
         return new Ec2NameResolver();
     }
 
+    /**
+     * Provides seed hosts providers for EC2-based node discovery.
+     * The EC2 provider queries the AWS EC2 API to discover other Elasticsearch nodes
+     * running on EC2 instances based on configured tags, security groups, or availability zones.
+     *
+     * @param transportService the transport service for network communication
+     * @param networkService the network service for address resolution
+     * @return a map containing the "ec2" seed hosts provider
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * discovery.seed_providers: ec2
+     * discovery.ec2.tag.elasticsearch: production
+     * discovery.ec2.availability_zones: us-east-1a,us-east-1b
+     * }</pre>
+     */
     @Override
     public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService, NetworkService networkService) {
         return Map.of(EC2_SEED_HOSTS_PROVIDER_NAME, () -> new AwsEc2SeedHostsProvider(settings, transportService, ec2Service));
     }
 
+    /**
+     * Returns the list of plugin settings for EC2 discovery configuration.
+     * Includes AWS credentials, endpoint configuration, proxy settings, and discovery filters.
+     *
+     * @return a list of all EC2 discovery settings
+     */
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(

@@ -43,23 +43,61 @@ public class Index implements Writeable, ToXContentObject {
     private final String name;
     private final String uuid;
 
+    /**
+     * Constructs a new Index with the specified name and UUID.
+     *
+     * @param name the name of the index, must not be null
+     * @param uuid the unique identifier of the index, must not be null
+     * @throws NullPointerException if name or uuid is null
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Index index = new Index("my-index", "abc123-def456");
+     * }</pre>
+     */
     public Index(String name, String uuid) {
         this.name = Objects.requireNonNull(name);
         this.uuid = Objects.requireNonNull(uuid);
     }
 
     /**
-     * Read from a stream.
+     * Constructs an Index by reading from a stream.
+     * Deserializes the index name and UUID from the provided input stream.
+     *
+     * @param in the stream to read from
+     * @throws IOException if an I/O error occurs while reading from the stream
      */
     public Index(StreamInput in) throws IOException {
         this.name = in.readString();
         this.uuid = in.readString();
     }
 
+    /**
+     * Retrieves the name of this index.
+     *
+     * @return the index name
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Index index = new Index("my-index", "abc123");
+     * String name = index.getName(); // Returns "my-index"
+     * }</pre>
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * Retrieves the unique identifier (UUID) of this index.
+     *
+     * @return the index UUID
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Index index = new Index("my-index", "abc123");
+     * String uuid = index.getUUID(); // Returns "abc123"
+     * }</pre>
+     */
     public String getUUID() {
         return uuid;
     }
@@ -95,12 +133,36 @@ public class Index implements Writeable, ToXContentObject {
         return result;
     }
 
+    /**
+     * Serializes this index to the provided output stream.
+     * Writes the index name and UUID in order.
+     *
+     * @param out the output stream to write to
+     * @throws IOException if an I/O error occurs during serialization
+     */
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(uuid);
     }
 
+    /**
+     * Converts this index to XContent format as a complete object.
+     * The output includes both the index name and UUID.
+     *
+     * @param builder the XContent builder to write to
+     * @param params additional parameters for the conversion (unused)
+     * @return the XContent builder for method chaining
+     * @throws IOException if an I/O error occurs during conversion
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Index index = new Index("my-index", "abc123");
+     * XContentBuilder builder = XContentFactory.jsonBuilder();
+     * index.toXContent(builder, ToXContent.EMPTY_PARAMS);
+     * // Result: {"index_name":"my-index","index_uuid":"abc123"}
+     * }</pre>
+     */
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
@@ -108,12 +170,42 @@ public class Index implements Writeable, ToXContentObject {
         return builder.endObject();
     }
 
+    /**
+     * Converts this index to XContent format as a fragment (without wrapping object).
+     * Useful when embedding index information within a larger XContent structure.
+     *
+     * @param builder the XContent builder to write to
+     * @return the XContent builder for method chaining
+     * @throws IOException if an I/O error occurs during conversion
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Index index = new Index("my-index", "abc123");
+     * XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+     * index.toXContentFragment(builder);
+     * builder.endObject();
+     * }</pre>
+     */
     public XContentBuilder toXContentFragment(final XContentBuilder builder) throws IOException {
         builder.field(INDEX_NAME_KEY, name);
         builder.field(INDEX_UUID_KEY, uuid);
         return builder;
     }
 
+    /**
+     * Parses an Index from XContent format.
+     * Expects the XContent to contain both "index_name" and "index_uuid" fields.
+     *
+     * @param parser the XContent parser to read from
+     * @return the parsed Index object
+     * @throws IOException if an I/O error occurs or the content is malformed
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * XContentParser parser = ... // parser with content {"index_name":"my-index","index_uuid":"abc123"}
+     * Index index = Index.fromXContent(parser);
+     * }</pre>
+     */
     public static Index fromXContent(final XContentParser parser) throws IOException {
         return INDEX_PARSER.parse(parser, null).build();
     }

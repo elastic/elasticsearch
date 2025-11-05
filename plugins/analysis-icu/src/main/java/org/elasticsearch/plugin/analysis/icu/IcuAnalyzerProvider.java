@@ -23,10 +23,39 @@ import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 
 import java.io.Reader;
 
+/**
+ * Provides an ICU-based analyzer that combines tokenization, normalization, and folding.
+ * This analyzer uses the ICU tokenizer for language-aware segmentation and applies
+ * normalization and folding for case-insensitive matching.
+ */
 public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
     private final Normalizer2 normalizer;
 
+    /**
+     * Constructs an ICU analyzer provider with configurable normalization.
+     *
+     * @param indexSettings the index settings
+     * @param environment the environment
+     * @param name the analyzer name
+     * @param settings the analyzer settings containing:
+     *        <ul>
+     *        <li>method: normalization method (default: "nfkc_cf")</li>
+     *        <li>mode: normalization mode - "compose" or "decompose" (default: "compose")</li>
+     *        </ul>
+     * @throws IllegalArgumentException if mode is not "compose" or "decompose"
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "analyzer": {
+     *   "my_icu_analyzer": {
+     *     "type": "icu_analyzer",
+     *     "method": "nfkc_cf",
+     *     "mode": "compose"
+     *   }
+     * }
+     * }</pre>
+     */
     public IcuAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         String method = settings.get("method", "nfkc_cf");
@@ -44,6 +73,13 @@ public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer>
         this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(normalizerInstance, settings);
     }
 
+    /**
+     * Creates and returns the configured ICU analyzer instance.
+     * The analyzer performs ICU normalization on the input, then tokenizes using the ICU tokenizer,
+     * and finally applies ICU folding for case-insensitive matching.
+     *
+     * @return a new {@link Analyzer} instance configured with ICU components
+     */
     @Override
     public Analyzer get() {
         return new Analyzer() {

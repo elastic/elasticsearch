@@ -50,10 +50,37 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
 
     private final RefCounted refCounted;
 
+    /**
+     * Creates an empty SearchHits instance with the specified total hits and max score.
+     *
+     * @param totalHits the total number of hits (may be null if not tracked)
+     * @param maxScore the maximum score across all hits
+     * @return an empty SearchHits instance
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * TotalHits totalHits = new TotalHits(100, TotalHits.Relation.EQUAL_TO);
+     * SearchHits emptyHits = SearchHits.empty(totalHits, 1.5f);
+     * }</pre>
+     */
     public static SearchHits empty(@Nullable TotalHits totalHits, float maxScore) {
         return new SearchHits(EMPTY, totalHits, maxScore);
     }
 
+    /**
+     * Constructs a new SearchHits with the provided hits, total hits information, and maximum score.
+     *
+     * @param hits the array of SearchHit instances
+     * @param totalHits the total number of hits (may be null if tracking is disabled)
+     * @param maxScore the maximum score across all hits
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit[] hits = new SearchHit[]{hit1, hit2, hit3};
+     * TotalHits totalHits = new TotalHits(100, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+     * SearchHits searchHits = new SearchHits(hits, totalHits, 2.5f);
+     * }</pre>
+     */
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
     }
@@ -95,6 +122,23 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         this.refCounted = refCounted;
     }
 
+    /**
+     * Creates an unpooled SearchHits instance that doesn't require manual reference counting.
+     * Unpooled instances are not automatically deallocated and are suitable for long-lived objects.
+     *
+     * @param hits the array of SearchHit instances
+     * @param totalHits the total number of hits (may be null if tracking is disabled)
+     * @param maxScore the maximum score across all hits
+     * @return an unpooled SearchHits instance
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit[] hits = new SearchHit[]{hit1, hit2, hit3};
+     * TotalHits totalHits = new TotalHits(100, TotalHits.Relation.EQUAL_TO);
+     * SearchHits searchHits = SearchHits.unpooled(hits, totalHits, 2.5f);
+     * // No need to call decRef() on unpooled hits
+     * }</pre>
+     */
     public static SearchHits unpooled(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         return unpooled(hits, totalHits, maxScore, null, null, null);
     }
@@ -118,6 +162,20 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         return true;
     }
 
+    /**
+     * Reads SearchHits from the provided stream input.
+     *
+     * @param in the stream input to read from
+     * @param pooled whether to use pooled (ref-counted) instances for memory efficiency
+     * @return the SearchHits instance read from the stream
+     * @throws IOException if an I/O error occurs during deserialization
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * StreamInput in = ...;
+     * SearchHits hits = SearchHits.readFrom(in, true);
+     * }</pre>
+     */
     public static SearchHits readFrom(StreamInput in, boolean pooled) throws IOException {
         final TotalHits totalHits;
         if (in.readBoolean()) {
@@ -150,6 +208,24 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         }
     }
 
+    /**
+     * Checks whether this SearchHits instance is pooled (uses reference counting).
+     * Pooled instances require manual reference counting via incRef()/decRef().
+     *
+     * @return true if this instance is pooled, false otherwise
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHits hits = ...;
+     * if (hits.isPooled()) {
+     *     try {
+     *         // Process hits
+     *     } finally {
+     *         hits.decRef();
+     *     }
+     * }
+     * }</pre>
+     */
     public boolean isPooled() {
         return refCounted != ALWAYS_REFERENCED;
     }
@@ -170,8 +246,21 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     }
 
     /**
-     * The total number of hits for the query or null if the tracking of total hits
-     * is disabled in the request.
+     * Returns the total number of hits for the query.
+     * Returns null if total hits tracking is disabled in the request.
+     *
+     * @return the TotalHits object containing the total count and relation, or null if not tracked
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHits hits = ...;
+     * TotalHits totalHits = hits.getTotalHits();
+     * if (totalHits != null) {
+     *     long count = totalHits.value();
+     *     TotalHits.Relation relation = totalHits.relation();
+     *     System.out.println("Total hits: " + count + " (" + relation + ")");
+     * }
+     * }</pre>
      */
     @Nullable
     public TotalHits getTotalHits() {
@@ -179,14 +268,38 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     }
 
     /**
-     * The maximum score of this query.
+     * Returns the maximum score across all hits in this result set.
+     * Returns {@link Float#NaN} if scoring was disabled.
+     *
+     * @return the maximum score, or {@link Float#NaN} if not scored
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHits hits = ...;
+     * float maxScore = hits.getMaxScore();
+     * if (!Float.isNaN(maxScore)) {
+     *     System.out.println("Max score: " + maxScore);
+     * }
+     * }</pre>
      */
     public float getMaxScore() {
         return maxScore;
     }
 
     /**
-     * The hits of the search request (based on the search type, and from / size provided).
+     * Returns the array of search hits for this result set.
+     * The hits returned are based on the search type and from/size parameters.
+     *
+     * @return an array of SearchHit instances
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHits searchHits = ...;
+     * SearchHit[] hits = searchHits.getHits();
+     * for (SearchHit hit : hits) {
+     *     System.out.println("ID: " + hit.getId() + ", Score: " + hit.getScore());
+     * }
+     * }</pre>
      */
     public SearchHit[] getHits() {
         assert hasReferences();
@@ -194,7 +307,18 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     }
 
     /**
-     * Return the hit as the provided position.
+     * Returns the hit at the specified position in the hits array.
+     *
+     * @param position the zero-based index of the hit to retrieve
+     * @return the SearchHit at the specified position
+     * @throws ArrayIndexOutOfBoundsException if the position is out of bounds
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHits hits = ...;
+     * SearchHit firstHit = hits.getAt(0);
+     * SearchHit secondHit = hits.getAt(1);
+     * }</pre>
      */
     public SearchHit getAt(int position) {
         assert hasReferences();
@@ -202,8 +326,22 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     }
 
     /**
-     * In case documents were sorted by field(s), returns information about such field(s), null otherwise
+     * Returns information about the fields used for sorting, if any.
+     * Returns null if the results were not sorted by field.
+     *
+     * @return an array of SortField instances, or null if not sorted by field
      * @see SortField
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHits hits = ...;
+     * SortField[] sortFields = hits.getSortFields();
+     * if (sortFields != null) {
+     *     for (SortField field : sortFields) {
+     *         System.out.println("Sorted by: " + field.getField());
+     *     }
+     * }
+     * }</pre>
      */
     @Nullable
     public SortField[] getSortFields() {
@@ -211,7 +349,19 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     }
 
     /**
-     * In case field collapsing was performed, returns the field used for field collapsing, null otherwise
+     * Returns the field name used for field collapsing, if any.
+     * Returns null if field collapsing was not performed.
+     *
+     * @return the collapse field name, or null if no collapsing was performed
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHits hits = ...;
+     * String collapseField = hits.getCollapseField();
+     * if (collapseField != null) {
+     *     System.out.println("Collapsed by field: " + collapseField);
+     * }
+     * }</pre>
      */
     @Nullable
     public String getCollapseField() {
@@ -219,7 +369,21 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     }
 
     /**
-     * In case field collapsing was performed, returns the values of the field that field collapsing was performed on, null otherwise
+     * Returns the values of the collapse field for the collapsed results.
+     * Returns null if field collapsing was not performed.
+     *
+     * @return an array of collapse field values, or null if no collapsing was performed
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHits hits = ...;
+     * Object[] collapseValues = hits.getCollapseValues();
+     * if (collapseValues != null) {
+     *     for (Object value : collapseValues) {
+     *         System.out.println("Collapse value: " + value);
+     *     }
+     * }
+     * }</pre>
      */
     @Nullable
     public Object[] getCollapseValues() {

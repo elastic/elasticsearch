@@ -114,14 +114,48 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
     private final RefCounted refCounted;
 
+    /**
+     * Constructs a new SearchHit with the specified document ID.
+     *
+     * @param docId the Lucene document ID
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * }</pre>
+     */
     public SearchHit(int docId) {
         this(docId, null);
     }
 
+    /**
+     * Constructs a new SearchHit with the specified document ID and document identifier.
+     *
+     * @param docId the Lucene document ID
+     * @param id the document identifier (may be null)
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123, "doc-id-456");
+     * }</pre>
+     */
     public SearchHit(int docId, String id) {
         this(docId, id, null);
     }
 
+    /**
+     * Constructs a new SearchHit with the specified document ID, identifier, and nested identity.
+     *
+     * @param nestedTopDocId the Lucene document ID of the nested top document
+     * @param id the document identifier (may be null)
+     * @param nestedIdentity the nested document identity information (may be null)
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * NestedIdentity identity = new NestedIdentity("nested_field", 0, null);
+     * SearchHit hit = new SearchHit(123, "doc-id-456", identity);
+     * }</pre>
+     */
     public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
         this(nestedTopDocId, id, nestedIdentity, null);
     }
@@ -195,6 +229,20 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : refCounted;
     }
 
+    /**
+     * Reads a SearchHit from the provided stream input.
+     *
+     * @param in the stream input to read from
+     * @param pooled whether to use pooled (ref-counted) instances for memory efficiency
+     * @return the SearchHit instance read from the stream
+     * @throws IOException if an I/O error occurs during deserialization
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * StreamInput in = ...;
+     * SearchHit hit = SearchHit.readFrom(in, true);
+     * }</pre>
+     */
     public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
         final float score = in.readFloat();
         final int rank;
@@ -293,14 +341,57 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         );
     }
 
+    /**
+     * Creates an unpooled SearchHit that doesn't require manual reference counting.
+     * Unpooled hits are not automatically deallocated and are suitable for long-lived objects.
+     *
+     * @param docId the Lucene document ID
+     * @return an unpooled SearchHit instance
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = SearchHit.unpooled(123);
+     * // No need to call decRef() on unpooled hits
+     * }</pre>
+     */
     public static SearchHit unpooled(int docId) {
         return unpooled(docId, null);
     }
 
+    /**
+     * Creates an unpooled SearchHit with the specified document ID and identifier.
+     * Unpooled hits are not automatically deallocated and are suitable for long-lived objects.
+     *
+     * @param docId the Lucene document ID
+     * @param id the document identifier (may be null)
+     * @return an unpooled SearchHit instance
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = SearchHit.unpooled(123, "doc-id-456");
+     * // No need to call decRef() on unpooled hits
+     * }</pre>
+     */
     public static SearchHit unpooled(int docId, String id) {
         return unpooled(docId, id, null);
     }
 
+    /**
+     * Creates an unpooled SearchHit with full specification of document identity.
+     * Unpooled hits are not automatically deallocated and are suitable for long-lived objects.
+     *
+     * @param nestedTopDocId the Lucene document ID of the nested top document
+     * @param id the document identifier (may be null)
+     * @param nestedIdentity the nested document identity information (may be null)
+     * @return an unpooled SearchHit instance
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * NestedIdentity identity = new NestedIdentity("nested_field", 0, null);
+     * SearchHit hit = SearchHit.unpooled(123, "doc-id-456", identity);
+     * // No need to call decRef() on unpooled hits
+     * }</pre>
+     */
     public static SearchHit unpooled(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
         // always referenced search hits do NOT call #deallocate
         return new SearchHit(nestedTopDocId, id, nestedIdentity, ALWAYS_REFERENCED);
@@ -359,44 +450,127 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
     }
 
+    /**
+     * Returns the Lucene document ID for this search hit.
+     *
+     * @return the document ID
+     */
     public int docId() {
         return this.docId;
     }
 
+    /**
+     * Sets the score for this search hit.
+     *
+     * @param score the relevance score to set
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * hit.score(0.85f);
+     * }</pre>
+     */
     public void score(float score) {
         this.score = score;
     }
 
     /**
-     * The score.
+     * Returns the relevance score of this search hit.
+     * Returns {@link Float#NaN} if scoring was disabled for the query.
+     *
+     * @return the score, or {@link Float#NaN} if not scored
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * float score = hit.getScore();
+     * if (!Float.isNaN(score)) {
+     *     // Process the score
+     * }
+     * }</pre>
      */
     public float getScore() {
         return this.score;
     }
 
+    /**
+     * Sets the rank position of this hit in the search results.
+     *
+     * @param rank the rank position (0-based)
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * hit.setRank(5); // 6th result
+     * }</pre>
+     */
     public void setRank(int rank) {
         this.rank = rank;
     }
 
+    /**
+     * Returns the rank position of this hit in the search results.
+     * Returns {@link #NO_RANK} (-1) if ranking was not applied.
+     *
+     * @return the rank position, or {@link #NO_RANK} if not ranked
+     */
     public int getRank() {
         return this.rank;
     }
 
+    /**
+     * Sets the document version for this search hit.
+     *
+     * @param version the document version
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * hit.version(3L); // Document is at version 3
+     * }</pre>
+     */
     public void version(long version) {
         this.version = version;
     }
 
     /**
-     * The version of the hit.
+     * Returns the document version of this hit.
+     * Returns -1 if version was not requested or not available.
+     *
+     * @return the version, or -1 if not available
      */
     public long getVersion() {
         return this.version;
     }
 
+    /**
+     * Sets the sequence number for this document.
+     * The sequence number is used for optimistic concurrency control.
+     *
+     * @param seqNo the sequence number
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * hit.setSeqNo(42L);
+     * }</pre>
+     */
     public void setSeqNo(long seqNo) {
         this.seqNo = seqNo;
     }
 
+    /**
+     * Sets the primary term for this document.
+     * The primary term is used for optimistic concurrency control.
+     *
+     * @param primaryTerm the primary term
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * hit.setPrimaryTerm(1L);
+     * }</pre>
+     */
     public void setPrimaryTerm(long primaryTerm) {
         this.primaryTerm = primaryTerm;
     }
@@ -417,28 +591,71 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * The index of the hit.
+     * Returns the name of the index this hit belongs to.
+     *
+     * @return the index name, or null if not set
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * String indexName = hit.getIndex();
+     * System.out.println("Hit from index: " + indexName);
+     * }</pre>
      */
     public String getIndex() {
         return this.index;
     }
 
     /**
-     * The id of the document.
+     * Returns the unique identifier of the document.
+     *
+     * @return the document ID, or null if not set
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * String docId = hit.getId();
+     * System.out.println("Document ID: " + docId);
+     * }</pre>
      */
     public String getId() {
         return id != null ? id.string() : null;
     }
 
     /**
-     * If this is a nested hit then nested reference information is returned otherwise <code>null</code> is returned.
+     * Returns the nested document identity information if this is a nested hit.
+     *
+     * @return the nested identity, or null if this is not a nested document
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * NestedIdentity nested = hit.getNestedIdentity();
+     * if (nested != null) {
+     *     String field = nested.getField().string();
+     *     int offset = nested.getOffset();
+     * }
+     * }</pre>
      */
     public NestedIdentity getNestedIdentity() {
         return nestedIdentity;
     }
 
     /**
-     * Returns bytes reference, also uncompress the source if needed.
+     * Returns the source document as a bytes reference, decompressing if necessary.
+     * The source is the original JSON document that was indexed.
+     *
+     * @return the source bytes reference, or null if source is not available
+     * @throws ElasticsearchParseException if decompression fails
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * BytesReference sourceRef = hit.getSourceRef();
+     * if (sourceRef != null) {
+     *     // Process source bytes
+     * }
+     * }</pre>
      */
     public BytesReference getSourceRef() {
         assert hasReferences();
@@ -455,7 +672,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * Sets representation, might be compressed....
+     * Sets the source document for this hit. The source may be compressed.
+     *
+     * @param source the source bytes reference (may be compressed)
+     * @return this SearchHit instance for method chaining
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * BytesReference source = ...;
+     * hit.sourceRef(source);
+     * }</pre>
      */
     public SearchHit sourceRef(BytesReference source) {
         this.source = source;
@@ -463,8 +690,18 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * Is the source available or not. A source with no fields will return true. This will return false if {@code fields} doesn't contain
-     * {@code _source} or if source is disabled in the mapping.
+     * Checks whether the source is available for this hit.
+     * Returns false if the _source field was not requested or if source is disabled in the mapping.
+     *
+     * @return true if source is available, false otherwise
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * if (hit.hasSource()) {
+     *     Map<String, Object> source = hit.getSourceAsMap();
+     * }
+     * }</pre>
      */
     public boolean hasSource() {
         assert hasReferences();
@@ -472,7 +709,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * The source of the document as string (can be {@code null}).
+     * Returns the source document as a JSON string.
+     *
+     * @return the source as a JSON string, or null if source is not available
+     * @throws ElasticsearchParseException if conversion to JSON fails
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * String jsonSource = hit.getSourceAsString();
+     * System.out.println("Source: " + jsonSource);
+     * }</pre>
      */
     public String getSourceAsString() {
         assert hasReferences();
@@ -487,9 +734,21 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * The source of the document as a map (can be {@code null}). This method is expected
-     * to be called at most once during the lifetime of the object as the generated map
-     * is expensive to generate and it does not get cache.
+     * Returns the source document as a Map.
+     * <p>
+     * <strong>Important:</strong> This method is expensive and should be called at most once
+     * during the lifetime of the object, as the generated map is not cached.
+     *
+     * @return the source as a Map, or null if source is not available
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Map<String, Object> source = hit.getSourceAsMap();
+     * if (source != null) {
+     *     Object field = source.get("field_name");
+     * }
+     * }</pre>
      */
     public Map<String, Object> getSourceAsMap() {
         assert hasReferences();
@@ -502,7 +761,20 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * The hit field matching the given field name.
+     * Returns the DocumentField matching the given field name.
+     * This includes both document fields and metadata fields.
+     *
+     * @param fieldName the name of the field to retrieve
+     * @return the DocumentField, or null if the field is not present
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * DocumentField field = hit.field("my_field");
+     * if (field != null) {
+     *     List<Object> values = field.getValues();
+     * }
+     * }</pre>
      */
     public DocumentField field(String fieldName) {
         assert hasReferences();
@@ -514,25 +786,71 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
     }
 
-    /*
-    * Adds a new DocumentField to the map in case both parameters are not null.
-    * */
+    /**
+     * Adds a DocumentField to this hit.
+     * Does nothing if the field parameter is null.
+     *
+     * @param field the DocumentField to add
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * DocumentField field = new DocumentField("my_field", List.of("value1", "value2"));
+     * hit.setDocumentField(field);
+     * }</pre>
+     */
     public void setDocumentField(DocumentField field) {
         if (field == null) return;
         this.documentFields.put(field.getName(), field);
     }
 
+    /**
+     * Adds multiple document fields and metadata fields to this hit.
+     *
+     * @param docFields the document fields to add
+     * @param metaFields the metadata fields to add
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * Map<String, DocumentField> docFields = new HashMap<>();
+     * Map<String, DocumentField> metaFields = new HashMap<>();
+     * hit.addDocumentFields(docFields, metaFields);
+     * }</pre>
+     */
     public void addDocumentFields(Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {
         this.documentFields.putAll(docFields);
         this.metaFields.putAll(metaFields);
     }
 
+    /**
+     * Removes a document field from this hit.
+     *
+     * @param field the name of the field to remove
+     * @return the removed DocumentField, or null if the field was not present
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * DocumentField removed = hit.removeDocumentField("my_field");
+     * }</pre>
+     */
     public DocumentField removeDocumentField(String field) {
         return documentFields.remove(field);
     }
 
     /**
-     * @return a map of metadata fields for this hit
+     * Returns an unmodifiable map of metadata fields for this hit.
+     * Metadata fields include system fields like _index, _id, _version, etc.
+     *
+     * @return an unmodifiable map of metadata fields
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Map<String, DocumentField> metaFields = hit.getMetadataFields();
+     * DocumentField routing = metaFields.get("_routing");
+     * }</pre>
      */
     public Map<String, DocumentField> getMetadataFields() {
         assert hasReferences();
@@ -540,7 +858,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * @return a map of non-metadata fields requested for this hit
+     * Returns an unmodifiable map of non-metadata (document) fields requested for this hit.
+     * These are the fields explicitly requested in the search request.
+     *
+     * @return an unmodifiable map of document fields
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Map<String, DocumentField> docFields = hit.getDocumentFields();
+     * DocumentField myField = docFields.get("my_field");
+     * }</pre>
      */
     public Map<String, DocumentField> getDocumentFields() {
         assert hasReferences();
@@ -548,8 +876,19 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * A map of hit fields (from field name to hit fields) if additional fields
-     * were required to be loaded. Includes both document and metadata fields.
+     * Returns a map of all hit fields (document and metadata fields combined).
+     * This is the union of document fields and metadata fields.
+     *
+     * @return a map containing both document and metadata fields, or an empty map if none exist
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Map<String, DocumentField> allFields = hit.getFields();
+     * for (Map.Entry<String, DocumentField> entry : allFields.entrySet()) {
+     *     System.out.println(entry.getKey() + ": " + entry.getValue().getValues());
+     * }
+     * }</pre>
      */
     public Map<String, DocumentField> getFields() {
         assert hasReferences();
@@ -564,14 +903,38 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * Whether this search hit has any lookup fields
+     * Checks whether this search hit contains any lookup fields.
+     * Lookup fields are fields that reference values from other documents.
+     *
+     * @return true if any document fields contain lookup field references, false otherwise
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * if (hit.hasLookupFields()) {
+     *     // Resolve lookup fields
+     *     Map<LookupField, List<Object>> results = ...;
+     *     hit.resolveLookupFields(results);
+     * }
+     * }</pre>
      */
     public boolean hasLookupFields() {
         return getDocumentFields().values().stream().anyMatch(doc -> doc.getLookupFields().isEmpty() == false);
     }
 
     /**
-     * Resolve the lookup fields with the given results and merge them as regular fetch fields.
+     * Resolves lookup fields with the given results and merges them as regular fetch fields.
+     * Lookup fields are replaced with their resolved values.
+     *
+     * @param lookupResults a map of lookup fields to their resolved values
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Map<LookupField, List<Object>> lookupResults = new HashMap<>();
+     * // ... populate lookupResults
+     * hit.resolveLookupFields(lookupResults);
+     * }</pre>
      */
     public void resolveLookupFields(Map<LookupField, List<Object>> lookupResults) {
         assert hasReferences();
@@ -601,57 +964,181 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * A map of highlighted fields.
+     * Returns a map of highlighted fields for this hit.
+     * Highlights show matching query terms within field values.
+     *
+     * @return a map of highlighted fields, or an empty map if no highlights are available
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Map<String, HighlightField> highlights = hit.getHighlightFields();
+     * HighlightField titleHighlight = highlights.get("title");
+     * if (titleHighlight != null) {
+     *     for (Text fragment : titleHighlight.fragments()) {
+     *         System.out.println(fragment.string());
+     *     }
+     * }
+     * }</pre>
      */
     public Map<String, HighlightField> getHighlightFields() {
         assert hasReferences();
         return highlightFields == null ? emptyMap() : highlightFields;
     }
 
+    /**
+     * Sets the highlighted fields for this hit.
+     *
+     * @param highlightFields the map of highlighted fields to set
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * Map<String, HighlightField> highlights = new HashMap<>();
+     * hit.highlightFields(highlights);
+     * }</pre>
+     */
     public void highlightFields(Map<String, HighlightField> highlightFields) {
         this.highlightFields = highlightFields;
     }
 
+    /**
+     * Sets the sort values for this hit using raw values and formats.
+     *
+     * @param sortValues the raw sort values
+     * @param sortValueFormats the formats for the sort values
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * Object[] values = new Object[]{100, "text"};
+     * DocValueFormat[] formats = new DocValueFormat[]{DocValueFormat.RAW, DocValueFormat.RAW};
+     * hit.sortValues(values, formats);
+     * }</pre>
+     */
     public void sortValues(Object[] sortValues, DocValueFormat[] sortValueFormats) {
         sortValues(new SearchSortValues(sortValues, sortValueFormats));
     }
 
+    /**
+     * Sets the sort values for this hit.
+     *
+     * @param sortValues the SearchSortValues instance containing sort information
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * SearchSortValues sortValues = ...;
+     * hit.sortValues(sortValues);
+     * }</pre>
+     */
     public void sortValues(SearchSortValues sortValues) {
         this.sortValues = sortValues;
     }
 
     /**
-     * An array of the (formatted) sort values used.
+     * Returns an array of the formatted sort values used to sort this hit.
+     * These are the human-readable versions of the sort values.
+     *
+     * @return an array of formatted sort values
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Object[] sortValues = hit.getSortValues();
+     * for (Object value : sortValues) {
+     *     System.out.println("Sort value: " + value);
+     * }
+     * }</pre>
      */
     public Object[] getSortValues() {
         return sortValues.getFormattedSortValues();
     }
 
     /**
-     * An array of the (raw) sort values used.
+     * Returns an array of the raw (unformatted) sort values used to sort this hit.
+     * These are the internal representation of sort values.
+     *
+     * @return an array of raw sort values
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Object[] rawSortValues = hit.getRawSortValues();
+     * }</pre>
      */
     public Object[] getRawSortValues() {
         return sortValues.getRawSortValues();
     }
 
     /**
-     * If enabled, the explanation of the search hit.
+     * Returns the explanation of why this document matched the query, if requested.
+     * The explanation provides detailed information about the scoring process.
+     *
+     * @return the Explanation object, or null if explanation was not requested
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Explanation explanation = hit.getExplanation();
+     * if (explanation != null) {
+     *     System.out.println("Score explanation: " + explanation.getDescription());
+     *     System.out.println("Score value: " + explanation.getValue());
+     * }
+     * }</pre>
      */
     public Explanation getExplanation() {
         return explanation;
     }
 
+    /**
+     * Sets the explanation for this hit.
+     *
+     * @param explanation the Lucene Explanation object
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * Explanation explanation = ...;
+     * hit.explanation(explanation);
+     * }</pre>
+     */
     public void explanation(Explanation explanation) {
         this.explanation = explanation;
     }
 
     /**
-     * The shard of the search hit.
+     * Returns the shard target information for this search hit.
+     * This indicates which shard and node the hit came from.
+     *
+     * @return the SearchShardTarget, or null if not set
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * SearchShardTarget shard = hit.getShard();
+     * if (shard != null) {
+     *     System.out.println("Shard: " + shard.getShardId());
+     *     System.out.println("Node: " + shard.getNodeId());
+     * }
+     * }</pre>
      */
     public SearchShardTarget getShard() {
         return shard;
     }
 
+    /**
+     * Sets the shard target information for this hit and all its inner hits.
+     *
+     * @param target the SearchShardTarget to set
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * SearchShardTarget target = new SearchShardTarget("node1", shardId, null);
+     * hit.shard(target);
+     * }</pre>
+     */
     public void shard(SearchShardTarget target) {
         if (innerHits != null) {
             for (SearchHits innerHits : innerHits.values()) {
@@ -669,45 +1156,133 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * Returns the cluster alias this hit comes from or null if it comes from a local cluster
+     * Returns the cluster alias this hit comes from, or null if it comes from a local cluster.
+     * Used in cross-cluster search scenarios.
+     *
+     * @return the cluster alias, or null if from local cluster
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * String cluster = hit.getClusterAlias();
+     * if (cluster != null) {
+     *     System.out.println("Hit from remote cluster: " + cluster);
+     * }
+     * }</pre>
      */
     public String getClusterAlias() {
         return clusterAlias;
     }
 
+    /**
+     * Sets the map of matched named queries and their scores.
+     *
+     * @param matchedQueries the map of query names to scores
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * Map<String, Float> queries = new HashMap<>();
+     * queries.put("my_query", 0.9f);
+     * hit.matchedQueries(queries);
+     * }</pre>
+     */
     public void matchedQueries(Map<String, Float> matchedQueries) {
         this.matchedQueries = matchedQueries;
     }
 
     /**
-     * The set of query and filter names the query matched with. Mainly makes sense for compound filters and queries.
+     * Returns the names of all named queries that matched this document.
+     * Named queries are useful for tracking which parts of a compound query matched.
+     *
+     * @return an array of matched query names, or an empty array if none matched
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * String[] matchedQueries = hit.getMatchedQueries();
+     * for (String queryName : matchedQueries) {
+     *     System.out.println("Matched query: " + queryName);
+     * }
+     * }</pre>
      */
     public String[] getMatchedQueries() {
         return matchedQueries == null ? new String[0] : matchedQueries.keySet().toArray(new String[0]);
     }
 
     /**
-     * @return The score of the provided named query if it matches, {@code null} otherwise.
+     * Returns the score of a specific named query if it matched this document.
+     *
+     * @param name the name of the query
+     * @return the score of the named query, or null if the query didn't match
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Float score = hit.getMatchedQueryScore("my_query");
+     * if (score != null) {
+     *     System.out.println("Query score: " + score);
+     * }
+     * }</pre>
      */
     public Float getMatchedQueryScore(String name) {
         return getMatchedQueriesAndScores().get(name);
     }
 
     /**
-     * @return The map of the named queries that matched and their associated score.
+     * Returns a map of all matched named queries and their associated scores.
+     *
+     * @return a map of query names to scores, or an empty map if no queries matched
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Map<String, Float> matchedQueries = hit.getMatchedQueriesAndScores();
+     * matchedQueries.forEach((name, score) -> {
+     *     System.out.println(name + ": " + score);
+     * });
+     * }</pre>
      */
     public Map<String, Float> getMatchedQueriesAndScores() {
         return matchedQueries == null ? Collections.emptyMap() : matchedQueries;
     }
 
     /**
-     * @return Inner hits or <code>null</code> if there are none
+     * Returns the inner hits (nested or parent-child) associated with this hit.
+     * Inner hits allow retrieving nested documents or related documents.
+     *
+     * @return a map of inner hit names to SearchHits, or null if there are no inner hits
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = ...;
+     * Map<String, SearchHits> innerHits = hit.getInnerHits();
+     * if (innerHits != null) {
+     *     SearchHits nestedHits = innerHits.get("nested_field");
+     *     for (SearchHit nestedHit : nestedHits) {
+     *         // Process nested hit
+     *     }
+     * }
+     * }</pre>
      */
     public Map<String, SearchHits> getInnerHits() {
         assert hasReferences();
         return innerHits;
     }
 
+    /**
+     * Sets the inner hits for this search hit.
+     * This method can only be called once per SearchHit instance.
+     *
+     * @param innerHits the map of inner hit names to SearchHits
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchHit hit = new SearchHit(123);
+     * Map<String, SearchHits> innerHits = new HashMap<>();
+     * hit.setInnerHits(innerHits);
+     * }</pre>
+     */
     public void setInnerHits(Map<String, SearchHits> innerHits) {
         assert innerHits == null || innerHits.values().stream().noneMatch(h -> h.hasReferences() == false);
         assert this.innerHits == null;

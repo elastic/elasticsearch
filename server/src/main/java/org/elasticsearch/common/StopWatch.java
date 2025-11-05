@@ -30,7 +30,22 @@ import java.util.concurrent.TimeUnit;
  * This class is normally used to verify performance during proof-of-concepts
  * and in development, rather than as part of production applications.
  *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * StopWatch stopWatch = new StopWatch("My Operations");
  *
+ * stopWatch.start("Task 1");
+ * // ... perform task 1
+ * stopWatch.stop();
+ *
+ * stopWatch.start("Task 2");
+ * // ... perform task 2
+ * stopWatch.stop();
+ *
+ * System.out.println(stopWatch.prettyPrint());
+ * System.out.println("Total time: " + stopWatch.totalTime());
+ * System.out.println("Last task time: " + stopWatch.lastTaskTime());
+ * }</pre>
  */
 public class StopWatch {
 

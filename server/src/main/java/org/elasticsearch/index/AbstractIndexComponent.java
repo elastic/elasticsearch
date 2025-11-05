@@ -18,17 +18,46 @@ public abstract class AbstractIndexComponent {
     protected final IndexSettings indexSettings;
 
     /**
-     * Constructs a new index component, with the index name and its settings.
+     * Constructs a new index component with the specified index settings.
+     * Initializes the logger with the component's class and index information.
+     *
+     * @param indexSettings the index settings containing configuration and metadata for this component
      */
     protected AbstractIndexComponent(IndexSettings indexSettings) {
         this.logger = Loggers.getLogger(getClass(), indexSettings.getIndex());
         this.indexSettings = indexSettings;
     }
 
+    /**
+     * Retrieves the index associated with this component.
+     *
+     * @return the {@link Index} object containing the index name and UUID
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * AbstractIndexComponent component = ...;
+     * Index index = component.index();
+     * String indexName = index.getName();
+     * String indexUuid = index.getUUID();
+     * }</pre>
+     */
     public Index index() {
         return indexSettings.getIndex();
     }
 
+    /**
+     * Retrieves the index settings for this component.
+     *
+     * @return the {@link IndexSettings} containing all configuration and settings for the index
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * AbstractIndexComponent component = ...;
+     * IndexSettings settings = component.getIndexSettings();
+     * int numberOfShards = settings.getNumberOfShards();
+     * int numberOfReplicas = settings.getNumberOfReplicas();
+     * }</pre>
+     */
     public IndexSettings getIndexSettings() {
         return indexSettings;
     }

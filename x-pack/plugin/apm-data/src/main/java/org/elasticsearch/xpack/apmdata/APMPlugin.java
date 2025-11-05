@@ -21,6 +21,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Plugin for APM (Application Performance Monitoring) data management in Elasticsearch.
+ * <p>
+ * This plugin manages the index templates and mappings required for APM data ingestion.
+ * It creates and maintains an {@link APMIndexTemplateRegistry} that handles the lifecycle
+ * of APM-related index templates.
+ * </p>
+ */
 public class APMPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(APMPlugin.class);
 
@@ -28,9 +36,13 @@ public class APMPlugin extends Plugin implements ActionPlugin {
 
     private final boolean enabled;
 
-    // APM_DATA_REGISTRY_ENABLED controls enabling the index template registry.
-    //
-    // This setting will be ignored if the plugin is disabled.
+    /**
+     * Controls whether the APM data index template registry is enabled.
+     * <p>
+     * This setting is ignored if the APM data plugin itself is disabled via
+     * {@link XPackSettings#APM_DATA_ENABLED}.
+     * </p>
+     */
     static final Setting<Boolean> APM_DATA_REGISTRY_ENABLED = Setting.boolSetting(
         "xpack.apm_data.registry.enabled",
         true,
@@ -38,10 +50,26 @@ public class APMPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Constructs a new APMPlugin with the specified settings.
+     *
+     * @param settings the node settings used to determine if APM data functionality is enabled
+     */
     public APMPlugin(Settings settings) {
         this.enabled = XPackSettings.APM_DATA_ENABLED.get(settings);
     }
 
+    /**
+     * Creates and initializes the plugin components.
+     * <p>
+     * This method creates the {@link APMIndexTemplateRegistry} which manages APM index templates.
+     * If the plugin is enabled, the registry is initialized and configured according to the
+     * {@link #APM_DATA_REGISTRY_ENABLED} setting. If disabled, the registry is created but not initialized.
+     * </p>
+     *
+     * @param services the plugin services providing access to cluster resources
+     * @return an empty collection as this plugin does not export any components
+     */
     @Override
     public Collection<?> createComponents(PluginServices services) {
         logger.info("APM ingest plugin is {}", enabled ? "enabled" : "disabled");
@@ -58,11 +86,23 @@ public class APMPlugin extends Plugin implements ActionPlugin {
         return Collections.emptyList();
     }
 
+    /**
+     * Closes the plugin and releases resources.
+     * <p>
+     * This method ensures the APM index template registry is properly closed and
+     * any associated resources are released.
+     * </p>
+     */
     @Override
     public void close() {
         registry.get().close();
     }
 
+    /**
+     * Returns the list of settings provided by this plugin.
+     *
+     * @return a list containing the {@link #APM_DATA_REGISTRY_ENABLED} setting
+     */
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(APM_DATA_REGISTRY_ENABLED);

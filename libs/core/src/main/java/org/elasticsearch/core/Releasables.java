@@ -13,7 +13,31 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicReference;
 
-/** Utility methods to work with {@link Releasable}s. */
+/**
+ * Utility methods for working with {@link Releasable} resources.
+ *
+ * <p>This class provides methods for safely releasing resources, wrapping multiple
+ * releasables, and handling exceptions during release operations. It is designed to
+ * work similarly to try-with-resources but with more flexibility.
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Close multiple releasables, propagating the first exception
+ * Releasables.close(resource1, resource2, resource3);
+ *
+ * // Close and suppress all exceptions (useful in exception handlers)
+ * Releasables.closeWhileHandlingException(resource1, resource2);
+ *
+ * // Wrap multiple releasables for use with try-with-resources
+ * List<Releasable> resources = Arrays.asList(r1, r2, r3);
+ * try (Releasable wrapped = Releasables.wrap(resources)) {
+ *     // use resources
+ * } // all resources automatically released
+ *
+ * // Ensure a releasable can only be closed once
+ * Releasable onceOnly = Releasables.releaseOnce(resource);
+ * }</pre>
+ */
 public enum Releasables {
     ;
 

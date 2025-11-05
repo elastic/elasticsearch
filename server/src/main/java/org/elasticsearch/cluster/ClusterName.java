@@ -35,15 +35,39 @@ public class ClusterName implements Writeable {
 
     private final String value;
 
+    /**
+     * Constructs a new {@link ClusterName} instance by reading from a stream input.
+     *
+     * @param input the stream input to read from
+     * @throws IOException if an I/O error occurs during reading
+     */
     public ClusterName(StreamInput input) throws IOException {
         this(input.readString());
     }
 
+    /**
+     * Constructs a new {@link ClusterName} instance with the specified name value.
+     * The value is interned to optimize memory usage since cluster names are typically
+     * used as part of settings.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * ClusterName clusterName = new ClusterName("my-cluster");
+     * }</pre>
+     *
+     * @param value the cluster name value
+     * @throws IllegalArgumentException if the value is empty or contains ':'
+     */
     public ClusterName(String value) {
         // cluster name string is most likely part of a setting so we can speed things up over outright interning here
         this.value = Settings.internKeyOrValue(value);
     }
 
+    /**
+     * Returns the cluster name value.
+     *
+     * @return the cluster name as a string
+     */
     public String value() {
         return this.value;
     }
@@ -73,6 +97,19 @@ public class ClusterName implements Writeable {
         return "Cluster [" + value + "]";
     }
 
+    /**
+     * Returns a predicate that tests for equality with this cluster name.
+     * The predicate can be used to filter or validate cluster names against this instance.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * ClusterName localCluster = new ClusterName("my-cluster");
+     * Predicate<ClusterName> equalityCheck = localCluster.getEqualityPredicate();
+     * boolean isMatch = equalityCheck.test(otherClusterName);
+     * }</pre>
+     *
+     * @return a predicate that returns {@code true} if the tested cluster name equals this instance
+     */
     public Predicate<ClusterName> getEqualityPredicate() {
         return new Predicate<ClusterName>() {
             @Override

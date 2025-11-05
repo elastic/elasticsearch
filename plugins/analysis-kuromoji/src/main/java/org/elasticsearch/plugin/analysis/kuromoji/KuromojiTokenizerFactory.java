@@ -26,6 +26,10 @@ import java.io.StringReader;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Factory for creating Kuromoji tokenizers that perform Japanese morphological analysis.
+ * Supports multiple segmentation modes, custom user dictionaries, and n-best tokenization.
+ */
 public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
 
     private static final String USER_DICT_PATH_OPTION = "user_dictionary";
@@ -43,6 +47,37 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     private boolean discardPunctuation;
     private boolean discardCompoundToken;
 
+    /**
+     * Constructs a Kuromoji tokenizer factory with configurable tokenization behavior.
+     *
+     * @param indexSettings the index settings
+     * @param env the environment for resolving user dictionary files
+     * @param name the tokenizer name
+     * @param settings the tokenizer settings containing:
+     *        <ul>
+     *        <li>mode: tokenization mode - "normal", "search", or "extended" (default: JapaneseTokenizer.DEFAULT_MODE)</li>
+     *        <li>user_dictionary: path to user dictionary file</li>
+     *        <li>user_dictionary_rules: inline user dictionary rules (mutually exclusive with user_dictionary)</li>
+     *        <li>discard_punctuation: whether to discard punctuation tokens (default: true)</li>
+     *        <li>nbest_cost: cost threshold for n-best tokenization (default: -1, disabled)</li>
+     *        <li>nbest_examples: example text for calculating n-best cost</li>
+     *        <li>discard_compound_token: whether to discard compound tokens in search mode (default: false)</li>
+     *        </ul>
+     * @throws IllegalArgumentException if both user_dictionary and user_dictionary_rules are specified
+     * @throws ElasticsearchException if the user dictionary cannot be loaded
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "tokenizer": {
+     *   "my_kuromoji": {
+     *     "type": "kuromoji_tokenizer",
+     *     "mode": "search",
+     *     "discard_punctuation": true,
+     *     "user_dictionary_rules": ["東京スカイツリー,東京 スカイツリー,トウキョウ スカイツリー,カスタム名詞"]
+     *   }
+     * }
+     * }</pre>
+     */
     public KuromojiTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         mode = getMode(settings);
@@ -53,6 +88,16 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
         discardCompoundToken = settings.getAsBoolean(DISCARD_COMPOUND_TOKEN, false);
     }
 
+    /**
+     * Loads a user dictionary from settings, either from a file path or inline rules.
+     * User dictionaries allow customization of tokenization by defining custom entries.
+     *
+     * @param env the environment for resolving dictionary file paths
+     * @param settings the settings containing user dictionary configuration
+     * @return a {@link UserDictionary} if dictionary is configured, null otherwise
+     * @throws IllegalArgumentException if both file path and inline rules are specified
+     * @throws ElasticsearchException if the dictionary file cannot be loaded or parsed
+     */
     public static UserDictionary getUserDictionary(Environment env, Settings settings) {
         if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
             throw new IllegalArgumentException(
@@ -83,11 +128,30 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
         }
     }
 
+    /**
+     * Extracts the tokenization mode from settings.
+     * Modes control how text is segmented:
+     * <ul>
+     * <li>NORMAL: regular tokenization</li>
+     * <li>SEARCH: additional sub-word segmentation for better search recall</li>
+     * <li>EXTENDED: most aggressive segmentation</li>
+     * </ul>
+     *
+     * @param settings the settings containing the mode parameter
+     * @return the {@link JapaneseTokenizer.Mode} specified in settings, or the default mode
+     */
     public static JapaneseTokenizer.Mode getMode(Settings settings) {
         String modeSetting = settings.get("mode", JapaneseTokenizer.DEFAULT_MODE.name());
         return JapaneseTokenizer.Mode.valueOf(modeSetting.toUpperCase(Locale.ENGLISH));
     }
 
+    /**
+     * Creates a new Kuromoji tokenizer with the configured settings.
+     * The tokenizer applies user dictionary if configured and sets n-best cost based on
+     * examples or explicit configuration.
+     *
+     * @return a new {@link JapaneseTokenizer} instance with the configured parameters
+     */
     @Override
     public Tokenizer create() {
         JapaneseTokenizer t = new JapaneseTokenizer(userDictionary, discardPunctuation, discardCompoundToken, mode);

@@ -33,16 +33,55 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Factory for creating ICU tokenizers that perform language-aware text segmentation.
+ * Supports custom rule-based break iteration for specific scripts.
+ */
 public class IcuTokenizerFactory extends AbstractTokenizerFactory {
 
     private final ICUTokenizerConfig config;
     private static final String RULE_FILES = "rule_files";
 
+    /**
+     * Constructs an ICU tokenizer factory with optional custom segmentation rules.
+     *
+     * @param indexSettings the index settings
+     * @param environment the environment for resolving rule files
+     * @param name the tokenizer name
+     * @param settings the tokenizer settings containing:
+     *        <ul>
+     *        <li>rule_files: list of "script:filepath" pairs for custom segmentation rules</li>
+     *        </ul>
+     * @throws IllegalArgumentException if rule file format is invalid
+     * @throws ElasticsearchException if rule files cannot be loaded or parsed
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "tokenizer": {
+     *   "my_icu_tokenizer": {
+     *     "type": "icu_tokenizer"
+     *   }
+     * }
+     *
+     * // With custom rules
+     * "tokenizer": {
+     *   "custom_icu": {
+     *     "type": "icu_tokenizer",
+     *     "rule_files": ["Latin:latin-rules.rbbi", "Hira:hiragana-rules.rbbi"]
+     *   }
+     * }
+     * }</pre>
+     */
     public IcuTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         config = getIcuConfig(environment, settings);
     }
 
+    /**
+     * Creates a new ICU tokenizer instance with the configured segmentation rules.
+     *
+     * @return a new {@link ICUTokenizer} with default or custom configuration
+     */
     @Override
     public Tokenizer create() {
         if (config == null) {
@@ -52,6 +91,15 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
         }
     }
 
+    /**
+     * Builds an ICU tokenizer configuration from settings by loading and parsing rule files.
+     *
+     * @param env the environment for resolving file paths
+     * @param settings the tokenizer settings
+     * @return an {@link ICUTokenizerConfig} with custom rules, or null if no custom rules are defined
+     * @throws IllegalArgumentException if rule file format is invalid
+     * @throws ElasticsearchException if rule files cannot be loaded
+     */
     private static ICUTokenizerConfig getIcuConfig(Environment env, Settings settings) {
         Map<Integer, String> tailored = new HashMap<>();
 
@@ -96,7 +144,14 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
         }
     }
 
-    // parse a single RBBi rule file
+    /**
+     * Parses a single rule-based break iterator (RBBi) rule file.
+     *
+     * @param filename the rule file name relative to the config directory
+     * @param env the environment for resolving the file path
+     * @return a {@link BreakIterator} configured with the parsed rules
+     * @throws IOException if the file cannot be read
+     */
     private static BreakIterator parseRules(String filename, Environment env) throws IOException {
 
         final Path path = env.configDir().resolve(filename);

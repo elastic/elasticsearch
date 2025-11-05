@@ -22,7 +22,28 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 
+/**
+ * Elasticsearch plugin that provides Smart Chinese analysis components.
+ * Smart Chinese analyzer performs Chinese text segmentation using a probabilistic
+ * Hidden Markov Model with Viterbi algorithm for word breaking.
+ */
 public class AnalysisSmartChinesePlugin extends Plugin implements AnalysisPlugin {
+
+    /**
+     * Provides Smart Chinese token filters for Chinese text processing.
+     * Includes Chinese-specific stop word filtering.
+     *
+     * @return a map of token filter names to their corresponding factory providers
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "filter": {
+     *   "my_smartcn_stop": {
+     *     "type": "smartcn_stop"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         Map<String, AnalysisProvider<TokenFilterFactory>> tokenFilters = new HashMap<>();
@@ -32,6 +53,20 @@ public class AnalysisSmartChinesePlugin extends Plugin implements AnalysisPlugin
         return tokenFilters;
     }
 
+    /**
+     * Provides Smart Chinese tokenizers for Chinese text segmentation.
+     *
+     * @return a map of tokenizer names to their corresponding factory providers
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "tokenizer": {
+     *   "my_smartcn": {
+     *     "type": "smartcn_tokenizer"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         Map<String, AnalysisProvider<TokenizerFactory>> extra = new HashMap<>();
@@ -41,6 +76,20 @@ public class AnalysisSmartChinesePlugin extends Plugin implements AnalysisPlugin
         return extra;
     }
 
+    /**
+     * Provides the Smart Chinese analyzer for complete Chinese text analysis.
+     *
+     * @return a map containing the "smartcn" analyzer provider
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "analyzer": {
+     *   "my_smartcn": {
+     *     "type": "smartcn"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         return singletonMap("smartcn", SmartChineseAnalyzerProvider::new);

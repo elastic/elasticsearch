@@ -18,9 +18,39 @@ import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import java.util.List;
 import java.util.function.Function;
 
+/**
+ * Factory interface for creating token filters in the analysis chain.
+ * Token filters process token streams produced by tokenizers, performing transformations
+ * such as lowercasing, stemming, synonym expansion, or stop word removal.
+ */
 public interface TokenFilterFactory {
+    /**
+     * Retrieves the name of this token filter factory.
+     *
+     * @return the token filter name
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * TokenFilterFactory factory = ...;
+     * String name = factory.name(); // e.g., "lowercase"
+     * }</pre>
+     */
     String name();
 
+    /**
+     * Creates a token filter that wraps the provided token stream.
+     * This method is called during the analysis process to build the analysis chain.
+     *
+     * @param tokenStream the input token stream to filter
+     * @return a new TokenStream that filters the input
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * TokenFilterFactory factory = ...;
+     * TokenStream input = tokenizer.create();
+     * TokenStream filtered = factory.create(input);
+     * }</pre>
+     */
     TokenStream create(TokenStream tokenStream);
 
     /**

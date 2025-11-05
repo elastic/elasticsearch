@@ -19,8 +19,27 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 
+/**
+ * Elasticsearch plugin that provides Ukrainian language analysis components.
+ * This plugin provides linguistic analysis specifically designed for Ukrainian text,
+ * including appropriate stemming and stop word filtering.
+ */
 public class AnalysisUkrainianPlugin extends Plugin implements AnalysisPlugin {
 
+    /**
+     * Provides the Ukrainian analyzer for complete Ukrainian text analysis.
+     *
+     * @return a map containing the "ukrainian" analyzer provider
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "analyzer": {
+     *   "my_ukrainian": {
+     *     "type": "ukrainian"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         return singletonMap("ukrainian", UkrainianAnalyzerProvider::new);

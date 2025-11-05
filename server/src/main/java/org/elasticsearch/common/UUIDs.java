@@ -17,7 +17,28 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
- * Utility class for generating various types of UUIDs.
+ * Utility class for generating various types of UUIDs. This class provides methods for generating
+ * both time-based and random UUIDs, with Base64 encoding for compact string representations.
+ *
+ * <p>Time-based UUIDs are preferred for use as Lucene document IDs because they have better
+ * index locality characteristics. Random UUIDs should be used when uniqueness without ordering
+ * is required.</p>
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Generate a time-based UUID for use as a Lucene document ID
+ * String documentId = UUIDs.base64UUID();
+ *
+ * // Generate a random UUID
+ * String randomId = UUIDs.randomBase64UUID();
+ *
+ * // Generate a random UUID with a specific Random instance
+ * Random random = new Random();
+ * String customRandomId = UUIDs.randomBase64UUID(random);
+ *
+ * // Generate a secure random UUID as a SecureString
+ * SecureString secureId = UUIDs.randomBase64UUIDSecureString();
+ * }</pre>
  */
 public class UUIDs {
     private static final AtomicInteger sequenceNumber = new AtomicInteger(SecureRandomHolder.INSTANCE.nextInt());

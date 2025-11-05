@@ -12,18 +12,31 @@ package org.elasticsearch.core;
 import java.util.Locale;
 
 /**
- * Utilities related to String class
+ * Utility methods for String operations.
+ *
+ * <p>This class provides convenient methods for common string manipulation tasks,
+ * ensuring consistent behavior across the Elasticsearch codebase.
  */
 public class Strings {
 
     /**
-     * Returns a formatted string using the specified format string and
-     * arguments.
-     * <p>
-     * This method calls {@link String#format(Locale, String, Object...)}
-     * with Locale.ROOT
-     * If format is incorrect the function will return format without populating
-     * its variable placeholders.
+     * Returns a formatted string using the specified format string and arguments.
+     *
+     * <p>This method calls {@link String#format(Locale, String, Object...)} with
+     * {@link Locale#ROOT} to ensure consistent locale-independent formatting.
+     * If the format string is incorrect, this method returns the format string
+     * unchanged without populating its variable placeholders, and triggers an
+     * assertion error in development environments.
+     *
+     * @param format the format string
+     * @param args the arguments referenced by the format specifiers in the format string
+     * @return the formatted string, or the original format string if formatting fails
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * String result = Strings.format("Hello %s, you have %d messages", "John", 5);
+     * // Returns: "Hello John, you have 5 messages"
+     * }</pre>
      */
     public static String format(String format, Object... args) {
         try {

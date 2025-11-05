@@ -12,20 +12,64 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.service.ClusterService;
 
 /**
- * A component that is in charge of applying an incoming cluster state to the node internal data structures. The {@link #applyClusterState}
- * method is called before the cluster state becomes visible via {@link ClusterService#state()}. See also {@link ClusterStateListener}.
+ * A component responsible for applying incoming cluster state changes to a node's internal data structures.
+ * The {@link #applyClusterState} method is invoked <i>before</i> the cluster state becomes visible via
+ * {@link ClusterService#state()}, allowing critical updates to be performed atomically with the state change.
+ *
+ * <p>This applier is called <i>before</i> the state becomes visible. If you need to react to state changes
+ * after they are visible, use {@link ClusterStateListener} instead.</p>
+ *
+ * <p><b>Critical Safety Requirements:</b></p>
+ * <ul>
+ *   <li>Implementations MUST NOT throw exceptions - the state is already committed when this is called</li>
+ *   <li>Exceptions will prevent state application to subsequent appliers, potentially causing cluster instability</li>
+ *   <li>Failed applications may trigger repeated attempts with the same state, potentially leading to node removal</li>
+ * </ul>
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * ClusterStateApplier applier = event -> {
+ *     // Update internal data structures before state becomes visible
+ *     if (event.routingTableChanged()) {
+ *         internalCache.update(event.state().routingTable());
+ *     }
+ * };
+ * clusterService.addStateApplier(applier);
+ * }</pre>
+ *
+ * @see ClusterStateListener
+ * @see ClusterChangedEvent
  */
 public interface ClusterStateApplier {
 
     /**
-     * Called when a new cluster state ({@link ClusterChangedEvent#state()} needs to be applied. The cluster state to be applied is already
-     * committed when this method is called, so an applier must therefore be prepared to deal with any state it receives without throwing an
-     * exception. Throwing an exception from an applier is very bad because it will stop the application of this state before it has reached
-     * all the other appliers, and will likely result in another attempt to apply the same (or very similar) cluster state which might
-     * continue until this node is removed from the cluster.
-     * <p>
-     * Cluster states are applied one-by-one which means they can be a performance bottleneck. Implementations of this method should
-     * therefore be fast, so please consider forking work into the background rather than doing everything inline.
+     * Applies the new cluster state to internal data structures. This method is called <i>before</i>
+     * the state becomes visible via {@link ClusterService#state()}.
+     *
+     * <p><b>Critical Requirements:</b></p>
+     * <ul>
+     *   <li><b>MUST NOT throw exceptions</b> - the state is already committed</li>
+     *   <li>Must handle any state received - no assumptions about validity</li>
+     *   <li>Keep implementations fast - consider background processing for heavy work</li>
+     *   <li>Changes are applied sequentially - avoid blocking to prevent bottlenecks</li>
+     * </ul>
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * public void applyClusterState(ClusterChangedEvent event) {
+     *     try {
+     *         // Safely update internal structures
+     *         if (event.metadataChanged()) {
+     *             updateInternalMetadata(event.state().metadata());
+     *         }
+     *     } catch (Exception e) {
+     *         // MUST handle all exceptions internally
+     *         logger.error("Failed to apply cluster state", e);
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param event the cluster changed event containing the new state to apply
      */
     void applyClusterState(ClusterChangedEvent event);
 }

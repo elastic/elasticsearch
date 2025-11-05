@@ -23,12 +23,49 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 
+/**
+ * Elasticsearch plugin that provides Stempel-based analysis components for Polish text.
+ * Stempel is a Polish language stemmer that provides algorithmic stemming specifically
+ * designed for the Polish language morphology.
+ */
 public class AnalysisStempelPlugin extends Plugin implements AnalysisPlugin {
+
+    /**
+     * Provides Polish-specific token filters including stemming and stop word filtering.
+     *
+     * @return a map of Polish token filter names to their corresponding factory providers
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "filter": {
+     *   "my_polish_stem": {
+     *     "type": "polish_stem"
+     *   },
+     *   "my_polish_stop": {
+     *     "type": "polish_stop"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         return Map.of("polish_stem", PolishStemTokenFilterFactory::new, "polish_stop", PolishStopTokenFilterFactory::new);
     }
 
+    /**
+     * Provides the Polish analyzer for complete Polish text analysis.
+     *
+     * @return a map containing the "polish" analyzer provider
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "analyzer": {
+     *   "my_polish": {
+     *     "type": "polish"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         return singletonMap("polish", PolishAnalyzerProvider::new);

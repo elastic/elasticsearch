@@ -410,35 +410,97 @@ public class XPackLicenseState {
 
     /**
      * Updates the current state of the license, which will change what features are available.
+     * <p>
+     * This method updates the license status and notifies all registered listeners
+     * of the change. It should be called whenever a new license is installed or
+     * when the license expires.
      *
-     * @param xPackLicenseStatus The {@link XPackLicenseStatus} which controls overall state
+     * @param xPackLicenseStatus the new license status which controls overall state
      */
     void update(XPackLicenseStatus xPackLicenseStatus) {
         this.xPackLicenseStatus = xPackLicenseStatus;
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
-    /** Add a listener to be notified on license change */
+    /**
+     * Registers a listener to be notified when the license state changes.
+     * <p>
+     * Listeners are notified when the license is updated, expires, or is renewed.
+     * This allows components to react to license changes, such as enabling or
+     * disabling features.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * licenseState.addListener(() -> {
+     *     if (licenseState.isActive()) {
+     *         enableFeatures();
+     *     } else {
+     *         disableFeatures();
+     *     }
+     * });
+     * }</pre>
+     *
+     * @param listener the listener to add (must not be null)
+     * @throws NullPointerException if listener is null
+     */
     public void addListener(final LicenseStateListener listener) {
         listeners.add(Objects.requireNonNull(listener));
     }
 
-    /** Remove a listener */
+    /**
+     * Removes a previously registered license state listener.
+     * <p>
+     * After removal, the listener will no longer be notified of license changes.
+     *
+     * @param listener the listener to remove (must not be null)
+     * @throws NullPointerException if listener is null
+     */
     public void removeListener(final LicenseStateListener listener) {
         listeners.remove(Objects.requireNonNull(listener));
     }
 
-    /** Return the current license type. */
+    /**
+     * Returns the current operation mode of the license.
+     * <p>
+     * The operation mode determines which features are available. Possible values
+     * include BASIC, STANDARD, GOLD, PLATINUM, ENTERPRISE, and TRIAL.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * OperationMode mode = licenseState.getOperationMode();
+     * if (mode == OperationMode.ENTERPRISE) {
+     *     // Enable enterprise-only features
+     *     enableAdvancedSecurity();
+     * }
+     * }</pre>
+     *
+     * @return the current license operation mode
+     */
     public OperationMode getOperationMode() {
         return executeAgainstStatus(statusToCheck -> statusToCheck.mode());
     }
 
-    // Package private for tests
-    /** Return true if the license is currently within its time boundaries, false otherwise. */
+    /**
+     * Returns true if the license is currently active (not expired).
+     * <p>
+     * An active license is one that is currently within its valid time period.
+     * If the license has expired, this method returns false, and certain features
+     * may be restricted.
+     *
+     * @return true if the license is active, false if expired
+     */
     public boolean isActive() {
         return checkAgainstStatus(statusToCheck -> statusToCheck.active());
     }
 
+    /**
+     * Returns a human-readable description of the current license status.
+     * <p>
+     * The description includes both the active/expired state and the license type,
+     * for example: "active platinum license" or "expired basic license".
+     *
+     * @return a string describing the current license status
+     */
     public String statusDescription() {
         return executeAgainstStatus(
             statusToCheck -> (statusToCheck.active() ? "active" : "expired") + ' ' + statusToCheck.mode().description() + " license"
@@ -491,9 +553,23 @@ public class XPackLicenseState {
     }
 
     /**
-     * Returns a mapping of gold+ features to the last time that feature was used.
+     * Returns a mapping of licensed features to their last usage time.
+     * <p>
+     * This method tracks when gold+ features were last used for licensing
+     * and telemetry purposes. Features that are currently "on" (usage tracking
+     * enabled) will report the current time as their last-used time.
      *
-     * Note that if a feature has not been used, it will not appear in the map.
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Map<FeatureUsage, Long> lastUsed = licenseState.getLastUsed();
+     * for (Map.Entry<FeatureUsage, Long> entry : lastUsed.entrySet()) {
+     *     System.out.println(entry.getKey() + " last used at: " +
+     *                        new Date(entry.getValue()));
+     * }
+     * }</pre>
+     *
+     * @return a map of feature usage to timestamps in milliseconds since epoch.
+     *         Features not yet used will not appear in the map.
      */
     public Map<FeatureUsage, Long> getLastUsed() {
         long currentTimeMillis = epochMillisProvider.getAsLong();
@@ -501,10 +577,28 @@ public class XPackLicenseState {
         return usage.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> timeConverter.apply(e.getValue())));
     }
 
+    /**
+     * Checks if FIPS mode is allowed for the given operation mode.
+     * <p>
+     * FIPS (Federal Information Processing Standards) mode requires at least
+     * a Platinum license level.
+     *
+     * @param operationMode the operation mode to check
+     * @return true if FIPS mode is allowed for this operation mode, false otherwise
+     */
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
+    /**
+     * Checks if the current operation mode meets or exceeds the minimum required mode.
+     * <p>
+     * Trial licenses are always considered sufficient regardless of the minimum mode.
+     *
+     * @param operationMode the current operation mode
+     * @param minimumMode the minimum required operation mode
+     * @return true if the operation mode meets or exceeds the minimum, false otherwise
+     */
     static boolean isAllowedByOperationMode(final OperationMode operationMode, final OperationMode minimumMode) {
         if (OperationMode.TRIAL == operationMode) {
             return true;
@@ -513,23 +607,41 @@ public class XPackLicenseState {
     }
 
     /**
-     * Creates a copy of this object based on the state at the time the method was called. The
-     * returned object will not be modified by a license update/expiration so it can be used to
-     * make multiple method calls on the license state safely. This object should not be long
-     * lived but instead used within a method when a consistent view of the license state
-     * is needed for multiple interactions with the license state.
+     * Creates a snapshot copy of the current license state.
+     * <p>
+     * The returned object represents a consistent view of the license state at
+     * the time this method was called. It will not be affected by subsequent
+     * license updates or expirations, making it safe for use in operations that
+     * require multiple checks against the same license state.
+     * <p>
+     * <b>Important:</b> This object should be short-lived and used within a single
+     * method or operation. Do not store it for long-term use.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Get a consistent snapshot for multiple checks
+     * XPackLicenseState snapshot = licenseState.copyCurrentLicenseState();
+     * OperationMode mode = snapshot.getOperationMode();
+     * boolean active = snapshot.isActive();
+     * // Both checks see the same license state even if license changes
+     * }</pre>
+     *
+     * @return a snapshot of the current license state
      */
     public XPackLicenseState copyCurrentLicenseState() {
         return executeAgainstStatus(statusToCheck -> new XPackLicenseState(listeners, statusToCheck, usage, epochMillisProvider));
     }
 
     /**
-     * Test whether a feature is allowed by the status of license.
+     * Tests whether a feature is allowed by the current license status.
+     * <p>
+     * This method checks if the current license operation mode meets or exceeds
+     * the minimum required mode, and optionally verifies that the license is active.
      *
-     * @param minimumMode  The minimum license to meet or exceed
-     * @param needActive   Whether current license needs to be active
-     *
-     * @return true if feature is allowed, otherwise false
+     * @param minimumMode the minimum operation mode required for the feature
+     * @param needActive whether the license must be active (not expired) for the feature
+     * @return true if the feature is allowed, false otherwise
+     * @deprecated Use {@link LicensedFeature} instead for feature-specific license checks
      */
     @Deprecated
     public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
@@ -542,10 +654,23 @@ public class XPackLicenseState {
     }
 
     /**
-     * A convenient method to test whether a feature is by license status.
-     * @see #isAllowedByLicense(OperationMode, boolean)
+     * Tests whether a feature is allowed by the current license status.
+     * <p>
+     * This is a convenience method that requires the license to be active.
+     * Equivalent to calling {@link #isAllowedByLicense(OperationMode, boolean)}
+     * with needActive=true.
      *
-     * @param minimumMode  The minimum license to meet or exceed
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * if (licenseState.isAllowedByLicense(OperationMode.PLATINUM)) {
+     *     // Enable platinum features
+     *     enableMachineLearning();
+     * }
+     * }</pre>
+     *
+     * @param minimumMode the minimum operation mode required for the feature
+     * @return true if the feature is allowed, false otherwise
+     * @see #isAllowedByLicense(OperationMode, boolean)
      */
     public boolean isAllowedByLicense(OperationMode minimumMode) {
         return isAllowedByLicense(minimumMode, true);

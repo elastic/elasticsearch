@@ -12,15 +12,23 @@ package org.elasticsearch.index;
 import java.util.Locale;
 
 /**
- * Legacy enum class for index settings, kept for 7.x BWC compatibility. Do not use.
+ * Legacy enum class for slow log level settings in index operations.
+ * Kept for 7.x backwards compatibility. Do not use in new code.
+ *
+ * @deprecated This class is deprecated and will be removed in version 9.0.
+ *             Use standard logging levels from log4j instead.
  * TODO: Remove in 9.0
  */
 @Deprecated
 public enum SlowLogLevel {
-    WARN(3), // most specific - little logging
+    /** Warning level - most specific, minimal logging */
+    WARN(3),
+    /** Info level - moderate logging */
     INFO(2),
+    /** Debug level - detailed logging */
     DEBUG(1),
-    TRACE(0); // least specific - lots of logging
+    /** Trace level - least specific, maximum logging */
+    TRACE(0);
 
     private final int specificity;
 
@@ -28,10 +36,37 @@ public enum SlowLogLevel {
         this.specificity = specificity;
     }
 
+    /**
+     * Parses a string into a SlowLogLevel enum value.
+     *
+     * @param level the string representation of the log level (case-insensitive)
+     * @return the corresponding SlowLogLevel
+     * @throws IllegalArgumentException if the level string doesn't match any enum value
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SlowLogLevel level = SlowLogLevel.parse("warn");
+     * // level is SlowLogLevel.WARN
+     * }</pre>
+     */
     public static SlowLogLevel parse(String level) {
         return valueOf(level.toUpperCase(Locale.ROOT));
     }
 
+    /**
+     * Determines if this log level is enabled for the given log level to be used.
+     * A level is enabled if its specificity is less than or equal to the level to be used.
+     *
+     * @param levelToBeUsed the log level to check against
+     * @return true if this level is enabled for the given level, false otherwise
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // INFO tries to log with WARN level - should allow
+     * boolean enabled = SlowLogLevel.INFO.isLevelEnabledFor(SlowLogLevel.WARN);
+     * // returns true because INFO (2) <= WARN (3)
+     * }</pre>
+     */
     boolean isLevelEnabledFor(SlowLogLevel levelToBeUsed) {
         // example: this.info(2) tries to log with levelToBeUsed.warn(3) - should allow
         return this.specificity <= levelToBeUsed.specificity;

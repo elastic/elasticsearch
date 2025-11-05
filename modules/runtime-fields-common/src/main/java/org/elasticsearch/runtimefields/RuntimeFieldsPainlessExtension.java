@@ -29,11 +29,37 @@ import java.util.Map;
 public class RuntimeFieldsPainlessExtension implements PainlessExtension {
     private final List<Whitelist> whitelists;
 
+    /**
+     * Default constructor required by ServiceProvider but not used.
+     * <p>
+     * This constructor exists to satisfy module-info requirements but should not be called directly.
+     * Use {@link #RuntimeFieldsPainlessExtension(RuntimeFieldsCommonPlugin)} instead.
+     * </p>
+     *
+     * @throws UnsupportedOperationException always, as this constructor is not supported
+     */
     // we don't use ServiceProvider directly, but module-info wants this
     public RuntimeFieldsPainlessExtension() {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Constructs a new RuntimeFieldsPainlessExtension with grok and dissect support.
+     * <p>
+     * This constructor creates Painless whitelists that expose grok and dissect functionality
+     * to runtime field scripts. The grok helper from the plugin is bound as an instance binding,
+     * making it available for pattern compilation in Painless scripts.
+     * </p>
+     *
+     * @param plugin the runtime fields common plugin providing the grok helper
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Constructor is called automatically during plugin initialization
+     * RuntimeFieldsCommonPlugin plugin = new RuntimeFieldsCommonPlugin(settings);
+     * RuntimeFieldsPainlessExtension extension = new RuntimeFieldsPainlessExtension(plugin);
+     * }</pre>
+     */
     public RuntimeFieldsPainlessExtension(RuntimeFieldsCommonPlugin plugin) {
         Whitelist commonWhitelist = WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "common_whitelist.txt");
         Whitelist grokWhitelist = new Whitelist(
@@ -55,6 +81,25 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
         this.whitelists = List.of(commonWhitelist, grokWhitelist);
     }
 
+    /**
+     * Returns the Painless whitelists for runtime field script contexts.
+     * <p>
+     * This method provides whitelists containing grok, dissect, and related functionality
+     * for all runtime field script contexts. The whitelists enable runtime field scripts
+     * to use pattern matching and text extraction features.
+     * </p>
+     *
+     * @return an immutable map of script contexts to their whitelists
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Called automatically by Painless during script compilation
+     * Map<ScriptContext<?>, List<Whitelist>> whitelists = extension.getContextWhitelists();
+     * // Runtime field scripts can now use:
+     * // - grok("%{WORD:name}").extract(input)
+     * // - dissect("%{name} %{age}").extract(input)
+     * }</pre>
+     */
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         Map<ScriptContext<?>, List<Whitelist>> whiteLists = new HashMap<>();

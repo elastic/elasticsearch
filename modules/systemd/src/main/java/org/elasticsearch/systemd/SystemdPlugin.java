@@ -24,6 +24,27 @@ import org.elasticsearch.threadpool.Scheduler;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Plugin that integrates Elasticsearch with systemd service management.
+ * <p>
+ * This plugin enables Elasticsearch to communicate with systemd on Linux systems when running
+ * as a systemd service. It uses sd_notify to report service status including startup progress,
+ * ready state, and shutdown notifications. The plugin is only active in package distributions
+ * (DEB/RPM) when the ES_SD_NOTIFY environment variable is set to "true".
+ * </p>
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Plugin is automatically loaded by Elasticsearch in package distributions
+ * // Enable systemd notifications by setting environment variable:
+ * // ES_SD_NOTIFY=true
+ *
+ * // Plugin will automatically:
+ * // - Extend systemd timeout during startup every 15 seconds
+ * // - Notify systemd when Elasticsearch is ready
+ * // - Notify systemd when Elasticsearch is stopping
+ * }</pre>
+ */
 public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     private static final Logger logger = LogManager.getLogger(SystemdPlugin.class);
@@ -35,6 +56,21 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         return enabled;
     }
 
+    /**
+     * Constructs a new SystemdPlugin with default configuration.
+     * <p>
+     * This constructor checks the current build type and ES_SD_NOTIFY environment variable
+     * to determine whether systemd integration should be enabled. It is automatically called
+     * by the Elasticsearch plugin system.
+     * </p>
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Constructor is called automatically by Elasticsearch
+     * // To enable systemd notifications, set:
+     * // export ES_SD_NOTIFY=true
+     * }</pre>
+     */
     @SuppressWarnings("unused")
     public SystemdPlugin() {
         this(true, Build.current().type(), System.getenv("ES_SD_NOTIFY"));
@@ -71,6 +107,30 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         return extender.get();
     }
 
+    /**
+     * Creates and initializes plugin components for systemd integration.
+     * <p>
+     * If systemd integration is enabled, this method schedules a recurring task that sends
+     * timeout extension notifications to systemd every 15 seconds during startup. This prevents
+     * systemd from timing out during long startup operations (e.g., metadata upgrades). The
+     * scheduled task is cancelled once the node startup completes successfully.
+     * </p>
+     * <p>
+     * Since systemd expects a READY=1 notification within 60 seconds by default, this method
+     * ensures that systemd receives EXTEND_TIMEOUT_USEC notifications to extend the timeout
+     * by 30 seconds every 15 seconds until startup completes.
+     * </p>
+     *
+     * @param services the plugin services providing access to the thread pool
+     * @return an empty collection (this plugin creates internal components only)
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Called automatically by Elasticsearch during plugin initialization
+     * Collection<?> components = plugin.createComponents(pluginServices);
+     * // If enabled, schedules periodic timeout extension notifications to systemd
+     * }</pre>
+     */
     @Override
     public Collection<?> createComponents(PluginServices services) {
         if (enabled == false) {
@@ -105,6 +165,21 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         systemd.notify_stopping();
     }
 
+    /**
+     * Called when the Elasticsearch node has completed startup and is ready to serve requests.
+     * <p>
+     * This method sends a READY=1 notification to systemd via sd_notify, indicating that the
+     * service has successfully started. It also cancels the recurring timeout extension task
+     * that was scheduled during initialization, as it is no longer needed once the node is ready.
+     * </p>
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Called automatically by Elasticsearch after node startup completes
+     * plugin.onNodeStarted();
+     * // Sends READY=1 to systemd and cancels timeout extension task
+     * }</pre>
+     */
     @Override
     public void onNodeStarted() {
         if (enabled == false) {
@@ -117,6 +192,21 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         assert cancelled;
     }
 
+    /**
+     * Called when the plugin is being closed during Elasticsearch shutdown.
+     * <p>
+     * This method sends a STOPPING=1 notification to systemd via sd_notify, indicating that
+     * the service is shutting down gracefully. This allows systemd to track the service
+     * lifecycle properly.
+     * </p>
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Called automatically by Elasticsearch during shutdown
+     * plugin.close();
+     * // Sends STOPPING=1 to systemd
+     * }</pre>
+     */
     @Override
     public void close() {
         if (enabled == false) {

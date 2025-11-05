@@ -28,6 +28,36 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Implementation of column metadata information for ESQL query results.
+ * <p>
+ * This class provides detailed information about a column in an ESQL query result, including
+ * its name, data type, and original Elasticsearch types. It supports serialization for
+ * network transport and XContent for REST API responses.
+ * </p>
+ * <p>
+ * When a column type cannot be determined or there's a type conflict across multiple indices,
+ * the {@code originalTypes} field will contain the underlying Elasticsearch type names. The
+ * {@code suggestedCast} field provides a recommended cast type when applicable.
+ * </p>
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Creating column info for a simple integer column
+ * ColumnInfo columnInfo = new ColumnInfoImpl("age", DataType.INTEGER, null);
+ *
+ * // Creating column info with original types (for unsupported or conflicting types)
+ * List<String> originalTypes = List.of("integer", "long");
+ * ColumnInfo columnInfo = new ColumnInfoImpl("value", DataType.UNSUPPORTED, originalTypes);
+ *
+ * // Accessing column information
+ * String name = columnInfo.name();
+ * String type = columnInfo.outputType();
+ *
+ * // Deserializing from XContent
+ * ColumnInfo columnInfo = ColumnInfoImpl.fromXContent(parser);
+ * }</pre>
+ */
 public class ColumnInfoImpl implements ColumnInfo {
 
     public static final InstantiatingObjectParser<ColumnInfoImpl, Void> PARSER;
@@ -61,6 +91,15 @@ public class ColumnInfoImpl implements ColumnInfo {
         return Objects.hash(name, type, originalTypes);
     }
 
+    /**
+     * Deserializes column information from an XContent parser.
+     * <p>
+     * This method is used to parse column metadata from REST API responses.
+     * </p>
+     *
+     * @param parser the XContent parser to read from
+     * @return a ColumnInfo instance parsed from the XContent
+     */
     public static ColumnInfo fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
@@ -78,11 +117,29 @@ public class ColumnInfoImpl implements ColumnInfo {
     @Nullable
     private final DataType suggestedCast;
 
+    /**
+     * Constructs column information from string-based type name (used by XContent parser).
+     *
+     * @param name the column name
+     * @param type the type name as a string (Elasticsearch type format)
+     * @param originalTypes optional list of original Elasticsearch types when there's a conflict or unsupported type
+     */
     @ParserConstructor
     public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes) {
         this(name, DataType.fromEs(type), originalTypes);
     }
 
+    /**
+     * Constructs column information with a data type object.
+     * <p>
+     * This is the primary constructor that initializes all fields including the suggested cast
+     * based on the original types.
+     * </p>
+     *
+     * @param name the column name
+     * @param type the data type of the column
+     * @param originalTypes optional list of original Elasticsearch types when there's a conflict or unsupported type
+     */
     public ColumnInfoImpl(String name, DataType type, @Nullable List<String> originalTypes) {
         this.name = name;
         this.type = type;
@@ -99,6 +156,16 @@ public class ColumnInfoImpl implements ColumnInfo {
         );
     }
 
+    /**
+     * Constructs column information by deserializing from a stream input.
+     * <p>
+     * This constructor handles backward compatibility by checking the transport version
+     * to determine whether to read the originalTypes field.
+     * </p>
+     *
+     * @param in the stream input to read from
+     * @throws IOException if an I/O error occurs during deserialization
+     */
     public ColumnInfoImpl(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = DataType.fromEs(in.readString());
@@ -111,6 +178,16 @@ public class ColumnInfoImpl implements ColumnInfo {
         }
     }
 
+    /**
+     * Serializes this column information to a stream output.
+     * <p>
+     * This method handles backward compatibility by checking the transport version
+     * to determine whether to write the originalTypes field.
+     * </p>
+     *
+     * @param out the stream output to write to
+     * @throws IOException if an I/O error occurs during serialization
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
@@ -120,6 +197,23 @@ public class ColumnInfoImpl implements ColumnInfo {
         }
     }
 
+    /**
+     * Serializes this column information to XContent format.
+     * <p>
+     * The output includes:
+     * <ul>
+     *   <li>name - the column name</li>
+     *   <li>type - the output type name</li>
+     *   <li>original_types - (optional) list of original ES types if present</li>
+     *   <li>suggested_cast - (optional) suggested cast type if applicable</li>
+     * </ul>
+     * </p>
+     *
+     * @param builder the XContent builder to write to
+     * @param params the serialization parameters
+     * @return the XContent builder for method chaining
+     * @throws IOException if an I/O error occurs during serialization
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -135,20 +229,50 @@ public class ColumnInfoImpl implements ColumnInfo {
         return builder;
     }
 
+    /**
+     * Returns the column name.
+     *
+     * @return the name of the column
+     */
     @Override
     public String name() {
         return name;
     }
 
+    /**
+     * Returns the output type name for this column.
+     * <p>
+     * This is the type name as it should be displayed in API responses.
+     * </p>
+     *
+     * @return the output type name
+     */
     @Override
     public String outputType() {
         return type.outputType();
     }
 
+    /**
+     * Returns the data type of this column.
+     *
+     * @return the DataType enum value for this column
+     */
     public DataType type() {
         return type;
     }
 
+    /**
+     * Returns the list of original Elasticsearch types, if present.
+     * <p>
+     * This field is populated when:
+     * <ul>
+     *   <li>The column has an unsupported type</li>
+     *   <li>There's a type conflict across multiple indices</li>
+     * </ul>
+     * </p>
+     *
+     * @return the list of original type names, or null if not applicable
+     */
     @Nullable
     public List<String> originalTypes() {
         return originalTypes;

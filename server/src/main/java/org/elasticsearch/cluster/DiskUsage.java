@@ -25,7 +25,22 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Encapsulation class used to represent the amount of disk used on a node.
+ * Represents the disk usage information for a specific path on a node in the cluster.
+ * This record encapsulates disk space metrics including total and free bytes, and provides
+ * methods to calculate usage percentages and find paths with least/most available space.
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * DiskUsage diskUsage = new DiskUsage("node-1", "my-node", "/data", 1000000000L, 500000000L);
+ * double freePercent = diskUsage.freeDiskAsPercentage(); // Returns 50.0
+ * long usedBytes = diskUsage.usedBytes(); // Returns 500000000L
+ * }</pre>
+ *
+ * @param nodeId the unique identifier of the node
+ * @param nodeName the human-readable name of the node
+ * @param path the filesystem path being measured
+ * @param totalBytes the total size of the disk in bytes
+ * @param freeBytes the available free space in bytes
  */
 public record DiskUsage(String nodeId, String nodeName, String path, long totalBytes, long freeBytes)
     implements
@@ -34,6 +49,12 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
 
     private static final Logger logger = LogManager.getLogger(DiskUsage.class);
 
+    /**
+     * Constructs a {@link DiskUsage} instance by reading from a stream input.
+     *
+     * @param in the stream input to read from
+     * @throws IOException if an I/O error occurs during reading
+     */
     public DiskUsage(StreamInput in) throws IOException {
         this(in.readString(), in.readString(), in.readString(), in.readVLong(), in.readVLong());
     }
@@ -68,6 +89,18 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
         return builder;
     }
 
+    /**
+     * Calculates the percentage of disk space that is free.
+     * If total bytes is zero, returns 100.0% to fail "open" (as if we don't know disk usage).
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * DiskUsage diskUsage = new DiskUsage("node-1", "my-node", "/data", 1000L, 400L);
+     * double freePct = diskUsage.freeDiskAsPercentage(); // Returns 40.0
+     * }</pre>
+     *
+     * @return the percentage of free disk space (0.0 to 100.0), or 100.0 if total bytes is zero
+     */
     public double freeDiskAsPercentage() {
         // We return 100.0% in order to fail "open", in that if we have invalid
         // numbers for the total bytes, it's as if we don't know disk usage.
@@ -77,10 +110,21 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
         return 100.0 * freeBytes / totalBytes;
     }
 
+    /**
+     * Calculates the percentage of disk space that is used.
+     * This is simply 100.0 minus the free percentage.
+     *
+     * @return the percentage of used disk space (0.0 to 100.0)
+     */
     public double usedDiskAsPercentage() {
         return 100.0 - freeDiskAsPercentage();
     }
 
+    /**
+     * Calculates the number of bytes currently in use.
+     *
+     * @return the number of used bytes (total bytes minus free bytes)
+     */
     public long usedBytes() {
         return totalBytes - freeBytes;
     }
@@ -100,13 +144,40 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
             + "]";
     }
 
+    /**
+     * Creates a copy of this {@link DiskUsage} with updated free bytes while preserving all other fields.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * DiskUsage original = new DiskUsage("node-1", "my-node", "/data", 1000L, 400L);
+     * DiskUsage updated = original.copyWithFreeBytes(300L);
+     * }</pre>
+     *
+     * @param freeBytes the new free bytes value to use
+     * @return a new {@link DiskUsage} instance with updated free bytes
+     */
     public DiskUsage copyWithFreeBytes(long freeBytes) {
         return new DiskUsage(nodeId, nodeName, path, totalBytes, freeBytes);
     }
 
     /**
-     * Finds the path with the least available disk space and returns its disk usage. It returns null if there is no
-     * file system data in the NodeStats or if the total bytes are a negative number.
+     * Finds the filesystem path with the least available disk space on the specified node.
+     * This method examines all filesystem paths reported in the node statistics and returns
+     * the one with the smallest amount of free space.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * NodeStats nodeStats = getNodeStats("node-1");
+     * DiskUsage leastAvailable = DiskUsage.findLeastAvailablePath(nodeStats);
+     * if (leastAvailable != null) {
+     *     logger.info("Least available path: {} with {}% free",
+     *         leastAvailable.path(), leastAvailable.freeDiskAsPercentage());
+     * }
+     * }</pre>
+     *
+     * @param nodeStats the node statistics containing filesystem information
+     * @return the {@link DiskUsage} for the path with least available space, or {@code null} if no valid
+     *         filesystem data is available or if total bytes is negative
      */
     @Nullable
     public static DiskUsage findLeastAvailablePath(NodeStats nodeStats) {
@@ -159,8 +230,23 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
     }
 
     /**
-     * Finds the path with the most available disk space and returns its disk usage. It returns null if there are no
-     * file system data in the node stats or if the total bytes are a negative number.
+     * Finds the filesystem path with the most available disk space on the specified node.
+     * This method examines all filesystem paths reported in the node statistics and returns
+     * the one with the largest amount of free space.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * NodeStats nodeStats = getNodeStats("node-1");
+     * DiskUsage mostAvailable = DiskUsage.findMostAvailable(nodeStats);
+     * if (mostAvailable != null) {
+     *     logger.info("Most available path: {} with {}% free",
+     *         mostAvailable.path(), mostAvailable.freeDiskAsPercentage());
+     * }
+     * }</pre>
+     *
+     * @param nodeStats the node statistics containing filesystem information
+     * @return the {@link DiskUsage} for the path with most available space, or {@code null} if no valid
+     *         filesystem data is available or if total bytes is negative
      */
     @Nullable
     public static DiskUsage findMostAvailable(NodeStats nodeStats) {

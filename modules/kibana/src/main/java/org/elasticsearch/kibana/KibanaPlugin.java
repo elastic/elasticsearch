@@ -18,6 +18,26 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Plugin that manages Kibana-related system indices in Elasticsearch.
+ * <p>
+ * This plugin registers and manages system index descriptors for Kibana configuration,
+ * reporting, Onechat, workflows, and APM functionality. These system indices are protected
+ * and can only be modified by Kibana products.
+ * </p>
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Plugin is automatically loaded by Elasticsearch
+ * // System indices are automatically registered:
+ * // - .kibana_* (Kibana saved objects)
+ * // - .reporting-* (Reporting data)
+ * // - .chat-* (Onechat data)
+ * // - .workflows-* (Workflows data)
+ * // - .apm-agent-configuration* (APM agent config)
+ * // - .apm-custom-link* (APM custom links)
+ * }</pre>
+ */
 public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static final List<String> KIBANA_PRODUCT_ORIGIN = List.of("kibana");
@@ -68,6 +88,28 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .setAllowsTemplates()
         .build();
 
+    /**
+     * Returns the collection of system index descriptors managed by this plugin.
+     * <p>
+     * This method provides descriptors for all Kibana-related system indices including
+     * saved objects, reporting data, Onechat, workflows, and APM configuration. These
+     * indices are protected as external unmanaged system indices that can only be
+     * accessed by Kibana products.
+     * </p>
+     *
+     * @param settings the Elasticsearch settings (unused in this implementation)
+     * @return an immutable collection of system index descriptors for Kibana-related indices
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Called by Elasticsearch during plugin initialization
+     * Collection<SystemIndexDescriptor> descriptors = plugin.getSystemIndexDescriptors(settings);
+     * for (SystemIndexDescriptor descriptor : descriptors) {
+     *     String pattern = descriptor.getIndexPattern();
+     *     String description = descriptor.getDescription();
+     * }
+     * }</pre>
+     */
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
@@ -80,11 +122,43 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         );
     }
 
+    /**
+     * Returns the feature name for this plugin.
+     * <p>
+     * The feature name identifies this plugin in Elasticsearch's feature registry
+     * and is used for licensing and feature tracking purposes.
+     * </p>
+     *
+     * @return the string "kibana" identifying this feature
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Called by Elasticsearch feature registry
+     * String featureName = plugin.getFeatureName();
+     * // Returns: "kibana"
+     * }</pre>
+     */
     @Override
     public String getFeatureName() {
         return "kibana";
     }
 
+    /**
+     * Returns a human-readable description of this plugin's feature.
+     * <p>
+     * This description is used in Elasticsearch's feature registry to provide
+     * information about the functionality provided by this plugin.
+     * </p>
+     *
+     * @return a description of the Kibana feature functionality
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Called by Elasticsearch feature registry
+     * String description = plugin.getFeatureDescription();
+     * // Returns: "Manages Kibana configuration and reports"
+     * }</pre>
+     */
     @Override
     public String getFeatureDescription() {
         return "Manages Kibana configuration and reports";

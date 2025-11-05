@@ -56,17 +56,43 @@ public enum AnalysisMode {
         this.readableName = name;
     }
 
+    /**
+     * Retrieves the human-readable name of this analysis mode.
+     *
+     * @return the readable name (e.g., "index time", "search time", "all")
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * AnalysisMode mode = AnalysisMode.INDEX_TIME;
+     * String name = mode.getReadableName(); // Returns "index time"
+     * }</pre>
+     */
     public String getReadableName() {
         return this.readableName;
     }
 
     /**
-     * Returns a mode that is compatible with both this mode and the other mode, that is:
+     * Merges this analysis mode with another mode, returning a mode compatible with both.
+     * The merge rules are:
      * <ul>
-     * <li>ALL.merge(INDEX_TIME) == INDEX_TIME</li>
-     * <li>ALL.merge(SEARCH_TIME) == SEARCH_TIME</li>
+     * <li>ALL.merge(INDEX_TIME) returns INDEX_TIME</li>
+     * <li>ALL.merge(SEARCH_TIME) returns SEARCH_TIME</li>
      * <li>INDEX_TIME.merge(SEARCH_TIME) throws an {@link IllegalStateException}</li>
+     * <li>SEARCH_TIME.merge(INDEX_TIME) throws an {@link IllegalStateException}</li>
      * </ul>
+     *
+     * @param other the analysis mode to merge with
+     * @return the merged analysis mode
+     * @throws IllegalStateException if attempting to merge incompatible modes (INDEX_TIME with SEARCH_TIME)
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * AnalysisMode merged = AnalysisMode.ALL.merge(AnalysisMode.INDEX_TIME);
+     * // merged is INDEX_TIME
+     *
+     * // This will throw IllegalStateException:
+     * AnalysisMode invalid = AnalysisMode.INDEX_TIME.merge(AnalysisMode.SEARCH_TIME);
+     * }</pre>
      */
     public abstract AnalysisMode merge(AnalysisMode other);
 }

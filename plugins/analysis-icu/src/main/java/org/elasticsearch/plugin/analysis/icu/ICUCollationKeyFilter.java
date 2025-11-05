@@ -75,9 +75,20 @@ public final class ICUCollationKeyFilter extends TokenFilter {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
 
     /**
+     * Constructs an ICUCollationKeyFilter that transforms tokens into collation keys.
      *
-     * @param input Source token stream
-     * @param collator CollationKey generator
+     * @param input the source token stream to be filtered
+     * @param collator the collator used to generate collation keys. The collator is cloned
+     *                 internally to ensure thread-safety as per ICU guidelines
+     * @throws RuntimeException if the collator cannot be cloned
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * Collator collator = Collator.getInstance(ULocale.US);
+     * collator.setStrength(Collator.PRIMARY);
+     * TokenStream tokenStream = new StandardTokenizer();
+     * TokenStream filtered = new ICUCollationKeyFilter(tokenStream, collator);
+     * }</pre>
      */
     public ICUCollationKeyFilter(TokenStream input, Collator collator) {
         super(input);
@@ -89,6 +100,14 @@ public final class ICUCollationKeyFilter extends TokenFilter {
         }
     }
 
+    /**
+     * Advances the token stream and converts each token to its collation key representation.
+     * The resulting collation keys are encoded using {@link IndexableBinaryStringTools} to
+     * allow storage as index terms.
+     *
+     * @return true if a token is available, false if the stream has ended
+     * @throws IOException if an I/O error occurs while reading from the input stream
+     */
     @Override
     public boolean incrementToken() throws IOException {
         if (input.incrementToken()) {

@@ -42,6 +42,37 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Monitors and audits Machine Learning task assignments in the cluster.
+ * <p>
+ * This class listens to cluster state changes and generates audit messages when ML tasks
+ * (jobs, datafeeds, and data frame analytics) are assigned, unassigned, or relocated across
+ * cluster nodes. It also monitors and logs warnings for tasks that remain unassigned for
+ * extended periods.
+ * </p>
+ * <p>
+ * The notifier tracks assignment state and implements throttling to avoid excessive logging
+ * and audit message spam. It maintains in-memory state about unassigned tasks to determine
+ * how long they've been unassigned and when they were last reported.
+ * </p>
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Creating an assignment notifier (typically done by the ML plugin)
+ * MlAssignmentNotifier notifier = new MlAssignmentNotifier(
+ *     anomalyDetectionAuditor,
+ *     dataFrameAnalyticsAuditor,
+ *     threadPool,
+ *     clusterService
+ * );
+ *
+ * // The notifier automatically listens to cluster state changes
+ * // and generates audit messages when assignments change
+ *
+ * // Manually trigger an audit of unassigned tasks
+ * notifier.auditUnassignedMlTasks(projectId, nodes, tasks);
+ * }</pre>
+ */
 public class MlAssignmentNotifier implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAssignmentNotifier.class);
 
@@ -124,9 +155,24 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     }
 
     /**
-     * Creates an audit warning for all currently unassigned ML
-     * tasks, even if a previous audit warning has been created.
-     * Care must be taken not to call this method frequently.
+     * Creates audit warnings for all currently unassigned ML tasks.
+     * <p>
+     * This method generates audit messages for all unassigned tasks, regardless of whether
+     * they have been previously audited. It should be used sparingly to avoid flooding
+     * the audit log.
+     * </p>
+     * <p>
+     * Typical use cases include:
+     * <ul>
+     *   <li>Manual administrative checks of unassigned tasks</li>
+     *   <li>Diagnostic operations during troubleshooting</li>
+     *   <li>Periodic health checks triggered by external systems</li>
+     * </ul>
+     * </p>
+     *
+     * @param projectId the project ID containing the ML tasks
+     * @param nodes the current cluster nodes
+     * @param tasks the persistent tasks metadata containing ML task information
      */
     public void auditUnassignedMlTasks(ProjectId projectId, DiscoveryNodes nodes, PersistentTasksCustomMetadata tasks) {
         auditMlTasks(projectId, nodes, nodes, tasks, tasks, true);
@@ -267,6 +313,26 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         }
     }
 
+    /**
+     * Returns the friendly name of a node, falling back to the node ID if unavailable.
+     * <p>
+     * This method attempts to retrieve the human-readable name of a node from the cluster
+     * state. If the node is no longer in the cluster or doesn't have a name configured,
+     * the method falls back to returning the node ID.
+     * </p>
+     * <p>
+     * This fallback behavior is important because:
+     * <ul>
+     *   <li>The node may have left the cluster in an earlier state update</li>
+     *   <li>Tests may not configure node names</li>
+     *   <li>Node names may be empty or null in some configurations</li>
+     * </ul>
+     * </p>
+     *
+     * @param nodes the discovery nodes from the cluster state
+     * @param nodeId the ID of the node to look up
+     * @return the node name if available, otherwise the node ID
+     */
     static String nodeName(DiscoveryNodes nodes, String nodeId) {
         // It's possible that we're reporting on a node that left the
         // cluster in an earlier cluster state update, in which case

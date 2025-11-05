@@ -46,6 +46,24 @@ public final class ExceptionsHelper {
 
     private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
 
+    /**
+     * Converts a checked exception to a runtime exception.
+     * <p>
+     * If the provided exception is already a {@link RuntimeException}, it is returned as-is.
+     * Otherwise, the exception is wrapped in an {@link ElasticsearchException}.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * try {
+     *     // some operation that throws IOException
+     * } catch (IOException e) {
+     *     throw ExceptionsHelper.convertToRuntime(e);
+     * }
+     * }</pre>
+     *
+     * @param e the exception to convert
+     * @return a runtime exception, either the original if already runtime, or wrapped in ElasticsearchException
+     */
     public static RuntimeException convertToRuntime(Exception e) {
         if (e instanceof RuntimeException) {
             return (RuntimeException) e;
@@ -53,6 +71,24 @@ public final class ExceptionsHelper {
         return new ElasticsearchException(e);
     }
 
+    /**
+     * Converts a checked exception to an {@link ElasticsearchException}.
+     * <p>
+     * If the provided exception is already an {@link ElasticsearchException}, it is returned as-is.
+     * Otherwise, the exception is wrapped in an {@link ElasticsearchException}.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * try {
+     *     // some operation that throws Exception
+     * } catch (Exception e) {
+     *     throw ExceptionsHelper.convertToElastic(e);
+     * }
+     * }</pre>
+     *
+     * @param e the exception to convert
+     * @return an ElasticsearchException, either the original if already ElasticsearchException, or wrapped
+     */
     public static ElasticsearchException convertToElastic(Exception e) {
         if (e instanceof ElasticsearchException) {
             return (ElasticsearchException) e;
@@ -60,6 +96,28 @@ public final class ExceptionsHelper {
         return new ElasticsearchException(e);
     }
 
+    /**
+     * Determines the appropriate REST status for a throwable.
+     * <p>
+     * This method examines the exception type and returns the appropriate HTTP status code.
+     * For {@link ElasticsearchException}, the status is retrieved from the exception itself.
+     * For {@link IllegalArgumentException} and {@link XContentParseException}, returns {@link RestStatus#BAD_REQUEST}.
+     * For {@link EsRejectedExecutionException}, returns {@link RestStatus#TOO_MANY_REQUESTS}.
+     * For all other exceptions, returns {@link RestStatus#INTERNAL_SERVER_ERROR}.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * try {
+     *     // some operation
+     * } catch (Exception e) {
+     *     RestStatus status = ExceptionsHelper.status(e);
+     *     // use status for response
+     * }
+     * }</pre>
+     *
+     * @param t the throwable to examine, may be null
+     * @return the appropriate REST status code
+     */
     public static RestStatus status(Throwable t) {
         if (t != null) {
             if (t instanceof ElasticsearchException) {
@@ -75,6 +133,21 @@ public final class ExceptionsHelper {
         return RestStatus.INTERNAL_SERVER_ERROR;
     }
 
+    /**
+     * Unwraps the cause of a throwable until a non-{@link ElasticsearchWrapperException} is found.
+     * <p>
+     * This method recursively unwraps the cause chain of wrapper exceptions to find the actual
+     * underlying exception. It protects against circular references and excessive nesting depth.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Throwable actual = ExceptionsHelper.unwrapCause(wrappedException);
+     * logger.error("Actual exception: {}", actual.getMessage());
+     * }</pre>
+     *
+     * @param t the throwable to unwrap
+     * @return the first non-wrapper exception found, or the original throwable if not a wrapper
+     */
     public static Throwable unwrapCause(Throwable t) {
         int counter = 0;
         Throwable result = t;
@@ -95,6 +168,25 @@ public final class ExceptionsHelper {
         return result;
     }
 
+    /**
+     * Converts a throwable's stack trace to a string representation.
+     * <p>
+     * This method captures the full stack trace of the provided throwable,
+     * including all causes and suppressed exceptions, as a formatted string.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * try {
+     *     // some operation
+     * } catch (Exception e) {
+     *     String trace = ExceptionsHelper.stackTrace(e);
+     *     logger.error("Full stack trace: {}", trace);
+     * }
+     * }</pre>
+     *
+     * @param e the throwable whose stack trace to capture
+     * @return the complete stack trace as a string
+     */
     public static String stackTrace(Throwable e) {
         StringWriter stackTraceStringWriter = new StringWriter();
         PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
@@ -289,14 +381,48 @@ public final class ExceptionsHelper {
         s.append(className.substring(finalDot + 1));
     }
 
+    /**
+     * Formats a stack trace array into a human-readable string.
+     * <p>
+     * This method converts an array of stack trace elements into a formatted string,
+     * skipping the first element and prefixing each line with "\tat ".
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+     * String formatted = ExceptionsHelper.formatStackTrace(stackTrace);
+     * logger.debug("Stack trace: {}", formatted);
+     * }</pre>
+     *
+     * @param stackTrace the stack trace elements to format
+     * @return a formatted string representation of the stack trace
+     */
     public static String formatStackTrace(final StackTraceElement[] stackTrace) {
         return Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
     }
 
     /**
      * Rethrows the first exception in the list and adds all remaining to the suppressed list.
-     * If the given list is empty no exception is thrown
+     * <p>
+     * If the given list is empty, no exception is thrown. This is useful for collecting
+     * multiple exceptions during a cleanup operation and then throwing them together.
      *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * List<IOException> exceptions = new ArrayList<>();
+     * for (Resource resource : resources) {
+     *     try {
+     *         resource.close();
+     *     } catch (IOException e) {
+     *         exceptions.add(e);
+     *     }
+     * }
+     * ExceptionsHelper.rethrowAndSuppress(exceptions);
+     * }</pre>
+     *
+     * @param <T> the type of throwable
+     * @param exceptions the list of exceptions to process
+     * @throws T the first exception from the list with others added as suppressed
      */
     public static <T extends Throwable> void rethrowAndSuppress(List<T> exceptions) throws T {
         T main = null;
@@ -310,7 +436,27 @@ public final class ExceptionsHelper {
 
     /**
      * Throws a runtime exception with all given exceptions added as suppressed.
-     * If the given list is empty no exception is thrown
+     * <p>
+     * If the given list is empty, no exception is thrown. The first exception becomes the main
+     * exception wrapped in {@link ElasticsearchException}, and all remaining exceptions are
+     * added as suppressed exceptions.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * List<Exception> errors = new ArrayList<>();
+     * for (Task task : tasks) {
+     *     try {
+     *         task.execute();
+     *     } catch (Exception e) {
+     *         errors.add(e);
+     *     }
+     * }
+     * ExceptionsHelper.maybeThrowRuntimeAndSuppress(errors);
+     * }</pre>
+     *
+     * @param <T> the type of throwable
+     * @param exceptions the list of exceptions to process
+     * @throws ElasticsearchException wrapping the first exception with others as suppressed
      */
     public static <T extends Throwable> void maybeThrowRuntimeAndSuppress(List<T> exceptions) {
         T main = null;
@@ -322,6 +468,31 @@ public final class ExceptionsHelper {
         }
     }
 
+    /**
+     * Returns the first exception or adds the second as a suppressed exception.
+     * <p>
+     * If first is null, returns second. Otherwise, adds second as a suppressed exception
+     * to first and returns first. This is useful for accumulating exceptions during
+     * multi-step operations.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * IOException main = null;
+     * for (Closeable resource : resources) {
+     *     try {
+     *         resource.close();
+     *     } catch (IOException e) {
+     *         main = ExceptionsHelper.useOrSuppress(main, e);
+     *     }
+     * }
+     * if (main != null) throw main;
+     * }</pre>
+     *
+     * @param <T> the type of throwable
+     * @param first the primary exception, may be null
+     * @param second the exception to add as suppressed
+     * @return the first exception if not null, otherwise the second
+     */
     public static <T extends Throwable> T useOrSuppress(T first, T second) {
         if (first == null) {
             return second;
@@ -380,7 +551,23 @@ public final class ExceptionsHelper {
     }
 
     /**
-     * Throws the specified exception. If null if specified then <code>true</code> is returned.
+     * Throws the specified exception if not null, otherwise returns true.
+     * <p>
+     * If the provided exception is null, this method returns true. Otherwise, it throws
+     * the exception (wrapping in {@link RuntimeException} if it's a checked exception).
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Throwable error = null;
+     * // ... some operations that might set error
+     * if (ExceptionsHelper.reThrowIfNotNull(error)) {
+     *     // continue processing, no error occurred
+     * }
+     * }</pre>
+     *
+     * @param e the exception to throw, may be null
+     * @return true if the exception is null
+     * @throws RuntimeException if e is not null
      */
     public static boolean reThrowIfNotNull(@Nullable Throwable e) {
         if (e != null) {

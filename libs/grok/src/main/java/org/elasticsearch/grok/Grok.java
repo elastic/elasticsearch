@@ -26,6 +26,38 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * Parses unstructured text data using Grok patterns into structured data.
+ *
+ * <p>Grok is a pattern matching library that allows you to define patterns using
+ * named regular expressions. It is particularly useful for parsing log files and
+ * other unstructured text data.
+ *
+ * <p><b>Pattern Syntax:</b></p>
+ * <p>Grok patterns use the syntax {@code %{PATTERN_NAME:field_name}} where:
+ * <ul>
+ *   <li>PATTERN_NAME is a predefined or custom pattern from the {@link PatternBank}</li>
+ *   <li>field_name is the name to assign to the captured value (optional)</li>
+ * </ul>
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Create a pattern bank with predefined patterns
+ * PatternBank patternBank = new PatternBank();
+ * patternBank.addPattern("IP", "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+ *
+ * // Create a Grok instance with a pattern
+ * Grok grok = new Grok(patternBank, "%{IP:client_ip} %{WORD:method} %{URIPATHPARAM:request}", msg -> {});
+ *
+ * // Match and extract data
+ * String logLine = "192.168.1.1 GET /index.html";
+ * Map<String, Object> captures = grok.captures(logLine);
+ * // Returns: {client_ip=192.168.1.1, method=GET, request=/index.html}
+ *
+ * // Check if pattern matches
+ * boolean matches = grok.match(logLine); // Returns true
+ * }</pre>
+ */
 public final class Grok {
 
     private static final String NAME_GROUP = "name";

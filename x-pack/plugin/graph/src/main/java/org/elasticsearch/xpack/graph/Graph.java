@@ -35,16 +35,66 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
+/**
+ * Plugin for Graph exploration functionality in Elasticsearch.
+ * <p>
+ * This plugin provides the Graph API, which enables exploration of relationships
+ * in data through relevance-based graph analysis. Graph can discover how items
+ * are related using the {@code _explore} API endpoint. This feature requires a
+ * Platinum or Enterprise license.
+ * </p>
+ * <p><b>Usage Example:</b></p>
+ * <pre>{@code
+ * POST /my-index/_graph/explore
+ * {
+ *   "query": {
+ *     "match": {
+ *       "field": "value"
+ *     }
+ *   },
+ *   "vertices": [
+ *     {
+ *       "field": "user"
+ *     }
+ *   ],
+ *   "connections": {
+ *     "vertices": [
+ *       {
+ *         "field": "product"
+ *       }
+ *     ]
+ *   }
+ * }
+ * }</pre>
+ */
 public class Graph extends Plugin implements ActionPlugin {
 
+    /**
+     * Licensed feature definition for Graph functionality.
+     * Requires a Platinum or Enterprise license.
+     */
     public static final LicensedFeature.Momentary GRAPH_FEATURE = LicensedFeature.momentary(null, "graph", License.OperationMode.PLATINUM);
 
     protected final boolean enabled;
 
+    /**
+     * Constructs a new Graph plugin with the specified settings.
+     *
+     * @param settings the node settings used to determine if Graph is enabled
+     */
     public Graph(Settings settings) {
         this.enabled = XPackSettings.GRAPH_ENABLED.get(settings);
     }
 
+    /**
+     * Returns the list of action handlers provided by this plugin.
+     * <p>
+     * Registers the Graph explore action along with usage and info actions.
+     * If the plugin is disabled, only the usage and info actions are registered.
+     * </p>
+     *
+     * @return a list of action handlers for graph operations
+     */
     @Override
     public List<ActionHandler> getActions() {
         var usageAction = new ActionHandler(XPackUsageFeatureAction.GRAPH, GraphUsageTransportAction.class);
@@ -55,6 +105,24 @@ public class Graph extends Plugin implements ActionPlugin {
         return Arrays.asList(new ActionHandler(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class), usageAction, infoAction);
     }
 
+    /**
+     * Returns the REST handlers provided by this plugin.
+     * <p>
+     * Registers the REST endpoint for graph exploration at {@code /_graph/explore}.
+     * If the plugin is disabled, no REST handlers are registered.
+     * </p>
+     *
+     * @param settings the node settings
+     * @param namedWriteableRegistry the named writeable registry
+     * @param restController the REST controller
+     * @param clusterSettings the cluster settings
+     * @param indexScopedSettings the index-scoped settings
+     * @param settingsFilter the settings filter
+     * @param indexNameExpressionResolver the index name expression resolver
+     * @param nodesInCluster supplier for discovery nodes
+     * @param clusterSupportsFeature predicate to check feature support
+     * @return a list containing the graph REST handler if enabled, empty otherwise
+     */
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,

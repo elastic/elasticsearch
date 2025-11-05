@@ -9,7 +9,38 @@
 
 package org.elasticsearch.common;
 
+/**
+ * A functional interface that represents a function accepting an int-valued argument,
+ * producing a result, and may throw a checked exception during execution.
+ * This is the int-consuming primitive specialization for {@link CheckedBiFunction}.
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * CheckedIntFunction<String, IOException> indexToName = (index) -> {
+ *     if (index < 0) {
+ *         throw new IOException("Invalid index: " + index);
+ *     }
+ *     return "Item-" + index;
+ * };
+ *
+ * try {
+ *     String name = indexToName.apply(5);
+ * } catch (IOException e) {
+ *     // Handle exception
+ * }
+ * }</pre>
+ *
+ * @param <T> the type of the result
+ * @param <E> the type of exception that may be thrown
+ */
 @FunctionalInterface
 public interface CheckedIntFunction<T, E extends Exception> {
+    /**
+     * Applies this function to the given int-valued argument.
+     *
+     * @param input the input value
+     * @return the function result
+     * @throws E if an error occurs during execution
+     */
     T apply(int input) throws E;
 }

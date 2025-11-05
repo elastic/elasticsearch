@@ -42,6 +42,49 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Collator collator;
 
+    /**
+     * Constructs an ICU collation token filter factory that creates filters for language-specific sorting.
+     * This factory supports two configuration methods:
+     * <ul>
+     * <li>Locale-based: specify language (and optionally country and variant) for standard collation</li>
+     * <li>Rule-based: provide custom collation rules as defined in ICU documentation</li>
+     * </ul>
+     *
+     * @param indexSettings the index settings
+     * @param environment the environment for resolving configuration files
+     * @param name the filter name
+     * @param settings the filter settings containing collation configuration such as:
+     *        <ul>
+     *        <li>rules: custom collation rules or path to rules file</li>
+     *        <li>language: ISO-639 language code (e.g., "en", "fr")</li>
+     *        <li>country: ISO country code (e.g., "US", "GB")</li>
+     *        <li>variant: locale variant</li>
+     *        <li>strength: collation strength ("primary", "secondary", "tertiary", "quaternary", "identical")</li>
+     *        <li>decomposition: normalization mode ("no", "canonical")</li>
+     *        </ul>
+     * @throws IllegalArgumentException if rules cannot be resolved or parsed, or if invalid configuration values are provided
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * // Locale-based collation
+     * "filter": {
+     *   "french_collation": {
+     *     "type": "icu_collation",
+     *     "language": "fr",
+     *     "country": "FR",
+     *     "strength": "primary"
+     *   }
+     * }
+     *
+     * // Rule-based collation
+     * "filter": {
+     *   "custom_collation": {
+     *     "type": "icu_collation",
+     *     "rules": "& a < b < c"
+     *   }
+     * }
+     * }</pre>
+     */
     @SuppressWarnings("HiddenField")
     public IcuCollationTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -162,6 +205,13 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         this.collator = collator;
     }
 
+    /**
+     * Creates an ICU collation key filter that transforms tokens into collation keys
+     * using the configured collator.
+     *
+     * @param tokenStream the input token stream to be filtered
+     * @return a new {@link ICUCollationKeyFilter} that converts tokens to collation keys
+     */
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new ICUCollationKeyFilter(tokenStream, collator);

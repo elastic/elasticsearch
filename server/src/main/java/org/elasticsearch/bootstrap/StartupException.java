@@ -16,18 +16,35 @@ import java.io.PrintStream;
 import java.util.Objects;
 
 /**
- * A wrapper for exceptions occurring during startup.
+ * A wrapper for exceptions occurring during Elasticsearch node startup.
+ * <p>
+ * This exception provides a cleaner presentation of startup failures by truncating
+ * and compressing stack traces, particularly for Guice-related errors which can
+ * have hundreds of stack frames. The stack trace is limited to {@link #STACKTRACE_LIMIT}
+ * lines and consecutive Guice frames are compressed into a single line.
  *
- * <p> The stacktrack of a startup exception may be truncated if it is from Guice,
- * which can have a large number of stack frames.
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * try {
+ *     initializeNode();
+ * } catch (Exception e) {
+ *     throw new StartupException(e);
+ * }
+ * }</pre>
  */
 public final class StartupException extends Exception {
 
-    /** maximum length of a stacktrace, before we truncate it */
+    /** Maximum length of a stacktrace before truncation */
     static final int STACKTRACE_LIMIT = 30;
-    /** all lines from this package are RLE-compressed */
+    /** All lines from this package are RLE-compressed */
     static final String GUICE_PACKAGE = "org.elasticsearch.injection.guice";
 
+    /**
+     * Constructs a startup exception wrapping another throwable.
+     *
+     * @param cause the underlying cause of the startup failure
+     * @throws NullPointerException if cause is null
+     */
     public StartupException(Throwable cause) {
         super(Objects.requireNonNull(cause));
     }

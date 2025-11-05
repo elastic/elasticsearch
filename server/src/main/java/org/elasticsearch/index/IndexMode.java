@@ -481,6 +481,17 @@ public enum IndexMode {
         this.name = name;
     }
 
+    /**
+     * Retrieves the name of this index mode.
+     *
+     * @return the string representation of the index mode name
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * IndexMode mode = IndexMode.TIME_SERIES;
+     * String name = mode.getName(); // Returns "time_series"
+     * }</pre>
+     */
     public String getName() {
         return name;
     }
@@ -560,19 +571,43 @@ public enum IndexMode {
      */
     public abstract SourceFieldMapper.Mode defaultSourceMode();
 
+    /**
+     * Retrieves the default codec for this index mode.
+     *
+     * @return the codec name to use for indices in this mode
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * IndexMode mode = IndexMode.LOGSDB;
+     * String codec = mode.getDefaultCodec(); // Returns "best_compression"
+     * }</pre>
+     */
     public String getDefaultCodec() {
         return CodecService.DEFAULT_CODEC;
     }
 
     /**
-     * Whether the default posting format (for inverted indices) from Lucene should be used.
+     * Determines whether the default posting format from Lucene should be used.
+     * By default, most index modes use custom postings formats.
+     *
+     * @return true if the default Lucene postings format should be used, false otherwise
      */
     public boolean useDefaultPostingsFormat() {
         return false;
     }
 
     /**
-     * Parse a string into an {@link IndexMode}.
+     * Parses a string value into the corresponding IndexMode.
+     *
+     * @param value the string representation of the index mode (e.g., "standard", "time_series", "logsdb", "lookup")
+     * @return the corresponding IndexMode enum value
+     * @throws IllegalArgumentException if the value does not match any valid index mode
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * IndexMode mode = IndexMode.fromString("time_series");
+     * // mode is IndexMode.TIME_SERIES
+     * }</pre>
      */
     public static IndexMode fromString(String value) {
         return switch (value) {
@@ -590,6 +625,20 @@ public enum IndexMode {
         };
     }
 
+    /**
+     * Deserializes an IndexMode from a stream input.
+     *
+     * @param in the stream to read from
+     * @return the deserialized IndexMode
+     * @throws IOException if an I/O error occurs while reading
+     * @throws IllegalStateException if the read value does not correspond to a valid index mode
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * StreamInput in = ...;
+     * IndexMode mode = IndexMode.readFrom(in);
+     * }</pre>
+     */
     public static IndexMode readFrom(StreamInput in) throws IOException {
         int mode = in.readByte();
         return switch (mode) {
@@ -601,6 +650,21 @@ public enum IndexMode {
         };
     }
 
+    /**
+     * Serializes an IndexMode to a stream output.
+     * Handles backwards compatibility by mapping LOOKUP mode to STANDARD for older transport versions.
+     *
+     * @param indexMode the IndexMode to serialize
+     * @param out the stream to write to
+     * @throws IOException if an I/O error occurs while writing
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * IndexMode mode = IndexMode.TIME_SERIES;
+     * StreamOutput out = ...;
+     * IndexMode.writeTo(mode, out);
+     * }</pre>
+     */
     public static void writeTo(IndexMode indexMode, StreamOutput out) throws IOException {
         final int code = switch (indexMode) {
             case STANDARD -> 0;

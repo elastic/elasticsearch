@@ -29,7 +29,29 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * The environment of where things exists.
+ * Encapsulates the runtime environment configuration for an Elasticsearch node.
+ * <p>
+ * This class manages all filesystem paths and settings for an Elasticsearch node, including:
+ * <ul>
+ *   <li>Home directory and configuration paths</li>
+ *   <li>Data directories for index storage</li>
+ *   <li>Repository paths for snapshot/restore operations</li>
+ *   <li>Plugin and module directories</li>
+ *   <li>Log directory locations</li>
+ * </ul>
+ * <p>
+ * All paths are resolved to absolute, normalized paths during construction to ensure
+ * consistent path handling across the application.
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * Settings settings = Settings.builder()
+ *     .put(Environment.PATH_HOME_SETTING.getKey(), "/opt/elasticsearch")
+ *     .putList(Environment.PATH_DATA_SETTING.getKey(), "/data1", "/data2")
+ *     .build();
+ * Environment env = new Environment(settings, configPath);
+ * Path[] dataDirs = env.dataDirs();
+ * }</pre>
  */
 @SuppressForbidden(reason = "configures paths for the system")
 // TODO: move PathUtils to be package-private here instead of

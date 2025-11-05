@@ -25,7 +25,31 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 /**
- * A reference to bytes.
+ * A reference to bytes. This interface provides an abstraction over different byte storage implementations,
+ * allowing efficient access to byte data without requiring all bytes to be in a single contiguous array.
+ * Implementations may be backed by byte arrays, byte buffers, or composite structures.
+ *
+ * <p>BytesReference instances are immutable after creation and thread-safe for read operations.</p>
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Create from byte array
+ * BytesReference ref = new BytesArray(new byte[]{1, 2, 3, 4});
+ *
+ * // Create from XContentBuilder
+ * XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("key", "value").endObject();
+ * BytesReference jsonBytes = BytesReference.bytes(builder);
+ *
+ * // Access bytes
+ * byte b = ref.get(0);
+ * int length = ref.length();
+ *
+ * // Convert to byte array
+ * byte[] array = BytesReference.toBytes(ref);
+ *
+ * // Create stream input for reading
+ * StreamInput input = ref.streamInput();
+ * }</pre>
  */
 public interface BytesReference extends Comparable<BytesReference>, ToXContentFragment {
 

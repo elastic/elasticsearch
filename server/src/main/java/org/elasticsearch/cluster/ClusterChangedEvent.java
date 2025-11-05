@@ -45,6 +45,23 @@ public class ClusterChangedEvent {
 
     private final ProjectsDelta projectsDelta;
 
+    /**
+     * Constructs a new cluster changed event with the specified source, new state, and previous state.
+     * This constructor automatically calculates the differences between the states for efficient comparison.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * ClusterChangedEvent event = new ClusterChangedEvent("source", newState, oldState);
+     * if (event.routingTableChanged()) {
+     *     // Handle routing changes
+     * }
+     * }</pre>
+     *
+     * @param source the descriptive source that caused this cluster state change (e.g., "reroute", "create-index")
+     * @param state the new cluster state after the change
+     * @param previousState the cluster state before the change
+     * @throws NullPointerException if any parameter is null
+     */
     public ClusterChangedEvent(String source, ClusterState state, ClusterState previousState) {
         Objects.requireNonNull(source, "source must not be null");
         Objects.requireNonNull(state, "state must not be null");
@@ -57,30 +74,48 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * The source that caused this cluster event to be raised.
+     * Returns the source that caused this cluster event to be raised.
+     * The source is a descriptive string indicating the operation or action that triggered the cluster state change.
+     *
+     * @return the source description (e.g., "reroute", "create-index", "node-join")
      */
     public String source() {
         return this.source;
     }
 
     /**
-     * The new cluster state that caused this change event.
+     * Returns the new cluster state that caused this change event.
+     * This represents the current state of the cluster after the change has been applied.
+     *
+     * @return the new cluster state
      */
     public ClusterState state() {
         return this.state;
     }
 
     /**
-     * The previous cluster state for this change event.
+     * Returns the previous cluster state before this change event.
+     * This represents the state of the cluster immediately before the change was applied.
+     *
+     * @return the previous cluster state
      */
     public ClusterState previousState() {
         return this.previousState;
     }
 
     /**
-     * Returns <code>true</code> if the routing tables (for all indices) have
-     * changed between the previous cluster state and the current cluster state.
-     * Note that this is an object reference equality test, not an equals test.
+     * Determines if the routing tables for all indices have changed between the previous and current cluster states.
+     * This uses object reference equality rather than deep equals comparison for efficiency, relying on the
+     * immutability of {@link GlobalRoutingTable}.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * if (event.routingTableChanged()) {
+     *     logger.info("Routing table has changed, updating shard allocations");
+     * }
+     * }</pre>
+     *
+     * @return {@code true} if the routing tables have changed, {@code false} otherwise
      */
     public boolean routingTableChanged() {
         // GlobalRoutingTable.routingTables is immutable, meaning that we can simply test the reference equality of the global routing
@@ -89,8 +124,20 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Returns <code>true</code> iff the routing table has changed for the given index.
-     * Note that this is an object reference equality test, not an equals test.
+     * Determines if the routing table has changed for the specified index.
+     * This uses object reference equality rather than deep equals comparison for efficiency.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Index myIndex = new Index("my-index", "uuid");
+     * if (event.indexRoutingTableChanged(myIndex)) {
+     *     // Handle index-specific routing changes
+     * }
+     * }</pre>
+     *
+     * @param index the index to check for routing table changes
+     * @return {@code true} if the routing table for the specified index has changed, {@code false} otherwise
+     * @throws NullPointerException if index is null
      */
     public boolean indexRoutingTableChanged(Index index) {
         Objects.requireNonNull(index, "index must not be null");
@@ -106,7 +153,19 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Returns the indices deleted in this event
+     * Returns the list of indices that were deleted in this cluster state change.
+     * The method determines deletions using either tombstones (if the cluster state is not fully recovered)
+     * or by comparing index metadata between the previous and current states.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * List<Index> deletedIndices = event.indicesDeleted();
+     * for (Index index : deletedIndices) {
+     *     logger.info("Index {} was deleted", index.getName());
+     * }
+     * }</pre>
+     *
+     * @return a list of deleted indices, or an empty list if no indices were deleted
      */
     public List<Index> indicesDeleted() {
         if (previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -119,27 +178,56 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Returns <code>true</code> iff the metadata for the cluster has changed between
-     * the previous cluster state and the new cluster state. Note that this is an object
-     * reference equality test, not an equals test.
+     * Determines if the cluster metadata has changed between the previous and current cluster states.
+     * This uses object reference equality rather than deep equals comparison for efficiency, relying
+     * on the immutability of the {@link Metadata} objects.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * if (event.metadataChanged()) {
+     *     // Handle metadata changes such as index settings or mappings updates
+     * }
+     * }</pre>
+     *
+     * @return {@code true} if the cluster metadata has changed, {@code false} otherwise
      */
     public boolean metadataChanged() {
         return state.metadata() != previousState.metadata();
     }
 
     /**
-     * Returns a set of custom meta data types when any custom metadata for the cluster has changed
-     * between the previous cluster state and the new cluster state. custom meta data types are
-     * returned iff they have been added, updated or removed between the previous and the current state
+     * Returns the set of custom metadata type names that have changed at the cluster level.
+     * A custom metadata type is included if it has been added, updated, or removed between
+     * the previous and current cluster states.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Set<String> changedTypes = event.changedCustomClusterMetadataSet();
+     * if (changedTypes.contains("my-custom-metadata")) {
+     *     // Handle changes to specific custom metadata
+     * }
+     * }</pre>
+     *
+     * @return a set of custom metadata type names that have changed, or an empty set if none changed
      */
     public Set<String> changedCustomClusterMetadataSet() {
         return changedCustoms(state.metadata().customs(), previousState.metadata().customs());
     }
 
     /**
-     * Returns a set of custom meta data types when any custom metadata for the cluster has changed
-     * between the previous cluster state and the new cluster state. custom meta data types are
-     * returned iff they have been added, updated or removed between the previous and the current state
+     * Returns the set of custom metadata type names that have changed at the project level.
+     * A custom metadata type is included if it has been added, updated, or removed for any project
+     * between the previous and current cluster states.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Set<String> changedTypes = event.changedCustomProjectMetadataSet();
+     * for (String type : changedTypes) {
+     *     logger.info("Project metadata type {} changed", type);
+     * }
+     * }</pre>
+     *
+     * @return a set of custom metadata type names that have changed, or an empty set if none changed
      */
     public Set<String> changedCustomProjectMetadataSet() {
         // TODO: none of the usages of these `changedCustom` methods actually need the full list; they just want to know if a specific entry
@@ -164,9 +252,21 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Checks whether custom metadata type for a project has changed between the previous cluster state
-     * and the new cluster state. Custom metadata types are considered changed iff they have been added,
-     * updated or removed between the previous and the current state
+     * Determines if a specific custom metadata type has changed for a given project.
+     * Custom metadata is considered changed if it has been added, updated, or removed between
+     * the previous and current cluster states.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * ProjectId projectId = ProjectId.DEFAULT;
+     * if (event.customMetadataChanged(projectId, "my-custom-type")) {
+     *     // Handle the change to this specific custom metadata
+     * }
+     * }</pre>
+     *
+     * @param projectId the project identifier to check
+     * @param customMetadataType the custom metadata type name to check
+     * @return {@code true} if the custom metadata has changed for the specified project, {@code false} otherwise
      */
     public boolean customMetadataChanged(ProjectId projectId, String customMetadataType) {
         ProjectMetadata previousProject = previousState.metadata().projects().get(projectId);
@@ -200,9 +300,22 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Returns <code>true</code> iff the {@link IndexMetadata} for a given index
-     * has changed between the previous cluster state and the new cluster state.
-     * Note that this is an object reference equality test, not an equals test.
+     * Determines if the {@link IndexMetadata} has changed between two metadata instances.
+     * This uses object reference equality rather than deep equals comparison for efficiency.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * IndexMetadata oldMeta = previousState.metadata().index("my-index");
+     * IndexMetadata newMeta = currentState.metadata().index("my-index");
+     * if (ClusterChangedEvent.indexMetadataChanged(oldMeta, newMeta)) {
+     *     // Handle index metadata changes
+     * }
+     * }</pre>
+     *
+     * @param metadata1 the first index metadata instance
+     * @param metadata2 the second index metadata instance
+     * @return {@code true} if the metadata instances are different, {@code false} if they are the same
+     * @throws AssertionError if either metadata parameter is null (when assertions are enabled)
      */
     public static boolean indexMetadataChanged(IndexMetadata metadata1, IndexMetadata metadata2) {
         assert metadata1 != null && metadata2 != null;
@@ -212,62 +325,102 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Returns <code>true</code> iff the cluster level blocks have changed between cluster states.
-     * Note that this is an object reference equality test, not an equals test.
+     * Determines if the cluster-level blocks have changed between the previous and current cluster states.
+     * This uses object reference equality rather than deep equals comparison for efficiency.
+     *
+     * @return {@code true} if the cluster blocks have changed, {@code false} otherwise
      */
     public boolean blocksChanged() {
         return state.blocks() != previousState.blocks();
     }
 
     /**
-     * Returns <code>true</code> iff the local node is the master node of the cluster.
+     * Determines if the local node is the elected master node of the cluster in the current state.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * if (event.localNodeMaster()) {
+     *     // Execute master-specific logic
+     * }
+     * }</pre>
+     *
+     * @return {@code true} if the local node is the elected master, {@code false} otherwise
      */
     public boolean localNodeMaster() {
         return state.nodes().isLocalNodeElectedMaster();
     }
 
     /**
-     * Returns the {@link org.elasticsearch.cluster.node.DiscoveryNodes.Delta} between
-     * the previous cluster state and the new cluster state.
+     * Returns the delta of node changes between the previous and current cluster states.
+     * The delta includes information about nodes that were added, removed, or had their master status change.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * DiscoveryNodes.Delta delta = event.nodesDelta();
+     * for (DiscoveryNode node : delta.addedNodes()) {
+     *     logger.info("Node {} joined the cluster", node.getName());
+     * }
+     * }</pre>
+     *
+     * @return the discovery nodes delta representing node changes
      */
     public DiscoveryNodes.Delta nodesDelta() {
         return this.nodesDelta;
     }
 
     /**
-     * Returns <code>true</code> iff nodes have been removed from the cluster since the last cluster state.
+     * Determines if any nodes have been removed from the cluster since the previous cluster state.
+     *
+     * @return {@code true} if one or more nodes were removed, {@code false} otherwise
      */
     public boolean nodesRemoved() {
         return nodesDelta.removed();
     }
 
     /**
-     * Returns <code>true</code> iff nodes have been added from the cluster since the last cluster state.
+     * Determines if any nodes have been added to the cluster since the previous cluster state.
+     *
+     * @return {@code true} if one or more nodes were added, {@code false} otherwise
      */
     public boolean nodesAdded() {
         return nodesDelta.added();
     }
 
     /**
-     * Returns <code>true</code> iff nodes have been changed (added or removed) from the cluster since the last cluster state.
+     * Determines if the set of nodes in the cluster has changed (either added or removed)
+     * since the previous cluster state.
+     *
+     * @return {@code true} if any nodes were added or removed, {@code false} otherwise
      */
     public boolean nodesChanged() {
         return nodesRemoved() || nodesAdded();
     }
 
     /**
-     * Returns the {@link ProjectsDelta} between the previous cluster state and the new cluster state.
+     * Returns the delta of project changes between the previous and current cluster states.
+     * The delta includes information about projects that were added or removed.
+     *
+     * @return the projects delta representing project changes
      */
     public ProjectsDelta projectDelta() {
         return projectsDelta;
     }
 
     /**
-     * Determines whether or not the current cluster state represents an entirely
-     * new cluster, either when a node joins a cluster for the first time or when
-     * the node receives a cluster state update from a brand new cluster (different
-     * UUID from the previous cluster), which will happen when a master node is
-     * elected that has never been part of the cluster before.
+     * Determines if the current cluster state represents an entirely new cluster.
+     * This occurs when a node joins a cluster for the first time, or when the node receives
+     * a cluster state update from a brand new cluster with a different UUID. This typically
+     * happens when a master node is elected that has never been part of the cluster before
+     * or has had its data directory wiped.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * if (event.isNewCluster()) {
+     *     logger.warn("New cluster detected, previous cluster UUID was lost");
+     * }
+     * }</pre>
+     *
+     * @return {@code true} if this represents a new cluster with a different UUID, {@code false} otherwise
      */
     public boolean isNewCluster() {
         final String prevClusterUUID = previousState.metadata().clusterUUID();

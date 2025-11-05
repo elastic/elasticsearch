@@ -22,29 +22,70 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
+/**
+ * Plugin for managing asynchronous search results in Elasticsearch.
+ * <p>
+ * This plugin provides functionality for storing and managing results from asynchronous search operations.
+ * It maintains a system index for async task results and provides maintenance services for cleanup operations.
+ * </p>
+ */
 public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin {
 
     protected final Settings settings;
 
+    /**
+     * Constructs a new AsyncResultsIndexPlugin with the specified settings.
+     *
+     * @param settings the node settings used to configure the plugin
+     */
     public AsyncResultsIndexPlugin(Settings settings) {
         this.settings = settings;
     }
 
+    /**
+     * Returns the system index descriptors for async search results storage.
+     * <p>
+     * This method provides the descriptor for the system index used to store asynchronous task results.
+     * </p>
+     *
+     * @param unused the settings parameter (not used in this implementation)
+     * @return a collection containing the system index descriptor for async task storage
+     */
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
         return List.of(AsyncTaskIndexService.getSystemIndexDescriptor());
     }
 
+    /**
+     * Returns the feature name for this plugin.
+     *
+     * @return the feature name "async_search"
+     */
     @Override
     public String getFeatureName() {
         return "async_search";
     }
 
+    /**
+     * Returns a human-readable description of this plugin's feature.
+     *
+     * @return a description indicating this plugin manages async search results
+     */
     @Override
     public String getFeatureDescription() {
         return "Manages results of async searches";
     }
 
+    /**
+     * Creates and returns the plugin components.
+     * <p>
+     * On data nodes, this creates an {@link AsyncTaskMaintenanceService} responsible for
+     * cleaning up expired async search results. Non-data nodes do not run the maintenance service.
+     * </p>
+     *
+     * @param services the plugin services providing access to cluster resources
+     * @return a collection of components; contains the maintenance service on data nodes, empty otherwise
+     */
     @Override
     public Collection<?> createComponents(PluginServices services) {
         List<Object> components = new ArrayList<>();

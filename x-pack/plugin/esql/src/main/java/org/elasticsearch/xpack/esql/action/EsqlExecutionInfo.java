@@ -156,9 +156,20 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * Call when ES|QL "planning" phase is complete and query execution (in ComputeService) is about to start.
-     * Note this is currently only built for a single phase planning/execution model. When INLINE STATS
-     * moves towards GA we may need to revisit this model. Currently, it should never be called more than once.
+     * Marks the end of the ES|QL query planning phase.
+     * <p>
+     * This method should be called when query planning is complete and execution in
+     * {@code ComputeService} is about to start. It captures the planning duration for
+     * performance monitoring and diagnostic purposes.
+     * </p>
+     * <p>
+     * <b>Important:</b> This method should only be called once per query execution.
+     * The current implementation is designed for a single-phase planning/execution model.
+     * If INLINE STATS or other multi-phase features move towards GA, this model may need
+     * to be revised.
+     * </p>
+     *
+     * @throws AssertionError if called more than once or if relative start time is not set
      */
     public void markEndPlanning() {
         assert planningTimeSpan == null : "markEndPlanning should only be called once";
@@ -171,7 +182,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * Call when ES|QL execution is complete in order to set the overall took time for an ES|QL query.
+     * Marks the end of ES|QL query execution and records the overall duration.
+     * <p>
+     * This method should be called when the query execution is complete to capture
+     * the total elapsed time. The duration is only recorded for the main plan
+     * (not for subplans).
+     * </p>
+     *
+     * @throws AssertionError if relative start time is not set
      */
     public void markEndQuery() {
         assert relativeStart != null : "Relative start time must be set when markEndQuery is called";
@@ -210,8 +228,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * @param clusterAlias to check if we should skip this cluster on failure
-     * @return whether it's OK to skip the cluster on failure.
+     * Determines whether a cluster should be skipped if it fails during query execution.
+     * <p>
+     * In cross-cluster search scenarios, remote clusters can be configured as skippable,
+     * allowing the query to continue with partial results if those clusters fail. The local
+     * cluster is never skippable.
+     * </p>
+     *
+     * @param clusterAlias the alias of the cluster to check
+     * @return true if the cluster can be skipped on failure, false otherwise
      * @throws NoSuchRemoteClusterException if clusterAlias is unknown to this node's RemoteClusterService
      */
     public boolean shouldSkipOnFailure(String clusterAlias) {
@@ -228,8 +253,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * Is there any metadata to report in the response?
-     * This is true on cross-cluster search with includeCCSMetadata=true or when there are partial failures.
+     * Determines whether there is execution metadata to include in the query response.
+     * <p>
+     * Metadata is included when either:
+     * <ul>
+     *   <li>This is a cross-cluster search and the user requested CCS metadata</li>
+     *   <li>The query has partial results with failures that need to be reported</li>
+     * </ul>
+     * </p>
+     *
+     * @return true if metadata should be included in the response, false otherwise
      */
     public boolean hasMetadataToReport() {
         return isCrossClusterSearch() && includeCCSMetadata

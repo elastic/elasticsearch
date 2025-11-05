@@ -32,10 +32,19 @@ public class BulkStats implements Writeable, ToXContentFragment {
     private long avgTimeInMillis = 0;
     private long avgSizeInBytes = 0;
 
+    /**
+     * Constructs a new BulkStats instance with all statistics initialized to zero.
+     */
     public BulkStats() {
 
     }
 
+    /**
+     * Deserializes a BulkStats instance from a stream input.
+     *
+     * @param in the stream to read from
+     * @throws IOException if an I/O error occurs while reading from the stream
+     */
     public BulkStats(StreamInput in) throws IOException {
         totalOperations = in.readVLong();
         totalTimeInMillis = in.readVLong();
@@ -44,6 +53,20 @@ public class BulkStats implements Writeable, ToXContentFragment {
         avgSizeInBytes = in.readVLong();
     }
 
+    /**
+     * Constructs a BulkStats instance with specified values.
+     *
+     * @param totalOperations the total number of bulk operations
+     * @param totalTimeInMillis the total time spent on bulk operations in milliseconds
+     * @param totalSizeInBytes the total size of bulk operations in bytes
+     * @param avgTimeInMillis the average time per bulk operation in milliseconds
+     * @param avgSizeInBytes the average size per bulk operation in bytes
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * BulkStats stats = new BulkStats(100, 5000, 1024000, 50, 10240);
+     * }</pre>
+     */
     public BulkStats(long totalOperations, long totalTimeInMillis, long totalSizeInBytes, long avgTimeInMillis, long avgSizeInBytes) {
         this.totalOperations = totalOperations;
         this.totalTimeInMillis = totalTimeInMillis;
@@ -52,10 +75,28 @@ public class BulkStats implements Writeable, ToXContentFragment {
         this.avgSizeInBytes = avgSizeInBytes;
     }
 
+    /**
+     * Adds the statistics from another BulkStats instance to this one.
+     *
+     * @param bulkStats the BulkStats to add
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * BulkStats stats1 = new BulkStats(100, 5000, 1024000, 50, 10240);
+     * BulkStats stats2 = new BulkStats(50, 2500, 512000, 50, 10240);
+     * stats1.add(stats2); // Combines the statistics
+     * }</pre>
+     */
     public void add(BulkStats bulkStats) {
         addTotals(bulkStats);
     }
 
+    /**
+     * Adds the total statistics from another BulkStats instance to this one.
+     * Recalculates averages based on the combined totals.
+     *
+     * @param bulkStats the BulkStats to add, or null (which is ignored)
+     */
     public void addTotals(BulkStats bulkStats) {
         if (bulkStats == null) {
             return;
@@ -71,30 +112,65 @@ public class BulkStats implements Writeable, ToXContentFragment {
         this.totalSizeInBytes += bulkStats.totalSizeInBytes;
     }
 
+    /**
+     * Retrieves the total size of all bulk operations in bytes.
+     *
+     * @return the total size in bytes
+     */
     public long getTotalSizeInBytes() {
         return totalSizeInBytes;
     }
 
+    /**
+     * Retrieves the total number of bulk operations.
+     *
+     * @return the total operation count
+     */
     public long getTotalOperations() {
         return totalOperations;
     }
 
+    /**
+     * Retrieves the total time spent on bulk operations as a TimeValue.
+     *
+     * @return the total time as a TimeValue
+     */
     public TimeValue getTotalTime() {
         return new TimeValue(totalTimeInMillis);
     }
 
+    /**
+     * Retrieves the average time per bulk operation as a TimeValue.
+     *
+     * @return the average time as a TimeValue
+     */
     public TimeValue getAvgTime() {
         return new TimeValue(avgTimeInMillis);
     }
 
+    /**
+     * Retrieves the total time spent on bulk operations in milliseconds.
+     *
+     * @return the total time in milliseconds
+     */
     public long getTotalTimeInMillis() {
         return totalTimeInMillis;
     }
 
+    /**
+     * Retrieves the average time per bulk operation in milliseconds.
+     *
+     * @return the average time in milliseconds
+     */
     public long getAvgTimeInMillis() {
         return avgTimeInMillis;
     }
 
+    /**
+     * Retrieves the average size per bulk operation in bytes.
+     *
+     * @return the average size in bytes
+     */
     public long getAvgSizeInBytes() {
         return avgSizeInBytes;
     }

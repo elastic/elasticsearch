@@ -38,11 +38,48 @@ public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory imp
 
     private final Normalizer2 normalizer;
 
+    /**
+     * Constructs an ICU folding token filter factory that applies case and diacritic folding.
+     * Folding converts text to a normalized form for case-insensitive and accent-insensitive matching,
+     * following the rules defined in Unicode Technical Report #30.
+     *
+     * @param indexSettings the index settings
+     * @param environment the environment
+     * @param name the filter name
+     * @param settings the filter settings containing:
+     *        <ul>
+     *        <li>unicodeSetFilter: optional Unicode set pattern to specify which characters to fold
+     *            (e.g., "[^åäöÅÄÖ]" to preserve Scandinavian characters)</li>
+     *        </ul>
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "filter": {
+     *   "my_icu_folding": {
+     *     "type": "icu_folding"
+     *   }
+     * }
+     *
+     * // With character filtering
+     * "filter": {
+     *   "swedish_folding": {
+     *     "type": "icu_folding",
+     *     "unicodeSetFilter": "[^åäöÅÄÖ]"
+     *   }
+     * }
+     * }</pre>
+     */
     public IcuFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(ICU_FOLDING_NORMALIZER, settings);
     }
 
+    /**
+     * Creates an ICU folding token filter that applies Unicode folding to tokens.
+     *
+     * @param tokenStream the input token stream to be filtered
+     * @return a new {@link org.apache.lucene.analysis.icu.ICUNormalizer2Filter} that applies folding
+     */
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);

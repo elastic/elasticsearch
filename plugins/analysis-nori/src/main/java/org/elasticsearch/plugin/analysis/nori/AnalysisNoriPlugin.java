@@ -22,7 +22,29 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 
+/**
+ * Elasticsearch plugin that provides Nori-based analysis components for Korean text.
+ * Nori is a Korean morphological analyzer that performs tokenization and linguistic
+ * transformations specific to the Korean language.
+ */
 public class AnalysisNoriPlugin extends Plugin implements AnalysisPlugin {
+
+    /**
+     * Provides Nori token filters for Korean text analysis.
+     * Includes filters for part-of-speech filtering, reading form extraction, and number handling.
+     *
+     * @return a map of token filter names to their corresponding factory providers
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "filter": {
+     *   "my_pos_filter": {
+     *     "type": "nori_part_of_speech",
+     *     "stoptags": ["E", "IC", "J"]
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         Map<String, AnalysisProvider<TokenFilterFactory>> extra = new HashMap<>();
@@ -32,11 +54,40 @@ public class AnalysisNoriPlugin extends Plugin implements AnalysisPlugin {
         return extra;
     }
 
+    /**
+     * Provides the Nori tokenizer for Korean text segmentation.
+     *
+     * @return a map containing the "nori_tokenizer" tokenizer factory
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "tokenizer": {
+     *   "my_nori_tokenizer": {
+     *     "type": "nori_tokenizer",
+     *     "decompound_mode": "mixed"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         return singletonMap("nori_tokenizer", NoriTokenizerFactory::new);
     }
 
+    /**
+     * Provides the Nori analyzer for complete Korean text analysis.
+     *
+     * @return a map containing the "nori" analyzer provider
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "analyzer": {
+     *   "my_nori": {
+     *     "type": "nori"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         return singletonMap("nori", NoriAnalyzerProvider::new);

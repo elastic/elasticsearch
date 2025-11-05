@@ -66,10 +66,22 @@ public final class ClientHelper {
     );
 
     /**
-     * Leaves only headers that are related to security and filters out the rest.
+     * Filters headers to include only those related to security.
+     * <p>
+     * This method extracts security-related headers (authentication, run-as user, and
+     * secondary authentication) from the provided header map, discarding all other headers.
+     * This is useful when you need to preserve security context while removing unrelated headers.
      *
-     * @param headers Headers to be filtered
-     * @return A portion of entries that are related to security
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Map<String, String> allHeaders = threadContext.getHeaders();
+     * Map<String, String> securityHeaders = ClientHelper.filterSecurityHeaders(allHeaders);
+     * // securityHeaders now contains only authentication-related headers
+     * }</pre>
+     *
+     * @param headers the headers to be filtered (must not be null)
+     * @return a map containing only security-related headers from the input
+     * @throws NullPointerException if headers is null
      */
     public static Map<String, String> filterSecurityHeaders(Map<String, String> headers) {
         if (SECURITY_HEADER_FILTERS.containsAll(headers.keySet())) {
@@ -85,9 +97,26 @@ public final class ClientHelper {
     }
 
     /**
-     * In addition to {@link #filterSecurityHeaders}, also check the version of Authentication objects
-     * and rewrite them using minNodeVersion so that they are safe to be persisted as index data
-     * and loaded by all nodes in the cluster.
+     * Filters security headers and ensures they are safe for persistence across cluster nodes.
+     * <p>
+     * In addition to {@link #filterSecurityHeaders}, this method checks the version of
+     * Authentication objects and rewrites them using the minimum node version in the cluster.
+     * This ensures the headers are safe to be persisted as index data and can be loaded
+     * by all nodes in the cluster, even those running older versions.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Map<String, String> headers = ClientHelper.getPersistableSafeSecurityHeaders(
+     *     threadContext,
+     *     clusterState
+     * );
+     * // headers now contain version-compatible authentication data
+     * document.setHeaders(headers);
+     * }</pre>
+     *
+     * @param threadContext the thread context containing current headers
+     * @param clusterState the cluster state used to determine minimum node version
+     * @return security headers rewritten for safe persistence across all cluster nodes
      */
     public static Map<String, String> getPersistableSafeSecurityHeaders(ThreadContext threadContext, ClusterState clusterState) {
         return maybeRewriteAuthenticationHeadersForVersion(
@@ -210,7 +239,34 @@ public final class ClientHelper {
     }
 
     /**
-     * Executes a consumer after setting the origin and wrapping the listener so that the proper context is restored
+     * Executes an asynchronous operation with a specified origin, preserving thread context.
+     * <p>
+     * This method sets the action origin in the thread context before executing the consumer,
+     * and wraps the listener to ensure the original thread context is restored when the
+     * operation completes. This is essential for operations that need to run with system
+     * privileges while properly handling callbacks.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * ClientHelper.executeAsyncWithOrigin(
+     *     threadContext,
+     *     ClientHelper.SECURITY_ORIGIN,
+     *     request,
+     *     ActionListener.wrap(
+     *         response -> processResponse(response),
+     *         exception -> handleError(exception)
+     *     ),
+     *     (req, listener) -> performOperation(req, listener)
+     * );
+     * }</pre>
+     *
+     * @param <Request> the request type
+     * @param <Response> the response type
+     * @param threadContext the thread context to manage
+     * @param origin the origin to set (e.g., "security", "ml", "watcher")
+     * @param request the request object
+     * @param listener the listener to call with the response or error
+     * @param consumer the operation to execute with the request and wrapped listener
      */
     public static <Request, Response> void executeAsyncWithOrigin(
         ThreadContext threadContext,
@@ -226,8 +282,34 @@ public final class ClientHelper {
     }
 
     /**
-     * Executes an asynchronous action using the provided client. The origin is set in the context and the listener
-     * is wrapped to ensure the proper context is restored
+     * Executes an asynchronous client action with a specified origin.
+     * <p>
+     * This is a convenience method that sets the action origin in the thread context
+     * before executing the action, and ensures the original context is restored when
+     * the action completes. This is the most common way to execute client actions
+     * with system privileges.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * ClientHelper.executeAsyncWithOrigin(
+     *     client,
+     *     ClientHelper.ML_ORIGIN,
+     *     GetAction.INSTANCE,
+     *     getRequest,
+     *     ActionListener.wrap(
+     *         response -> logger.info("Got document: {}", response),
+     *         error -> logger.error("Failed to get document", error)
+     *     )
+     * );
+     * }</pre>
+     *
+     * @param <Request> the request type (must extend ActionRequest)
+     * @param <Response> the response type (must extend ActionResponse)
+     * @param client the client to execute the action with
+     * @param origin the origin to set for this action (e.g., "ml", "security", "watcher")
+     * @param action the action type to execute
+     * @param request the request to send
+     * @param listener the listener to notify when the action completes
      */
     public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
         Client client,
@@ -240,18 +322,33 @@ public final class ClientHelper {
     }
 
     /**
-     * Execute a client operation and return the response, try to run an action
-     * with least privileges, when headers exist
+     * Executes a synchronous client operation with least privilege, using headers when available.
+     * <p>
+     * This method attempts to execute the operation with the security context from the
+     * provided headers. If security headers are present, the operation runs with those
+     * credentials (least privilege). If no security headers are present, the operation
+     * falls back to using the specified origin (system privileges).
+     * <p>
+     * <b>Important:</b> This is a blocking/synchronous operation. For asynchronous
+     * operations, use {@link #executeWithHeadersAsync} instead.
      *
-     * @param headers
-     *            Request headers, ideally including security headers
-     * @param origin
-     *            The origin to fall back to if there are no security headers
-     * @param client
-     *            The client used to query
-     * @param supplier
-     *            The action to run
-     * @return An instance of the response class
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Map<String, String> headers = request.headers();
+     * GetResponse response = ClientHelper.executeWithHeaders(
+     *     headers,
+     *     ClientHelper.SECURITY_ORIGIN,
+     *     client,
+     *     () -> client.get(getRequest).actionGet()
+     * );
+     * }</pre>
+     *
+     * @param <T> the response type (must extend ActionResponse)
+     * @param headers request headers, ideally including security headers
+     * @param origin the origin to use if there are no security headers
+     * @param client the client used to execute the operation
+     * @param supplier the operation to execute
+     * @return the response from the operation
      */
     public static <T extends ActionResponse> T executeWithHeaders(
         Map<String, String> headers,

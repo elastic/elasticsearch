@@ -37,9 +37,33 @@ import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * Plugin for loading machine learning model packages in Elasticsearch.
+ * <p>
+ * This plugin provides functionality for downloading and importing trained ML models
+ * from a configured repository (default: https://ml-models.elastic.co). It manages
+ * model package downloads, including support for air-gapped installations using local
+ * file repositories.
+ * </p>
+ * <p>
+ * The plugin creates a dedicated thread pool for parallel model downloads and validates
+ * the model repository configuration at bootstrap time.
+ * </p>
+ */
 public class MachineLearningPackageLoader extends Plugin implements ActionPlugin {
 
+    /**
+     * The default URL for the Elastic ML models repository.
+     */
     public static final String DEFAULT_ML_MODELS_REPOSITORY = "https://ml-models.elastic.co";
+
+    /**
+     * Setting for configuring the ML model repository location.
+     * <p>
+     * This can be an HTTP/HTTPS URL or a file:// URI pointing to a local directory
+     * under the Elasticsearch config directory. This setting is dynamic and node-scoped.
+     * </p>
+     */
     public static final Setting<String> MODEL_REPOSITORY = Setting.simpleString(
         "xpack.ml.model_repository",
         DEFAULT_ML_MODELS_REPOSITORY,
@@ -54,15 +78,35 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         Build.current().version().replaceFirst("^(\\d+\\.\\d+).*", "$1")
     );
 
+    /**
+     * Name of the thread pool used for model downloads.
+     */
     public static final String MODEL_DOWNLOAD_THREADPOOL_NAME = "model_download";
 
+    /**
+     * Constructs a new MachineLearningPackageLoader plugin.
+     */
     public MachineLearningPackageLoader() {}
 
+    /**
+     * Returns the list of settings provided by this plugin.
+     *
+     * @return a list containing the model repository setting
+     */
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(MODEL_REPOSITORY);
     }
 
+    /**
+     * Returns the list of action handlers provided by this plugin.
+     * <p>
+     * These are internal actions with no REST endpoints, used for model
+     * package configuration retrieval and loading operations.
+     * </p>
+     *
+     * @return a list of action handlers for ML package operations
+     */
     @Override
     public List<ActionHandler> getActions() {
         // all internal, no rest endpoint
@@ -72,6 +116,14 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         );
     }
 
+    /**
+     * Returns the named writeables provided by this plugin.
+     * <p>
+     * Registers the model download task status for serialization across the cluster.
+     * </p>
+     *
+     * @return a list containing the model download status entry
+     */
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
@@ -83,11 +135,30 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         );
     }
 
+    /**
+     * Returns the executor builders for this plugin.
+     * <p>
+     * Creates a dedicated thread pool for parallel model file downloads.
+     * </p>
+     *
+     * @param settings the node settings
+     * @return a list containing the model download executor builder
+     */
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         return List.of(modelDownloadExecutor(settings));
     }
 
+    /**
+     * Creates the executor builder for model downloads.
+     * <p>
+     * Creates a fixed-size thread pool with an unbounded queue for downloading
+     * model definition files in parallel streams.
+     * </p>
+     *
+     * @param settings the node settings
+     * @return the model download executor builder
+     */
     public static FixedExecutorBuilder modelDownloadExecutor(Settings settings) {
         // Threadpool with a fixed number of threads for
         // downloading the model definition files
@@ -101,6 +172,16 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         );
     }
 
+    /**
+     * Returns the bootstrap checks for this plugin.
+     * <p>
+     * Validates the model repository configuration at startup, ensuring it uses
+     * a supported scheme (http, https, or file) and meets security requirements.
+     * This check is always enforced.
+     * </p>
+     *
+     * @return a list containing the model repository validation check
+     */
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
         return List.of(new BootstrapCheck() {
@@ -132,6 +213,19 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         });
     }
 
+    /**
+     * Validates the model repository configuration.
+     * <p>
+     * Ensures the repository URI uses a supported scheme (http, https, or file),
+     * does not contain authentication credentials, and if using file://, points
+     * to a location under the Elasticsearch config directory.
+     * </p>
+     *
+     * @param repository the repository URI string to validate
+     * @param configPath the Elasticsearch configuration directory path
+     * @throws URISyntaxException if the repository URI is malformed
+     * @throws IllegalArgumentException if the repository configuration is invalid
+     */
     static void validateModelRepository(String repository, Path configPath) throws URISyntaxException {
         URI baseUri = new URI(repository.endsWith("/") ? repository : repository + "/").normalize();
         URI normalizedConfigUri = configPath.toUri().normalize();

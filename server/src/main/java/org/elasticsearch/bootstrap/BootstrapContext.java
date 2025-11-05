@@ -13,10 +13,34 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
 /**
- * Context that is passed to every bootstrap check to make decisions on.
+ * Context passed to bootstrap checks containing environment and metadata information.
+ * <p>
+ * This record encapsulates the information needed by bootstrap checks to validate the
+ * node's configuration. It provides access to the node's environment settings and
+ * cluster metadata.
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * public BootstrapCheckResult check(BootstrapContext context) {
+ *     Settings settings = context.settings();
+ *     String nodeName = settings.get("node.name");
+ *     // perform validation based on settings
+ *     return BootstrapCheckResult.success();
+ * }
+ * }</pre>
+ *
+ * @param environment the node's environment containing paths and settings
+ * @param metadata the cluster metadata
  */
 public record BootstrapContext(Environment environment, Metadata metadata) {
 
+    /**
+     * Returns the node's settings from the environment.
+     * <p>
+     * This is a convenience method equivalent to {@code environment.settings()}.
+     *
+     * @return the node's settings
+     */
     public Settings settings() {
         return environment.settings();
     }

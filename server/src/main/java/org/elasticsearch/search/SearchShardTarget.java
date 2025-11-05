@@ -28,6 +28,18 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
     private final ShardId shardId;
     private final String clusterAlias;
 
+    /**
+     * Reads a SearchShardTarget from the provided stream input.
+     *
+     * @param in the stream input to read from
+     * @throws IOException if an I/O error occurs during deserialization
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * StreamInput in = ...;
+     * SearchShardTarget target = new SearchShardTarget(in);
+     * }</pre>
+     */
     public SearchShardTarget(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             nodeId = in.readText();
@@ -38,36 +50,118 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         clusterAlias = in.readOptionalString();
     }
 
+    /**
+     * Constructs a new SearchShardTarget with the specified node ID, shard ID, and cluster alias.
+     *
+     * @param nodeId the node identifier (may be null)
+     * @param shardId the shard identifier
+     * @param clusterAlias the cluster alias for cross-cluster search (may be null for local clusters)
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * ShardId shardId = new ShardId("my_index", "_na_", 0);
+     * SearchShardTarget target = new SearchShardTarget("node1", shardId, null);
+     * }</pre>
+     */
     public SearchShardTarget(String nodeId, ShardId shardId, @Nullable String clusterAlias) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
         this.shardId = shardId;
         this.clusterAlias = clusterAlias;
     }
 
+    /**
+     * Returns the node identifier where this shard resides.
+     *
+     * @return the node ID, or null if not set
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchShardTarget target = ...;
+     * String nodeId = target.getNodeId();
+     * System.out.println("Shard on node: " + nodeId);
+     * }</pre>
+     */
     @Nullable
     public String getNodeId() {
         return nodeId != null ? nodeId.string() : null;
     }
 
+    /**
+     * Returns the node identifier as a Text object.
+     *
+     * @return the node ID as Text, or null if not set
+     */
     public Text getNodeIdText() {
         return this.nodeId;
     }
 
+    /**
+     * Returns the name of the index this shard belongs to.
+     *
+     * @return the index name
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchShardTarget target = ...;
+     * String indexName = target.getIndex();
+     * System.out.println("Index: " + indexName);
+     * }</pre>
+     */
     public String getIndex() {
         return shardId.getIndexName();
     }
 
+    /**
+     * Returns the shard identifier for this target.
+     *
+     * @return the ShardId
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchShardTarget target = ...;
+     * ShardId shardId = target.getShardId();
+     * System.out.println("Shard ID: " + shardId.getId());
+     * System.out.println("Index: " + shardId.getIndexName());
+     * }</pre>
+     */
     public ShardId getShardId() {
         return shardId;
     }
 
+    /**
+     * Returns the cluster alias for cross-cluster search scenarios.
+     *
+     * @return the cluster alias, or null for local clusters
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchShardTarget target = ...;
+     * String cluster = target.getClusterAlias();
+     * if (cluster != null) {
+     *     System.out.println("From remote cluster: " + cluster);
+     * }
+     * }</pre>
+     */
     @Nullable
     public String getClusterAlias() {
         return clusterAlias;
     }
 
     /**
-     * Returns the fully qualified index name, including the index prefix that indicates which cluster results come from.
+     * Returns the fully qualified index name, including the cluster prefix for remote clusters.
+     * For local clusters, this returns just the index name.
+     * For remote clusters, this returns "cluster:index".
+     *
+     * @return the fully qualified index name
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * SearchShardTarget target = ...;
+     * String fqIndexName = target.getFullyQualifiedIndexName();
+     * // For local: "my_index"
+     * // For remote: "remote_cluster:my_index"
+     * System.out.println("Fully qualified index: " + fqIndexName);
+     * }</pre>
      */
     public String getFullyQualifiedIndexName() {
         return RemoteClusterAware.buildRemoteIndexName(clusterAlias, getIndex());

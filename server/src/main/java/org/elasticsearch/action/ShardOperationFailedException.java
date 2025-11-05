@@ -17,21 +17,84 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import java.util.Objects;
 
 /**
- * An exception indicating that a failure occurred performing an operation on the shard.
+ * Base exception class indicating that a failure occurred while performing an operation on a shard.
+ * This exception is used throughout Elasticsearch to represent failures during shard-level operations
+ * such as searching, indexing, or other shard-specific tasks.
  *
+ * <p>Shard operation failures are common in distributed systems where operations may fail on individual
+ * shards while succeeding on others. This exception captures the context of the failure including the
+ * index, shard ID, reason, status, and underlying cause.
+ *
+ * <p>This is an abstract class that should be subclassed for specific types of shard failures.
+ * It implements both {@link Writeable} for serialization across nodes and {@link ToXContentObject}
+ * for JSON/XML representation.
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Creating a custom shard operation failure
+ * public class SearchShardFailure extends ShardOperationFailedException {
+ *     public SearchShardFailure(String index, int shardId, String reason,
+ *                               RestStatus status, Throwable cause) {
+ *         super(index, shardId, reason, status, cause);
+ *     }
+ *     // Implement serialization methods...
+ * }
+ *
+ * // Handling shard failures
+ * try {
+ *     performShardOperation(shardId);
+ * } catch (Exception e) {
+ *     ShardOperationFailedException failure = new SearchShardFailure(
+ *         indexName, shardId, e.getMessage(), RestStatus.INTERNAL_SERVER_ERROR, e
+ *     );
+ *     collectFailure(failure);
+ * }
+ * }</pre>
  */
 public abstract class ShardOperationFailedException extends Exception implements Writeable, ToXContentObject {
 
+    /**
+     * The name of the index where the operation failed.
+     */
     protected String index;
+
+    /**
+     * The ID of the shard where the operation failed, or -1 if unknown.
+     */
     protected int shardId = -1;
+
+    /**
+     * The reason describing why the operation failed.
+     */
     protected String reason;
+
+    /**
+     * The HTTP status code representing the type of failure.
+     */
     protected RestStatus status;
+
+    /**
+     * The underlying cause of the failure.
+     */
     protected Throwable cause;
 
+    /**
+     * Default constructor for subclasses and deserialization.
+     */
     protected ShardOperationFailedException() {
 
     }
 
+    /**
+     * Constructs a new shard operation failed exception with full details.
+     *
+     * @param index the name of the index, or {@code null} if it can't be determined
+     * @param shardId the ID of the shard where the failure occurred
+     * @param reason the reason for the failure (must not be null)
+     * @param status the REST status representing the failure (must not be null)
+     * @param cause the underlying cause of the failure (must not be null)
+     * @throws NullPointerException if reason, status, or cause is null
+     */
     protected ShardOperationFailedException(@Nullable String index, int shardId, String reason, RestStatus status, Throwable cause) {
         this.index = index;
         this.shardId = shardId;
@@ -41,7 +104,9 @@ public abstract class ShardOperationFailedException extends Exception implements
     }
 
     /**
-     * The index the operation failed on. Might return {@code null} if it can't be derived.
+     * Returns the name of the index where the operation failed.
+     *
+     * @return the index name, or {@code null} if it cannot be determined
      */
     @Nullable
     public final String index() {
@@ -49,28 +114,36 @@ public abstract class ShardOperationFailedException extends Exception implements
     }
 
     /**
-     * The index the operation failed on. Might return {@code -1} if it can't be derived.
+     * Returns the ID of the shard where the operation failed.
+     *
+     * @return the shard ID, or {@code -1} if it cannot be determined
      */
     public final int shardId() {
         return shardId;
     }
 
     /**
-     * The reason of the failure.
+     * Returns the reason describing why the operation failed.
+     *
+     * @return the failure reason
      */
     public final String reason() {
         return reason;
     }
 
     /**
-     * The status of the failure.
+     * Returns the REST status code representing the type of failure.
+     *
+     * @return the REST status
      */
     public final RestStatus status() {
         return status;
     }
 
     /**
-     * The cause of this failure
+     * Returns the underlying cause of this failure.
+     *
+     * @return the cause throwable
      */
     public final Throwable getCause() {
         return cause;

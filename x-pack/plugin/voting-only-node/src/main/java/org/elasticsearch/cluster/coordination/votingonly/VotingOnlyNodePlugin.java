@@ -47,8 +47,18 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * A voting-only node is one with the 'master' and 'voting-only' roles, dictating
- * that the node may vote in master elections but is ineligible to be master.
+ * Plugin for voting-only node functionality in Elasticsearch clusters.
+ * <p>
+ * A voting-only node is one with the 'master' and 'voting-only' roles, which means
+ * the node may participate in voting for master elections but is ineligible to become
+ * the elected master itself. This allows for increased cluster resilience while
+ * minimizing resource requirements for master-eligible nodes.
+ * </p>
+ * <p>
+ * The plugin implements a custom election strategy that ensures full master nodes
+ * are preferred over voting-only nodes during elections, and that voting-only nodes
+ * only broadcast cluster state to full master nodes for efficiency.
+ * </p>
  */
 public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationPlugin, NetworkPlugin, ActionPlugin {
 
@@ -59,26 +69,64 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
 
     private final boolean isVotingOnlyNode;
 
+    /**
+     * Constructs a new VotingOnlyNodePlugin with the specified settings.
+     *
+     * @param settings the node settings used to determine if this node has the voting-only role
+     */
     public VotingOnlyNodePlugin(Settings settings) {
         this.settings = settings;
         threadPool = new SetOnce<>();
         isVotingOnlyNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
+    /**
+     * Checks if the given discovery node is a voting-only node.
+     *
+     * @param discoveryNode the node to check
+     * @return {@code true} if the node has the voting-only role, {@code false} otherwise
+     */
     public static boolean isVotingOnlyNode(DiscoveryNode discoveryNode) {
         return discoveryNode.getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
+    /**
+     * Checks if the given discovery node is a full master node.
+     * <p>
+     * A full master node is one that has master capabilities but is NOT voting-only,
+     * meaning it can be elected as the cluster master.
+     * </p>
+     *
+     * @param discoveryNode the node to check
+     * @return {@code true} if the node is master-eligible but not voting-only, {@code false} otherwise
+     */
     public static boolean isFullMasterNode(DiscoveryNode discoveryNode) {
         return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false;
     }
 
+    /**
+     * Creates the plugin components.
+     * <p>
+     * This method initializes the thread pool reference for use by transport interceptors.
+     * </p>
+     *
+     * @param services the plugin services providing access to cluster resources
+     * @return an empty collection as this plugin does not export any components
+     */
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.threadPool.set(services.threadPool());
         return Collections.emptyList();
     }
 
+    /**
+     * Returns the list of action handlers provided by this plugin.
+     * <p>
+     * Registers transport actions for tracking voting-only node usage and information.
+     * </p>
+     *
+     * @return a list of action handlers for voting-only node operations
+     */
     @Override
     public List<ActionHandler> getActions() {
         return Arrays.asList(
@@ -87,11 +135,31 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
         );
     }
 
+    /**
+     * Returns the election strategies provided by this plugin.
+     * <p>
+     * Provides a custom election strategy that ensures full master nodes are preferred
+     * over voting-only nodes during master elections.
+     * </p>
+     *
+     * @return a map containing the voting-only election strategy
+     */
     @Override
     public Map<String, ElectionStrategy> getElectionStrategies() {
         return Collections.singletonMap(VOTING_ONLY_ELECTION_STRATEGY, new VotingOnlyNodeElectionStrategy());
     }
 
+    /**
+     * Returns the transport interceptors for this plugin.
+     * <p>
+     * On voting-only nodes, installs an interceptor that modifies cluster state publication
+     * behavior to only broadcast state to full master nodes for efficiency.
+     * </p>
+     *
+     * @param namedWriteableRegistry the named writeable registry
+     * @param threadContext the thread context
+     * @return a list containing the transport interceptor if this is a voting-only node, empty otherwise
+     */
     @Override
     public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
         if (isVotingOnlyNode) {
@@ -106,6 +174,14 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
         }
     }
 
+    /**
+     * Returns additional settings to be applied by this plugin.
+     * <p>
+     * Configures the cluster to use the voting-only election strategy.
+     * </p>
+     *
+     * @return settings that enable the voting-only election strategy
+     */
     @Override
     public Settings additionalSettings() {
         return Settings.builder().put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), VOTING_ONLY_ELECTION_STRATEGY).build();

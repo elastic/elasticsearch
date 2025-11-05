@@ -13,7 +13,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Encapsulates an accumulation of validation errors
+ * Encapsulates an accumulation of validation errors. This exception allows multiple validation
+ * errors to be collected and reported together, making it easier to provide comprehensive
+ * feedback about what went wrong during validation.
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * ValidationException validationException = new ValidationException();
+ *
+ * if (name == null || name.isEmpty()) {
+ *     validationException.addValidationError("name cannot be null or empty");
+ * }
+ * if (age < 0) {
+ *     validationException.addValidationError("age must be positive");
+ * }
+ *
+ * // Throw if any validation errors were found
+ * validationException.throwIfValidationErrorsExist();
+ *
+ * // Or manually check
+ * if (!validationException.validationErrors().isEmpty()) {
+ *     throw validationException;
+ * }
+ * }</pre>
  */
 public class ValidationException extends IllegalArgumentException {
     private final List<String> validationErrors = new ArrayList<>();
@@ -53,6 +75,12 @@ public class ValidationException extends IllegalArgumentException {
         return validationErrors;
     }
 
+    /**
+     * Throws this exception if any validation errors have been accumulated.
+     * This is a convenience method that allows for cleaner validation code.
+     *
+     * @throws ValidationException if there are any validation errors
+     */
     public final void throwIfValidationErrorsExist() {
         if (validationErrors().isEmpty() == false) {
             throw this;

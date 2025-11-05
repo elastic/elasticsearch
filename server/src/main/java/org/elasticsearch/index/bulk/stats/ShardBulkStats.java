@@ -17,18 +17,41 @@ import org.elasticsearch.index.shard.IndexShard;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Internal class that maintains relevant shard bulk statistics / metrics.
+ * Internal class that maintains relevant shard bulk statistics and metrics.
+ * Tracks bulk operation counts, timings, and sizes using exponentially weighted moving averages.
+ *
  * @see IndexShard
  */
 public class ShardBulkStats implements BulkOperationListener {
 
     private final StatsHolder totalStats = new StatsHolder();
+    /** Alpha value for exponentially weighted moving average calculation */
     private static final double ALPHA = 0.1;
 
+    /**
+     * Retrieves a snapshot of the current bulk statistics.
+     *
+     * @return a BulkStats object containing aggregated statistics
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * ShardBulkStats shardStats = new ShardBulkStats();
+     * // ... bulk operations occur ...
+     * BulkStats stats = shardStats.stats();
+     * long totalOps = stats.getTotalOperations();
+     * }</pre>
+     */
     public BulkStats stats() {
         return totalStats.stats();
     }
 
+    /**
+     * Called after a bulk operation completes.
+     * Updates all metrics including counts, sizes, and moving averages.
+     *
+     * @param shardBulkSizeInBytes the size of the bulk operation in bytes
+     * @param tookInNanos the time taken for the bulk operation in nanoseconds
+     */
     @Override
     public void afterBulk(long shardBulkSizeInBytes, long tookInNanos) {
         totalStats.totalSizeInBytes.inc(shardBulkSizeInBytes);

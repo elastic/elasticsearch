@@ -136,6 +136,16 @@ public record Build(
         return new Build(flavor, type, hash, date, version, qualifier, isSnapshot, minWireCompat, minIndexCompat, displayString);
     }
 
+    /**
+     * Converts an index version to its string representation for compatibility checking.
+     * <p>
+     * For index versions before {@link IndexVersions#FIRST_DETACHED_INDEX_VERSION}, this returns
+     * the corresponding {@link Version} string. For newer index versions, returns the IndexVersion
+     * string representation directly.
+     *
+     * @param minimumCompatible the minimum compatible index version
+     * @return the string representation of the minimum compatible version
+     */
     public static String minimumCompatString(IndexVersion minimumCompatible) {
         if (minimumCompatible.before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)) {
             // use Version for compatibility
@@ -146,6 +156,21 @@ public record Build(
         }
     }
 
+    /**
+     * Returns the build information for the current running Elasticsearch instance.
+     * <p>
+     * This method provides access to the singleton Build instance representing the current
+     * Elasticsearch build, including version, type, hash, and build date information.
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * Build build = Build.current();
+     * logger.info("Running Elasticsearch version: {}", build.version());
+     * logger.info("Build type: {}", build.type().displayName());
+     * }</pre>
+     *
+     * @return the current build information
+     */
     public static Build current() {
         return CurrentHolder.CURRENT;
     }
@@ -203,6 +228,16 @@ public record Build(
         return codeSource == null ? null : codeSource.getLocation();
     }
 
+    /**
+     * Reads build information from a stream input.
+     * <p>
+     * This method deserializes build information from a stream, handling version-specific
+     * serialization formats based on the transport version of the stream.
+     *
+     * @param in the stream input to read from
+     * @return the deserialized build information
+     * @throws IOException if an I/O error occurs while reading from the stream
+     */
     public static Build readBuild(StreamInput in) throws IOException {
         final String flavor;
         if (in.getTransportVersion().before(TransportVersions.V_8_3_0) || in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
@@ -250,6 +285,16 @@ public record Build(
         return new Build(flavor, type, hash, date, version, qualifier, snapshot, minWireVersion, minIndexVersion, displayString);
     }
 
+    /**
+     * Writes build information to a stream output.
+     * <p>
+     * This method serializes build information to a stream, adapting the format based on
+     * the transport version of the stream to maintain compatibility with different node versions.
+     *
+     * @param build the build information to write
+     * @param out the stream output to write to
+     * @throws IOException if an I/O error occurs while writing to the stream
+     */
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.V_8_3_0)
             || out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {

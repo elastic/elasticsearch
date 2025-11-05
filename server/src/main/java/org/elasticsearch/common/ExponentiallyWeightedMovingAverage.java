@@ -13,7 +13,25 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Implements exponentially weighted moving averages (commonly abbreviated EWMA) for a single value.
- * This class is safe to share between threads.
+ * This class is safe to share between threads using lock-free atomic operations.
+ *
+ * <p>The exponentially weighted moving average is calculated using the formula:</p>
+ * <pre>
+ * newAvg = (alpha * newValue) + ((1 - alpha) * currentAvg)
+ * </pre>
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Create EWMA with alpha=0.2 and initial average of 100
+ * ExponentiallyWeightedMovingAverage ewma = new ExponentiallyWeightedMovingAverage(0.2, 100.0);
+ *
+ * // Add new values
+ * ewma.addValue(110.0);
+ * ewma.addValue(105.0);
+ *
+ * // Get current average
+ * double average = ewma.getAverage();
+ * }</pre>
  */
 public class ExponentiallyWeightedMovingAverage {
 
@@ -21,9 +39,13 @@ public class ExponentiallyWeightedMovingAverage {
     private final AtomicLong averageBits;
 
     /**
-     * Create a new EWMA with a given {@code alpha} and {@code initialAvg}. A smaller alpha means
-     * that new data points will have less weight, where a high alpha means older data points will
-     * have a lower influence.
+     * Creates a new EWMA with the specified smoothing factor and initial average.
+     * A smaller alpha gives less weight to new data points (slower response to changes),
+     * while a higher alpha gives more weight to new data points (faster response to changes).
+     *
+     * @param alpha the smoothing factor, must be between 0 and 1 (inclusive)
+     * @param initialAvg the initial average value
+     * @throws IllegalArgumentException if alpha is not between 0 and 1
      */
     public ExponentiallyWeightedMovingAverage(double alpha, double initialAvg) {
         if (alpha < 0 || alpha > 1) {
@@ -33,10 +55,21 @@ public class ExponentiallyWeightedMovingAverage {
         this.averageBits = new AtomicLong(Double.doubleToLongBits(initialAvg));
     }
 
+    /**
+     * Returns the current exponentially weighted moving average.
+     *
+     * @return the current average value
+     */
     public double getAverage() {
         return Double.longBitsToDouble(this.averageBits.get());
     }
 
+    /**
+     * Adds a new value to the moving average calculation. This method updates the average
+     * using a lock-free compare-and-set operation, making it thread-safe.
+     *
+     * @param newValue the new value to incorporate into the moving average
+     */
     public void addValue(double newValue) {
         boolean successful = false;
         do {

@@ -30,6 +30,32 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
 
     private final Normalizer2 normalizer;
 
+    /**
+     * Constructs an ICU normalizer character filter factory for Unicode normalization.
+     * Normalization ensures text is in a consistent form for comparison and indexing.
+     *
+     * @param indexSettings the index settings
+     * @param environment the environment
+     * @param name the filter name
+     * @param settings the filter settings containing:
+     *        <ul>
+     *        <li>name: normalization method (default: "nfkc_cf") - e.g., "nfc", "nfkc", "nfkc_cf"</li>
+     *        <li>mode: normalization mode - "compose" or "decompose" (default: "compose")</li>
+     *        <li>unicodeSetFilter: optional Unicode set pattern to filter which characters to normalize</li>
+     *        </ul>
+     * @throws IllegalArgumentException if an invalid normalization method or mode is specified
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "char_filter": {
+     *   "my_icu_normalizer": {
+     *     "type": "icu_normalizer",
+     *     "name": "nfc",
+     *     "mode": "compose"
+     *   }
+     * }
+     * }</pre>
+     */
     public IcuNormalizerCharFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         String method = settings.get("name", "nfkc_cf");
@@ -45,6 +71,12 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
         this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(normalizerInstance, settings);
     }
 
+    /**
+     * Creates an ICU normalizer character filter that normalizes the input text stream.
+     *
+     * @param reader the input character stream to be normalized
+     * @return a new {@link ICUNormalizer2CharFilter} that applies Unicode normalization
+     */
     @Override
     public Reader create(Reader reader) {
         return new ICUNormalizer2CharFilter(reader, normalizer);

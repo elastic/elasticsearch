@@ -23,12 +23,52 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 
+/**
+ * Elasticsearch plugin that provides Kuromoji-based analysis components for Japanese text.
+ * Kuromoji is a Japanese morphological analyzer that performs tokenization and various
+ * linguistic transformations specific to the Japanese language.
+ */
 public class AnalysisKuromojiPlugin extends Plugin implements AnalysisPlugin {
+
+    /**
+     * Provides Kuromoji character filters for Japanese text preprocessing.
+     *
+     * @return a map containing the "kuromoji_iteration_mark" character filter factory
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "char_filter": {
+     *   "my_iteration_mark_filter": {
+     *     "type": "kuromoji_iteration_mark"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
         return singletonMap("kuromoji_iteration_mark", KuromojiIterationMarkCharFilterFactory::new);
     }
 
+    /**
+     * Provides Kuromoji token filters for Japanese text analysis.
+     * Includes filters for base form conversion, part-of-speech filtering, reading form extraction,
+     * stemming, stop words, number handling, and case conversion.
+     *
+     * @return a map of token filter names to their corresponding factory providers
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "filter": {
+     *   "my_baseform": {
+     *     "type": "kuromoji_baseform"
+     *   },
+     *   "my_pos_filter": {
+     *     "type": "kuromoji_part_of_speech",
+     *     "stoptags": ["助詞-格助詞-一般"]
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         Map<String, AnalysisProvider<TokenFilterFactory>> extra = new HashMap<>();
@@ -44,11 +84,41 @@ public class AnalysisKuromojiPlugin extends Plugin implements AnalysisPlugin {
         return extra;
     }
 
+    /**
+     * Provides the Kuromoji tokenizer for Japanese text segmentation.
+     *
+     * @return a map containing the "kuromoji_tokenizer" tokenizer factory
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "tokenizer": {
+     *   "my_kuromoji_tokenizer": {
+     *     "type": "kuromoji_tokenizer",
+     *     "mode": "search"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         return singletonMap("kuromoji_tokenizer", KuromojiTokenizerFactory::new);
     }
 
+    /**
+     * Provides Kuromoji analyzers for complete Japanese text analysis workflows.
+     *
+     * @return a map of analyzer names to their corresponding provider factories
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * "analyzer": {
+     *   "my_kuromoji": {
+     *     "type": "kuromoji",
+     *     "mode": "search"
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> extra = new HashMap<>();

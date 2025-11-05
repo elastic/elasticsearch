@@ -17,8 +17,42 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Collections;
 import java.util.Map;
 
+/**
+ * Elasticsearch plugin that provides the _size metadata field mapper.
+ * The _size field stores the size in bytes of the original _source field,
+ * which can be useful for monitoring and managing document sizes.
+ */
 public class MapperSizePlugin extends Plugin implements MapperPlugin {
 
+    /**
+     * Provides the _size metadata field mapper for tracking document source sizes.
+     *
+     * @return a map containing the _size field mapper parser
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * PUT my-index
+     * {
+     *   "mappings": {
+     *     "_size": {
+     *       "enabled": true
+     *     }
+     *   }
+     * }
+     *
+     * // Query documents by size
+     * GET my-index/_search
+     * {
+     *   "query": {
+     *     "range": {
+     *       "_size": {
+     *         "gte": 1000
+     *       }
+     *     }
+     *   }
+     * }
+     * }</pre>
+     */
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
         return Collections.singletonMap(SizeFieldMapper.NAME, SizeFieldMapper.PARSER);

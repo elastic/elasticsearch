@@ -40,6 +40,29 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
+/**
+ * Ingest processor that extracts text content and metadata from binary documents using Apache Tika.
+ * <p>
+ * This processor parses documents in various formats (PDF, Microsoft Office, HTML, etc.) and extracts
+ * information including content, title, author, keywords, dates, and other metadata. The extracted
+ * data is added to a specified target field in the ingest document.
+ * </p>
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Basic usage in an ingest pipeline:
+ * {
+ *   "attachment": {
+ *     "field": "data",
+ *     "target_field": "attachment",
+ *     "indexed_chars": 100000,
+ *     "properties": ["content", "title", "author"],
+ *     "ignore_missing": false,
+ *     "remove_binary": true
+ *   }
+ * }
+ * }</pre>
+ */
 public final class AttachmentProcessor extends AbstractProcessor {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AttachmentProcessor.class);
@@ -88,6 +111,31 @@ public final class AttachmentProcessor extends AbstractProcessor {
         return removeBinary;
     }
 
+    /**
+     * Executes the attachment processor on an ingest document.
+     * <p>
+     * This method extracts the binary content from the specified source field, parses it using
+     * Apache Tika, and populates the target field with extracted content and metadata. The method
+     * handles various document formats and can be configured to extract specific properties,
+     * limit indexed characters, and optionally remove the binary field after processing.
+     * </p>
+     *
+     * @param ingestDocument the document to process
+     * @return the modified ingest document with extracted attachment data
+     * @throws IllegalArgumentException if the source field is null and ignore_missing is false
+     * @throws ElasticsearchParseException if an error occurs while parsing the document
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * // Executed automatically as part of an ingest pipeline
+     * IngestDocument doc = new IngestDocument(...);
+     * doc.setFieldValue("data", base64EncodedPdfBytes);
+     * IngestDocument result = processor.execute(doc);
+     * // result now contains extracted data in the target field
+     * Map<String, Object> attachment = result.getFieldValue("attachment", Map.class);
+     * String content = (String) attachment.get("content");
+     * }</pre>
+     */
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) {
         Map<String, Object> additionalFields = new HashMap<>();
@@ -203,6 +251,17 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
     }
 
+    /**
+     * Returns the processor type name.
+     *
+     * @return the string "attachment" identifying this processor type
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * String type = processor.getType();
+     * // Returns: "attachment"
+     * }</pre>
+     */
     @Override
     public String getType() {
         return TYPE;
@@ -224,10 +283,48 @@ public final class AttachmentProcessor extends AbstractProcessor {
         return indexedChars;
     }
 
+    /**
+     * Factory for creating AttachmentProcessor instances.
+     * <p>
+     * This factory reads processor configuration from pipeline definitions and creates
+     * configured attachment processor instances with appropriate settings for field extraction,
+     * property selection, character limits, and binary removal options.
+     * </p>
+     */
     public static final class Factory implements Processor.Factory {
 
         static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
+        /**
+         * Creates an AttachmentProcessor from the provided configuration.
+         * <p>
+         * This method parses the processor configuration including source field, target field,
+         * properties to extract, character limits, and other options. It validates the configuration
+         * and returns a configured processor instance.
+         * </p>
+         *
+         * @param registry the processor factory registry (unused)
+         * @param processorTag the processor tag for error reporting
+         * @param description the processor description
+         * @param config the processor configuration map
+         * @param projectId the project identifier
+         * @return a configured AttachmentProcessor instance
+         * @throws ElasticsearchParseException if the configuration is invalid
+         *
+         * <p><b>Usage Examples:</b></p>
+         * <pre>{@code
+         * // Configuration in pipeline definition:
+         * Map<String, Object> config = Map.of(
+         *     "field", "data",
+         *     "target_field", "attachment",
+         *     "indexed_chars", 50000,
+         *     "properties", List.of("content", "title", "author"),
+         *     "ignore_missing", true,
+         *     "remove_binary", true
+         * );
+         * AttachmentProcessor processor = factory.create(registry, "tag1", "desc", config, projectId);
+         * }</pre>
+         */
         @Override
         public AttachmentProcessor create(
             Map<String, Processor.Factory> registry,
@@ -291,6 +388,14 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
     }
 
+    /**
+     * Enumeration of document properties that can be extracted by the attachment processor.
+     * <p>
+     * These properties represent metadata fields that Apache Tika can extract from various
+     * document formats. Each property corresponds to a specific metadata field such as content,
+     * title, author, dates, geolocation, and more.
+     * </p>
+     */
     enum Property {
 
         CONTENT,
@@ -322,10 +427,42 @@ public final class AttachmentProcessor extends AbstractProcessor {
         RATING,
         COMMENTS;
 
+        /**
+         * Parses a property name string into a Property enum value.
+         * <p>
+         * The parsing is case-insensitive, converting the input to uppercase before matching.
+         * </p>
+         *
+         * @param value the property name to parse
+         * @return the corresponding Property enum value
+         * @throws IllegalArgumentException if the value does not match any property
+         *
+         * <p><b>Usage Examples:</b></p>
+         * <pre>{@code
+         * Property prop1 = Property.parse("content");  // Returns CONTENT
+         * Property prop2 = Property.parse("TITLE");    // Returns TITLE
+         * Property prop3 = Property.parse("Author");   // Returns AUTHOR
+         * }</pre>
+         */
         public static Property parse(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));
         }
 
+        /**
+         * Returns the lowercase string representation of this property.
+         * <p>
+         * This method is used when adding extracted metadata to the document, ensuring
+         * consistent lowercase field names in the output.
+         * </p>
+         *
+         * @return the property name in lowercase
+         *
+         * <p><b>Usage Examples:</b></p>
+         * <pre>{@code
+         * String fieldName = Property.CONTENT.toLowerCase();  // Returns "content"
+         * String titleField = Property.TITLE.toLowerCase();   // Returns "title"
+         * }</pre>
+         */
         public String toLowerCase() {
             return this.toString().toLowerCase(Locale.ROOT);
         }

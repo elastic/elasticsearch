@@ -9,6 +9,22 @@
 
 package org.elasticsearch.core;
 
+/**
+ * Utility methods for parsing and working with boolean values.
+ *
+ * <p>This class provides strict boolean parsing methods that only accept "true" or "false"
+ * (unlike {@link Boolean#parseBoolean(String)} which accepts any non-"true" value as false).
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * boolean result = Booleans.parseBoolean("true");  // Returns true
+ * boolean result2 = Booleans.parseBoolean("false"); // Returns false
+ * boolean result3 = Booleans.parseBoolean("invalid"); // Throws IllegalArgumentException
+ *
+ * boolean withDefault = Booleans.parseBoolean(null, false); // Returns false (default)
+ * boolean isValid = Booleans.isBoolean("true"); // Returns true
+ * }</pre>
+ */
 public final class Booleans {
     private Booleans() {
         throw new AssertionError("No instances intended");

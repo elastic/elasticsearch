@@ -106,24 +106,75 @@ public abstract class Terminal {
         return line;
     }
 
-    /** Reads clear text from the terminal input. See {@link Console#readLine()}. */
+    /**
+     * Reads clear text from the terminal input with the specified prompt.
+     *
+     * <p>The prompt is displayed to the user, and the method waits for input
+     * until a newline is encountered. The input is echoed to the terminal.
+     *
+     * @param prompt the prompt message to display before reading input
+     * @return the text entered by the user (without the trailing newline)
+     * @throws IllegalStateException if unable to read from standard input
+     * @see Console#readLine()
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * Terminal terminal = Terminal.DEFAULT;
+     * String name = terminal.readText("Enter your name: ");
+     * }</pre>
+     */
     public String readText(String prompt) {
         return new String(read(prompt));
     }
 
-    /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
+    /**
+     * Reads secret text (e.g., password) from the terminal input with the specified prompt.
+     *
+     * <p>The prompt is displayed to the user, and the method waits for input
+     * until a newline is encountered. The input is NOT echoed to the terminal
+     * for security purposes.
+     *
+     * @param prompt the prompt message to display before reading input
+     * @return a character array containing the secret text (without the trailing newline)
+     * @throws IllegalStateException if unable to read from standard input
+     * @see Console#readPassword()
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * Terminal terminal = Terminal.DEFAULT;
+     * char[] password = terminal.readSecret("Enter password: ");
+     * // ... use password ...
+     * Arrays.fill(password, '\0'); // Clear password from memory
+     * }</pre>
+     */
     public char[] readSecret(String prompt) {
         return read(prompt);
     }
 
-    /** Returns a Reader which can be used to read directly from the terminal using standard input. */
+    /**
+     * Returns a Reader for reading directly from the terminal using standard input.
+     *
+     * @return the reader for this terminal's input stream
+     */
     public final Reader getReader() {
         return reader;
     }
 
     /**
-     * Returns a line based OutputStream wrapping this Terminal's println.
-     * Note, this OutputStream is not thread-safe!
+     * Returns a line-based OutputStream that wraps this terminal's println method.
+     *
+     * <p><b>Note:</b> This OutputStream is NOT thread-safe.
+     *
+     * @param charset the character set to use for encoding bytes to characters
+     * @return a line-based OutputStream that writes to this terminal
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * Terminal terminal = Terminal.DEFAULT;
+     * try (OutputStream out = terminal.asLineOutputStream(StandardCharsets.UTF_8)) {
+     *     out.write("Hello\n".getBytes(StandardCharsets.UTF_8));
+     * }
+     * }</pre>
      */
     public final OutputStream asLineOutputStream(Charset charset) {
         return new LineOutputStream(charset);
@@ -216,14 +267,45 @@ public abstract class Terminal {
         errorPrintln(Verbosity.SILENT, throwable);
     }
 
-    /** Checks if is enough {@code verbosity} level to be printed */
+    /**
+     * Checks if a message at the specified verbosity level should be printed.
+     *
+     * <p>A message is printable if the terminal's current verbosity level is
+     * greater than or equal to the specified verbosity level.
+     *
+     * @param verbosity the verbosity level to check
+     * @return true if messages at this verbosity level should be printed, false otherwise
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * if (terminal.isPrintable(Verbosity.VERBOSE)) {
+     *     terminal.println(Verbosity.VERBOSE, "Detailed debug information");
+     * }
+     * }</pre>
+     */
     public final boolean isPrintable(Verbosity verbosity) {
         return this.currentVerbosity.ordinal() >= verbosity.ordinal();
     }
 
     /**
-     * Prompt for a yes or no answer from the user. This method will loop until 'y' or 'n'
-     * (or the default empty value) is entered.
+     * Prompts the user for a yes or no answer with a default value.
+     *
+     * <p>This method displays a prompt and waits for the user to enter 'y' or 'n'
+     * (case-insensitive). If the user presses Enter without typing anything,
+     * the default value is returned. The method loops until a valid answer is provided.
+     *
+     * @param prompt the prompt message to display (the method appends [Y/n] or [y/N] automatically)
+     * @param defaultYes if true, the default answer is yes; if false, the default is no
+     * @return true if the user answered yes, false if the user answered no
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * Terminal terminal = Terminal.DEFAULT;
+     * boolean proceed = terminal.promptYesNo("Continue with operation?", true);
+     * if (proceed) {
+     *     // ... perform operation ...
+     * }
+     * }</pre>
      */
     public final boolean promptYesNo(String prompt, boolean defaultYes) {
         String answerPrompt = defaultYes ? " [Y/n]" : " [y/N]";
@@ -243,10 +325,30 @@ public abstract class Terminal {
     }
 
     /**
-     * Read from the reader until we find a newline. If that newline
-     * character is immediately preceded by a carriage return, we have
-     * a Windows-style newline, so we discard the carriage return as well
-     * as the newline.
+     * Reads a line of text from the reader and returns it as a character array.
+     *
+     * <p>This method reads characters until a newline character ('\n') is encountered.
+     * If the newline is preceded by a carriage return ('\r'), both characters are
+     * discarded (Windows-style line ending). The returned array does not include
+     * the line terminator characters.
+     *
+     * <p>This method automatically expands the internal buffer as needed to accommodate
+     * lines of any length, and securely clears old buffers when resizing.
+     *
+     * @param reader the reader to read from
+     * @return a character array containing the line (without line terminators),
+     *         or null if end-of-stream is reached before any characters are read
+     * @throws RuntimeException if an IOException occurs while reading
+     *
+     * <p><b>Usage Example:</b></p>
+     * <pre>{@code
+     * Reader reader = new InputStreamReader(System.in);
+     * char[] line = Terminal.readLineToCharArray(reader);
+     * if (line != null) {
+     *     String lineStr = new String(line);
+     *     Arrays.fill(line, '\0'); // Clear sensitive data
+     * }
+     * }</pre>
      */
     public static char[] readLineToCharArray(Reader reader) {
         char[] buf = new char[128];
@@ -283,7 +385,9 @@ public abstract class Terminal {
     }
 
     /**
-     * Flush the outputs of this terminal.
+     * Flushes both the standard output and error output streams of this terminal.
+     *
+     * <p>This ensures that any buffered output is immediately written to the underlying streams.
      */
     public final void flush() {
         outWriter.flush();
@@ -291,10 +395,13 @@ public abstract class Terminal {
     }
 
     /**
-     * Indicates whether this terminal is for a headless system i.e. is not interactive. If an instances answers
-     * {@code false}, interactive operations can be attempted, but it is not guaranteed that they will succeed.
+     * Indicates whether this terminal is operating in headless mode (non-interactive).
      *
-     * @return if this terminal is headless.
+     * <p>A headless terminal is one where interactive operations (such as reading user input)
+     * may not be possible or reliable. If this method returns false, interactive operations
+     * can be attempted, but success is not guaranteed.
+     *
+     * @return true if this terminal is headless (non-interactive), false otherwise
      */
     public boolean isHeadless() {
         return false;

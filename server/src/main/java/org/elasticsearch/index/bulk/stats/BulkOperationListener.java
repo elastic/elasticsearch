@@ -10,11 +10,29 @@
 package org.elasticsearch.index.bulk.stats;
 
 /**
- * An bulk operation listener for bulk events.
+ * Listener interface for bulk operation events.
+ * Implementations receive callbacks after bulk operations complete, allowing them to
+ * track statistics, perform logging, or trigger other side effects.
  */
 public interface BulkOperationListener {
     /**
-     * Called after the bulk operation occurred.
+     * Called after a bulk operation completes.
+     * The default implementation does nothing, allowing implementers to selectively
+     * override this method.
+     *
+     * @param bulkShardSizeInBytes the total size of the bulk operation in bytes
+     * @param tookInNanos the time taken to execute the bulk operation in nanoseconds
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * BulkOperationListener listener = new BulkOperationListener() {
+     *     @Override
+     *     public void afterBulk(long bulkShardSizeInBytes, long tookInNanos) {
+     *         logger.info("Bulk operation completed: {} bytes in {} ns",
+     *             bulkShardSizeInBytes, tookInNanos);
+     *     }
+     * };
+     * }</pre>
      */
     default void afterBulk(long bulkShardSizeInBytes, long tookInNanos) {}
 }

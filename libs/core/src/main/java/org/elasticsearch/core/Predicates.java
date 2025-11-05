@@ -14,7 +14,24 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 /**
- * Utilities around predicates.
+ * Utility methods for working with {@link Predicate} and {@link BooleanSupplier}.
+ *
+ * <p>This class provides optimized predicate implementations and factory methods
+ * for common predicate patterns.
+ *
+ * <p><b>Usage Examples:</b></p>
+ * <pre>{@code
+ * // Get a predicate that always returns true
+ * Predicate<String> alwaysTrue = Predicates.always();
+ *
+ * // Get a predicate that always returns false
+ * Predicate<Integer> alwaysFalse = Predicates.never();
+ *
+ * // Get a supplier that returns true once, then false
+ * BooleanSupplier onceTrue = Predicates.once();
+ * boolean first = onceTrue.getAsBoolean();  // Returns true
+ * boolean second = onceTrue.getAsBoolean(); // Returns false
+ * }</pre>
  */
 public enum Predicates {
     ;

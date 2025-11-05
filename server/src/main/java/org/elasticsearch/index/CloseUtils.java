@@ -34,8 +34,20 @@ public class CloseUtils {
     };
 
     /**
-     * Execute a naturally-async action (e.g. to close a shard) but using the current thread so that it completes synchronously, re-throwing
-     * any exception that might be passed to its listener.
+     * Executes a naturally-async action synchronously on the current thread, blocking until completion.
+     * This method is useful for closing shards or performing other async operations that must complete
+     * before proceeding. Any exception passed to the listener is re-thrown.
+     *
+     * @param action the async action to execute, accepting an ActionListener and potentially throwing IOException
+     * @throws IOException if the action completes with an IOException
+     * @throws RuntimeException if the action completes with a RuntimeException
+     *
+     * <p><b>Usage Examples:</b></p>
+     * <pre>{@code
+     * CloseUtils.executeDirectly(listener -> {
+     *     shard.close(listener);
+     * });
+     * }</pre>
      */
     public static void executeDirectly(CheckedConsumer<ActionListener<Void>, IOException> action) throws IOException {
         // it's possible to do this with a PlainActionFuture too but extracting the exact Exception is a bit of a pain because of

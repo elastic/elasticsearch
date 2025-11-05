@@ -163,7 +163,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             valuesList.forEach(values -> {
-                List<Number> vecAsList = ((List<Number>) values.get(0));
+                List<Number> vecAsList = values.get(0) == null ? null : List.of((Number) values.get(0));
                 Double similarity = (Double) values.get(1);
                 if (vecAsList == null || randomVector == null) {
                     assertNull(similarity);

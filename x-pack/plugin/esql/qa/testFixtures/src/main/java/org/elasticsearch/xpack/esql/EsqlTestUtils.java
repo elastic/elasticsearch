@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -541,7 +542,8 @@ public final class EsqlTestUtils {
         null,
         new InferenceService(mock(Client.class)),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
-        TEST_PLANNER_SETTINGS
+        TEST_PLANNER_SETTINGS,
+        new CrossProjectModeDecider(Settings.EMPTY)
     );
 
     private static ClusterService createMockClusterService() {
@@ -1060,13 +1062,6 @@ public final class EsqlTestUtils {
             ExponentialHistogramCircuitBreaker.noop(),
             rawValues
         );
-        /*
-         * hashcode mutates the histogram by doing some lazy work.
-         * That can change the value of the hashCode if you call it concurrently....
-         * This works around that by running it once up front. Jonas will have a
-         * look at this one soon.
-         */
-        histo.hashCode();
         return histo;
     }
 

@@ -1539,7 +1539,7 @@ public class MachineLearning extends Plugin
             restHandlers.add(new RestDeleteTrainedModelAliasAction());
             restHandlers.add(new RestPutTrainedModelDefinitionPartAction());
             restHandlers.add(new RestInferTrainedModelAction());
-            restHandlers.add(new RestCatTrainedModelsAction());
+            restHandlers.add(new RestCatTrainedModelsAction(machineLearningExtension.get().isDataFrameAnalyticsEnabled()));
             if (machineLearningExtension.get().isDataFrameAnalyticsEnabled()) {
                 restHandlers.add(new RestGetDataFrameAnalyticsAction());
                 restHandlers.add(new RestGetDataFrameAnalyticsStatsAction());

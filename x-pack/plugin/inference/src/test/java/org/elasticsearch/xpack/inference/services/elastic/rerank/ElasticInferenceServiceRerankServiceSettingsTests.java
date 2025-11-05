@@ -45,7 +45,8 @@ public class ElasticInferenceServiceRerankServiceSettingsTests extends AbstractB
     @Override
     protected ElasticInferenceServiceRerankServiceSettings mutateInstance(ElasticInferenceServiceRerankServiceSettings instance)
         throws IOException {
-        return randomValueOtherThan(instance, ElasticInferenceServiceRerankServiceSettingsTests::createRandom);
+        String modelId = randomValueOtherThan(instance.modelId(), ElasticInferenceServiceRerankServiceSettingsTests::randomRerankModel);
+        return new ElasticInferenceServiceRerankServiceSettings(modelId);
     }
 
     public void testFromMap() {

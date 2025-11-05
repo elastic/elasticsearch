@@ -101,7 +101,19 @@ public class AzureAiStudioRerankServiceSettingsTests extends AbstractBWCWireSeri
 
     @Override
     protected AzureAiStudioRerankServiceSettings mutateInstance(AzureAiStudioRerankServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureAiStudioRerankServiceSettingsTests::createRandom);
+        var target = instance.target();
+        var provider = instance.provider();
+        var endpointType = instance.endpointType();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(3)) {
+            case 0 -> target = randomValueOtherThan(target, () -> randomAlphaOfLength(10));
+            case 1 -> provider = randomValueOtherThan(provider, () -> randomFrom(AzureAiStudioProvider.values()));
+            case 2 -> endpointType = randomValueOtherThan(endpointType, () -> randomFrom(AzureAiStudioEndpointType.values()));
+            case 3 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new AzureAiStudioRerankServiceSettings(target, provider, endpointType, rateLimitSettings);
     }
 
     @Override

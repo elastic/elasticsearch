@@ -63,6 +63,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -329,8 +330,29 @@ public class InstallPluginAction implements Closeable {
             }
             throw new UserException(ExitCodes.USAGE, msg);
         }
+
+        verifyLocationNotInPluginsDirectory(pluginLocation);
+
         terminal.println(logPrefix + "Downloading " + URLDecoder.decode(pluginLocation, StandardCharsets.UTF_8));
         return downloadZip(pluginLocation, tmpDir);
+    }
+
+    @SuppressForbidden(reason = "Need to use Paths#get")
+    private void verifyLocationNotInPluginsDirectory(String pluginLocation) throws URISyntaxException, IOException, UserException {
+        if (pluginLocation == null) {
+            return;
+        }
+        URI uri = new URI(pluginLocation);
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+            Path pluginRealPath = Paths.get(uri).toRealPath();
+            Path pluginsDirectory = env.pluginsDir().toRealPath();
+            if (pluginRealPath.startsWith(pluginsDirectory)) {
+                throw new UserException(
+                    ExitCodes.USAGE,
+                    "Installation of plugin in location [" + pluginLocation + "] from inside the plugins directory is not permitted."
+                );
+            }
+        }
     }
 
     @SuppressForbidden(reason = "Need to use PathUtils#get")
@@ -462,9 +484,9 @@ public class InstallPluginAction implements Closeable {
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
     // pkg private for tests
     @SuppressForbidden(reason = "We use getInputStream to download plugins")
-    Path downloadZip(String urlString, Path tmpDir) throws IOException {
+    Path downloadZip(String urlString, Path tmpDir) throws IOException, URISyntaxException {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
-        URL url = new URL(urlString);
+        URL url = new URI(urlString).toURL();
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         URLConnection urlConnection = this.proxy == null ? url.openConnection() : url.openConnection(this.proxy);
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
@@ -548,9 +570,10 @@ public class InstallPluginAction implements Closeable {
      * @throws IOException   if an I/O exception occurs download or reading files and resources
      * @throws PGPException  if an exception occurs verifying the downloaded ZIP signature
      * @throws UserException if checksum validation fails
+     * @throws URISyntaxException is the url is invalid
      */
     private Path downloadAndValidate(final String urlString, final Path tmpDir, final boolean officialPlugin) throws IOException,
-        PGPException, UserException {
+        PGPException, UserException, URISyntaxException {
         Path zip = downloadZip(urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";

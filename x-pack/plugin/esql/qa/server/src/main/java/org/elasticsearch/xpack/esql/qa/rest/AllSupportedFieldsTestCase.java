@@ -21,8 +21,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,7 +49,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESO
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_USED_TV;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.INDEX_SOURCE;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
@@ -102,6 +99,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     protected AllSupportedFieldsTestCase(MappedFieldType.FieldExtractPreference extractPreference, IndexMode indexMode) {
         this.extractPreference = extractPreference;
         this.indexMode = indexMode;
+    }
+
+    protected IndexMode indexMode() {
+        return indexMode;
     }
 
     protected record NodeInfo(
@@ -211,10 +212,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     public void createIndices() throws IOException {
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : nodeToInfo().entrySet()) {
-                createIndexForNode(client(), e.getKey(), e.getValue().id());
+                createIndexForNode(client(), e.getKey(), e.getValue().id(), indexMode);
+                // Always create the lookup index so we can test LOOKUP JOIN queries with it
+                createIndexForNode(client(), e.getKey(), e.getValue().id(), IndexMode.LOOKUP);
             }
         } else {
-            createIndexForNode(client(), null, null);
+            createIndexForNode(client(), null, null, indexMode);
+            createIndexForNode(client(), null, null, IndexMode.LOOKUP);
         }
     }
 
@@ -261,13 +265,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             .entry("_index_mode", "keyword")
             .entry("_score", "double")
             .entry("_source", "_source")
-            .entry("_version", "long");
+            .entry("_version", "long")
+            .entry(LOOKUP_ID_FIELD, "integer");
         assertMap(nameToType(columns), expectedColumns);
 
         MapMatcher expectedAllValues = matchesMap();
-        for (Map.Entry<String, NodeInfo> e : expectedIndices().entrySet()) {
+        for (Map.Entry<String, NodeInfo> e : expectedIndices(indexMode).entrySet()) {
             String indexName = e.getKey();
             MapMatcher expectedValues = matchesMap();
+            expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
             for (DataType type : DataType.values()) {
                 if (supportedInIndex(type) == false) {
                     continue;
@@ -342,7 +348,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(nameToType(columns), expectedColumns);
 
         MapMatcher expectedAllValues = matchesMap();
-        for (Map.Entry<String, NodeInfo> e : expectedIndices().entrySet()) {
+        for (Map.Entry<String, NodeInfo> e : expectedIndices(indexMode).entrySet()) {
             String indexName = e.getKey();
             NodeInfo nodeInfo = e.getValue();
             MapMatcher expectedValues = matchesMap();
@@ -409,7 +415,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(nameToType(columns), expectedColumns);
 
         MapMatcher expectedAllValues = matchesMap();
-        for (Map.Entry<String, NodeInfo> e : expectedIndices().entrySet()) {
+        for (Map.Entry<String, NodeInfo> e : expectedIndices(indexMode).entrySet()) {
             String indexName = e.getKey();
             MapMatcher expectedValues = matchesMap();
             expectedValues = expectedValues.entry(
@@ -447,6 +453,28 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             assertNotNull(minimumVersion);
             // For ROW commands without commands that reach out to other nodes, the minimum version is given by the coordinator.
             assertEquals(coordinatorVersion.id(), minimumVersion.intValue());
+        }
+    }
+
+    // TODO: ROW + local ENRICH
+    public void testRowLookupJoin() throws IOException {
+        assumeTrue(
+            "Test has to run only once, skip on other configurations",
+            extractPreference == MappedFieldType.FieldExtractPreference.NONE && indexMode == IndexMode.STANDARD
+        );
+        // TODO: For ccq, we most likely need to strip the remote lookup indices. And also use the local minimum transport version, only.
+        Map<String, NodeInfo> expectedIndices = expectedIndices(IndexMode.LOOKUP);
+        for (Map.Entry<String, NodeInfo> e : expectedIndices.entrySet()) {
+            String indexName = e.getKey();
+            String query = "ROW " + LOOKUP_ID_FIELD + " = 1234 | LOOKUP JOIN " + indexName + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
+            var responseAndCoordinatorVersion = runQuery(query);
+            var responseMap = responseAndCoordinatorVersion.v1();
+            var coordinatorVersion = responseAndCoordinatorVersion.v2();
+
+            // HERE next, this actually needs fixing in production code.
+            assertMinimumVersionFromAllQueries(responseAndCoordinatorVersion);
+
+            // TODO: same assert as in testfetchall, I think.
         }
     }
 
@@ -508,24 +536,31 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    protected void createIndexForNode(RestClient client, String nodeName, String nodeId) throws IOException {
-        String indexName = indexMode.toString();
-        if (nodeName != null) {
-            indexName += "_" + nodeName.toLowerCase(Locale.ROOT);
-        }
+    protected static void createIndexForNode(RestClient client, String nodeName, String nodeId, IndexMode mode) throws IOException {
+        String indexName = indexName(mode, nodeName);
         if (false == indexExists(client, indexName)) {
-            createAllTypesIndex(client, indexName, nodeId);
+            createAllTypesIndex(client, indexName, nodeId, mode);
             createAllTypesDoc(client, indexName);
         }
     }
 
-    private void createAllTypesIndex(RestClient client, String indexName, String nodeId) throws IOException {
+    protected static String indexName(IndexMode mode, String nodeName) {
+        String indexName = mode.toString();
+        if (nodeName != null) {
+            indexName += "_" + nodeName.toLowerCase(Locale.ROOT);
+        }
+        return indexName;
+    }
+
+    private static final String LOOKUP_ID_FIELD = "lookup_id";
+
+    private static void createAllTypesIndex(RestClient client, String indexName, String nodeId, IndexMode mode) throws IOException {
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
         {
             config.startObject("settings");
             config.startObject("index");
-            config.field("mode", indexMode);
-            if (indexMode == IndexMode.TIME_SERIES) {
+            config.field("mode", mode);
+            if (mode == IndexMode.TIME_SERIES) {
                 config.field("routing_path", "f_keyword");
             }
             if (nodeId != null) {
@@ -536,14 +571,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
         {
             config.startObject("mappings").startObject("properties");
+
+            config.startObject(LOOKUP_ID_FIELD);
+            config.field("type", "integer");
+            config.endObject();
+
             for (DataType type : DataType.values()) {
                 if (supportedInIndex(type) == false) {
                     continue;
                 }
                 config.startObject(fieldName(type));
-                typeMapping(indexMode, config, type);
+                typeMapping(mode, config, type);
                 config.endObject();
             }
+
             config.endObject().endObject().endObject();
         }
         Request request = new Request("PUT", indexName);
@@ -551,11 +592,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
-    private String fieldName(DataType type) {
+    private static String fieldName(DataType type) {
         return type == DataType.DATETIME ? "@timestamp" : "f_" + type.esType();
     }
 
-    private void typeMapping(IndexMode indexMode, XContentBuilder config, DataType type) throws IOException {
+    private static void typeMapping(IndexMode indexMode, XContentBuilder config, DataType type) throws IOException {
         switch (type) {
             case COUNTER_DOUBLE, COUNTER_INTEGER, COUNTER_LONG -> config.field("type", type.esType().replace("counter_", ""))
                 .field("time_series_metric", "counter");
@@ -574,8 +615,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    private void createAllTypesDoc(RestClient client, String indexName) throws IOException {
+    private static void createAllTypesDoc(RestClient client, String indexName) throws IOException {
         XContentBuilder doc = JsonXContent.contentBuilder().startObject();
+        doc.field(LOOKUP_ID_FIELD);
+        doc.value(123);
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type) == false) {
                 continue;
@@ -760,11 +803,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         };
     }
 
-    private Map<String, NodeInfo> expectedIndices() throws IOException {
+    private Map<String, NodeInfo> expectedIndices(IndexMode indexMode) throws IOException {
         Map<String, NodeInfo> result = new TreeMap<>();
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
-                String name = indexMode + "_" + e.getKey();
+                String name = indexName(indexMode, e.getKey());
                 if (e.getValue().cluster != null) {
                     name = e.getValue().cluster + ":" + name;
                 }
@@ -772,7 +815,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
         } else {
             for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
-                String name = indexMode.toString();
+                String name = indexName(indexMode, null);
                 if (e.getValue().cluster != null) {
                     name = e.getValue().cluster + ":" + name;
                 }

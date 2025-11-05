@@ -31,6 +31,8 @@ import java.util.TreeMap;
 /**
  * Fetch all field types via cross cluster search, possible on a different version.
  */
+// TODO: ROW + remote ENRICH
+// TODO: remote lookups, requires `FROM remote:*`
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
@@ -50,10 +52,12 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     public void createRemoteIndices() throws IOException {
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : remoteNodeToInfo().entrySet()) {
-                createIndexForNode(remoteClient(), e.getKey(), e.getValue().id());
+                createIndexForNode(remoteClient(), e.getKey(), e.getValue().id(), indexMode());
+                createIndexForNode(remoteClient(), e.getKey(), e.getValue().id(), IndexMode.LOOKUP);
             }
         } else {
-            createIndexForNode(remoteClient(), null, null);
+            createIndexForNode(remoteClient(), null, null, indexMode());
+            createIndexForNode(remoteClient(), null, null, IndexMode.LOOKUP);
         }
     }
 

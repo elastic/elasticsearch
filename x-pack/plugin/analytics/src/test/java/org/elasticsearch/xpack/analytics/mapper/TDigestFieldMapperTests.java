@@ -381,6 +381,11 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
     public void testArrayValueSyntheticSource() throws Exception {
         DocumentMapper mapper = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "tdigest").field("ignore_malformed", "true"))

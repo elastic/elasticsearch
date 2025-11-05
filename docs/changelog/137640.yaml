@@ -1,0 +1,5 @@
+pr: 133119
+summary: Update bundled JDK to Java 25.0.1+8
+area: Packaging
+type: upgrade
+issues: []

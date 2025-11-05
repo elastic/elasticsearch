@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
@@ -34,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
 import static org.hamcrest.Matchers.empty;
@@ -110,7 +112,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     public void setUpCluster() throws Exception {
         if (clusterConfigured == false) {
             createInferenceEndpoints();
-            createIndices();
+            createTestIndices();
             clusterConfigured = true;
         }
     }
@@ -129,7 +131,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testNoInferenceFields() {
         assertRequest(
-            new GetInferenceFieldsAction.Request(Set.of(INDEX_1, INDEX_2), Set.of(TEXT_FIELD_1, TEXT_FIELD_2), false, false, "foo"),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(TEXT_FIELD_1, TEXT_FIELD_2), false, false, "foo"),
             Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
             Map.of()
         );
@@ -137,7 +139,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testResolveWildcards() {
         assertRequest(
-            new GetInferenceFieldsAction.Request(Set.of(INDEX_1, INDEX_2), Set.of("*-field-1", "inference-*-3"), true, false, "foo"),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("*-field-1", "inference-*-3"), true, false, "foo"),
             Map.of(
                 INDEX_1,
                 filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_3)),
@@ -149,7 +151,15 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     }
 
     public void testUseDefaultFields() {
-        // TODO: Implement
+        assertRequest(new GetInferenceFieldsAction.Request(Set.of(INDEX_1), Set.of(), true, true, "foo"),
+            Map.of(INDEX_1, filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_1))),
+            filterExpectedInferenceResults(ALL_EXPECTED_INFERENCE_RESULTS, Set.of(SPARSE_EMBEDDING_INFERENCE_ID))
+        );
+
+        assertRequest(new GetInferenceFieldsAction.Request(Set.of(INDEX_2), Set.of(), true, true, "foo"),
+            Map.of(INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
+            ALL_EXPECTED_INFERENCE_RESULTS
+        );
     }
 
     public void testMissingIndexName() {
@@ -191,6 +201,12 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             Map.of(INDEX_1, filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3))),
             query == null || query.isBlank() ? Map.of() : expectedInferenceResultsSparseOnly
         );
+
+        assertRequest(
+            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(), false, false, query),
+            Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
+            Map.of()
+        );
     }
 
     private void createInferenceEndpoints() throws IOException {
@@ -198,12 +214,12 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         createInferenceEndpoint(client(), TaskType.TEXT_EMBEDDING, TEXT_EMBEDDING_INFERENCE_ID, TEXT_EMBEDDING_SERVICE_SETTINGS);
     }
 
-    private void createIndices() throws IOException {
-        createIndex(INDEX_1);
-        createIndex(INDEX_2);
+    private void createTestIndices() throws IOException {
+        createTestIndex(INDEX_1, List.of("*-field-1^5"));
+        createTestIndex(INDEX_2, null);
     }
 
-    private void createIndex(String indexName) throws IOException {
+    private void createTestIndex(String indexName, @Nullable List<String> defaultFields) throws IOException {
         final String inferenceField1InferenceId = switch (indexName) {
             case INDEX_1 -> SPARSE_EMBEDDING_INFERENCE_ID;
             case INDEX_2 -> TEXT_EMBEDDING_INFERENCE_ID;
@@ -223,7 +239,12 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         addTextField(TEXT_FIELD_2, mapping);
         mapping.endObject().endObject();
 
-        assertAcked(prepareCreate(indexName).setMapping(mapping));
+        var createIndexRequest = prepareCreate(indexName).setMapping(mapping);
+        if (defaultFields != null) {
+            Settings settings = Settings.builder().putList(DEFAULT_FIELD_SETTING.getKey(), defaultFields).build();
+            createIndexRequest.setSettings(settings);
+        }
+        assertAcked(createIndexRequest);
     }
 
     private void addSemanticTextField(String fieldName, String inferenceId, XContentBuilder mapping) throws IOException {

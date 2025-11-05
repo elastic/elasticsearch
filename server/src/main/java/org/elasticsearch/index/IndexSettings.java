@@ -1182,7 +1182,7 @@ public final class IndexSettings {
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
-        final var useSyntheticId = scopedSettings.get(USE_SYNTHETIC_ID);
+        final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
             assert false;
             throw new IllegalArgumentException(

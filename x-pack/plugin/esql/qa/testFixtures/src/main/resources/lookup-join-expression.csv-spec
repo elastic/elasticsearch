@@ -1256,7 +1256,7 @@ LTN                  | London Luton | Luton | United Kingdom | POINT(-0.37622726
 
 lookupJoinExpressionOnRightFieldNotAnywhereElse
 required_capability: join_lookup_v12
-required_capability: lookup_join_with_full_text_function
+required_capability: lookup_join_with_full_text_function_bugfix
 
 FROM multi_column_joinable
 | RENAME id_int AS id_left

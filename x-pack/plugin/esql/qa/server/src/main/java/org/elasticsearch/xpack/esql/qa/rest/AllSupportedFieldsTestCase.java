@@ -77,7 +77,6 @@ import static org.hamcrest.Matchers.nullValue;
  *     load constant field values and have simple mappings.
  */
 public class AllSupportedFieldsTestCase extends ESRestTestCase {
-    private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -223,7 +222,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
      * Make sure the test doesn't run on snapshot builds. Release builds only.
      * <p>
      *     {@link Build#isSnapshot()} checks if the version under test is a snapshot.
-     *     But! This run test runs against many versions and if *any* are snapshots
+     *     But! This test runs against many versions and if *any* are snapshots
      *     then this will fail. So we check the versions of each node in the cluster too.
      * </p>
      */
@@ -347,7 +346,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String indexName = e.getKey();
             NodeInfo nodeInfo = e.getValue();
             MapMatcher expectedValues = matchesMap();
-            expectedValues = expectedValues.entry("f_dense_vector", expectedDenseVector(nodeInfo.version));
+            expectedValues = expectedValues.entry("f_dense_vector", matchesList().item(0.5).item(10.0).item(5.9999995));
             expectedValues = expectedValues.entry("_index", indexName);
             expectedAllValues = expectedAllValues.entry(indexName, expectedValues);
         }
@@ -412,7 +411,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         MapMatcher expectedAllValues = matchesMap();
         for (Map.Entry<String, NodeInfo> e : expectedIndices().entrySet()) {
             String indexName = e.getKey();
-            NodeInfo nodeInfo = e.getValue();
             MapMatcher expectedValues = matchesMap();
             expectedValues = expectedValues.entry(
                 "f_aggregate_metric_double",
@@ -649,12 +647,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
-    }
-
-    private Matcher<List<?>> expectedDenseVector(TransportVersion version) {
-        return version.supports(INDEX_SOURCE) // *after* 9.1
-            ? matchesList().item(0.5).item(10.0).item(5.9999995)
-            : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
     }
 
     /**

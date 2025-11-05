@@ -461,6 +461,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
   method: testGet_ThrowsResourceNotFoundException_WhenCCMIndexDoesNotExist
   issue: https://github.com/elastic/elasticsearch/issues/137627
+- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
+  method: testGet_ThrowsResourceNotFoundException_WhenCCMConfigurationDocumentDoesNotExist
+  issue: https://github.com/elastic/elasticsearch/issues/137628
 
 # Examples:
 #

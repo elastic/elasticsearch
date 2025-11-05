@@ -136,7 +136,16 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     }
 
     public void testResolveWildcards() {
-        // TODO: Implement
+        assertRequest(
+            new GetInferenceFieldsAction.Request(Set.of(INDEX_1, INDEX_2), Set.of("*-field-1", "inference-*-3"), true, false, "foo"),
+            Map.of(
+                INDEX_1,
+                filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_3)),
+                INDEX_2,
+                filterExpectedInferenceFieldSet(INDEX_2_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_3))
+            ),
+            ALL_EXPECTED_INFERENCE_RESULTS
+        );
     }
 
     public void testUseDefaultFields() {

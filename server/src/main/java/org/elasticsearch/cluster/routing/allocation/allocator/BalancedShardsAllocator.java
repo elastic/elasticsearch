@@ -704,16 +704,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             lowIdx = 0;
                             highIdx = relevantNodes - 1;
 
+                            assert allocation.isSimulating() == false || routingNodes.getRelocatingShardCount() > 0
+                                : "unexpected THROTTLE decision (simulation="
+                                    + allocation.isSimulating()
+                                    + ") when balancing index ["
+                                    + index
+                                    + "]";
+
                             if (routingNodes.getRelocatingShardCount() > 0) {
                                 shardBalanced = true;
-                            } else {
-                                // A THROTTLE decision can happen when not simulating
-                                assert allocation.isSimulating() == false
-                                    : "unexpected THROTTLE decision (simulation="
-                                        + allocation.isSimulating()
-                                        + ") when balancing index ["
-                                        + index
-                                        + "]";
                             }
                             if (completeEarlyOnShardAssignmentChange && shardBalanced) {
                                 return true;
@@ -824,6 +823,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     shardRouting,
                     bestNonPreferredShardMovementsTracker::shardIsBetterThanCurrent
                 );
+                // A THROTTLE allocation decision can happen when not simulating
+                assert moveDecision.isDecisionTaken() == false
+                    || moveDecision.getAllocationDecision() != AllocationDecision.THROTTLED
+                    || allocation.isSimulating() == false
+                    : "unexpected allocation decision ["
+                        + moveDecision.getAllocationDecision()
+                        + "] (simulation="
+                        + allocation.isSimulating()
+                        + ") with "
+                        + (shardMoved ? "" : "no ")
+                        + "prior shard movements when moving shard ["
+                        + shardRouting
+                        + "]";
+
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
@@ -1248,6 +1261,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     ShardRouting shard = primary[i];
                     final ProjectIndex index = projectIndex(shard);
                     final AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(index, shard);
+
+                    assert allocationDecision.isDecisionTaken() : "decision not taken for unassigned shard [" + shard + "]";
+
+                    // If we see a THROTTLE decision, it's either:
+                    // 1. Not simulating
+                    // 2. Or, there is shard assigned before this one
+                    assert allocationDecision.getAllocationStatus() != AllocationStatus.DECIDERS_THROTTLED
+                        || allocation.isSimulating() == false
+                        || shardAssignmentChanged
+                        : "unexpected THROTTLE decision (simulation="
+                            + allocation.isSimulating()
+                            + ") with no prior assignment when allocating unassigned shard ["
+                            + shard
+                            + "]";
+
                     final String assignedNodeId = allocationDecision.getTargetNode() != null
                         ? allocationDecision.getTargetNode().getId()
                         : null;
@@ -1284,15 +1312,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             assert allocationDecision.getAllocationStatus() == AllocationStatus.DECIDERS_THROTTLED;
                             final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                             minNode.addShard(projectIndex(shard), shard.initialize(minNode.getNodeId(), null, shardSize));
-                            // If we see a THROTTLE decision, it's either:
-                            // 1. Not simulating
-                            // 2. Or, there is shard assigned before this one
-                            assert allocation.isSimulating() == false || shardAssignmentChanged
-                                : "unexpected THROTTLE decision (simulation="
-                                    + allocation.isSimulating()
-                                    + ") with no prior assignment when allocating unassigned shard ["
-                                    + shard
-                                    + "]";
                         } else {
                             if (logger.isTraceEnabled()) {
                                 logger.trace("No Node found to assign shard [{}]", shard);

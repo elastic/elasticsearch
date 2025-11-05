@@ -11,10 +11,13 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.openshiftai.action.OpenShiftAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -55,4 +58,12 @@ public abstract class OpenShiftAiModel extends RateLimitGroupingModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
+    /**
+     * Accepts a visitor to create an executable action for this OpenShift AI model.
+     *
+     * @param creator the visitor that creates the executable action
+     * @param taskSettings the task settings to be used for the executable action
+     * @return an {@link ExecutableAction} specific to this OpenShift AI model
+     */
+    public abstract ExecutableAction accept(OpenShiftAiActionVisitor creator, Map<String, Object> taskSettings);
 }

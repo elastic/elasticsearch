@@ -73,12 +73,7 @@ public class OpenShiftAiRerankModel extends OpenShiftAiModel {
         return (OpenShiftAiRerankTaskSettings) super.getTaskSettings();
     }
 
-    /**
-     * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
-     * @param visitor          Interface for creating {@link ExecutableAction} instances for IBM watsonx models.
-     * @param taskSettings     Settings in the request to override the model's defaults
-     * @return the rerank action
-     */
+    @Override
     public ExecutableAction accept(OpenShiftAiActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }

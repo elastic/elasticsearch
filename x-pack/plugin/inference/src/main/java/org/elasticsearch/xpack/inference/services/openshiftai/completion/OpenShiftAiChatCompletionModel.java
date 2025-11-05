@@ -114,13 +114,9 @@ public class OpenShiftAiChatCompletionModel extends OpenShiftAiModel {
         return (OpenShiftAiChatCompletionServiceSettings) super.getServiceSettings();
     }
 
-    /**
-     * Accepts a visitor that creates an executable action for this OpenShift AI chat completion.
-     *
-     * @param creator the visitor that creates the executable action
-     * @return an ExecutableAction representing this model
-     */
-    public ExecutableAction accept(OpenShiftAiActionVisitor creator) {
+    @Override
+    public ExecutableAction accept(OpenShiftAiActionVisitor creator, Map<String, Object> taskSettings) {
+        // Chat completion models do not have task settings, so we ignore the taskSettings parameter.
         return creator.create(this);
     }
 }

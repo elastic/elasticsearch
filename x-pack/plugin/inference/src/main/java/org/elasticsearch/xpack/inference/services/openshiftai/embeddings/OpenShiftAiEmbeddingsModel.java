@@ -79,13 +79,9 @@ public class OpenShiftAiEmbeddingsModel extends OpenShiftAiModel {
         return (OpenShiftAiEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
-    /**
-     * Accepts a visitor to create an executable action for this OpenShift AI embeddings model.
-     *
-     * @param creator the visitor that creates the executable action
-     * @return an ExecutableAction representing the OpenShift AI embeddings model
-     */
-    public ExecutableAction accept(OpenShiftAiActionVisitor creator) {
+    @Override
+    public ExecutableAction accept(OpenShiftAiActionVisitor creator, Map<String, Object> taskSettings) {
+        // Embeddings models do not have task settings, so we ignore the taskSettings parameter.
         return creator.create(this);
     }
 }

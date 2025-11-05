@@ -111,15 +111,13 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var actionCreator = new OpenShiftAiActionCreator(getSender(), getServiceComponents());
-
-        switch (model) {
-            case OpenShiftAiChatCompletionModel chatCompletionModel -> chatCompletionModel.accept(actionCreator)
-                .execute(inputs, timeout, listener);
-            case OpenShiftAiEmbeddingsModel embeddingsModel -> embeddingsModel.accept(actionCreator).execute(inputs, timeout, listener);
-            case OpenShiftAiRerankModel rerankModel -> rerankModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
-            default -> listener.onFailure(createInvalidModelException(model));
+        if (model instanceof OpenShiftAiModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
         }
+        var openShiftAiModel = (OpenShiftAiModel) model;
+        var actionCreator = new OpenShiftAiActionCreator(getSender(), getServiceComponents());
+        openShiftAiModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
     }
 
     @Override
@@ -176,7 +174,7 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            var action = openShiftAiEmbeddingsModel.accept(actionCreator);
+            var action = openShiftAiEmbeddingsModel.accept(actionCreator, taskSettings);
             action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }

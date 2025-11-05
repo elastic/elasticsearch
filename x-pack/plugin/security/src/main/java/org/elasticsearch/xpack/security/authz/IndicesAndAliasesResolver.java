@@ -342,11 +342,7 @@ class IndicesAndAliasesResolver {
                 // Always parse selectors, but do so lazily so that we don't spend a lot of time splitting strings each resolution
                 isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()), (expr) -> {
                     var unprefixed = crossProjectModeDecider.resolvesCrossProject(replaceable)
-                        ? CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
-                            expr,
-                            authorizedProjects.originProjectAlias(),
-                            authorizedProjects.allProjectAliases()
-                        ).localExpression()
+                        ? RemoteClusterAware.splitIndexName(expr)[1]
                         : expr;
                     return unprefixed != null ? IndexNameExpressionResolver.splitSelectorExpression(unprefixed).v1() : null;
                 });
@@ -400,12 +396,13 @@ class IndicesAndAliasesResolver {
                             replaceable.getProjectRouting(),
                             authorizedProjects
                         );
-                        remoteIndices = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                        final var expr = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                             indexExpression,
                             resolvedProjects.originProjectAlias(),
                             resolvedProjects.allProjectAliases()
-                        ).remoteExpressions();
-                        if (resolvedProjects.originProject() == null) {
+                        );
+                        remoteIndices = expr.remoteExpressions();
+                        if (resolvedProjects.originProject() == null || expr.localExpression() == null) {
                             shouldExcludeLocalResolution = true;
                         }
                     }

@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.index.query.AbstractPrefilteredQueryTestCase;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
-import org.elasticsearch.index.query.PrefilteringTestUtils;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -564,7 +563,7 @@ public class SemanticQueryBuilderTests extends AbstractPrefilteredQueryTestCase<
         QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         SemanticQueryBuilder queryBuilder = doCreateTestQueryBuilder();
-        PrefilteringTestUtils.setRandomTermQueryPrefilters(queryBuilder, KEYWORD_FIELD_NAME, TEXT_FIELD_NAME);
+        setRandomTermQueryPrefilters(queryBuilder, KEYWORD_FIELD_NAME, TEXT_FIELD_NAME);
 
         QueryBuilder rewritten = rewriteQuery(queryBuilder, queryRewriteContext, searchExecutionContext);
 

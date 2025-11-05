@@ -15,6 +15,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -63,4 +64,13 @@ public abstract class AbstractPrefilteredQueryTestCase<QB extends AbstractQueryB
         assertThat(deserializedQuery.hashCode(), not(equalTo(originalQuery.hashCode())));
     }
 
+    public static void setRandomTermQueryPrefilters(PrefilteredQuery<?> queryBuilder, String... termFieldNames) {
+        List<QueryBuilder> filters = new ArrayList<>();
+        int numFilters = randomIntBetween(1, 5);
+        for (int i = 0; i < numFilters; i++) {
+            String filterFieldName = randomFrom(termFieldNames);
+            filters.add(QueryBuilders.termQuery(filterFieldName, randomAlphaOfLength(10)));
+        }
+        queryBuilder.setPrefilters(filters);
+    }
 }

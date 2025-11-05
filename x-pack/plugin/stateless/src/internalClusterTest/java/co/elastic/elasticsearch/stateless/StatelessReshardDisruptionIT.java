@@ -78,7 +78,8 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
             disruptionExecutorService.submit(() -> {
                 failuresStarted.countDown();
                 do {
-                    Failure randomFailure = randomFrom(Failure.values());
+                    // We exclude relocations because the implementation is not ready for it.
+                    Failure randomFailure = randomFrom(Failure.RESTART, Failure.REPLACE_FAILED_NODE, Failure.LOCAL_FAIL_SHARD);
                     try {
                         induceFailure(randomFailure, index, clusterSize, multiple);
                     } catch (Exception e) {

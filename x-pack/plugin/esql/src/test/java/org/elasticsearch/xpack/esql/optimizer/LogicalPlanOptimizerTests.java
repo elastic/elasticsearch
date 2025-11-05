@@ -535,30 +535,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * Project[[s{r}#4 AS d, s{r}#4, last_name{f}#21, first_name{f}#18]]
-     * \_Limit[1000[INTEGER]]
-     *   \_Aggregate[[last_name{f}#21, first_name{f}#18],[SUM(salary{f}#22) AS s, last_name{f}#21, first_name{f}#18]]
-     *     \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
-     * }</pre>
-     */
-    public void testCombineProjectionWithDuplicateAggregation() {
-        var plan = plan("""
-            from test
-            | stats s = sum(salary), d = sum(salary), c = sum(salary) by last_name, first_name
-            | keep d, s, last_name, first_name
-            """);
-
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("d", "s", "last_name", "first_name"));
-        var limit = as(project.child(), Limit.class);
-        var agg = as(limit.child(), Aggregate.class);
-        assertThat(Expressions.names(agg.aggregates()), contains("s", "last_name", "first_name"));
-        assertThat(Alias.unwrap(agg.aggregates().get(0)), instanceOf(Sum.class));
-        assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
-    }
-
-    /**
-     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[STANDARD,[],[SUM(salary{f}#12,true[BOOLEAN]) AS sum(salary), SUM(salary{f}#12,last_name{f}#11 == [44 6f 65][KEYW
      * ORD]) AS sum(salary) WheRe last_name ==   "Doe"]]

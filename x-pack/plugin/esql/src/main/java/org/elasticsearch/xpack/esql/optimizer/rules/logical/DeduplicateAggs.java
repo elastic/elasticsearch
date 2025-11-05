@@ -30,8 +30,8 @@ import java.util.Map;
  * becomes
  * stats a = min(x), c = count(*) by g | eval b = a, d = c | keep a, b, c, d, g
  */
-public final class ReplaceDuplicatedAggs extends OptimizerRules.OptimizerRule<Aggregate> implements OptimizerRules.CoordinatorOnly {
-    public ReplaceDuplicatedAggs() {
+public final class DeduplicateAggs extends OptimizerRules.OptimizerRule<Aggregate> implements OptimizerRules.CoordinatorOnly {
+    public DeduplicateAggs() {
         super(OptimizerRules.TransformDirection.UP);
     }
 

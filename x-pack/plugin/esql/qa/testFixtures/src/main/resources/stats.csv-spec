@@ -3463,7 +3463,7 @@ employees:long | job_positions:keyword
 15             | Tech Lead    
 ;
 
-fixClassCastBug
+fixClassCastBugWithCountDistinct
 required_capability: fix_stats_classcast_exception
 
 from airports 
@@ -3475,7 +3475,7 @@ a:long | b:long | c:long
 891    | 1782   | 8
 ;
 
-fixClassCastBug2
+fixClassCastBugWithValuesFn
 required_capability: fix_stats_classcast_exception
 
 ROW x = [1,2,3] 
@@ -3486,7 +3486,7 @@ a:integer | b:integer | c:long
 3         | [1, 2, 3] | 6
 ;
 
-fixClassCastBug3
+fixClassCastBugWithSeveralCountDistincts
 required_capability: fix_stats_classcast_exception
 
 ROW x = 1 
@@ -3497,7 +3497,7 @@ a:long | b:long | c:integer
 2      | 1      | 1
 ;
 
-fixClassCastBug4
+fixClassCastBugWithSeveralCounts
 required_capability: inline_stats
 required_capability: fix_stats_classcast_exception
 
@@ -3514,7 +3514,7 @@ count1:long    |count2:long
 14             |14
 ;
 
-fixClassCastBug5
+fixClassCastBugWithMedianPlusCountDistinct
 required_capability: fix_stats_classcast_exception
 
 FROM sample_data_ts_long 
@@ -3538,7 +3538,7 @@ a:long | b:long | c:long | d:long
 891    | 1782   | 8      | 8
 ;
 
-fixClassCastBug7
+fixClassCastBugWithSurrogateExpressions
 required_capability: fix_stats_classcast_exception
 
 from airports 

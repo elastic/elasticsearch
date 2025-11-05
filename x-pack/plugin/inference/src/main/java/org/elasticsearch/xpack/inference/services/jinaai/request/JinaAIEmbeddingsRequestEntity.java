@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkerUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 
@@ -37,6 +38,7 @@ public record JinaAIEmbeddingsRequestEntity(
     public static final String TASK_TYPE_FIELD = "task";
     public static final String LATE_CHUNKING = "late_chunking";
     static final String EMBEDDING_TYPE_FIELD = "embedding_type";
+    static final int MAX_WORD_COUNT_FOR_LATE_CHUNKING = 5500;
 
     public JinaAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -62,7 +64,7 @@ public record JinaAIEmbeddingsRequestEntity(
         }
 
         if (taskSettings.getLateChunking() != null) {
-            builder.field(LATE_CHUNKING, taskSettings.getLateChunking());
+            builder.field(LATE_CHUNKING, taskSettings.getLateChunking() && getInputWordCount() <= MAX_WORD_COUNT_FOR_LATE_CHUNKING);
         }
 
         builder.endObject();
@@ -81,5 +83,14 @@ public record JinaAIEmbeddingsRequestEntity(
                 yield null;
             }
         };
+    }
+
+    private int getInputWordCount() {
+        int wordCount = 0;
+        for (var text : input) {
+            wordCount += ChunkerUtils.countWords(text);
+        }
+
+        return wordCount;
     }
 }

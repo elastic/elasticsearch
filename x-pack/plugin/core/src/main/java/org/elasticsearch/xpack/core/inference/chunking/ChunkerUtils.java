@@ -11,6 +11,12 @@ import com.ibm.icu.text.BreakIterator;
 
 public class ChunkerUtils {
 
+    public static int countWords(String text) {
+        BreakIterator wordIterator = BreakIterator.getWordInstance();
+        wordIterator.setText(text);
+        return countWords(0, text.length(), wordIterator);
+    }
+
     // setText() should be applied before using this function.
     static int countWords(int start, int end, BreakIterator wordIterator) {
         assert start < end;

@@ -21,8 +21,11 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -33,6 +36,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class EmbeddingRequestChunkerTests extends ESTestCase {
+
+    private static final int MAX_BATCH_SIZE = 512;
 
     public void testEmptyInput_WordChunker() {
         var batches = new EmbeddingRequestChunker<>(List.of(), 100, 100, 10).batchRequestsWithListeners(testListener());
@@ -877,7 +882,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
     }
 
     public void testBatchChunksAcrossInputsIsFalseAndBatchesLessThanMaxChunkLimit_ThrowsAssertionError() {
-        int batchSize = randomIntBetween(1, 511);
+        int batchSize = randomIntBetween(1, MAX_BATCH_SIZE - 1);
         List<ChunkInferenceInput> inputs = List.of(new ChunkInferenceInput("This is a test sentence with ten words in total. "));
         var chunkingSettings = new SentenceBoundaryChunkingSettings(10, 0);
         expectThrows(
@@ -887,31 +892,29 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
     }
 
     private void testBatchChunksAcrossInputs(boolean batchChunksAcrossInputs) {
-        int batchSize = 512;
-
-        var testSentence = "This is a test sentence with ten words in total. ";
-        List<ChunkInferenceInput> inputs = List.of(
-            new ChunkInferenceInput(testSentence + testSentence + testSentence),
-            new ChunkInferenceInput(testSentence),
-            new ChunkInferenceInput(testSentence + testSentence + testSentence + testSentence)
-        );
-
-        var chunkingSettings = new SentenceBoundaryChunkingSettings(10, 0);
+        int maxChunkSize = 10;
+        var testSentence = IntStream.range(0, maxChunkSize).mapToObj(i -> "word" + i).collect(Collectors.joining(" ")) + ".";
+        var chunkingSettings = new SentenceBoundaryChunkingSettings(maxChunkSize, 0);
+        var batchSizes = List.of(3, 1, 4);
+        var totalBatchSizes = batchSizes.stream().mapToInt(Integer::intValue).sum();
+        List<ChunkInferenceInput> inputs = batchSizes.stream()
+            .map(i -> new ChunkInferenceInput(String.join(" ", Collections.nCopies(i, testSentence))))
+            .toList();
 
         var finalListener = testListener();
         List<EmbeddingRequestChunker.BatchRequestAndListener> batches = new EmbeddingRequestChunker<>(
             inputs,
-            batchSize,
+            MAX_BATCH_SIZE,
             batchChunksAcrossInputs,
             chunkingSettings
         ).batchRequestsWithListeners(finalListener);
 
-        // There are 3 inputs that generate 8 chunks. If we are allowing batching of chunks across inputs, they will be placed into 1 batch.
-        // Otherwise, they will be split into 3 batches (1 per input).
-        int expectedNumberOfBatches = batchChunksAcrossInputs ? 1 : 3;
+        // If we are batching chunks across inputs, we expect the batches to be filled up to the max batch size.
+        // Otherwise, we expect one batch per input.
+        int expectedNumberOfBatches = batchChunksAcrossInputs ? (int) Math.ceil((double) totalBatchSizes / MAX_BATCH_SIZE) : inputs.size();
         assertThat(batches, hasSize(expectedNumberOfBatches));
         if (batchChunksAcrossInputs) {
-            assertThat(batches.get(0).batch().inputs().get(), hasSize(8));
+            assertThat(batches.get(0).batch().inputs().get(), hasSize(totalBatchSizes));
             batches.get(0)
                 .listener()
                 .onResponse(
@@ -920,9 +923,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
                     )
                 );
         } else {
-            var expectedBatchSizes = List.of(3, 1, 4);
             for (int i = 0; i < batches.size(); i++) {
-                assertThat(batches.get(i).batch().inputs().get(), hasSize(expectedBatchSizes.get(i)));
+                assertThat(batches.get(i).batch().inputs().get(), hasSize(batchSizes.get(i)));
                 batches.get(i)
                     .listener()
                     .onResponse(

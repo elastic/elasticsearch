@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.util.Objects;
 
 /**
- * Represents an OpenShift AI modelId that can be used for inference tasks.
+ * Represents an OpenShift AI model that can be used for inference tasks.
  * This class extends RateLimitGroupingModel to handle rate limiting based on modelId and API key.
  */
 public abstract class OpenShiftAiModel extends RateLimitGroupingModel {

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionRes
 public class OpenShiftAiCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
 
     /**
-     * Constructs a OpenShiftAiCompletionResponseHandler with the specified request type and response parser.
+     * Constructs an OpenShiftAiCompletionResponseHandler with the specified request type and response parser.
      *
      * @param requestType The type of request being handled (e.g., "Openshift AI completions").
      * @param parseFunction The function to parse the response.

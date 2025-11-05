@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Map;
 
 /**
- * Represents a OpenShift AI embeddings model for inference.
+ * Represents an OpenShift AI embeddings model for inference.
  * This class extends the OpenShiftAiModel and provides specific configurations and settings for embeddings tasks.
  */
 public class OpenShiftAiEmbeddingsModel extends OpenShiftAiModel {
@@ -51,7 +51,7 @@ public class OpenShiftAiEmbeddingsModel extends OpenShiftAiModel {
     }
 
     /**
-     * Constructor for creating a OpenShiftAiEmbeddingsModel with specified parameters.
+     * Constructor for creating an OpenShiftAiEmbeddingsModel with specified parameters.
      *
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for

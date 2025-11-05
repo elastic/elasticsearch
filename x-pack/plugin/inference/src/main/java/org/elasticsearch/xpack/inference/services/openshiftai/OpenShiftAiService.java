@@ -57,7 +57,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
@@ -69,16 +68,15 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 /**
- * OpenShiftAiService is an implementation of the SenderService that handles inference tasks
+ * OpenShiftAiService is an implementation of the {@link SenderService} and {@link RerankingInferenceService} that handles inference tasks
  * using models deployed to OpenShift AI environment.
- * The service uses OpenShiftAiActionCreator to create actions for executing inference requests.
+ * The service uses {@link OpenShiftAiActionCreator} to create actions for executing inference requests.
  */
 public class OpenShiftAiService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "openshift_ai";
     /**
-     * The optimal batch size depends on the hardware the model is deployed on.
-     * For OpenShift AI use a conservatively small max batch size as it is
-     * unknown how the model is deployed
+     * The optimal batch size depends on the model deployed in OpenShift AI.
+     * For OpenShift AI use a conservatively small max batch size as it is unknown what model is deployed.
      */
     static final int EMBEDDING_MAX_BATCH_SIZE = 20;
     private static final String SERVICE_NAME = "OpenShift AI";
@@ -115,7 +113,7 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
     ) {
         var actionCreator = new OpenShiftAiActionCreator(getSender(), getServiceComponents());
 
-        switch (Objects.requireNonNull(model)) {
+        switch (model) {
             case OpenShiftAiChatCompletionModel chatCompletionModel -> chatCompletionModel.accept(actionCreator)
                 .execute(inputs, timeout, listener);
             case OpenShiftAiEmbeddingsModel embeddingsModel -> embeddingsModel.accept(actionCreator).execute(inputs, timeout, listener);

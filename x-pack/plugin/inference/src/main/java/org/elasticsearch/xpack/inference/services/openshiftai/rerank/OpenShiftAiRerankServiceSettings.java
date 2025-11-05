@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 /**
- * Represents the settings for a OpenShift AI chat rerank service.
+ * Represents the settings for an OpenShift AI chat rerank service.
  * This class encapsulates the model ID, URI, and rate limit settings for the OpenShift AI chat rerank service.
  */
 public class OpenShiftAiRerankServiceSettings extends OpenShiftAiServiceSettings {

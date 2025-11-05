@@ -28,7 +28,7 @@ import java.util.Map;
 public class OpenShiftAiChatCompletionModel extends OpenShiftAiModel {
 
     /**
-     * Constructor for creating a OpenShiftAiChatCompletionModel with specified parameters.
+     * Constructor for creating an OpenShiftAiChatCompletionModel with specified parameters.
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service

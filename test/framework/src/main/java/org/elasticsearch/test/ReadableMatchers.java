@@ -11,6 +11,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
+import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.time.Instant;
@@ -51,12 +52,12 @@ public class ReadableMatchers {
         }
 
         @Override
-        public void describeMismatchSafely(Long item, org.hamcrest.Description description) {
+        public void describeMismatchSafely(Long item, Description description) {
             description.appendText("was ").appendValue(dateFormatter.formatMillis(item));
         }
 
         @Override
-        public void describeTo(org.hamcrest.Description description) {
+        public void describeTo(Description description) {
             description.appendText(dateFormatter.formatMillis(timeMillis));
         }
     }
@@ -74,12 +75,12 @@ public class ReadableMatchers {
         }
 
         @Override
-        public void describeMismatchSafely(Long item, org.hamcrest.Description description) {
+        public void describeMismatchSafely(Long item, Description description) {
             description.appendText("was ").appendValue(dateFormatter.formatNanos(item));
         }
 
         @Override
-        public void describeTo(org.hamcrest.Description description) {
+        public void describeTo(Description description) {
             description.appendText(dateFormatter.formatNanos(timeNanos));
         }
     }

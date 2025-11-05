@@ -1456,7 +1456,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var undesiredAllocationThreshold = TimeValue.timeValueMinutes(randomIntBetween(10, 50));
         final var clusterSettings = createBuiltInClusterSettings(
             Settings.builder()
-                .put(DesiredBalanceReconciler.UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING.getKey(), undesiredAllocationThreshold)
+                .put(UndesiredAllocationsTracker.UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING.getKey(), undesiredAllocationThreshold)
                 .build()
         );
         final var timeProvider = new AdvancingTimeProvider();
@@ -1476,10 +1476,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                     preventAllocationOnNode2Decider
                 )
             ),
-            DesiredBalanceReconciler.class,
+            UndesiredAllocationsTracker.class,
             new MockLog.UnseenEventExpectation(
                 "Should not log if all shards on desired location",
-                DesiredBalanceReconciler.class.getCanonicalName(),
+                UndesiredAllocationsTracker.class.getCanonicalName(),
                 Level.WARN,
                 shardInUndesiredAllocationMessage
             )
@@ -1496,10 +1496,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                     yesDecider
                 )
             ),
-            DesiredBalanceReconciler.class,
+            UndesiredAllocationsTracker.class,
             new MockLog.UnseenEventExpectation(
                 "Should not log because we haven't passed the threshold yet",
-                DesiredBalanceReconciler.class.getCanonicalName(),
+                UndesiredAllocationsTracker.class.getCanonicalName(),
                 Level.WARN,
                 shardInUndesiredAllocationMessage
             )
@@ -1519,16 +1519,16 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                     yesDecider
                 )
             ),
-            DesiredBalanceReconciler.class,
+            UndesiredAllocationsTracker.class,
             new MockLog.SeenEventExpectation(
                 "Should log because this is the first reconciliation after the threshold is exceeded",
-                DesiredBalanceReconciler.class.getCanonicalName(),
+                UndesiredAllocationsTracker.class.getCanonicalName(),
                 Level.WARN,
                 shardInUndesiredAllocationMessage
             ),
             new MockLog.SeenEventExpectation(
                 "Should log the NO decisions",
-                DesiredBalanceReconciler.class.getCanonicalName(),
+                UndesiredAllocationsTracker.class.getCanonicalName(),
                 Level.WARN,
                 "[" + shardToPreventMovement + "][0] cannot be allocated on node [data-node-2]: [NO(Blocks allocation on node 2)]"
             )
@@ -1545,10 +1545,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                     yesDecider
                 )
             ),
-            DesiredBalanceReconciler.class,
+            UndesiredAllocationsTracker.class,
             new MockLog.UnseenEventExpectation(
                 "Should not log because the rate limiter should prevent it",
-                DesiredBalanceReconciler.class.getCanonicalName(),
+                UndesiredAllocationsTracker.class.getCanonicalName(),
                 Level.WARN,
                 shardInUndesiredAllocationMessage
             )

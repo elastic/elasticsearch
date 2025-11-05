@@ -51,8 +51,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             TestShardRouting.buildRelocationFailureInfo(state),
             TestShardRouting.buildAllocationId(state),
             randomLongBetween(-1, 1024),
-            randomFrom(ShardRouting.Role.DEFAULT, (primary ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY)),
-            randomBoolean() ? ShardRouting.NOT_UNDESIRED_TIMESTAMP : randomLong()
+            randomFrom(ShardRouting.Role.DEFAULT, (primary ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY))
         );
     }
 
@@ -84,8 +83,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             instance.relocationFailureInfo(),
             instance.allocationId(),
             instance.getExpectedShardSize(),
-            instance.role(),
-            instance.becameUndesiredTime()
+            instance.role()
         );
     }
 
@@ -117,8 +115,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 );
             },
             instance.getExpectedShardSize(),
-            instance.role(),
-            instance.becameUndesiredTime()
+            instance.role()
         );
     }
 
@@ -134,8 +131,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             instance.relocationFailureInfo(),
             instance.allocationId(),
             instance.getExpectedShardSize(),
-            instance.role(),
-            instance.becameUndesiredTime()
+            instance.role()
         );
     }
 
@@ -157,8 +153,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     ShardRouting.Role.DEFAULT,
                     (instance.primary() ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY)
                 )
-            ),
-            instance.becameUndesiredTime()
+            )
         );
     }
 
@@ -279,8 +274,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                         otherRouting.relocationFailureInfo(),
                         otherRouting.allocationId(),
                         otherRouting.getExpectedShardSize(),
-                        otherRouting.role(),
-                        otherRouting.becameUndesiredTime()
+                        otherRouting.role()
                     );
                     break;
                 case 1:
@@ -296,8 +290,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                         otherRouting.relocationFailureInfo(),
                         otherRouting.allocationId(),
                         otherRouting.getExpectedShardSize(),
-                        otherRouting.role(),
-                        otherRouting.becameUndesiredTime()
+                        otherRouting.role()
                     );
                     break;
                 case 2:
@@ -316,8 +309,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize(),
-                            otherRouting.role(),
-                            otherRouting.becameUndesiredTime()
+                            otherRouting.role()
                         );
                     }
                     break;
@@ -337,8 +329,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize(),
-                            otherRouting.role(),
-                            otherRouting.becameUndesiredTime()
+                            otherRouting.role()
                         );
                     }
                     break;
@@ -363,8 +354,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
                             otherRouting.getExpectedShardSize(),
-                            otherRouting.role(),
-                            otherRouting.becameUndesiredTime()
+                            otherRouting.role()
                         );
                     }
                     break;
@@ -376,10 +366,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                         otherRouting.currentNodeId(),
                         otherRouting.primary() == false,
                         otherRouting.state()
-                    ).withRelocatingNodeId(otherRouting.relocatingNodeId())
-                        .withUnassignedInfo(otherRouting.unassignedInfo())
-                        .withBecameUndesired(otherRouting.becameUndesiredTime())
-                        .build();
+                    ).withRelocatingNodeId(otherRouting.relocatingNodeId()).withUnassignedInfo(otherRouting.unassignedInfo()).build();
                     break;
                 case 6:
                     // change state
@@ -399,7 +386,6 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                                 )
                                 : null
                         )
-                        .withBecameUndesired(otherRouting.becameUndesiredTime())
                         .build();
                     break;
             }
@@ -418,7 +404,6 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
                             : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, otherRouting.unassignedInfo().message() + "_1")
                     )
-                    .withBecameUndesired(otherRouting.becameUndesiredTime())
                     .build();
             }
 

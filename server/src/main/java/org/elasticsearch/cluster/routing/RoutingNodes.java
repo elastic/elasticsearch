@@ -892,34 +892,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return Collections.unmodifiableMap(assignedShards);
     }
 
-    /**
-     * Record that this shard is in an undesired location if it's not already marked as such
-     *
-     * @return The updated {@link ShardRouting} or <code>this</code> if no change was made
-     */
-    public ShardRouting markAsUndesired(ShardRouting originalShard, long becameUndesiredTime) {
-        assert originalShard.started() : "Only started shards can be marked as being in an undesired allocation";
-        final var withUndesiredInfo = originalShard.markAsUndesired(becameUndesiredTime);
-        if (withUndesiredInfo != originalShard) {
-            updateAssigned(originalShard, withUndesiredInfo);
-            return withUndesiredInfo;
-        }
-        return originalShard;
-    }
-
-    /**
-     * Clear any undesired allocation metadata from the specified shard
-     *
-     * @param originalShard The {@link ShardRouting} to clear undesired metadata from
-     */
-    public void clearUndesired(ShardRouting originalShard) {
-        assert originalShard.started() : "Only started shards can be marked as being in a desired allocation";
-        final var withoutUndesiredInfo = originalShard.clearUndesired();
-        if (withoutUndesiredInfo != originalShard) {
-            updateAssigned(originalShard, withoutUndesiredInfo);
-        }
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {

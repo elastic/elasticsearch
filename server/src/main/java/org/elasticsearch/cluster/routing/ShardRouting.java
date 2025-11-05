@@ -42,12 +42,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * Used if shard size is not available
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
-    public static final long NOT_UNDESIRED_TIMESTAMP = Long.MAX_VALUE;
     private static final TransportVersion EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = TransportVersions.V_8_5_0;
     private static final TransportVersion RELOCATION_FAILURE_INFO_VERSION = TransportVersions.V_8_6_0;
-    private static final TransportVersion BECAME_UNDESIRED_TIME_VERSION = TransportVersion.fromName(
-        "shard_routing_includes_became_undesired"
-    );
 
     private final ShardId shardId;
     private final String currentNodeId;
@@ -71,7 +67,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     @Nullable
     private final ShardRouting targetRelocatingShard;
     private final Role role;
-    private final long becameUndesiredTime;
 
     /**
      * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
@@ -88,8 +83,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         RelocationFailureInfo relocationFailureInfo,
         AllocationId allocationId,
         long expectedShardSize,
-        Role role,
-        long becameUndesiredTime
+        Role role
     ) {
         this.shardId = shardId;
         this.currentNodeId = currentNodeId;
@@ -103,7 +97,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         this.expectedShardSize = expectedShardSize;
         this.role = role;
         this.targetRelocatingShard = initializeTargetRelocatingShard();
-        this.becameUndesiredTime = becameUndesiredTime;
 
         assert assertConsistent();
     }
@@ -157,8 +150,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 RelocationFailureInfo.NO_FAILURES,
                 AllocationId.newTargetRelocation(allocationId),
                 expectedShardSize,
-                role,
-                NOT_UNDESIRED_TIMESTAMP // Assume we didn't relocate to another undesired allocation (?)
+                role
             );
         } else {
             return null;
@@ -186,8 +178,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             RelocationFailureInfo.NO_FAILURES,
             null,
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
-            role,
-            NOT_UNDESIRED_TIMESTAMP
+            role
         );
     }
 
@@ -371,11 +362,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             role = Role.DEFAULT;
         }
         targetRelocatingShard = initializeTargetRelocatingShard();
-        if (in.getTransportVersion().supports(BECAME_UNDESIRED_TIME_VERSION)) {
-            becameUndesiredTime = in.readLong();
-        } else {
-            becameUndesiredTime = NOT_UNDESIRED_TIMESTAMP;
-        }
     }
 
     public ShardRouting(StreamInput in) throws IOException {
@@ -414,10 +400,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 Strings.format("cannot send role [%s] to node with version [%s]", role, out.getTransportVersion().toReleaseVersion())
             );
         }
-
-        if (out.getTransportVersion().supports(BECAME_UNDESIRED_TIME_VERSION)) {
-            out.writeLong(becameUndesiredTime);
-        }
     }
 
     @Override
@@ -440,57 +422,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             relocationFailureInfo,
             allocationId,
             expectedShardSize,
-            role,
-            becameUndesiredTime
+            role
         );
-    }
-
-    public ShardRouting markAsUndesired(long becameUndesiredTime) {
-        if (this.becameUndesiredTime != NOT_UNDESIRED_TIMESTAMP) {
-            return this;
-        }
-        return new ShardRouting(
-            shardId,
-            currentNodeId,
-            relocatingNodeId,
-            primary,
-            state,
-            recoverySource,
-            unassignedInfo,
-            relocationFailureInfo,
-            allocationId,
-            expectedShardSize,
-            role,
-            becameUndesiredTime
-        );
-    }
-
-    public ShardRouting clearUndesired() {
-        if (becameUndesiredTime == NOT_UNDESIRED_TIMESTAMP) {
-            return this;
-        }
-        return new ShardRouting(
-            shardId,
-            currentNodeId,
-            relocatingNodeId,
-            primary,
-            state,
-            recoverySource,
-            unassignedInfo,
-            relocationFailureInfo,
-            allocationId,
-            expectedShardSize,
-            role,
-            NOT_UNDESIRED_TIMESTAMP
-        );
-    }
-
-    public boolean isInUndesiredAllocation() {
-        return becameUndesiredTime != NOT_UNDESIRED_TIMESTAMP;
-    }
-
-    public long becameUndesiredTime() {
-        return becameUndesiredTime;
     }
 
     public ShardRouting updateRelocationFailure(RelocationFailureInfo relocationFailureInfo) {
@@ -506,8 +439,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             relocationFailureInfo,
             allocationId,
             expectedShardSize,
-            role,
-            becameUndesiredTime
+            role
         );
     }
 
@@ -537,8 +469,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             RelocationFailureInfo.NO_FAILURES,
             null,
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
-            role,
-            NOT_UNDESIRED_TIMESTAMP     // Unassigned and undesired are tracked separately
+            role
         );
     }
 
@@ -567,8 +498,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             RelocationFailureInfo.NO_FAILURES,
             allocationId,
             expectedShardSize,
-            role,
-            becameUndesiredTime
+            role
         );
     }
 
@@ -590,8 +520,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             relocationFailureInfo,
             AllocationId.newRelocation(allocationId),
             expectedShardSize,
-            role,
-            becameUndesiredTime
+            role
         );
     }
 
@@ -614,8 +543,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             relocationFailureInfo.incFailedRelocations(),
             AllocationId.cancelRelocation(allocationId),
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
-            role,
-            becameUndesiredTime
+            role
         );
     }
 
@@ -640,8 +568,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             relocationFailureInfo,
             AllocationId.finishRelocation(allocationId),
             expectedShardSize,
-            role,
-            becameUndesiredTime
+            role
         );
     }
 
@@ -663,8 +590,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             relocationFailureInfo,
             AllocationId.newInitializing(),
             expectedShardSize,
-            role,
-            becameUndesiredTime
+            role
         );
     }
 
@@ -692,8 +618,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             RelocationFailureInfo.NO_FAILURES,
             allocationId,
             expectedShardSize,
-            role,
-            becameUndesiredTime
+            role
         );
     }
 
@@ -718,8 +643,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             relocationFailureInfo,
             allocationId,
             expectedShardSize,
-            role,
-            becameUndesiredTime
+            role
         );
     }
 
@@ -744,8 +668,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             relocationFailureInfo,
             allocationId,
             expectedShardSize,
-            role,
-            becameUndesiredTime
+            role
         );
     }
 
@@ -889,8 +812,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         ShardRouting that = (ShardRouting) o;
         return equalsIgnoringMetadata(that)
             && Objects.equals(unassignedInfo, that.unassignedInfo)
-            && Objects.equals(relocationFailureInfo, that.relocationFailureInfo)
-            && becameUndesiredTime == that.becameUndesiredTime;
+            && Objects.equals(relocationFailureInfo, that.relocationFailureInfo);
     }
 
     /**
@@ -912,7 +834,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             h = 31 * h + (allocationId != null ? allocationId.hashCode() : 0);
             h = 31 * h + (unassignedInfo != null ? unassignedInfo.hashCode() : 0);
             h = 31 * h + (relocationFailureInfo != null ? relocationFailureInfo.hashCode() : 0);
-            h = 31 * h + Long.hashCode(becameUndesiredTime);
             h = 31 * h + role.hashCode();
             hashCode = h;
         }
@@ -955,9 +876,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         sb.append(", ").append(relocationFailureInfo);
         if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             sb.append(", expected_shard_size[").append(expectedShardSize).append("]");
-        }
-        if (becameUndesiredTime != NOT_UNDESIRED_TIMESTAMP) {
-            sb.append(", became_undesired_time[").append(becameUndesiredTime).append("]");
         }
         return sb.toString();
     }

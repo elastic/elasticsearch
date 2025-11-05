@@ -52,8 +52,7 @@ public class ShardRoutingHelper {
             RelocationFailureInfo.NO_FAILURES,
             copy.allocationId(),
             copy.getExpectedShardSize(),
-            copy.role(),
-            copy.becameUndesiredTime()
+            copy.role()
         );
     }
 
@@ -73,8 +72,7 @@ public class ShardRoutingHelper {
             routing.relocationFailureInfo(),
             routing.allocationId(),
             routing.getExpectedShardSize(),
-            routing.role(),
-            routing.becameUndesiredTime()
+            routing.role()
         );
     }
 }

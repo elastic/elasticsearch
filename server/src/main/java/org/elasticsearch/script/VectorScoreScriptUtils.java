@@ -252,7 +252,7 @@ public class VectorScoreScriptUtils {
         @SuppressWarnings("unchecked")
         public Hamming(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
-            if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
+            if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT || field.getElementType() == ElementType.BFLOAT16) {
                 throw new IllegalArgumentException("hamming distance is only supported for byte or bit vectors");
             }
             if (queryVector instanceof List) {

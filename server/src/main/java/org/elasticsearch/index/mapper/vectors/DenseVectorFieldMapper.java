@@ -1150,20 +1150,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throws IOException {
             // BIG_ENDIAN is the default, but just being explicit here
             ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getDecoder().decode(context.parser().text())).order(ByteOrder.BIG_ENDIAN);
-            if (byteBuffer.remaining() != dims * Float.BYTES) {
+            float[] decodedVector = new float[dims];
+            if (byteBuffer.remaining() == dims * Float.BYTES) {
+                byteBuffer.asFloatBuffer().get(decodedVector);
+            } else if (byteBuffer.remaining() == dims * BFloat16.BYTES) {
+                BFloat16.bFloat16ToFloat(byteBuffer.asShortBuffer(), decodedVector);
+            } else {
                 throw new ParsingException(
                     context.parser().getTokenLocation(),
                     "Failed to parse object: Base64 decoded vector byte length ["
                         + byteBuffer.remaining()
                         + "] does not match the expected length of ["
                         + (dims * Float.BYTES)
+                        + "] or ["
+                        + (dims * BFloat16.BYTES)
                         + "] for dimension count ["
                         + dims
                         + "]"
                 );
             }
-            float[] decodedVector = new float[dims];
-            byteBuffer.asFloatBuffer().get(decodedVector);
+
             dimChecker.accept(decodedVector.length, true);
             VectorData vectorData = VectorData.fromFloats(decodedVector);
             float squaredMagnitude = (float) computeSquaredMagnitude(vectorData);

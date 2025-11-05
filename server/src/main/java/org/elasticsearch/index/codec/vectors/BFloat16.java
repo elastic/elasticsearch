@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.util.BitUtil;
 
-import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 
 public final class BFloat16 {
@@ -38,7 +37,6 @@ public final class BFloat16 {
     }
 
     public static void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
-        assert bFloats.order() == ByteOrder.LITTLE_ENDIAN;
         for (float v : floats) {
             bFloats.put(floatToBFloat16(v));
         }
@@ -52,7 +50,6 @@ public final class BFloat16 {
     }
 
     public static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
-        assert bFloats.order() == ByteOrder.LITTLE_ENDIAN;
         for (int i = 0; i < floats.length; i++) {
             floats[i] = bFloat16ToFloat(bFloats.get());
         }

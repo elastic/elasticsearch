@@ -109,10 +109,11 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return new XLongComparator(numHits, fieldname, null, reversed, enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                final int maxDoc = context.reader().maxDoc();
                 return new LongLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return wrap(getLongValues(context, lMissingValue), context.reader().maxDoc());
+                        return wrap(getLongValues(context, lMissingValue), maxDoc);
                     }
 
                     @Override
@@ -131,7 +132,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                         }
                         DocValuesSkipper skipper = context.reader().getDocValuesSkipper(field);
                         DocValuesSkipper primaryFieldSkipper = context.reader().getDocValuesSkipper(sortFields[0].getField());
-                        if (primaryFieldSkipper == null) {
+                        if (primaryFieldSkipper == null || skipper.docCount() != maxDoc || primaryFieldSkipper.docCount() != maxDoc) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         return new CompetitiveDISIBuilder(this) {

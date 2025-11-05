@@ -110,7 +110,7 @@ public abstract class TransportBroadcastAction<
      * on the first shard in it. If the operation fails, it will be retried on the next shard in the iterator.
      */
     @FixForMultiProject // add ProjectMetadata to this method
-    protected abstract List<ShardIterator> shards(ClusterState clusterState, Request request, String[] concreteIndices);
+    protected abstract List<? extends ShardIterator> shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
@@ -123,7 +123,7 @@ public abstract class TransportBroadcastAction<
         final ActionListener<Response> listener;
         final ClusterState clusterState;
         final DiscoveryNodes nodes;
-        final List<ShardIterator> shardsIts;
+        final List<? extends ShardIterator> shardsIts;
         final int expectedOps;
         final AtomicInteger counterOps = new AtomicInteger();
         // ShardResponse or Exception

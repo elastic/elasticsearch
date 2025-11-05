@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
@@ -36,8 +37,9 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     static final String LUCENE99_HNSW_VECTOR_INDEX_EXTENSION = "vex";
     static final int LUCENE99_VERSION_CURRENT = VERSION_GROUPVARINT;
 
-    static final int DEFAULT_MAX_CONN = 16; // graph degree
-    public static final int DEFAULT_BEAM_WIDTH = 128; // intermediate graph degree
+    public static final int DEFAULT_MAX_CONN = (2 + Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN * 2 / 3); // graph degree
+    public static final int DEFAULT_BEAM_WIDTH = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN + Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN
+        * Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH / 256; // intermediate graph degree
     static final int MIN_NUM_VECTORS_FOR_GPU_BUILD = 2;
 
     private static final FlatVectorsFormat flatVectorsFormat = new Lucene99FlatVectorsFormat(

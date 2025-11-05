@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
@@ -242,7 +243,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
+    public ShardAllocationDecision explainShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
         Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
@@ -820,7 +821,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     shardRouting,
                     bestNonPreferredShardMovementsTracker::shardIsBetterThanCurrent
                 );
-                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
+                if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
@@ -844,7 +845,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // invalid, so we must call `decideMove` again. If not, we know we haven't made any moves, and we
                 // can use the cached decision.
                 final var moveDecision = shardMoved ? decideMove(index, shardRouting) : storedShardMovement.moveDecision();
-                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
+                if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     executeMove(shardRouting, index, moveDecision, "move-non-preferred");
                     // Return after a single move so that the change can be simulated before further moves are made.
                     return true;
@@ -897,8 +898,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *   2. If the shard is allowed to remain on its current node, no attempt will be made to move the shard and
          *      {@link MoveDecision#getCanRemainDecision} will have a decision type of YES. All other fields in the object will be null.
          *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#getAllocationDecision()} will be
-         *      populated with the decision of moving to another node. If {@link MoveDecision#forceMove()} returns {@code true}, then
-         *      {@link MoveDecision#getTargetNode} will return a non-null value, otherwise the assignedNodeId will be null.
+         *      populated with the decision of moving to another node. If {@link MoveDecision#cannotRemainAndCanMove()} returns
+         *      {@code true}, then {@link MoveDecision#getTargetNode} will return a non-null value, otherwise the assignedNodeId will be
+         *      null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
          *
@@ -925,7 +927,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
             if (canRemain.type() != Decision.Type.NO && canRemain.type() != Decision.Type.NOT_PREFERRED) {
-                return MoveDecision.remain(canRemain);
+                return MoveDecision.createRemainYesDecision(canRemain);
             }
 
             // Check predicate to decide whether to assess movement options
@@ -941,7 +943,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * allocate on the minimal eligible node.
              */
             final MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocate);
-            if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
+            if (moveDecision.cannotRemainAndCannotMove()) {
                 final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
                 if (shardsOnReplacedNode) {
                     return decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
@@ -1346,7 +1348,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     nodeExplanationMap.put(node.getNodeId(), new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
                     nodeWeights.add(Tuple.tuple(node.getNodeId(), currentWeight));
                 }
-                if (currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE) {
+                if (currentDecision.type() == Type.YES
+                    || currentDecision.type() == Type.THROTTLE
+                    || currentDecision.type() == Type.NOT_PREFERRED) {
                     final boolean updateMinNode;
                     if (currentWeight == minWeight) {
                         /*  we have an equal weight tie breaking:
@@ -1367,10 +1371,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId))
                                 && (nodeHigh < minNodeHigh)) || (nodeHigh > repId && minNodeHigh < repId));
                         } else {
-                            updateMinNode = currentDecision.type() == Type.YES;
+                            // always prefer a YES, prefer anything over a NOT_PREFERRED
+                            updateMinNode = currentDecision.type() == Type.YES || decision.type() == Type.NOT_PREFERRED;
                         }
                     } else {
-                        updateMinNode = currentWeight < minWeight;
+                        updateMinNode = preferNewDecisionOverExisting(currentDecision, currentWeight, decision, minWeight);
                     }
                     if (updateMinNode) {
                         minNode = node;
@@ -1395,6 +1400,41 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
             return AllocateUnassignedDecision.fromDecision(decision, minNode != null ? minNode.routingNode.node() : null, nodeDecisions);
+        }
+
+        /**
+         * Decide whether to take a new allocation decision/weight over the existing allocation decision/weight
+         * <p>
+         * We take the lowest weight decision, but we always prefer {@code YES} or {@code THROTTLE} decisions over {@code NOT_PREFERRED}
+         *
+         * @param newDecision The new decision
+         * @param newWeight The new weight
+         * @param existingDecision The existing decision, or null if there is no existing decision
+         * @param existingWeight The existing weight, or {@link Float#POSITIVE_INFINITY} if there is no existing weight
+         * @return true to take the new decision/weight, false to keep the existing decision/weight
+         */
+        private static boolean preferNewDecisionOverExisting(
+            Decision newDecision,
+            float newWeight,
+            @Nullable Decision existingDecision,
+            float existingWeight
+        ) {
+            assert newDecision != null : "newDecision should never be null";
+            assert newDecision.type() == Type.YES || newDecision.type() == Type.NOT_PREFERRED || newDecision.type() == Type.THROTTLE
+                : "unsupported decision type: " + newDecision.type();
+            assert newWeight != existingWeight : "Equal weights should be handled elsewhere";
+            if (existingDecision == null) {
+                // This is the first YES/NOT_PREFERRED/THROTTLE decision we've seen, take it
+                return true;
+            } else if (existingDecision.type() == newDecision.type()) {
+                // Decision types are the same, take the lower weight
+                return newWeight < existingWeight;
+            } else {
+                // Decision types are different, take the lower weight unless it's NOT_PREFERRED
+                float adjustedNewWeight = newDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : newWeight;
+                float adjustedExistingWeight = existingDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : existingWeight;
+                return adjustedNewWeight < adjustedExistingWeight;
+            }
         }
 
         private static final Comparator<ShardRouting> BY_DESCENDING_SHARD_ID = (s1, s2) -> Integer.compare(s2.id(), s1.id());

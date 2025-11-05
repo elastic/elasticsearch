@@ -44,12 +44,12 @@ If the document is not OpenTelemetry-compliant, the processor normalizes it as f
   | `log.level` | `severity_text`                |
 
   The processor first looks for the nested form of the ECS field and if such does not exist, it looks for a top-level field with the dotted field name.
-* Other specific ECS fields that describe resources and have corresponding counterparts in the OpenTelemetry Semantic Conventions are moved to the `resource.attribtues` map. Fields that are considered resource attributes are such that conform to the following conditions:
+* Other specific ECS fields that describe resources and have corresponding counterparts in the OpenTelemetry Semantic Conventions are moved to the `resource.attributes` map. Fields that are considered resource attributes are such that conform to the following conditions:
     * They are ECS fields that have corresponding counterparts (either with
       the same name or with a different name) in OpenTelemetry Semantic Conventions.
     * The corresponding OpenTelemetry attribute is defined in
       [Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/tree/main/model)
-      within a group that is defined as `type: enitity`.
+      within a group that is defined as `type: entity`.
 * All other fields, except for `@timestamp`, are moved to the `attributes` map.
 * All non-array entries of the `attributes` and `resource.attributes` maps are flattened. Flattening means that nested objects are merged into their parent object, and the keys are concatenated with a dot. See examples below.
 
@@ -149,6 +149,7 @@ will be normalized into the following form:
       }
     ]
   },
+  "severity_text": "INFO",
   "body": {
     "text": "Hello, world!"
   },

@@ -90,6 +90,11 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     @Override
+    protected Object getSampleValueForDocument(boolean binaryFormat) {
+        return getSampleValueForDocument();
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         int numVectors = randomIntBetween(1, 16);
         return Stream.generate(

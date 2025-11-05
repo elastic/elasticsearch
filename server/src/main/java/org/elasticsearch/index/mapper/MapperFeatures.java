@@ -58,6 +58,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.ignore_dynamic_field_names_beyond_limit"
     );
     static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
+    static final NodeFeature BASE64_DENSE_VECTORS = new NodeFeature("mapper.base64_dense_vectors");
     public static final NodeFeature HNSW_BFLOAT16_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.hnsw_bfloat16_on_disk_rescoring");
 
     @Override
@@ -101,6 +102,7 @@ public class MapperFeatures implements FeatureSpecification {
             PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
             EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
+            BASE64_DENSE_VECTORS,
             HNSW_BFLOAT16_ON_DISK_RESCORING
         );
     }

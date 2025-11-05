@@ -45,7 +45,7 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
     }
 
     public void testRemoteIndex() {
-        var request = new GetInferenceFieldsAction.Request(Set.of("cluster_a:test-index"), Set.of("*"), true, false, "foo");
+        var request = new GetInferenceFieldsAction.Request(Set.of(REMOTE_CLUSTER + ":test-index"), Set.of(), false, false, "foo");
         IllegalArgumentException e = assertThrows(
             IllegalArgumentException.class,
             () -> client().execute(GetInferenceFieldsAction.INSTANCE, request).actionGet(TEST_REQUEST_TIMEOUT)

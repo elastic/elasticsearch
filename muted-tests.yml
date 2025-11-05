@@ -454,6 +454,10 @@ tests:
 - class: org.elasticsearch.action.IndicesRequestIT
   method: testIndicesStats
   issue: https://github.com/elastic/elasticsearch/issues/137594
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testTopNSimilarityBetweenConstantVectorAndField {functionName=v_l2_norm
+    similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.L2Norm$1@5b068087 elementType=byte}
+  issue: https://github.com/elastic/elasticsearch/issues/137625
 
 # Examples:
 #

@@ -52,7 +52,7 @@ public class Schema implements Iterable<Schema.Entry> {
     private final List<DataType> types;
 
     public Schema(List<String> names, List<DataType> types) {
-        Check.isTrue(names.size() == types.size(), "Different # of names {} vs types {}", names, types);
+        Check.isTrueInternal(names.size() == types.size(), "Different # of names {} vs types {}", names, types);
         this.types = types;
         this.names = names;
     }

@@ -73,6 +73,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
+    enum ConnectionAttempt {
+        initial,
+        reconnect
+    }
+
     private final int maxPendingConnectionListeners;
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -81,11 +86,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
     private final AtomicBoolean initialConnectionAttempted = new AtomicBoolean(false);
-
-    static final String INITIAL_CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME = "es.projects.linked.connections.initial.error.total";
-    static final String RECONNECTION_ATTEMPT_FAILURES_COUNTER_NAME = "es.projects.linked.connections.reconnect.error.total";
-    private static LongCounter initialConnectionAttemptFailures;
-    private static LongCounter reconnectAttemptFailures;
+    private final LongCounter connectionAttemptFailures;
 
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
@@ -100,25 +101,13 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         this.transportService = transportService;
         this.connectionManager = connectionManager;
         this.maxPendingConnectionListeners = config.maxPendingConnectionListeners();
-        registerMetrics(transportService.getTelemetryProvider());
+        this.connectionAttemptFailures = lookupConnectionFailureMetric(transportService.getTelemetryProvider());
         connectionManager.addListener(this);
     }
 
-    private static synchronized void registerMetrics(TelemetryProvider telemetryProvider) {
+    private LongCounter lookupConnectionFailureMetric(TelemetryProvider telemetryProvider) {
         final var meterRegistry = telemetryProvider == null ? null : telemetryProvider.getMeterRegistry();
-        if (initialConnectionAttemptFailures != null || meterRegistry == null) {
-            return;
-        }
-        initialConnectionAttemptFailures = meterRegistry.registerLongCounter(
-            INITIAL_CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME,
-            "linked project initial connection attempt failure count",
-            "count"
-        );
-        reconnectAttemptFailures = meterRegistry.registerLongCounter(
-            RECONNECTION_ATTEMPT_FAILURES_COUNTER_NAME,
-            "linked project reconnection attempt failure count",
-            "count"
-        );
+        return meterRegistry == null ? null : meterRegistry.getLongCounter(RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME);
     }
 
     static ConnectionProfile buildConnectionProfile(LinkedProjectConfig config, String transportProfile) {
@@ -247,8 +236,21 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             logger.debug(msgSupplier);
         } else {
             logger.warn(msgSupplier, e);
-            final var counter = isInitialAttempt ? initialConnectionAttemptFailures : reconnectAttemptFailures;
-            counter.incrementBy(1, Map.of("linked_project_id", linkedProjectId.toString(), "linked_project_alias", clusterAlias));
+            if (connectionAttemptFailures != null) {
+                connectionAttemptFailures.incrementBy(
+                    1,
+                    Map.of(
+                        "linked_project_id",
+                        linkedProjectId.toString(),
+                        "linked_project_alias",
+                        clusterAlias,
+                        "attempt",
+                        isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect,
+                        "strategy",
+                        strategyType()
+                    )
+                );
+            }
         }
     }
 

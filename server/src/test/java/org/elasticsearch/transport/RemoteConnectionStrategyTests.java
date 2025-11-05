@@ -262,17 +262,25 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                     );
                     if (shouldConnectFail) {
                         metricRecorder.collect();
-                        final var counterName = isInitialConnectAttempt
-                            ? RemoteConnectionStrategy.INITIAL_CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME
-                            : RemoteConnectionStrategy.RECONNECTION_ATTEMPT_FAILURES_COUNTER_NAME;
+                        final var counterName = RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME;
                         final var measurements = metricRecorder.getMeasurements(InstrumentType.LONG_COUNTER, counterName);
-                        assertThat(measurements, hasSize(1));
-                        final var measurement = measurements.getFirst();
+                        assertFalse(measurements.isEmpty());
+                        final var measurement = measurements.getLast();
                         assertThat(measurement.getLong(), equalTo(1L));
                         final var attributes = measurement.attributes();
-                        assertThat(attributes.keySet(), equalTo(Set.of("linked_project_id", "linked_project_alias")));
+                        final var keySet = Set.of("linked_project_id", "linked_project_alias", "attempt", "strategy");
+                        assertThat(attributes.keySet(), equalTo(keySet));
                         assertThat(attributes.get("linked_project_id"), equalTo(linkedProjectId.toString()));
                         assertThat(attributes.get("linked_project_alias"), equalTo(alias));
+                        assertThat(
+                            attributes.get("attempt"),
+                            equalTo(
+                                isInitialConnectAttempt
+                                    ? RemoteConnectionStrategy.ConnectionAttempt.initial
+                                    : RemoteConnectionStrategy.ConnectionAttempt.reconnect
+                            )
+                        );
+                        assertThat(attributes.get("strategy"), equalTo(strategy.strategyType()));
                     }
                 }
             }

@@ -479,7 +479,7 @@ public class DesiredBalanceReconciler {
             // Iterate over all started shards and check if they can remain. In the presence of throttling shard movements,
             // the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the shards.
             for (final var iterator = OrderedShardsIterator.createForNecessaryMoves(allocation, moveOrdering); iterator.hasNext();) {
-                var shardRouting = iterator.next();
+                final var shardRouting = iterator.next();
 
                 if (shardRouting.started() == false) {
                     // can only move started shards
@@ -554,7 +554,7 @@ public class DesiredBalanceReconciler {
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
             // shards.
             for (final var iterator = OrderedShardsIterator.createForBalancing(allocation, moveOrdering); iterator.hasNext();) {
-                var shardRouting = iterator.next();
+                final var shardRouting = iterator.next();
 
                 totalAllocations++;
                 totalAllocationsByRole.addTo(shardRouting.role(), 1);

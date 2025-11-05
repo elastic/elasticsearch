@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -23,6 +24,8 @@ import java.io.IOException;
 import java.util.Map;
 
 public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
+
+    public static final FeatureFlag ES93_VECTOR_FORMATS = new FeatureFlag("es93_vector_formats");
 
     static final String NAME = "ES93GenericFlatVectorsFormat";
     static final String VECTOR_FORMAT_INFO_EXTENSION = "vfi";

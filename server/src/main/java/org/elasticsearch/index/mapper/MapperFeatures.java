@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
@@ -63,7 +65,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
+        var features = Set.of(
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
             IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
@@ -102,8 +104,12 @@ public class MapperFeatures implements FeatureSpecification {
             PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
             EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
-            BASE64_DENSE_VECTORS,
-            HNSW_BFLOAT16_ON_DISK_RESCORING
+            BASE64_DENSE_VECTORS
         );
+        if (ES93GenericFlatVectorsFormat.ES93_VECTOR_FORMATS.isEnabled()) {
+            features = new HashSet<>(features);
+            features.add(HNSW_BFLOAT16_ON_DISK_RESCORING);
+        }
+        return features;
     }
 }

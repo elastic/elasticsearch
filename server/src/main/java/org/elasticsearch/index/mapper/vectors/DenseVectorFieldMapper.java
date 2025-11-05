@@ -54,7 +54,10 @@ import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsForm
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -238,7 +241,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private final Parameter<ElementType> elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT, (n, c, o) -> {
             ElementType elementType = namesToElementType.get((String) o);
-            if (elementType == null) {
+            if (elementType == null
+                || (elementType == ElementType.BFLOAT16 && ES93GenericFlatVectorsFormat.ES93_VECTOR_FORMATS.isEnabled() == false)) {
                 throw new MapperParsingException("invalid element_type [" + o + "]; available types are " + namesToElementType.keySet());
             }
             return elementType;
@@ -2145,7 +2149,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            return new ES93HnswVectorsFormat(m, efConstruction, elementType);
+            if (ES93GenericFlatVectorsFormat.ES93_VECTOR_FORMATS.isEnabled()) {
+                return new ES93HnswVectorsFormat(m, efConstruction, elementType);
+            } else {
+                if (elementType == ElementType.BIT) {
+                    return new ES815HnswBitVectorsFormat(m, efConstruction);
+                }
+                return new Lucene99HnswVectorsFormat(m, efConstruction, 1, null);
+            }
         }
 
         @Override
@@ -2220,7 +2231,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
-            return new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, elementType, onDiskRescore);
+            return ES93GenericFlatVectorsFormat.ES93_VECTOR_FORMATS.isEnabled()
+                ? new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, elementType, onDiskRescore)
+                : new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction);
         }
 
         @Override
@@ -2286,7 +2299,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
-            return new ES93BinaryQuantizedVectorsFormat(elementType, false);
+            return ES93GenericFlatVectorsFormat.ES93_VECTOR_FORMATS.isEnabled()
+                ? new ES93BinaryQuantizedVectorsFormat(elementType, false)
+                : new ES818BinaryQuantizedVectorsFormat();
         }
 
         @Override

@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
-import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Reliable;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -744,13 +743,19 @@ public class Approximate {
                     default -> throw new IllegalStateException("unexpected data type [" + output.dataType() + "]");
                 };
                 confidenceIntervalsAndReliable.add(
-                    new Alias(Source.EMPTY, "CONFIDENCE_INTERVAL(" + output.name() + ")", confidenceInterval)
+                    new Alias(Source.EMPTY, "CONFIDENCE_INTERVAL(" + output.name() + ")",
+                        new MvSlice(Source.EMPTY, confidenceInterval, Literal.integer(Source.EMPTY, 0), Literal.integer(Source.EMPTY, 1))
+                    )
                 );
                 confidenceIntervalsAndReliable.add(
                     new Alias(
                         Source.EMPTY,
                         "RELIABLE(" + output.name() + ")",
-                        new Reliable(Source.EMPTY, bucketsMv, trialCount, bucketCount)
+                        new GreaterThanOrEqual(
+                            Source.EMPTY,
+                            new MvSlice(Source.EMPTY, confidenceInterval, Literal.integer(Source.EMPTY, 2), Literal.integer(Source.EMPTY, 2)),
+                            Literal.fromDouble(Source.EMPTY, 0.5)
+                        )
                     )
                 );
             }

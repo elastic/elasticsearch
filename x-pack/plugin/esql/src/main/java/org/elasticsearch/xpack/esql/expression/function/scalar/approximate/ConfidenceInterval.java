@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.approximate;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.stat.descriptive.moment.Kurtosis;
 import org.apache.commons.math3.stat.descriptive.moment.Mean;
 import org.apache.commons.math3.stat.descriptive.moment.Skewness;
 import org.apache.commons.math3.stat.descriptive.moment.StandardDeviation;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -193,15 +195,15 @@ public class ConfidenceInterval extends EsqlScalarFunction {
             return;
         }
         double bestEstimate = bestEstimateBlock.getDouble(bestEstimateBlock.getFirstValueIndex(position));
+        int trialCount = trialCountBlock.getInt(trialCountBlock.getFirstValueIndex(position));
+        int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
+        if (estimatesBlock.getValueCount(position) != trialCount * bucketCount) {
+            builder.appendNull();
+            return;
+        }
         double[] estimates = new double[estimatesBlock.getValueCount(position)];
         for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
             estimates[i] = estimatesBlock.getDouble(estimatesBlock.getFirstValueIndex(position) + i);
-        }
-        int trialCount = trialCountBlock.getInt(trialCountBlock.getFirstValueIndex(position));
-        int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
-        if (estimates.length != trialCount * bucketCount) {
-            builder.appendNull();
-            return;
         }
         double confidenceLevel = confidenceLevelBlock.getDouble(confidenceLevelBlock.getFirstValueIndex(position));
         double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel);
@@ -237,12 +239,16 @@ public class ConfidenceInterval extends EsqlScalarFunction {
                     meanZeroNaN.increment(0.0);
                 }
             }
-            if (meanIgnoreNaN.getN() >= 3) {
-                meansIgnoreNaN.increment(meanIgnoreNaN.getResult());
+            double value;
+            if (Double.isNaN(value = meanIgnoreNaN.getResult()) == false) {
+                meansIgnoreNaN.increment(value);
             }
-            if (meanZeroNaN.getN() >= 3) {
-                meansZeroNaN.increment(meanZeroNaN.getResult());
+            if (Double.isNaN(value = meanZeroNaN.getResult()) == false) {
+                meansZeroNaN.increment(value);
             }
+        }
+        if (Double.isNaN(meansIgnoreNaN.getResult()) || Double.isNaN(meansZeroNaN.getResult())) {
+            return null;
         }
 
         double meanIgnoreNan = meansIgnoreNaN.getResult();
@@ -253,42 +259,73 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
         Mean stddevs = new Mean();
         Mean skews = new Mean();
+        Mean kurtoses = new Mean();
+        int reliableCount = 0;
         for (int trial = 0; trial < trialCount; trial++) {
-            StandardDeviation stdDev = new StandardDeviation(false);
+            StandardDeviation stddev = new StandardDeviation(false);
             Skewness skew = new Skewness();
+            Kurtosis kurtosis = new Kurtosis();
+            boolean hasNans = false;
             for (int bucket = 0; bucket < bucketCount; bucket++) {
                 double estimate = estimates[trial * bucketCount + bucket];
                 if (Double.isNaN(estimate)) {
+                    hasNans = true;
                     if (ignoreNaNs) {
                         continue;
                     } else {
                         estimate = 0.0;
                     }
                 }
-                stdDev.increment(estimate);
+                stddev.increment(estimate);
                 skew.increment(estimate);
+                kurtosis.increment(estimate);
             }
-            if (skew.getN() >= 3) {
-                stddevs.increment(stdDev.getResult());
-                skews.increment(skew.getResult());
+            double stddevResult = stddev.getResult();
+            if (Double.isNaN(stddevResult) == false) {
+                stddevs.increment(stddevResult);
+            }
+            double skewResult = skew.getResult();
+            if (Double.isNaN(skewResult) == false) {
+                skews.increment(skewResult);
+            }
+            double kurtosisResult = kurtosis.getResult();
+            if (Double.isNaN(kurtosisResult) == false) {
+                kurtoses.increment(kurtosisResult);
+            }
+            if (hasNans == false && computeReliable(skewResult, kurtosisResult, bucketCount)) {
+                reliableCount++;
             }
         }
 
         double sm = stddevs.getResult();
+        double skew = skews.getResult();
+        if (Double.isNaN(sm) || Double.isNaN(skew)) {
+            return null;
+        }
         if (sm == 0.0) {
-            return new double[] { bestEstimate, bestEstimate };
+            return new double[] { bestEstimate, bestEstimate, 1.0 };
         }
 
         // Scale the acceleration to account for the dependence of skewness on sample size.
         double scale = 1 / Math.sqrt(bucketCount);
-        double a = scale * skews.getResult() / 6.0;
+        double a = scale * skew / 6.0;
         double z0 = (bestEstimate - mm) / sm;
         double dz = normal.inverseCumulativeProbability((1.0 + confidenceLevel) / 2.0);
         double zl = z0 + (z0 - dz) / (1.0 - Math.min(a * (z0 - dz), 0.9));
         double zu = z0 + (z0 + dz) / (1.0 - Math.min(a * (z0 + dz), 0.9));
         double lower = mm + scale * sm * zl;
         double upper = mm + scale * sm * zu;
-        return lower <= bestEstimate && bestEstimate <= upper ? new double[] { lower, upper } : null;
+
+        return lower <= bestEstimate && bestEstimate <= upper ? new double[] { lower, upper, (double) reliableCount / trialCount } : null;
+    }
+
+    static boolean computeReliable(double skew, double kurtosis, int B) {
+        if (Double.isNaN(skew) || Double.isNaN(kurtosis) || B < 4) {
+            return false;
+        }
+        double maxSkew = Math.sqrt(6.0 * B * (B - 1) / ((B - 2) * (B + 1) * (B + 3))) * 1.96;
+        double maxKurtosis = Math.sqrt(24.0 * B * (B - 1) * (B - 1) / ((B - 3) * (B - 2) * (B + 3) * (B + 5))) * 1.96;
+        return Math.abs(skew) < maxSkew && Math.abs(kurtosis) < maxKurtosis;
     }
 
     @Override

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -142,7 +142,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
     ) {
         IndexMetadata indexMetadata = projectResolver.getProjectMetadata(clusterService.state()).indices().get(index);
         if (indexMetadata == null) {
-            throw new ResourceNotFoundException("Index [" + index + "] does not exist");
+            throw new IndexNotFoundException(index);
         }
 
         Map<String, InferenceFieldMetadata> inferenceFieldsMap = indexMetadata.getInferenceFields();

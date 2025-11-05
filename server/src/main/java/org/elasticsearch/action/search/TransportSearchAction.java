@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -512,43 +513,58 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             } else {
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
-                    final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
-                        && rewritten.source().aggregations() != null
-                            ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
-                            : null;
-                    SearchResponse.Clusters clusters = new SearchResponse.Clusters(
-                        resolvedIndices.getLocalIndices(),
-                        resolvedIndices.getRemoteClusterIndices(),
-                        true,
-                        (clusterAlias) -> remoteClusterService.shouldSkipOnFailure(clusterAlias, rewritten.allowPartialSearchResults())
-                    );
-                    if (resolvedIndices.getLocalIndices() == null) {
-                        // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local shards)
-                        task.getProgressListener()
-                            .notifyListShards(Collections.emptyList(), Collections.emptyList(), clusters, false, timeProvider);
-                    }
-                    ccsRemoteReduce(
-                        task,
-                        parentTaskId,
-                        rewritten,
+                    collectResolvedIndices(
+                        resolvesCrossProject,
+                        original,
                         resolvedIndices,
-                        clusters,
-                        timeProvider,
-                        aggregationReduceContextBuilder,
-                        remoteClusterService,
-                        threadPool,
-                        searchResponseActionListener,
-                        (r, l) -> executeLocalSearch(
-                            task,
-                            timeProvider,
-                            r,
-                            resolvedIndices,
-                            projectState,
-                            clusters,
-                            searchPhaseProvider.apply(l)
-                        ),
-                        transportService,
-                        forceConnectTimeoutSecs
+                        resolutionIdxOpts,
+                        projectState.metadata(),
+                        indexNameExpressionResolver,
+                        timeProvider.absoluteStartMillis(),
+                        searchResponseActionListener.delegateFailureAndWrap((searchListener, replacedIndices) -> {
+                            final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
+                                && rewritten.source().aggregations() != null
+                                    ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
+                                    : null;
+                            SearchResponse.Clusters clusters = new SearchResponse.Clusters(
+                                replacedIndices.getLocalIndices(),
+                                replacedIndices.getRemoteClusterIndices(),
+                                true,
+                                (clusterAlias) -> remoteClusterService.shouldSkipOnFailure(
+                                    clusterAlias,
+                                    rewritten.allowPartialSearchResults()
+                                )
+                            );
+                            if (replacedIndices.getLocalIndices() == null) {
+                                // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local
+                                // shards)
+                                task.getProgressListener()
+                                    .notifyListShards(Collections.emptyList(), Collections.emptyList(), clusters, false, timeProvider);
+                            }
+                            ccsRemoteReduce(
+                                task,
+                                parentTaskId,
+                                rewritten,
+                                replacedIndices,
+                                clusters,
+                                timeProvider,
+                                aggregationReduceContextBuilder,
+                                remoteClusterService,
+                                threadPool,
+                                searchListener,
+                                (r, l) -> executeLocalSearch(
+                                    task,
+                                    timeProvider,
+                                    r,
+                                    replacedIndices,
+                                    projectState,
+                                    clusters,
+                                    searchPhaseProvider.apply(l)
+                                ),
+                                transportService,
+                                forceConnectTimeoutSecs
+                            );
+                        })
                     );
                 } else {
                     final SearchContextId searchContext = resolvedIndices.getSearchContextId();
@@ -1045,6 +1061,44 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         return new SearchResponse.Clusters(reconciledMap, false);
+    }
+
+    void collectResolvedIndices(
+        boolean resolvesCrossProject,
+        SearchRequest original,
+        ResolvedIndices originalResolvedIndices,
+        IndicesOptions resolutionIdxOpts,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        long startTimeInMillis,
+        ActionListener<ResolvedIndices> listener
+    ) {
+        if (resolvesCrossProject) {
+            final ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(
+                original.indices(),
+                original.indicesOptions(),
+                null,
+                original.getProjectRouting()
+            );
+
+            client.execute(
+                ResolveIndexAction.INSTANCE,
+                resolveIndexRequest,
+                listener.delegateFailureAndWrap(
+                    (l, r) -> l.onResponse(
+                        ResolvedIndices.resolveFromResponse(
+                            r,
+                            resolutionIdxOpts,
+                            projectMetadata,
+                            indexNameExpressionResolver,
+                            startTimeInMillis
+                        )
+                    )
+                )
+            );
+        } else {
+            listener.onResponse(originalResolvedIndices);
+        }
     }
 
     /**

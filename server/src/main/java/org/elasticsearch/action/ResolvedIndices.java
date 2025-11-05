@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -23,11 +24,14 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Container for information about results of the resolution of index expression.
@@ -250,6 +254,46 @@ public class ResolvedIndices {
             localIndices,
             resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, false),
             searchContextId
+        );
+    }
+
+    public static ResolvedIndices resolveFromResponse(
+        ResolveIndexAction.Response resolveIndexAction,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        long startTimeInMillis
+    ) {
+        var remoteClusterIndices = Stream.of(
+            resolveIndexAction.getIndices(),
+            resolveIndexAction.getDataStreams(),
+            resolveIndexAction.getAliases()
+        )
+            .flatMap(Collection::stream)
+            .map(ResolveIndexAction.ResolvedIndexAbstraction::getName)
+            .map(RemoteClusterAware::splitIndexName)
+            .collect(
+                Collectors.groupingBy(
+                    clusterAndIndex -> clusterAndIndex[0] != null ? clusterAndIndex[0] : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    Collectors.mapping(clusterAndIndex -> clusterAndIndex[1], Collectors.toList())
+                )
+            )
+            .entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(Map.Entry::getKey, entry -> new OriginalIndices(entry.getValue().toArray(new String[0]), indicesOptions))
+            );
+
+        var localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
+        var concreteLocalIndices = localIndices == null
+            ? Index.EMPTY_ARRAY
+            : indexNameExpressionResolver.concreteIndices(projectMetadata, localIndices, startTimeInMillis);
+
+        return new ResolvedIndices(
+            remoteClusterIndices,
+            localIndices,
+            resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, true)
         );
     }
 

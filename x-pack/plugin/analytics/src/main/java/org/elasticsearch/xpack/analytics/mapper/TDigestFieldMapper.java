@@ -111,7 +111,7 @@ public class TDigestFieldMapper extends FieldMapper {
         public TDigestFieldMapper build(MapperBuilderContext context) {
             return new TDigestFieldMapper(
                 leafName(),
-                new HistogramFieldType(context.buildFullName(leafName()), meta.getValue()),
+                new TDigestFieldType(context.buildFullName(leafName()), meta.getValue()),
                 builderParams(this, context),
                 this
             );
@@ -164,9 +164,9 @@ public class TDigestFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
-    public static class HistogramFieldType extends MappedFieldType {
+    public static class TDigestFieldType extends MappedFieldType {
 
-        public HistogramFieldType(String name, Map<String, String> meta) {
+        public TDigestFieldType(String name, Map<String, String> meta) {
             super(name, IndexType.docValuesOnly(), false, meta);
         }
 

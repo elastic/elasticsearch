@@ -245,9 +245,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                         "linked_project_alias",
                         clusterAlias,
                         "attempt",
-                        isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect,
+                        (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString(),
                         "strategy",
-                        strategyType()
+                        strategyType().toString()
                     )
                 );
             }

@@ -130,7 +130,8 @@ public class KnnIndexTester {
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 args.ivfClusterSize(),
-                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                args.onDiskRescore()
             );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
             if (quantizeBits == 32) {

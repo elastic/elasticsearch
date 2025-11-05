@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
@@ -151,64 +152,32 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     }
 
     private void explicitInferenceFieldsTestCase(String query) {
-        var allIndicesAllFieldsRequest = new GetInferenceFieldsAction.Request(ALL_INDICES, ALL_FIELDS, false, false, query);
-        var allIndicesAllFieldsResponse = executeRequest(allIndicesAllFieldsRequest);
-        assertInferenceFieldsMap(
-            allIndicesAllFieldsResponse.getInferenceFieldsMap(),
-            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS)
+        assertRequest(
+            new GetInferenceFieldsAction.Request(ALL_INDICES, ALL_FIELDS, false, false, query),
+            Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
+            query == null || query.isBlank() ? Map.of() : ALL_EXPECTED_INFERENCE_RESULTS
         );
-        if (query == null || query.isBlank()) {
-            assertThat(allIndicesAllFieldsResponse.getInferenceResultsMap().isEmpty(), is(true));
-        } else {
-            assertInferenceResultsMap(allIndicesAllFieldsResponse.getInferenceResultsMap(), ALL_EXPECTED_INFERENCE_RESULTS);
-        }
 
-        var allIndicesSingleFieldRequest = new GetInferenceFieldsAction.Request(
-            ALL_INDICES,
-            Set.of(INFERENCE_FIELD_3),
-            false,
-            false,
-            query
+        Map<String, Class<? extends InferenceResults>> expectedInferenceResultsSparseOnly = filterExpectedInferenceResults(
+            ALL_EXPECTED_INFERENCE_RESULTS,
+            Set.of(SPARSE_EMBEDDING_INFERENCE_ID)
         );
-        var allIndicesSingleFieldResponse = executeRequest(allIndicesSingleFieldRequest);
-        assertInferenceFieldsMap(
-            allIndicesSingleFieldResponse.getInferenceFieldsMap(),
+        assertRequest(
+            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(INFERENCE_FIELD_3), false, false, query),
             Map.of(
                 INDEX_1,
-                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)),
+                filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3)),
                 INDEX_2,
-                Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID))
-            )
+                filterExpectedInferenceFieldSet(INDEX_2_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3))
+            ),
+            query == null || query.isBlank() ? Map.of() : expectedInferenceResultsSparseOnly
         );
-        if (query == null || query.isBlank()) {
-            assertThat(allIndicesSingleFieldResponse.getInferenceResultsMap().isEmpty(), is(true));
-        } else {
-            assertInferenceResultsMap(
-                allIndicesSingleFieldResponse.getInferenceResultsMap(),
-                Map.of(SPARSE_EMBEDDING_INFERENCE_ID, TextExpansionResults.class)
-            );
-        }
 
-        var singleIndexSingleFieldRequest = new GetInferenceFieldsAction.Request(
-            Set.of(INDEX_1),
-            Set.of(INFERENCE_FIELD_3),
-            false,
-            false,
-            query
+        assertRequest(
+            new GetInferenceFieldsAction.Request(Set.of(INDEX_1), Set.of(INFERENCE_FIELD_3), false, false, query),
+            Map.of(INDEX_1, filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3))),
+            query == null || query.isBlank() ? Map.of() : expectedInferenceResultsSparseOnly
         );
-        var singleIndexSingleFieldResponse = executeRequest(singleIndexSingleFieldRequest);
-        assertInferenceFieldsMap(
-            singleIndexSingleFieldResponse.getInferenceFieldsMap(),
-            Map.of(INDEX_1, Set.of(new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)))
-        );
-        if (query == null || query.isBlank()) {
-            assertThat(singleIndexSingleFieldResponse.getInferenceResultsMap().isEmpty(), is(true));
-        } else {
-            assertInferenceResultsMap(
-                singleIndexSingleFieldResponse.getInferenceResultsMap(),
-                Map.of(SPARSE_EMBEDDING_INFERENCE_ID, TextExpansionResults.class)
-            );
-        }
     }
 
     private void createInferenceEndpoints() throws IOException {
@@ -261,6 +230,16 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         return client().execute(GetInferenceFieldsAction.INSTANCE, request).actionGet(TEST_REQUEST_TIMEOUT);
     }
 
+    private static void assertRequest(
+        GetInferenceFieldsAction.Request request,
+        Map<String, Set<InferenceFieldAndId>> expectedInferenceFields,
+        Map<String, Class<? extends InferenceResults>> expectedInferenceResults
+    ) {
+        var response = executeRequest(request);
+        assertInferenceFieldsMap(response.getInferenceFieldsMap(), expectedInferenceFields);
+        assertInferenceResultsMap(response.getInferenceResultsMap(), expectedInferenceResults);
+    }
+
     private static void assertInferenceFieldsMap(
         Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap,
         Map<String, Set<InferenceFieldAndId>> expectedInferenceFields
@@ -277,7 +256,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             for (InferenceFieldMetadata indexInferenceField : indexInferenceFields) {
                 InferenceFieldAndId inferenceFieldAndId = new InferenceFieldAndId(
                     indexInferenceField.getName(),
-                    indexInferenceField.getInferenceId()
+                    indexInferenceField.getSearchInferenceId()
                 );
                 assertThat(remainingExpectedIndexInferenceFields.remove(inferenceFieldAndId), is(true));
             }
@@ -298,6 +277,23 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             assertThat(expectedInferenceResultsClass, notNullValue());
             assertThat(inferenceResults, instanceOf(expectedInferenceResultsClass));
         }
+    }
+
+    private static Set<InferenceFieldAndId> filterExpectedInferenceFieldSet(
+        Set<InferenceFieldAndId> inferenceFieldSet,
+        Set<String> fieldNames
+    ) {
+        return inferenceFieldSet.stream().filter(i -> fieldNames.contains(i.field())).collect(Collectors.toSet());
+    }
+
+    private static Map<String, Class<? extends InferenceResults>> filterExpectedInferenceResults(
+        Map<String, Class<? extends InferenceResults>> expectedInferenceResults,
+        Set<String> inferenceIds
+    ) {
+        return expectedInferenceResults.entrySet()
+            .stream()
+            .filter(e -> inferenceIds.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private record InferenceFieldAndId(String field, String inferenceId) {}

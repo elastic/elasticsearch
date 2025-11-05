@@ -138,7 +138,7 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
         }
 
         OpenShiftAiChatCompletionModel chatCompletionModel = (OpenShiftAiChatCompletionModel) model;
-        var overriddenModel = OpenShiftAiChatCompletionModel.of(chatCompletionModel, inputs.getRequest());
+        var overriddenModel = OpenShiftAiChatCompletionModel.of(chatCompletionModel, inputs.getRequest().model());
         var manager = new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             overriddenModel,

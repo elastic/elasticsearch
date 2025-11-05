@@ -12,7 +12,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiModel;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.openshiftai.action.OpenShiftAi
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Represents an OpenShift AI chat completion model.
@@ -79,18 +79,18 @@ public class OpenShiftAiChatCompletionModel extends OpenShiftAiModel {
      * If the request does not specify a model ID, the original model is returned.
      *
      * @param model the original OpenShiftAiChatCompletionModel
-     * @param request the UnifiedCompletionRequest containing potential overrides
+     * @param modelId the model ID specified in the request, which may override the original model's ID
      * @return a new OpenShiftAiChatCompletionModel with overridden settings or the original model ID if no overrides are specified
      */
-    public static OpenShiftAiChatCompletionModel of(OpenShiftAiChatCompletionModel model, UnifiedCompletionRequest request) {
-        if (request.model() == null) {
-            // If no model ID is specified in the request, return the original model
+    public static OpenShiftAiChatCompletionModel of(OpenShiftAiChatCompletionModel model, String modelId) {
+        if (modelId == null || Objects.equals(model.getServiceSettings().modelId(), modelId)) {
+            // If no model ID is specified in the request, or if it matches the original model's ID, return the original model.
             return model;
         }
 
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new OpenShiftAiChatCompletionServiceSettings(
-            request.model(),
+            modelId,
             originalModelServiceSettings.uri(),
             originalModelServiceSettings.rateLimitSettings()
         );

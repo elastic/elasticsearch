@@ -8,11 +8,11 @@ if [[ -f /etc/profile.d/elastic-nvidia.sh ]]; then
 
   export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
   source /etc/profile.d/elastic-nvidia.sh
-fi
 
-# Not running this before the tests results in an error when running the tests
-# No idea why...
-nvidia-smi
+  # Not running this before the tests results in an error when running the tests
+  # No idea why...
+  nvidia-smi
+fi
 
 LIBCUVS_GCS_BUCKET="elasticsearch-cuvs-snapshots"
 
@@ -33,4 +33,4 @@ if [[ ! -d "$LIBCUVS_VERSION_DIR" ]]; then
   cd -
 fi
 
-export LD_LIBRARY_PATH="$LIBCUVS_VERSION_DIR:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$LIBCUVS_VERSION_DIR:${LD_LIBRARY_PATH:-}"

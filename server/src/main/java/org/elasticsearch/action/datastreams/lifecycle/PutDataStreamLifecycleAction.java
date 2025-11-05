@@ -11,6 +11,7 @@ package org.elasticsearch.action.datastreams.lifecycle;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -33,6 +34,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_RETENTION_FIELD;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DOWNSAMPLING_FIELD;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DOWNSAMPLING_METHOD_FIELD;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.ENABLED_FIELD;
 
 /**
@@ -50,7 +52,8 @@ public class PutDataStreamLifecycleAction {
             Request create(
                 @Nullable TimeValue dataRetention,
                 @Nullable Boolean enabled,
-                @Nullable List<DataStreamLifecycle.DownsamplingRound> downsampling
+                @Nullable List<DataStreamLifecycle.DownsamplingRound> downsampling,
+                @Nullable DownsampleConfig.SamplingMethod downsamplingMethod
             );
         }
 
@@ -58,7 +61,12 @@ public class PutDataStreamLifecycleAction {
         public static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
             false,
-            (args, factory) -> factory.create((TimeValue) args[0], (Boolean) args[1], (List<DataStreamLifecycle.DownsamplingRound>) args[2])
+            (args, factory) -> factory.create(
+                (TimeValue) args[0],
+                (Boolean) args[1],
+                (List<DataStreamLifecycle.DownsamplingRound>) args[2],
+                (DownsampleConfig.SamplingMethod) args[3]
+            )
         );
 
         static {
@@ -74,6 +82,12 @@ public class PutDataStreamLifecycleAction {
                 (p, c) -> AbstractObjectParser.parseArray(p, null, DataStreamLifecycle.DownsamplingRound::fromXContent),
                 DOWNSAMPLING_FIELD,
                 ObjectParser.ValueType.OBJECT_ARRAY
+            );
+            PARSER.declareField(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> DownsampleConfig.SamplingMethod.fromString(p.text()),
+                DOWNSAMPLING_METHOD_FIELD,
+                ObjectParser.ValueType.STRING
             );
         }
 
@@ -120,7 +134,7 @@ public class PutDataStreamLifecycleAction {
         }
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names, @Nullable TimeValue dataRetention) {
-            this(masterNodeTimeout, ackTimeout, names, dataRetention, null, null);
+            this(masterNodeTimeout, ackTimeout, names, dataRetention, null);
         }
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names, DataStreamLifecycle lifecycle) {
@@ -136,7 +150,7 @@ public class PutDataStreamLifecycleAction {
             @Nullable TimeValue dataRetention,
             @Nullable Boolean enabled
         ) {
-            this(masterNodeTimeout, ackTimeout, names, dataRetention, enabled, null);
+            this(masterNodeTimeout, ackTimeout, names, dataRetention, enabled, null, null);
         }
 
         public Request(
@@ -145,14 +159,16 @@ public class PutDataStreamLifecycleAction {
             String[] names,
             @Nullable TimeValue dataRetention,
             @Nullable Boolean enabled,
-            @Nullable List<DataStreamLifecycle.DownsamplingRound> downsampling
+            @Nullable List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
+            @Nullable DownsampleConfig.SamplingMethod downsamplingMethod
         ) {
             super(masterNodeTimeout, ackTimeout);
             this.names = names;
             this.lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(dataRetention)
                 .enabled(enabled == null || enabled)
-                .downsampling(downsampling)
+                .downsamplingRounds(downsamplingRounds)
+                .downsamplingMethod(downsamplingMethod)
                 .build();
         }
 

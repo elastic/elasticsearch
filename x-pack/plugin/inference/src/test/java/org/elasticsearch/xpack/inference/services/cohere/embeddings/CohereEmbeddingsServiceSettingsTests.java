@@ -412,7 +412,19 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected CohereEmbeddingsServiceSettings mutateInstance(CohereEmbeddingsServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CohereEmbeddingsServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            CohereServiceSettings commonSettings = randomValueOtherThan(
+                instance.getCommonSettings(),
+                CohereServiceSettingsTests::createRandom
+            );
+            return new CohereEmbeddingsServiceSettings(commonSettings, instance.getEmbeddingType());
+        } else {
+            CohereEmbeddingType embeddingType = randomValueOtherThan(
+                instance.getEmbeddingType(),
+                () -> randomFrom(CohereEmbeddingType.values())
+            );
+            return new CohereEmbeddingsServiceSettings(instance.getCommonSettings(), embeddingType);
+        }
     }
 
     @Override

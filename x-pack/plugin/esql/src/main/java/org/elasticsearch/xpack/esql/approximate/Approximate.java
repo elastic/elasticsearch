@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -347,8 +348,7 @@ public class Approximate {
         return new ActionListener<>() {
             @Override
             public void onResponse(Result result) {
-                assert result.executionInfo() != null;
-                boolean esStatsQueryExecuted = result.executionInfo().clusterInfo.values()
+                boolean esStatsQueryExecuted = result.executionInfo() != null && result.executionInfo().clusterInfo.values()
                     .stream()
                     .noneMatch(
                         cluster -> cluster.getFailures().stream().anyMatch(e -> e.getCause() instanceof UnsupportedOperationException)
@@ -357,6 +357,7 @@ public class Approximate {
                     logger.debug("not approximating stats query");
                     listener.onResponse(result);
                 } else {
+                    result.pages().forEach(Page::close);
                     runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, sourceCountListener(listener));
                 }
             }
@@ -405,7 +406,7 @@ public class Approximate {
             sourceRowCount = rowCount(countResult);
             logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
             double sampleProbability = sourceRowCount <= SAMPLE_ROW_COUNT ? 1.0 : (double) SAMPLE_ROW_COUNT / sourceRowCount;
-            if (queryProperties.preservesRows || sampleProbability == 1.0) {
+            if (queryProperties.preservesRows) {
                 runner.run(toPhysicalPlan.apply(approximatePlan(sampleProbability)), configuration, foldContext, listener);
             } else {
                 runner.run(
@@ -430,8 +431,10 @@ public class Approximate {
         Holder<Boolean> encounteredStats = new Holder<>(false);
         LogicalPlan countPlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {
-                // The leaf plan should be appended by a SAMPLE.
-                plan = new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
+                if (sampleProbability < 1.0) {
+                    // The leaf plan should be appended by a SAMPLE.
+                    plan = new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
+                }
             } else if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate aggregate) {
                     // The STATS function should be replaced by a STATS COUNT(*).

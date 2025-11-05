@@ -134,6 +134,9 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMIndex;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMStorageService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
@@ -161,6 +164,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
@@ -202,6 +206,12 @@ public class InferencePlugin extends Plugin
         "inference",
         "api",
         License.OperationMode.ENTERPRISE
+    );
+
+    public static final LicensedFeature.Momentary EIS_INFERENCE_FEATURE = LicensedFeature.momentary(
+        "inference",
+        "Elastic Inference Service",
+        License.OperationMode.BASIC
     );
 
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
@@ -398,6 +408,10 @@ public class InferencePlugin extends Plugin
             )
         );
 
+        if (CCMFeatureFlag.FEATURE_FLAG.isEnabled()) {
+            components.add(new CCMStorageService(services.client()));
+        }
+
         return components;
     }
 
@@ -487,6 +501,20 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        List<SystemIndexDescriptor> ccmIndexDescriptor = CCMFeatureFlag.FEATURE_FLAG.isEnabled()
+            ? List.of(
+                SystemIndexDescriptor.builder()
+                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                    .setIndexPattern(CCMIndex.INDEX_PATTERN)
+                    .setPrimaryIndex(CCMIndex.INDEX_NAME)
+                    .setDescription("Contains Elastic Inference Service Cloud Connected Mode settings")
+                    .setMappings(CCMIndex.mappings())
+                    .setSettings(CCMIndex.settings())
+                    .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                    .setNetNew()
+                    .build()
+            )
+            : List.of();
 
         var inferenceIndexV1Descriptor = SystemIndexDescriptor.builder()
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
@@ -499,29 +527,32 @@ public class InferencePlugin extends Plugin
             .setOrigin(ClientHelper.INFERENCE_ORIGIN)
             .build();
 
-        return List.of(
-            SystemIndexDescriptor.builder()
-                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                .setIndexPattern(InferenceIndex.INDEX_PATTERN)
-                .setAliasName(InferenceIndex.INDEX_ALIAS)
-                .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-                .setDescription("Contains inference service and model configuration")
-                .setMappings(InferenceIndex.mappings())
-                .setSettings(getIndexSettings())
-                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
-                .build(),
-            SystemIndexDescriptor.builder()
-                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
-                .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
-                .setDescription("Contains inference service secrets")
-                .setMappings(InferenceSecretsIndex.mappings())
-                .setSettings(getSecretsIndexSettings())
-                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setNetNew()
-                .build()
-        );
+        return Stream.of(
+            List.of(
+                SystemIndexDescriptor.builder()
+                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                    .setIndexPattern(InferenceIndex.INDEX_PATTERN)
+                    .setAliasName(InferenceIndex.INDEX_ALIAS)
+                    .setPrimaryIndex(InferenceIndex.INDEX_NAME)
+                    .setDescription("Contains inference service and model configuration")
+                    .setMappings(InferenceIndex.mappings())
+                    .setSettings(getIndexSettings())
+                    .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                    .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
+                    .build(),
+                SystemIndexDescriptor.builder()
+                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                    .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
+                    .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
+                    .setDescription("Contains inference service secrets")
+                    .setMappings(InferenceSecretsIndex.mappings())
+                    .setSettings(getSecretsIndexSettings())
+                    .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                    .setNetNew()
+                    .build()
+            ),
+            ccmIndexDescriptor
+        ).flatMap(List::stream).toList();
     }
 
     // Overridable for tests

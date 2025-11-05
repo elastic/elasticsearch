@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.esql.common.matchers;
 
 import org.apache.lucene.util.BytesRef;
-import org.hamcrest.BaseMatcher;
+import org.hamcrest.TypeSafeMatcher;
 
 /**
  * Test matcher for ESQL BytesRef that expects BytesRefs, but describes the errors as strings, for better readability.
  */
-public class StringBytesRefMatcher extends BaseMatcher<BytesRef> {
+public class StringBytesRefMatcher extends TypeSafeMatcher<BytesRef> {
     private final String string;
     private final BytesRef bytesRef;
 
@@ -23,18 +23,13 @@ public class StringBytesRefMatcher extends BaseMatcher<BytesRef> {
     }
 
     @Override
-    public boolean matches(Object item) {
-        return item instanceof BytesRef && item.equals(bytesRef);
+    protected boolean matchesSafely(BytesRef item) {
+        return item.equals(bytesRef);
     }
 
     @Override
-    public void describeMismatch(Object item, org.hamcrest.Description description) {
-        description.appendText("was ");
-        if (item instanceof BytesRef br) {
-            description.appendValue(br.utf8ToString());
-        } else {
-            description.appendValue(item);
-        }
+    public void describeMismatchSafely(BytesRef item, org.hamcrest.Description description) {
+        description.appendText("was ").appendValue(item.utf8ToString());
     }
 
     @Override

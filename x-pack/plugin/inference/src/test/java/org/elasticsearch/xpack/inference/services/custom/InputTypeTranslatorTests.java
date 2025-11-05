@@ -29,17 +29,19 @@ import static org.hamcrest.Matchers.is;
 
 public class InputTypeTranslatorTests extends AbstractBWCWireSerializationTestCase<InputTypeTranslator> {
     public static InputTypeTranslator createRandom() {
-        Map<InputType, String> translation = randomBoolean()
-            ? randomMap(
-                0,
-                5,
-                () -> tuple(
-                    randomFrom(List.of(InputType.CLASSIFICATION, InputType.CLUSTERING, InputType.INGEST, InputType.SEARCH)),
-                    randomAlphaOfLength(5)
-                )
-            )
-            : Map.of();
+        Map<InputType, String> translation = getRandomTranslation();
         return new InputTypeTranslator(translation, randomAlphaOfLength(5));
+    }
+
+    private static Map<InputType, String> getRandomTranslation() {
+        return randomMap(
+            0,
+            3,
+            () -> tuple(
+                randomFrom(List.of(InputType.CLASSIFICATION, InputType.CLUSTERING, InputType.INGEST, InputType.SEARCH)),
+                randomAlphaOfLength(5)
+            )
+        );
     }
 
     public void testFromMap() {
@@ -250,7 +252,13 @@ public class InputTypeTranslatorTests extends AbstractBWCWireSerializationTestCa
 
     @Override
     protected InputTypeTranslator mutateInstance(InputTypeTranslator instance) throws IOException {
-        return randomValueOtherThan(instance, InputTypeTranslatorTests::createRandom);
+        if (randomBoolean()) {
+            var translation = randomValueOtherThan(instance.getTranslation(), InputTypeTranslatorTests::getRandomTranslation);
+            return new InputTypeTranslator(translation, instance.getDefaultValue());
+        } else {
+            var defaultValue = randomValueOtherThan(instance.getDefaultValue(), () -> randomAlphaOfLength(5));
+            return new InputTypeTranslator(instance.getTranslation(), defaultValue);
+        }
     }
 
     public static Map<String, Object> getTaskSettingsMap(@Nullable Map<String, Object> parameters) {

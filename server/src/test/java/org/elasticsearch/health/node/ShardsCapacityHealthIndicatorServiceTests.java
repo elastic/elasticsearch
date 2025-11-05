@@ -52,6 +52,8 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.RED_INDICATOR_IMPACTS;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW;
 import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SHARDS_MAX_CAPACITY_REACHED_DATA_NODES;
 import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES;
 import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.YELLOW_INDICATOR_IMPACTS;
@@ -334,6 +336,75 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    public void testUnhealthyThresholdSettings() {
+        {
+            // default values
+            Settings settings = Settings.builder().build();
+            assertEquals(10, SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings).intValue());
+            assertEquals(5, SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings).intValue());
+        }
+        {
+            Integer randomYellowThreshold = randomIntBetween(2, Integer.MAX_VALUE);
+            Integer randomRedThreshold = randomYellowThreshold - 1;
+            Settings settings = Settings.builder()
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)
+                .build();
+            assertEquals(randomYellowThreshold, SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings));
+            assertEquals(randomRedThreshold, SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings));
+        }
+        {
+            // invalid - same values
+            int threshold = randomIntBetween(1, Integer.MAX_VALUE);
+            Settings settings = Settings.builder()
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), threshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), threshold)
+                .build();
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
+            );
+        }
+        {
+            // invalid - yellow threshold is lower than red threshold
+            int randomYellowThreshold = randomIntBetween(1, Integer.MAX_VALUE - 1);
+            int randomRedThreshold = randomYellowThreshold + 1;
+            Settings settings = Settings.builder()
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)
+                .build();
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
+            );
+        }
+        {
+            // invalid - non-positive values
+            int randomYellowThreshold = randomIntBetween(Integer.MIN_VALUE + 1, 0);
+            int randomRedThreshold = randomYellowThreshold - 1;
+            Settings settings = Settings.builder()
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
+                .put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)
+                .build();
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
+            );
+        }
+    }
+
     public void testCalculateMethods() {
         var mockedState = ClusterState.EMPTY_STATE;
         var randomMaxShardsPerNodeSetting = randomInt();
@@ -354,22 +425,49 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 randomFrom(ShardLimitValidator.LimitGroup.values())
             );
         };
-
+        var randomYellowThreshold = randomIntBetween(2, Integer.MAX_VALUE);
+        var randomRedThreshold = randomIntBetween(1, randomYellowThreshold);
         assertEquals(
-            calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checkerWrapper.apply(5)).status(),
-            RED
+            RED,
+            calculateFrom(
+                randomMaxShardsPerNodeSetting,
+                mockedState.nodes(),
+                mockedState.metadata(),
+                checkerWrapper.apply(randomRedThreshold),
+                randomYellowThreshold,
+                randomRedThreshold
+            ).status()
         );
         assertEquals(
-            calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checkerWrapper.apply(10)).status(),
-            YELLOW
+            YELLOW,
+            calculateFrom(
+                randomMaxShardsPerNodeSetting,
+                mockedState.nodes(),
+                mockedState.metadata(),
+                checkerWrapper.apply(randomYellowThreshold),
+                randomYellowThreshold,
+                randomRedThreshold
+            ).status()
         );
 
-        // Let's cover the holes :)
-        Stream.of(randomIntBetween(1, 4), randomIntBetween(6, 9), randomIntBetween(11, Integer.MAX_VALUE))
+        Stream.of(
+            randomIntBetween(0, randomRedThreshold - 1),
+            randomIntBetween(randomRedThreshold + 1, randomYellowThreshold - 1),
+            randomIntBetween(randomYellowThreshold + 1, Integer.MAX_VALUE)
+        )
             .map(checkerWrapper)
-            .map(checker -> calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checker))
+            .map(
+                checker -> calculateFrom(
+                    randomMaxShardsPerNodeSetting,
+                    mockedState.nodes(),
+                    mockedState.metadata(),
+                    checker,
+                    randomYellowThreshold,
+                    randomRedThreshold
+                )
+            )
             .map(ShardsCapacityHealthIndicatorService.StatusResult::status)
-            .forEach(status -> assertEquals(status, GREEN));
+            .forEach(status -> assertEquals(GREEN, status));
     }
 
     // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
@@ -420,7 +518,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             createClusterState(
                 maxShardsPerNode,
                 maxShardsPerNodeFrozen,
-                new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, maxShardsPerNodeFrozen)),
+                new HealthMetadata(DISK_METADATA, new HealthMetadata.ShardLimits(maxShardsPerNode, maxShardsPerNodeFrozen, 10, 5)),
                 indexMetadata
             )
         );

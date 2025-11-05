@@ -435,9 +435,6 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=indices.validate_query/20_query_string/validate_query with query_string parameters}
-  issue: https://github.com/elastic/elasticsearch/issues/137391
 - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
   method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
   issue: https://github.com/elastic/elasticsearch/issues/137457

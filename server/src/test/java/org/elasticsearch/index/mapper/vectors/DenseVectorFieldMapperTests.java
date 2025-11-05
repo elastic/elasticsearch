@@ -59,8 +59,10 @@ import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -149,10 +151,29 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     @Override
-    protected Object getSampleValueForDocument() {
+    protected Object getSampleValueForDocument(boolean binaryFormat) {
+        if (binaryFormat) {
+            final byte[] toEncode;
+            if (elementType == ElementType.FLOAT) {
+                float[] array = randomNormalizedVector(this.dims);
+                final ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * array.length);
+                buffer.asFloatBuffer().put(array);
+                toEncode = buffer.array();
+            } else {
+                toEncode = elementType == ElementType.BIT
+                    ? randomByteArrayOfLength(this.dims / Byte.SIZE)
+                    : randomByteArrayOfLength(this.dims);
+            }
+            return Base64.getEncoder().encodeToString(toEncode);
+        }
         return elementType == ElementType.FLOAT
             ? convertToList(randomNormalizedVector(this.dims))
             : convertToList(randomByteArrayOfLength(elementType == ElementType.BIT ? this.dims / Byte.SIZE : dims));
+    }
+
+    @Override
+    protected Object getSampleValueForDocument() {
+        return getSampleValueForDocument(randomBoolean());
     }
 
     public static List<Float> convertToList(float[] vector) {
@@ -264,18 +285,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         registerConflict(
             checker,
             "element_type",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", "l2_norm"),
-            "element_type",
-            "float",
-            "bit"
+            b -> b.field("type", "dense_vector").field("index", true).field("similarity", "l2_norm"),
+            b -> b.field("dims", dims).field("element_type", "float"),
+            b -> b.field("dims", dims * 8).field("element_type", "bit")
         );
         registerConflict(
             checker,
             "element_type",
-            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", "l2_norm"),
-            "element_type",
-            "byte",
-            "bit"
+            b -> b.field("type", "dense_vector").field("index", true).field("similarity", "l2_norm"),
+            b -> b.field("dims", dims).field("element_type", "float"),
+            b -> b.field("dims", dims * 8).field("element_type", "bit")
         );
 
         // update for flat

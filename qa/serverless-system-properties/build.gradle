@@ -7,18 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.admin.indices.shrink;
+apply plugin: 'elasticsearch.build'
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+dependencies {
+  testImplementation project(':test:framework')
+  testImplementation project(':server')
+}
 
-public class ResizeAction extends ActionType<CreateIndexResponse> {
-
-    public static final ResizeAction INSTANCE = new ResizeAction();
-    public static final String NAME = "indices:admin/resize";
-
-    private ResizeAction() {
-        super(NAME);
-    }
-
+tasks.named("test").configure {
+  systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
+  systemProperty 'es.serverless_transport', 'true'
 }

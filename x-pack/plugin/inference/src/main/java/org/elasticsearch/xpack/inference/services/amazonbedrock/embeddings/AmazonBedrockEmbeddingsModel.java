@@ -82,6 +82,11 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
     }
 
     @Override
+    public ExecutableAction accept(AmazonBedrockActionVisitor creator) {
+        return null;
+    }
+
+    @Override
     public AmazonBedrockEmbeddingsServiceSettings getServiceSettings() {
         return (AmazonBedrockEmbeddingsServiceSettings) super.getServiceSettings();
     }

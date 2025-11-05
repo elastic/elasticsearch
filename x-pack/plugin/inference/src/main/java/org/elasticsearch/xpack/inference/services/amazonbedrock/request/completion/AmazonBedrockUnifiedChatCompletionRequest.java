@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
 import software.amazon.awssdk.core.document.Document;
+import software.amazon.awssdk.core.document.internal.ListDocument;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
@@ -28,9 +29,11 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.response.complet
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Flow;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.getUnifiedConverseMessageList;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
@@ -87,8 +90,7 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
         }
 
         inferenceConfig(requestEntity).ifPresent(converseStreamRequest::inferenceConfig);
-        return new ToolAwareUnifiedPublisher(awsBedrockClient, converseStreamRequest.build());
-        // return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build());
+        return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build());
     }
 
     private Document toDocument(Object value) {
@@ -96,6 +98,14 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
             case null -> Document.fromNull();
             case String stringValue -> Document.fromString(stringValue);
             case Integer numberValue -> Document.fromNumber(numberValue);
+            case List<?> values ->
+                Document.fromList(values.stream()
+                    .map(v -> {
+                        if (v instanceof String) {
+                            return Document.fromString((String) v);
+                        }
+                        return Document.fromNull();
+                    }).collect(Collectors.toList()));
             case Map<?, ?> mapValue -> {
                 final Map<String, Document> converted = new HashMap<>();
                 for (Map.Entry<?, ?> entry : mapValue.entrySet()) {

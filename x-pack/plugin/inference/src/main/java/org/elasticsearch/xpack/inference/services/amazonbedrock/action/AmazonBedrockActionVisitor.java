@@ -17,4 +17,6 @@ public interface AmazonBedrockActionVisitor {
     ExecutableAction create(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings);
 
     ExecutableAction create(AmazonBedrockChatCompletionModel completionModel, Map<String, Object> taskSettings);
+
+    ExecutableAction create(AmazonBedrockChatCompletionModel completionModel);
 }

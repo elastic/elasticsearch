@@ -95,6 +95,11 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
     }
 
     @Override
+    public ExecutableAction accept(AmazonBedrockActionVisitor creator) {
+        return creator.create(this);
+    }
+
+    @Override
     public AmazonBedrockChatCompletionServiceSettings getServiceSettings() {
         return (AmazonBedrockChatCompletionServiceSettings) super.getServiceSettings();
     }

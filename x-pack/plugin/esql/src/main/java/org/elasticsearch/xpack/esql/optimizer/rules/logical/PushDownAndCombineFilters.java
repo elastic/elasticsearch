@@ -139,13 +139,20 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
     // 1. filters that can be applied only to the right
     // 2. filters that can be applied to both sides
     // 3. filters that can be applied only to the left
-    private static ScopedFilter scopeInlineStatsFilter(List<Expression> filters, LogicalPlan left, LogicalPlan right) {
+    private static ScopedFilter scopeInlineStatsFilter(List<Expression> filters, InlineJoin ij) {
         List<Expression> rightFilters = new ArrayList<>();
         List<Expression> bothSides = new ArrayList<>();
         List<Expression> leftFilters = new ArrayList<>(filters);
 
-        AttributeSet leftOutput = left.outputSet();
-        AttributeSet rightOutput = right.outputSet();
+        AttributeSet leftOutput = ij.left().outputSet();
+        // AttributeSet rightGroupings = AttributeSet.of(right.);
+        // right.collect(p -> {
+        // if (p instanceof Aggregate agg) {
+        // return AttributeSet.of(Expressions.asAttributes(agg.groupings()));
+        // }
+        // });
+        AttributeSet rightOutput = AttributeSet.of(ij.config().rightFields());
+        // rightOutput.retainAll(ij.right().outputSet());
 
         leftFilters.removeIf(f -> {
             if (f.references().subsetOf(rightOutput)) {
@@ -172,11 +179,11 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // Split the filter condition in 3 parts.
             // For InlineJoin we use a scoping that allows pushing down filters either to right side only or to both sides.
             // For the rest of the joins we use the standard scoping:
-            //  - filters scoped to the left
-            //  - filters scoped to the right
-            //  - filter that requires both sides to be evaluated
-            ScopedFilter scoped = join instanceof InlineJoin
-                ? scopeInlineStatsFilter(Predicates.splitAnd(filter.condition()), left, right)
+            // - filters scoped to the left
+            // - filters scoped to the right
+            // - filter that requires both sides to be evaluated
+            ScopedFilter scoped = join instanceof InlineJoin ij
+                ? scopeInlineStatsFilter(Predicates.splitAnd(filter.condition()), ij)
                 : scopeFilter(Predicates.splitAnd(filter.condition()), left, right);
 
             var pushableToLeftSide = join instanceof InlineJoin ? scoped.commonFilters() : scoped.leftFilters();
@@ -190,12 +197,13 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
                 // update the join with the new left child
                 join = (Join) join.replaceLeft(left);
                 // we completely applied the left filters, so we can remove them from the scoped filters
-                if (join instanceof InlineJoin) {
-                    // for InlineJoin the left filters are the common filters
-                    scoped = new ScopedFilter(List.of(), scoped.leftFilters, scoped.rightFilters);
-                } else {
-                    scoped = new ScopedFilter(scoped.commonFilters(), List.of(), scoped.rightFilters);
-                }
+                // if (join instanceof InlineJoin) {
+                // // for InlineJoin the left filters are the common filters
+                // scoped = new ScopedFilter(List.of(), scoped.leftFilters, scoped.rightFilters);
+                // } else {
+                // scoped = new ScopedFilter(scoped.commonFilters(), List.of(), scoped.rightFilters);
+                // }
+                scoped = new ScopedFilter(commonFilters, List.of(), scoped.rightFilters);
                 optimizationApplied = true;
             }
             // push the right scoped filter down to the right child

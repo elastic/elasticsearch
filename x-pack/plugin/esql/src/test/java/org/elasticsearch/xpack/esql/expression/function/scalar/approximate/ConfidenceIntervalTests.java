@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -33,13 +32,14 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.add(randomBuckets());
-        suppliers.add(allBucketsFilled());
-        suppliers.add(nanBuckets_ignoreNan());
-        suppliers.add(nanBuckets_zeroNan());
-        suppliers.add(inconsistentData());
-        suppliers.add(manyNans());
+        List<TestCaseSupplier> suppliers = List.of(
+            randomBuckets(),
+            allBucketsFilled(),
+            nanBuckets_ignoreNan(),
+            nanBuckets_zeroNan(),
+            inconsistentData(),
+            manyNans()
+        );
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 

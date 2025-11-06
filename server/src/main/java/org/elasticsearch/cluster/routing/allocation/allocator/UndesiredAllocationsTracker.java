@@ -21,7 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -76,7 +76,7 @@ public class UndesiredAllocationsTracker {
     );
 
     private final TimeProvider timeProvider;
-    private final Map<String, UndesiredAllocation> undesiredAllocations = new HashMap<>();
+    private final LinkedHashMap<String, UndesiredAllocation> undesiredAllocations = new LinkedHashMap<>();
     private final FrequencyCappedAction undesiredAllocationDurationLogInterval;
     private volatile TimeValue undesiredAllocationDurationLoggingThreshold;
     private volatile int maxUndesiredAllocationsToTrack;
@@ -148,17 +148,14 @@ public class UndesiredAllocationsTracker {
         DesiredBalance desiredBalance
     ) {
         final long currentTimeMillis = timeProvider.relativeTimeInMillis();
-        long earliestUndesiredTimestamp = Long.MAX_VALUE;
-        for (var undesiredAllocation : undesiredAllocations.values()) {
-            if (undesiredAllocation.undesiredSince() < earliestUndesiredTimestamp) {
-                earliestUndesiredTimestamp = undesiredAllocation.undesiredSince();
+        if (undesiredAllocations.isEmpty() == false) {
+            final long earliestUndesiredTimestamp = undesiredAllocations.firstEntry().getValue().undesiredSince();
+            if (earliestUndesiredTimestamp < currentTimeMillis
+                && currentTimeMillis - earliestUndesiredTimestamp > undesiredAllocationDurationLoggingThreshold.millis()) {
+                undesiredAllocationDurationLogInterval.maybeExecute(
+                    () -> logDecisionsForUndesiredShardsOverThreshold(routingNodes, routingAllocation, desiredBalance)
+                );
             }
-        }
-        if (earliestUndesiredTimestamp < currentTimeMillis
-            && currentTimeMillis - earliestUndesiredTimestamp > undesiredAllocationDurationLoggingThreshold.millis()) {
-            undesiredAllocationDurationLogInterval.maybeExecute(
-                () -> logDecisionsForUndesiredShardsOverThreshold(routingNodes, routingAllocation, desiredBalance)
-            );
         }
     }
 

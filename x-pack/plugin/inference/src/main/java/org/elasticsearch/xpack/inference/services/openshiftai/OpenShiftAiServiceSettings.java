@@ -8,21 +8,28 @@
 package org.elasticsearch.xpack.inference.services.openshiftai;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 /**
  * Represents the settings for an OpenShift AI service.
@@ -119,4 +126,53 @@ public abstract class OpenShiftAiServiceSettings extends FilteredXContentObject 
         rateLimitSettings.toXContent(builder, params);
         return builder;
     }
+
+    /**
+     * Creates an instance of T from the provided map using the given factory function.
+     * @param map the map containing the service settings
+     * @param context the context for parsing configuration settings
+     * @param factory the factory function to create an instance of T
+     * @return an instance of T
+     * @param <T> the type of {@link OpenShiftAiServiceSettings} to create
+     */
+    protected static <T extends OpenShiftAiServiceSettings> T fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        Function<OpenShiftAiCommonServiceSettings, T> factory
+    ) {
+        var validationException = new ValidationException();
+        var commonServiceSettings = extractOpenShiftAiCommonServiceSettings(map, context, validationException);
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        return factory.apply(commonServiceSettings);
+    }
+
+    /**
+     * Extracts common OpenShift AI service settings from the provided map.
+     * @param map the map containing the service settings
+     * @param context the context for parsing configuration settings
+     * @param validationException the validation exception to collect validation errors
+     * @return an instance of {@link OpenShiftAiCommonServiceSettings}
+     */
+    protected static OpenShiftAiCommonServiceSettings extractOpenShiftAiCommonServiceSettings(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        var model = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var uri = extractUri(map, URL, validationException);
+        var rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            OpenShiftAiService.NAME,
+            context
+        );
+        return new OpenShiftAiCommonServiceSettings(model, uri, rateLimitSettings);
+    }
+
+    protected record OpenShiftAiCommonServiceSettings(String model, URI uri, RateLimitSettings rateLimitSettings) {}
 }

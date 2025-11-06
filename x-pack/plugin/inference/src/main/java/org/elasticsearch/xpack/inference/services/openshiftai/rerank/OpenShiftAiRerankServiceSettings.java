@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.inference.services.openshiftai.rerank;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -21,11 +19,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 /**
  * Represents the settings for an OpenShift AI rerank service.
@@ -43,23 +37,15 @@ public class OpenShiftAiRerankServiceSettings extends OpenShiftAiServiceSettings
      * @throws ValidationException if required fields are missing or invalid
      */
     public static OpenShiftAiRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-
-        var model = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = extractUri(map, URL, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        return fromMap(
             map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            OpenShiftAiService.NAME,
-            context
+            context,
+            commonServiceSettings -> new OpenShiftAiRerankServiceSettings(
+                commonServiceSettings.model(),
+                commonServiceSettings.uri(),
+                commonServiceSettings.rateLimitSettings()
+            )
         );
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new OpenShiftAiRerankServiceSettings(model, uri, rateLimitSettings);
     }
 
     /**

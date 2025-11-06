@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -29,15 +28,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 /**
  * Settings for the OpenShift AI embeddings service.
@@ -61,10 +56,8 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
      * @throws ValidationException if any required fields are missing or invalid
      */
     public static OpenShiftAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-
-        var model = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = extractUri(map, URL, validationException);
+        var validationException = new ValidationException();
+        var commonServiceSettings = extractOpenShiftAiCommonServiceSettings(map, context, validationException);
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var maxInputTokens = extractOptionalPositiveInteger(
@@ -73,14 +66,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            OpenShiftAiService.NAME,
-            context
-        );
-        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
+        var dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
         switch (context) {
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
@@ -103,12 +89,12 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
         }
 
         return new OpenShiftAiEmbeddingsServiceSettings(
-            model,
-            uri,
+            commonServiceSettings.model(),
+            commonServiceSettings.uri(),
             dimensions,
             similarity,
             maxInputTokens,
-            rateLimitSettings,
+            commonServiceSettings.rateLimitSettings(),
             dimensionsSetByUser
         );
     }

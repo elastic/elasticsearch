@@ -403,7 +403,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         };
 
         XContentBuilder expected = JsonXContent.contentBuilder().startObject();
-        // First value comes from synthetic field loader and so is formatted in a specific format (e.g. values always come first).
+        // First value comes from synthetic field loader and so is formatted in a specific format (e.g. centroids always come first).
         // Other values are stored as is as part of ignore_malformed logic for synthetic source.
         {
             expected.startArray("field");

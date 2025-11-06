@@ -27,26 +27,28 @@ import static org.hamcrest.Matchers.equalTo;
 public class AvgSerializationTests extends AbstractExpressionSerializationTests<Avg> {
     @Override
     protected Avg createTestInstance() {
-        return new Avg(randomSource(), randomChild(), randomChild(), randomChild());
+        return new Avg(randomSource(), randomChild(), randomChild(), randomChild(), randomChild());
     }
 
     @Override
     protected Avg mutateInstance(Avg instance) throws IOException {
         Expression field = instance.field();
         Expression filter = instance.filter();
+        Expression window = instance.window();
         Expression summationMode = instance.summationMode();
-        switch (randomIntBetween(0, 2)) {
+        switch (randomIntBetween(0, 3)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> filter = randomValueOtherThan(filter, AbstractExpressionSerializationTests::randomChild);
-            case 2 -> summationMode = randomValueOtherThan(summationMode, AbstractExpressionSerializationTests::randomChild);
+            case 2 -> window = randomValueOtherThan(window, AbstractExpressionSerializationTests::randomChild);
+            case 3 -> summationMode = randomValueOtherThan(summationMode, AbstractExpressionSerializationTests::randomChild);
             default -> throw new AssertionError("unexpected value");
         }
-        return new Avg(instance.source(), field, filter, summationMode);
+        return new Avg(instance.source(), field, filter, window, summationMode);
     }
 
     public static class OldAvg extends AggregateFunction {
         public OldAvg(Source source, Expression field, Expression filter) {
-            super(source, field, filter, List.of());
+            super(source, field, filter, NO_WINDOW, List.of());
         }
 
         @Override

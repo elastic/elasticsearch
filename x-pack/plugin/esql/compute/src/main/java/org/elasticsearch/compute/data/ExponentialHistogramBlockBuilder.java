@@ -7,15 +7,17 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
-public class ExponentialHistogramBlockBuilder implements Block.Builder {
+public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoader.ExponentialHistogramBuilder {
 
     private final DoubleBlock.Builder minimaBuilder;
     private final DoubleBlock.Builder maximaBuilder;
@@ -23,6 +25,8 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
     private final LongBlock.Builder valueCountsBuilder;
     private final DoubleBlock.Builder zeroThresholdsBuilder;
     private final BytesRefBlock.Builder encodedHistogramsBuilder;
+
+    private final BytesRef scratch = new BytesRef();
 
     ExponentialHistogramBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         DoubleBlock.Builder minimaBuilder = null;
@@ -58,6 +62,36 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
                 );
             }
         }
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder minima() {
+        return minimaBuilder;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder maxima() {
+        return maximaBuilder;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder sums() {
+        return sumsBuilder;
+    }
+
+    @Override
+    public BlockLoader.LongBuilder valueCounts() {
+        return valueCountsBuilder;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder zeroThresholds() {
+        return zeroThresholdsBuilder;
+    }
+
+    @Override
+    public BlockLoader.BytesRefBuilder encodedHistograms() {
+        return encodedHistogramsBuilder;
     }
 
     public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
@@ -98,6 +132,27 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
         zeroThresholdsBuilder.appendDouble(zeroBucket.zeroThreshold());
         encodedHistogramsBuilder.appendBytesRef(encodedBytes.bytes().toBytesRef());
         return this;
+    }
+
+    /**
+     * Decodes and appends a value serialized with
+     *  {@link ExponentialHistogramBlock#serializeExponentialHistogram(int, ExponentialHistogramBlock.SerializedOutput, BytesRef)}.
+     *
+     * @param input the input to deserialize from
+     */
+    public void deserializeAndAppend(ExponentialHistogramBlock.SerializedInput input) {
+        long valueCount = input.readLong();
+        valueCountsBuilder.appendLong(valueCount);
+        sumsBuilder.appendDouble(input.readDouble());
+        zeroThresholdsBuilder.appendDouble(input.readDouble());
+        if (valueCount > 0) {
+            minimaBuilder.appendDouble(input.readDouble());
+            maximaBuilder.appendDouble(input.readDouble());
+        } else {
+            minimaBuilder.appendNull();
+            maximaBuilder.appendNull();
+        }
+        encodedHistogramsBuilder.appendBytesRef(input.readBytesRef(scratch));
     }
 
     @Override

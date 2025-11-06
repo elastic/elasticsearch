@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.client.internal.Client;
@@ -58,6 +59,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
     public static final ParseField TOTAL_SHARDS_PER_NODE = new ParseField("total_shards_per_node");
     public static final ParseField REPLICATE_FOR = new ParseField("replicate_for");
+    public static final ParseField FORCE_MERGE_ON_CLONE = new ParseField("force_merge_on_clone");
+
+    private static final TransportVersion FORCE_MERGE_ON_CLONE_TRANSPORT_VERSION = TransportVersion.fromName(
+        "ilm_searchable_snapshot_opt_out_clone"
+    );
+
     public static final String CONDITIONAL_SKIP_ACTION_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_SKIP_GENERATE_AND_CLEAN = BranchingStep.NAME + "-check-existing-snapshot";
     public static final String CONDITIONAL_SKIP_CLONE_STEP = BranchingStep.NAME + "-skip-clone-check";
@@ -87,7 +94,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1], (Integer) a[2], (TimeValue) a[3])
+        a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1], (Integer) a[2], (TimeValue) a[3], (Boolean) a[4])
     );
 
     static {
@@ -100,6 +107,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             REPLICATE_FOR,
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_ON_CLONE);
     }
 
     public static SearchableSnapshotAction parse(XContentParser parser) {
@@ -112,12 +120,16 @@ public class SearchableSnapshotAction implements LifecycleAction {
     private final Integer totalShardsPerNode;
     @Nullable
     private final TimeValue replicateFor;
+    /** Opt-out field for forcing the force-merge step to run on the source index instead of a cloned version with 0 replicas. */
+    @Nullable
+    private final Boolean forceMergeOnClone;
 
     public SearchableSnapshotAction(
         String snapshotRepository,
         boolean forceMergeIndex,
         @Nullable Integer totalShardsPerNode,
-        @Nullable TimeValue replicateFor
+        @Nullable TimeValue replicateFor,
+        @Nullable Boolean forceMergeOnClone
     ) {
         if (Strings.hasText(snapshotRepository) == false) {
             throw new IllegalArgumentException("the snapshot repository must be specified");
@@ -136,14 +148,25 @@ public class SearchableSnapshotAction implements LifecycleAction {
             );
         }
         this.replicateFor = replicateFor;
+
+        if (forceMergeIndex == false && forceMergeOnClone != null) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "[%s] is not allowed when [%s] is [false]",
+                    FORCE_MERGE_ON_CLONE.getPreferredName(),
+                    FORCE_MERGE_INDEX.getPreferredName()
+                )
+            );
+        }
+        this.forceMergeOnClone = forceMergeOnClone;
     }
 
     public SearchableSnapshotAction(String snapshotRepository, boolean forceMergeIndex) {
-        this(snapshotRepository, forceMergeIndex, null, null);
+        this(snapshotRepository, forceMergeIndex, null, null, null);
     }
 
     public SearchableSnapshotAction(String snapshotRepository) {
-        this(snapshotRepository, true, null, null);
+        this(snapshotRepository, true, null, null, null);
     }
 
     public SearchableSnapshotAction(StreamInput in) throws IOException {
@@ -151,6 +174,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         this.forceMergeIndex = in.readBoolean();
         this.totalShardsPerNode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalInt() : null;
         this.replicateFor = in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readOptionalTimeValue() : null;
+        this.forceMergeOnClone = in.getTransportVersion().supports(FORCE_MERGE_ON_CLONE_TRANSPORT_VERSION)
+            ? in.readOptionalBoolean()
+            : null;
     }
 
     public boolean isForceMergeIndex() {
@@ -169,6 +195,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
     @Nullable
     public TimeValue getReplicateFor() {
         return replicateFor;
+    }
+
+    @Nullable
+    public Boolean isForceMergeOnClone() {
+        return forceMergeOnClone;
     }
 
     @Override
@@ -299,9 +330,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
             Instant::now
         );
 
+        // We force-merge on the clone by default, but allow the user to opt-out of this behavior if there is any reason why they don't want
+        // to clone the index (e.g. if something is preventing the cloned index shards from being assigned).
+        StepKey keyForForceMerge = shouldForceMergeOnClone() ? conditionalSkipCloneKey : forceMergeStepKey;
         // When generating a snapshot, we either jump to the force merge section, or we skip the
         // forcemerge and go straight to steps for creating the snapshot
-        StepKey keyForSnapshotGeneration = forceMergeIndex ? conditionalSkipCloneKey : generateSnapshotNameKey;
+        StepKey keyForSnapshotGeneration = forceMergeIndex ? keyForForceMerge : generateSnapshotNameKey;
         // Branch, deciding whether there is an existing searchable snapshot that can be used for mounting the index
         // (in which case, skip generating a new name and the snapshot cleanup), or if we need to generate a new snapshot
         BranchingStep skipGeneratingSnapshotStep = new BranchingStep(
@@ -529,12 +563,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
         steps.add(waitUntilTimeSeriesEndTimeStep);
         steps.add(skipGeneratingSnapshotStep);
         if (forceMergeIndex) {
-            steps.add(conditionalSkipCloneStep);
-            steps.add(readOnlyStep);
-            steps.add(cleanupClonedIndexStep);
-            steps.add(generateCloneIndexNameStep);
-            steps.add(cloneIndexStep);
-            steps.add(waitForClonedIndexGreenStep);
+            if (shouldForceMergeOnClone()) {
+                steps.add(conditionalSkipCloneStep);
+                steps.add(readOnlyStep);
+                steps.add(cleanupClonedIndexStep);
+                steps.add(generateCloneIndexNameStep);
+                steps.add(cloneIndexStep);
+                steps.add(waitForClonedIndexGreenStep);
+            }
             steps.add(forceMergeStep);
             steps.add(segmentCountStep);
         }
@@ -581,6 +617,15 @@ public class SearchableSnapshotAction implements LifecycleAction {
         }
     }
 
+    /**
+     * Returns whether we should first clone the index and perform the force-merge on that cloned index (true) or force-merge on the
+     * original index (false). Defaults to true when {@link #forceMergeOnClone} is null/unspecified. Note that this value is ignored when
+     * {@link #forceMergeIndex} is false.
+     */
+    private boolean shouldForceMergeOnClone() {
+        return forceMergeOnClone == null || forceMergeOnClone;
+    }
+
     @Override
     public boolean isSafeAction() {
         return true;
@@ -601,6 +646,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalTimeValue(replicateFor);
         }
+        if (out.getTransportVersion().supports(FORCE_MERGE_ON_CLONE_TRANSPORT_VERSION)) {
+            out.writeOptionalBoolean(forceMergeOnClone);
+        }
     }
 
     @Override
@@ -613,6 +661,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         }
         if (replicateFor != null) {
             builder.field(REPLICATE_FOR.getPreferredName(), replicateFor);
+        }
+        if (forceMergeOnClone != null) {
+            builder.field(FORCE_MERGE_ON_CLONE.getPreferredName(), forceMergeOnClone);
         }
         builder.endObject();
         return builder;
@@ -630,12 +681,13 @@ public class SearchableSnapshotAction implements LifecycleAction {
         return Objects.equals(snapshotRepository, that.snapshotRepository)
             && Objects.equals(forceMergeIndex, that.forceMergeIndex)
             && Objects.equals(totalShardsPerNode, that.totalShardsPerNode)
-            && Objects.equals(replicateFor, that.replicateFor);
+            && Objects.equals(replicateFor, that.replicateFor)
+            && Objects.equals(forceMergeOnClone, that.forceMergeOnClone);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotRepository, forceMergeIndex, totalShardsPerNode, replicateFor);
+        return Objects.hash(snapshotRepository, forceMergeIndex, totalShardsPerNode, replicateFor, forceMergeOnClone);
     }
 
     @Nullable

@@ -91,11 +91,11 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                 "version" }
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Max(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Max(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Max(StreamInput in) throws IOException {
@@ -109,17 +109,17 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public Max withFilter(Expression filter) {
-        return new Max(source(), field(), filter);
+        return new Max(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<Max> info() {
-        return NodeInfo.create(this, Max::new, field(), filter());
+        return NodeInfo.create(this, Max::new, field(), filter(), window());
     }
 
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
-        return new Max(source(), newChildren.get(0), newChildren.get(1));
+        return new Max(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -163,7 +163,8 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
             return new Max(
                 source(),
                 FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MAX),
-                filter()
+                filter(),
+                window()
             );
         }
         return field().foldable() ? new MvMax(source(), field()) : null;

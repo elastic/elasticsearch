@@ -38,8 +38,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * @return returns an {@link IdLoader} instance that syn synthesizes _id from routing, _tsid and @timestamp fields.
      */
-    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource.ForRoutingPath indexRouting, List<String> routingPaths) {
-        return new TsIdLoader(indexRouting, routingPaths);
+    static IdLoader createTsIdLoader(
+        IndexRouting.ExtractFromSource.ForRoutingPath indexRouting,
+        List<String> routingPaths,
+        boolean useSyntheticId
+    ) {
+        return new TsIdLoader(indexRouting, routingPaths, useSyntheticId);
     }
 
     Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
@@ -61,10 +65,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
         private final IndexRouting.ExtractFromSource.ForRoutingPath indexRouting;
         private final List<String> routingPaths;
+        private final boolean useSyntheticId;
 
-        TsIdLoader(IndexRouting.ExtractFromSource.ForRoutingPath indexRouting, List<String> routingPaths) {
+        TsIdLoader(IndexRouting.ExtractFromSource.ForRoutingPath indexRouting, List<String> routingPaths, boolean useSyntheticId) {
             this.routingPaths = routingPaths;
             this.indexRouting = indexRouting;
+            this.useSyntheticId = useSyntheticId;
         }
 
         public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
@@ -119,7 +125,11 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     int routingHash = TimeSeriesRoutingHashFieldMapper.decode(
                         Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
                     );
-                    ids[i] = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
+                    if (useSyntheticId) {
+                        ids[i] = TsidExtractingIdFieldMapper.createSyntheticId(tsid, timestamp, routingHash);
+                    } else {
+                        ids[i] = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
+                    }
                 }
             }
             return new TsIdLeaf(docIdsInLeaf, ids);

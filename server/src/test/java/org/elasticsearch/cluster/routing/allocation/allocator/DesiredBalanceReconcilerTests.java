@@ -1465,14 +1465,35 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         final var shardInUndesiredAllocationMessage = "Shard [" + shardToPreventMovement + "][0] has been in an undesired allocation for *";
 
-        // Desired assignment matches current routing table, should not log
+        // Desired balance not yet computed, should not log
         assertThatLogger(
             () -> currentStateHolder.set(
                 reconcileAndBuildNewState(
                     reconciler,
                     initialClusterState,
+                    DesiredBalance.BECOME_MASTER_INITIAL,
+                    preventAllocationOnNode2Decider,
+                    yesDecider
+                )
+            ),
+            UndesiredAllocationsTracker.class,
+            new MockLog.UnseenEventExpectation(
+                "Should not log if desired balance is not yet computed",
+                UndesiredAllocationsTracker.class.getCanonicalName(),
+                Level.WARN,
+                shardInUndesiredAllocationMessage
+            )
+        );
+
+        // Desired assignment matches current routing table, should not log
+        assertThatLogger(
+            () -> currentStateHolder.set(
+                reconcileAndBuildNewState(
+                    reconciler,
+                    currentStateHolder.get(),
                     new DesiredBalance(1, allShardsDesiredOnDataNode1),
-                    preventAllocationOnNode2Decider
+                    preventAllocationOnNode2Decider,
+                    yesDecider
                 )
             ),
             UndesiredAllocationsTracker.class,
@@ -1506,6 +1527,26 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         // Advance past the logging threshold
         timeProvider.advanceByMillis(randomLongBetween(undesiredAllocationThreshold.millis(), undesiredAllocationThreshold.millis() * 2));
+
+        // If the desired balance is missing for some reason, we shouldn't log, and we shouldn't reset the became-undesired time
+        assertThatLogger(
+            () -> currentStateHolder.set(
+                reconcileAndBuildNewState(
+                    reconciler,
+                    currentStateHolder.get(),
+                    new DesiredBalance(1, Map.of()),
+                    preventAllocationOnNode2Decider,
+                    yesDecider
+                )
+            ),
+            UndesiredAllocationsTracker.class,
+            new MockLog.UnseenEventExpectation(
+                "Should not log because there is no desired allocations",
+                UndesiredAllocationsTracker.class.getCanonicalName(),
+                Level.WARN,
+                shardInUndesiredAllocationMessage
+            )
+        );
 
         // Now it should log
         assertThatLogger(

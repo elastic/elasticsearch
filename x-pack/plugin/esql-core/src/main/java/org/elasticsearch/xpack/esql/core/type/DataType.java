@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
@@ -759,13 +760,9 @@ public enum DataType implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         if (supportedVersion.supportedOn(out.getTransportVersion(), Build.current().isSnapshot()) == false) {
             /*
-             * TODO when we implement version aware planning flip this to an IllegalStateException
-             * so we throw a 500 error. It'll be our bug then. Right now it's a sign that the user
-             * tried to do something like `KNN(dense_vector_field, [1, 2])` against an old node.
-             * Like, during the rolling upgrade that enables KNN or to a remote cluster that has
-             * not yet been upgraded.
+             * Throw a 500 error - this is a bug, we failed to account for an old node during planning.
              */
-            throw new IllegalArgumentException(
+            throw new QlIllegalArgumentException(
                 "remote node at version [" + out.getTransportVersion() + "] doesn't understand data type [" + this + "]"
             );
         }

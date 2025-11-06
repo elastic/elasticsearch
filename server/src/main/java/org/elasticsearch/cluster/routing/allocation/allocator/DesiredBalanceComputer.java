@@ -298,7 +298,7 @@ public class DesiredBalanceComputer {
                     if (rerouteExplanation.decisions().type() != Decision.Type.NO) {
                         final Iterator<ShardRouting> initializingShardsIterator = routingNodes.node(
                             routingAllocation.nodes().resolveNode(command.toNode()).getId()
-                        ).initializing();
+                        ).initializing().iterator();
                         assert initializingShardsIterator.hasNext();
                         final var initializingShard = initializingShardsIterator.next();
                         assert initializingShardsIterator.hasNext() == false
@@ -538,11 +538,11 @@ public class DesiredBalanceComputer {
         // Find all shards that are started in RoutingNodes but have no data on corresponding node in ClusterInfo
         final var startedShards = new ArrayList<ShardRouting>();
         for (var routingNode : routingNodes) {
-            routingNode.started().forEachRemaining(shardRouting -> {
+            for (var shardRouting : routingNode.started()) {
                 if (clusterInfo.hasShardMoved(shardRouting)) {
                     startedShards.add(shardRouting);
                 }
-            });
+            }
         }
         if (startedShards.isEmpty()) {
             return;

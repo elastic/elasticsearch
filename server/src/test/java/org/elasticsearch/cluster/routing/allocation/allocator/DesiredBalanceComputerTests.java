@@ -582,7 +582,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     allocation.routingNodes().getRelocatingShardCount(),
                     equalTo(0)
                 );
-                assertThat(Iterators.toList(allocation.routingNodes().node("node-2").started()), hasSize(2));
+                assertThat(Iterators.toList(allocation.routingNodes().node("node-2").started().iterator()), hasSize(2));
             }
 
             @Override

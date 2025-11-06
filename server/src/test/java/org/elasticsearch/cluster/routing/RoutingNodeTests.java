@@ -161,7 +161,7 @@ public class RoutingNodeTests extends ESTestCase {
 
     private static Set<ShardId> startedShardsSet(RoutingNode routingNode) {
         final var result = new HashSet<ShardId>();
-        routingNode.started().forEachRemaining(shardRouting -> result.add(shardRouting.shardId()));
+        routingNode.started().forEach(shardRouting -> result.add(shardRouting.shardId()));
         return result;
     }
 

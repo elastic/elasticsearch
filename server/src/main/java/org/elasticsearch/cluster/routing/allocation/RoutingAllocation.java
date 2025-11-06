@@ -175,9 +175,7 @@ public class RoutingAllocation {
                 DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
                 ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.path() : "");
                 long totalSize = 0;
-                final var startedShardsIterator = node.started();
-                while (startedShardsIterator.hasNext()) {
-                    final var shard = startedShardsIterator.next();
+                for (ShardRouting shard : node.started()) {
                     if (shard.getExpectedShardSize() > 0
                         && clusterState.metadata().indexMetadata(shard.index()).isSearchableSnapshot()
                         && reservedSpace.containsShardId(shard.shardId()) == false

@@ -10,8 +10,8 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -214,16 +214,16 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert invariant();
     }
 
-    public Iterator<ShardRouting> initializing() {
-        return Iterators.assertReadOnly(initializingShards.iterator());
+    public Iterable<ShardRouting> initializing() {
+        return Iterables.assertReadOnly(initializingShards);
     }
 
-    public Iterator<ShardRouting> relocating() {
-        return Iterators.assertReadOnly(relocatingShards.iterator());
+    public Iterable<ShardRouting> relocating() {
+        return Iterables.assertReadOnly(relocatingShards);
     }
 
-    public Iterator<ShardRouting> started() {
-        return Iterators.assertReadOnly(startedShards.iterator());
+    public Iterable<ShardRouting> started() {
+        return Iterables.assertReadOnly(startedShards);
     }
 
     /**

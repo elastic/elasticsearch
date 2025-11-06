@@ -554,6 +554,15 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         return result;
     }
 
+    private EsqlExecutionInfo randomExecutionInfo(Predicate<String> skipOnPlanTimeFailurePredicate) {
+        boolean includeCcsMetadata = randomBoolean();
+        return new EsqlExecutionInfo(
+            skipOnPlanTimeFailurePredicate,
+            includeCcsMetadata,
+            randomBoolean() ? false : includeCcsMetadata == false
+        );
+    }
+
     public void testReturnSuccessWithEmptyResult() {
         String remote3Alias = "remote3";
         NoClustersToSearchException noClustersException = new NoClustersToSearchException();
@@ -571,24 +580,14 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // not a cross-cluster cluster search, so do not return empty result
         {
-            boolean includeCcsMetadata = randomBoolean();
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-                skipUnPredicate,
-                includeCcsMetadata,
-                randomBoolean() ? false : includeCcsMetadata == false
-            );
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> localCluster);
             assertFalse(EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, noClustersException));
         }
 
         // local cluster is present, so do not return empty result
         {
-            boolean includeCcsMetadata = randomBoolean();
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-                skipUnPredicate,
-                includeCcsMetadata,
-                randomBoolean() ? false : includeCcsMetadata == false
-            );
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> localCluster);
             executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> remote1);
             // TODO: this logic will be added in the follow-on PR that handles missing indices
@@ -597,12 +596,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // remote-only, one cluster is skip_unavailable=false, so do not return empty result
         {
-            boolean includeCcsMetadata = randomBoolean();
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-                skipUnPredicate,
-                includeCcsMetadata,
-                randomBoolean() ? false : includeCcsMetadata == false
-            );
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> remote1);
             executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> remote2);
             assertFalse(EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, noClustersException));
@@ -611,12 +605,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         // remote-only, all clusters are skip_unavailable=true, so should return empty result with
         // NoSuchClustersException or "remote unavailable" type exception
         {
-            boolean includeCcsMetadata = randomBoolean();
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-                skipUnPredicate,
-                includeCcsMetadata,
-                randomBoolean() ? false : includeCcsMetadata == false
-            );
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> remote2);
             executionInfo.swapCluster(remote3Alias, (k, v) -> remote3);
             Exception e = randomFrom(
@@ -631,12 +620,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         // remote-only, all clusters are skip_unavailable=true, but exception is not "remote unavailable" so return false
         // Note: this functionality may change in follow-on PRs, so remove this test in that case
         {
-            boolean includeCcsMetadata = randomBoolean();
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-                skipUnPredicate,
-                includeCcsMetadata,
-                randomBoolean() ? false : includeCcsMetadata == false
-            );
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> remote2);
             executionInfo.swapCluster(remote3Alias, (k, v) -> remote3);
             assertFalse(EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, new NullPointerException()));
@@ -660,12 +644,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         EsqlExecutionInfo.Cluster remote2 = new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "logs*", true);
         EsqlExecutionInfo.Cluster remote3 = new EsqlExecutionInfo.Cluster(remote3Alias, "logs*", true);
 
-        boolean includeCcsMetadata = randomBoolean();
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-            skipUnPredicate,
-            includeCcsMetadata,
-            randomBoolean() ? false : includeCcsMetadata == false
-        );
+        EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
         executionInfo.swapCluster(localCluster.getClusterAlias(), (k, v) -> localCluster);
         executionInfo.swapCluster(remote1.getClusterAlias(), (k, v) -> remote1);
         executionInfo.swapCluster(remote2.getClusterAlias(), (k, v) -> remote2);

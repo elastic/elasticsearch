@@ -63,13 +63,13 @@ public class UndesiredAllocationsTracker {
     );
 
     /**
-     * The max number of undesired allocations to track. We expect this to be relatively small.
+     * The maximum number of undesired allocations to track. We expect this to be relatively small.
      */
     public static final Setting<Integer> MAX_UNDESIRED_ALLOCATIONS_TO_TRACK = Setting.intSetting(
         "cluster.routing.allocation.desired_balance.undesired_duration_logging.max_to_track",
         0,
         0,
-        200,
+        100,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

@@ -43,6 +43,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -354,10 +355,11 @@ public class AuthorizationPollerTests extends ESTestCase {
             latch.countDown();
         };
 
+        var exception = new IllegalStateException("failing");
         // Simulate scheduling failure by having the settings throw an exception when queried
         // Throwing an exception should cause the poller to shutdown and mark itself as completed
         var settingsMock = mock(ElasticInferenceServiceSettings.class);
-        when(settingsMock.isPeriodicAuthorizationEnabled()).thenThrow(new IllegalStateException("failing"));
+        when(settingsMock.isPeriodicAuthorizationEnabled()).thenThrow(exception);
 
         var poller = new AuthorizationPoller(
             new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
@@ -369,13 +371,26 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             callback
         );
-        poller.init(mock(PersistentTasksService.class), mock(TaskManager.class), "id", 0);
+
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
         poller.start();
         taskQueue.runAllRunnableTasks();
         latch.await(TimeValue.THIRTY_SECONDS.getSeconds(), TimeUnit.SECONDS);
 
         assertThat(callbackCount.get(), is(1));
         assertTrue(poller.isShutdown());
+        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
+            eq(persistentTaskId),
+            eq(allocationId),
+            eq(exception),
+            eq(null),
+            any(),
+            any()
+        );
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 }

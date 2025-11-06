@@ -152,6 +152,11 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         markAsCompleted();
     }
 
+    private void shutdownAndMarkTaskAsFailed(Exception e) {
+        shutdown();
+        markAsFailed(e);
+    }
+
     // default for testing
     void shutdown() {
         shutdown.set(true);
@@ -198,7 +203,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         } catch (Exception e) {
             logger.warn("Failed scheduling authorization request", e);
             // Shutdown and complete the task so it will be restarted
-            onCancelled();
+            shutdownAndMarkTaskAsFailed(e);
         }
     }
 

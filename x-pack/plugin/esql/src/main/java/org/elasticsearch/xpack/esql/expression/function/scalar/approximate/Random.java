@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.approximate.Approximate;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -24,6 +25,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * This function is used internally by {@link Approximate}, and is not exposed
@@ -64,6 +68,11 @@ public class Random extends UnaryScalarFunction {
     }
 
     @Override
+    protected Expression.TypeResolution resolveType() {
+        return isType(field, t -> t == DataType.INTEGER, sourceText(), DEFAULT, "int");
+    }
+
+    @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
         return new Random(source(), newChildren.get(0));
     }
@@ -75,6 +84,6 @@ public class Random extends UnaryScalarFunction {
 
     @Override
     public boolean foldable() {
-        return false;
+        return field.dataType() == DataType.NULL;
     }
 }

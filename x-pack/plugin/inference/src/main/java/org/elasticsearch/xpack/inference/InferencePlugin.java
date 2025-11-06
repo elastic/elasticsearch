@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMCache;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMIndex;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMStorageService;
@@ -254,7 +255,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
             new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
             new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
-            new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class)
+            new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class),
+            new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class)
         );
     }
 
@@ -409,7 +411,18 @@ public class InferencePlugin extends Plugin
         );
 
         if (CCMFeatureFlag.FEATURE_FLAG.isEnabled()) {
-            components.add(new CCMStorageService(services.client()));
+            var ccmStorageService = new CCMStorageService(services.client());
+            components.add(ccmStorageService);
+            components.add(
+                new CCMCache(
+                    ccmStorageService,
+                    services.clusterService(),
+                    settings,
+                    services.featureService(),
+                    services.projectResolver(),
+                    services.client()
+                )
+            );
         }
 
         return components;
@@ -609,6 +622,7 @@ public class InferencePlugin extends Plugin
         settings.add(INFERENCE_QUERY_TIMEOUT);
         settings.addAll(InferenceEndpointRegistry.getSettingsDefinitions());
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
+        settings.addAll(CCMCache.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }
 

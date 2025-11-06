@@ -47,6 +47,7 @@ public class UndesiredAllocationsTracker {
     public static final Setting<TimeValue> UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.desired_balance.undesired_duration_logging.threshold",
         FIVE_MINUTES,
+        ONE_MINUTE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

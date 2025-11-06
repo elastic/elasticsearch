@@ -927,7 +927,7 @@ setup:
 "Profile outputs information on chunk rescorer if selected":
 
   - requires:
-      test_runner_features: [ contains ]
+      test_runner_features: [contains]
       cluster_features: "text_similarity_rank_doc_explain_chunks"
       reason: rescore_chunks added explain support in 9.3.0
 

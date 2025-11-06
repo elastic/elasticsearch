@@ -31,7 +31,12 @@ public class TransportGetCCMConfigurationAction extends HandledTransportAction<
     private final CCMFeature ccmFeature;
 
     @Inject
-    public TransportGetCCMConfigurationAction(TransportService transportService, ActionFilters actionFilters, CCMService ccmService, CCMFeature ccmFeature) {
+    public TransportGetCCMConfigurationAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        CCMService ccmService,
+        CCMFeature ccmFeature
+    ) {
         super(
             GetCCMConfigurationAction.NAME,
             transportService,

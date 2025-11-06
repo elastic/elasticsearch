@@ -12,11 +12,9 @@ products:
 
 # Painless scripting language [painless-guide]
 
-<!--
 :::{tip}
-This section introduces Painless syntax and advanced features. If you're new to Painless scripting, start [here](docs-content://explore-analyze/scripting/modules-scripting-painless.md) for fundamentals and examples.  
+This section introduces Painless syntax and advanced features. If you're new to Painless scripting, start with our [introduction](docs-content://explore-analyze/scripting/modules-scripting-painless.md) for fundamentals and examples.  
 :::
--->
 
 Painless is the default scripting language for {{es}}, designed for security, performance, and flexibility. Built on the [Java Virtual Machine (JVM)](https://docs.oracle.com/en/java/javase/24/vm/java-virtual-machine-technology-overview.html), Painless provides Java-like syntax with direct compilation, a sandbox environment with fine-grained allowlists, and context-aware scripting across the {{stack}}.
 

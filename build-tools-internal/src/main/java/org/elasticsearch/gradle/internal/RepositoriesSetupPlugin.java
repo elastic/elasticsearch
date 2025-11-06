@@ -69,9 +69,7 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
                 repo.setUrl("https://storage.googleapis.com/elasticsearch-cuvs-snapshots");
             });
             repos.exclusiveContent(exclusiveRepo -> {
-                exclusiveRepo.filter(
-                    descriptor -> descriptor.includeVersionByRegex("com\\.nvidia\\.cuvs", ".*", ".*-SNAPSHOT")
-                );
+                exclusiveRepo.filter(descriptor -> descriptor.includeVersionByRegex("com\\.nvidia\\.cuvs", ".*", ".*-SNAPSHOT"));
                 exclusiveRepo.forRepositories(cuvsRepo);
             });
         }

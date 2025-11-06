@@ -96,7 +96,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
             case HAS_CACHE -> HAS_FROZEN_CACHE;
             case NO_CACHE -> NO_FROZEN_CACHE;
             case FAILED -> UNKNOWN_FROZEN_CACHE;
-            // TODO: considering returning NO as well for non-simulation https://elasticco.atlassian.net/browse/ES-13378
+            // TODO: considering returning NO as well for non-simulation ES-13378
             case FETCHING -> allocation.isSimulating() ? NO_STILL_FETCHING : STILL_FETCHING;
             case UNKNOWN -> NO_UNKNOWN_NODE;
         };

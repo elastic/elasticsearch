@@ -1355,9 +1355,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public void add(final BytesRef value) {
-            uniqueValues.add(value);
-            // might as well track these on the go as opposed to having to loop through all entries later
-            docValuesByteCount += value.length;
+            if (uniqueValues.add(value)) {
+                // might as well track these on the go as opposed to having to loop through all entries later
+                docValuesByteCount += value.length;
+            }
+            ;
         }
 
         /**

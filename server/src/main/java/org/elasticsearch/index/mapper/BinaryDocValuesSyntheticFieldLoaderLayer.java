@@ -24,7 +24,6 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
     // the binary doc values for a document are all encoded in a single binary array, which this stream knows how to read
     // the doc values in the array take the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
     private final ByteArrayStreamInput stream = new ByteArrayStreamInput();
-    private BytesRef docValuesBytes;
     private int valueCount;
 
     public BinaryDocValuesSyntheticFieldLoaderLayer(String fieldName) {
@@ -32,16 +31,14 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
     }
 
     @Override
-    public long valueCount() {
-        return valueCount;
-    }
-
-    @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
         BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldName);
 
         // there are no values associated with this field
-        if (docValues == null) return null;
+        if (docValues == null) {
+            valueCount = 0;
+            return null;
+        }
 
         return docId -> {
             // there are no more documents to process
@@ -51,17 +48,12 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
             }
 
             // otherwise, extract the doc values into a stream to later read from
-            docValuesBytes = docValues.binaryValue();
+            BytesRef docValuesBytes = docValues.binaryValue();
             stream.reset(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
             valueCount = stream.readVInt();
 
             return hasValue();
         };
-    }
-
-    @Override
-    public boolean hasValue() {
-        return valueCount > 0;
     }
 
     @Override
@@ -71,6 +63,16 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
             BytesRef valueBytes = stream.readBytesRef();
             b.value(valueBytes.utf8ToString());
         }
+    }
+
+    @Override
+    public boolean hasValue() {
+        return valueCount > 0;
+    }
+
+    @Override
+    public long valueCount() {
+        return valueCount;
     }
 
     @Override

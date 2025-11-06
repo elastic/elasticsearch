@@ -1,5 +1,3 @@
-# CLI test runner command:
-# ./gradlew ":x-pack:plugin:inference:yamlRestTest" --tests "org.elasticsearch.xpack.inference.InferenceRestIT.test {p0=inference/70_text_similarity_rank_retriever/*}"
 setup:
   - skip:
       features:

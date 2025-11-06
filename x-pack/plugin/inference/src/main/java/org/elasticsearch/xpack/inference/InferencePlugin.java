@@ -245,31 +245,22 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<ActionHandler> getActions() {
-        CCMSettings.ALLOW_CONFIGURING_CCM.get(settings);
-        List<ActionHandler> ccmActions = ccmFeature.get().allowConfiguringCcm()
-            ? List.of(
-                new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
-                new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class)
-            )
-            : List.of();
-
-        return Stream.of(
-            List.of(
-                new ActionHandler(InferenceAction.INSTANCE, TransportInferenceAction.class),
-                new ActionHandler(InferenceActionProxy.INSTANCE, TransportInferenceActionProxy.class),
-                new ActionHandler(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
-                new ActionHandler(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
-                new ActionHandler(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
-                new ActionHandler(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
-                new ActionHandler(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
-                new ActionHandler(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
-                new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
-                new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
-                new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
-                new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class)
-            ),
-            ccmActions
-        ).flatMap(List::stream).toList();
+        return List.of(
+            new ActionHandler(InferenceAction.INSTANCE, TransportInferenceAction.class),
+            new ActionHandler(InferenceActionProxy.INSTANCE, TransportInferenceActionProxy.class),
+            new ActionHandler(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
+            new ActionHandler(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
+            new ActionHandler(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
+            new ActionHandler(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
+            new ActionHandler(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
+            new ActionHandler(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
+            new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
+            new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
+            new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
+            new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class),
+            new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
+            new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class)
+        );
     }
 
     @Override
@@ -284,10 +275,7 @@ public class InferencePlugin extends Plugin
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        List<RestHandler> ccmHandler = ccmFeature.get().allowConfiguringCcm()
-            ? List.of(new RestGetCCMConfigurationAction(), new RestPutCCMConfigurationAction())
-            : List.of();
-        List<RestHandler> handlers = List.of(
+        return List.of(
             new RestInferenceAction(),
             new RestStreamInferenceAction(threadPoolSetOnce),
             new RestGetInferenceModelAction(),
@@ -295,9 +283,10 @@ public class InferencePlugin extends Plugin
             new RestUpdateInferenceModelAction(),
             new RestDeleteInferenceEndpointAction(),
             new RestGetInferenceDiagnosticsAction(),
-            new RestGetInferenceServicesAction()
+            new RestGetInferenceServicesAction(),
+            new RestGetCCMConfigurationAction(ccmFeature.get()),
+            new RestPutCCMConfigurationAction(ccmFeature.get())
         );
-        return Stream.of(handlers, ccmHandler).flatMap(List::stream).toList();
     }
 
     @Override

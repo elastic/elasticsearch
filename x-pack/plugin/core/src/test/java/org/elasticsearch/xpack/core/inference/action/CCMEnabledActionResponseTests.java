@@ -15,6 +15,14 @@ import java.io.IOException;
 
 public class CCMEnabledActionResponseTests extends AbstractBWCWireSerializationTestCase<CCMEnabledActionResponse> {
 
+    public void testIsEnabled() {
+        var responseEnabled = new CCMEnabledActionResponse(true);
+        assertTrue(responseEnabled.isEnabled());
+
+        var responseDisabled = new CCMEnabledActionResponse(false);
+        assertFalse(responseDisabled.isEnabled());
+    }
+
     @Override
     protected CCMEnabledActionResponse mutateInstanceForVersion(CCMEnabledActionResponse instance, TransportVersion version) {
         return instance;

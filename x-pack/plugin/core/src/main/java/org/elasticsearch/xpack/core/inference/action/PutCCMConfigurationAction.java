@@ -76,7 +76,7 @@ public class PutCCMConfigurationAction extends ActionType<CCMEnabledActionRespon
             return apiKey;
         }
 
-        public Boolean getEnabled() {
+        public Boolean getEnabledField() {
             return enabled;
         }
 

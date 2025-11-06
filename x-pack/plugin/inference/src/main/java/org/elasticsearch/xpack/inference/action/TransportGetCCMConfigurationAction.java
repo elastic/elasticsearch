@@ -16,16 +16,22 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
 import org.elasticsearch.xpack.core.inference.action.GetCCMConfigurationAction;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
+
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_FORBIDDEN_EXCEPTION;
 
 public class TransportGetCCMConfigurationAction extends HandledTransportAction<
     GetCCMConfigurationAction.Request,
     CCMEnabledActionResponse> {
 
     private final CCMService ccmService;
+    private final CCMFeature ccmFeature;
 
     @Inject
-    public TransportGetCCMConfigurationAction(TransportService transportService, ActionFilters actionFilters, CCMService ccmService) {
+    public TransportGetCCMConfigurationAction(TransportService transportService, ActionFilters actionFilters, CCMService ccmService, CCMFeature ccmFeature) {
         super(
             GetCCMConfigurationAction.NAME,
             transportService,
@@ -33,11 +39,17 @@ public class TransportGetCCMConfigurationAction extends HandledTransportAction<
             GetCCMConfigurationAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.ccmService = ccmService;
+        this.ccmService = Objects.requireNonNull(ccmService);
+        this.ccmFeature = Objects.requireNonNull(ccmFeature);
     }
 
     @Override
     protected void doExecute(Task task, GetCCMConfigurationAction.Request request, ActionListener<CCMEnabledActionResponse> listener) {
+        if (ccmFeature.allowConfiguringCcm() == false) {
+            listener.onFailure(CCM_FORBIDDEN_EXCEPTION);
+            return;
+        }
+
         ccmService.isEnabled(
             listener.delegateFailureAndWrap((delegate, enabled) -> delegate.onResponse(new CCMEnabledActionResponse(enabled)))
         );

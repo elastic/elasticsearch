@@ -7,9 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.ccm;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 
 public class CCMFeature {
+    public static final ElasticsearchStatusException CCM_FORBIDDEN_EXCEPTION = new ElasticsearchStatusException(
+        "CCM configuration is not permitted for this environment",
+        RestStatus.FORBIDDEN
+    );
+
     private final boolean allowConfiguringCcm;
 
     public CCMFeature(Settings settings) {

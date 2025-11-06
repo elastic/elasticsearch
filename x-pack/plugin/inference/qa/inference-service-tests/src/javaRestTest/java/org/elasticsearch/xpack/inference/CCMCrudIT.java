@@ -10,35 +10,26 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse.ENABLED_FIELD_NAME;
-import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_CCM_PATH;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
-public class CCMCrudIT extends ESRestTestCase {
-
-    static final String PUT_METHOD = "PUT";
-    static final String GET_METHOD = "GET";
+public class CCMCrudIT extends CCMBaseIT {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -46,8 +37,6 @@ public class CCMCrudIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.inference.elastic.allow_configuring_ccm", "true")
-        // This plugin is located in the inference/qa/test-service-plugin package, look for TestInferenceServicePlugin
-        .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();
 
@@ -80,24 +69,18 @@ public class CCMCrudIT extends ESRestTestCase {
         assertTrue(response.isEnabled());
     }
 
-    private static CCMEnabledActionResponse putCCMConfiguration(PutCCMConfigurationAction.Request request) throws IOException {
-        var response = putRawRequest(INFERENCE_CCM_PATH, request);
-        assertStatusOkOrCreated(response);
-        var responseAsMap = entityAsMap(response);
+    public void testEnablesCCM_WithExtraFields_Fails() {
+        var extraField = "extra_field";
+        var requestBody = Strings.format("""
+            {
+              "api_key": "key",
+              "%s": "extra_value"
+            }
+            """, extraField);
+        var exception = expectThrows(ResponseException.class, () -> putRawRequest(INFERENCE_CCM_PATH, requestBody));
 
-        var enabled = responseAsMap.get(ENABLED_FIELD_NAME);
-
-        assertThat(enabled, instanceOf(Boolean.class));
-        return new CCMEnabledActionResponse((Boolean) enabled);
-    }
-
-    private static Response putRawRequest(String endpoint, PutCCMConfigurationAction.Request actionRequest) throws IOException {
-        var builder = XContentFactory.contentBuilder(XContentType.JSON);
-        actionRequest.toXContent(builder, null);
-
-        var request = new Request(PUT_METHOD, endpoint);
-        request.setJsonEntity(Strings.toString(builder));
-        return client().performRequest(request);
+        assertThat(exception.getMessage(), containsString(Strings.format("unknown field [%s]", extraField)));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.BAD_REQUEST.getStatus()));
     }
 
     public void testEnableCCM_WithNullApiKey_NullEnabled_ThrowsException() {
@@ -122,24 +105,15 @@ public class CCMCrudIT extends ESRestTestCase {
     }
 
     public void testDisableCCM_Succeeds() throws IOException {
-        var response = putCCMConfiguration(PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS));
+        var response = putCCMConfiguration(
+            PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+        );
 
         assertFalse(response.isEnabled());
     }
 
     public void testGetCCMConfiguration_WhenCCMDisabled_ReturnsDisabled() throws IOException {
         assertFalse(getCCMConfiguration().isEnabled());
-    }
-
-    private CCMEnabledActionResponse getCCMConfiguration() throws IOException {
-        var getRequest = new Request(GET_METHOD, INFERENCE_CCM_PATH);
-        var getResponse = client().performRequest(getRequest);
-        assertStatusOkOrCreated(getResponse);
-        var responseAsMap = entityAsMap(getResponse);
-
-        var enabled = responseAsMap.get(ENABLED_FIELD_NAME);
-        assertThat(enabled, instanceOf(Boolean.class));
-        return new CCMEnabledActionResponse((Boolean) enabled);
     }
 
     public void testEnablesCCM_ThenDisable() throws IOException {
@@ -154,7 +128,9 @@ public class CCMCrudIT extends ESRestTestCase {
         assertTrue(response.isEnabled());
         assertTrue(getCCMConfiguration().isEnabled());
 
-        response = putCCMConfiguration(PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS));
+        response = putCCMConfiguration(
+            PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+        );
 
         assertFalse(response.isEnabled());
         assertFalse(getCCMConfiguration().isEnabled());

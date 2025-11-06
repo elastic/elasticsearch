@@ -473,7 +473,7 @@ public class EnrichPolicyResolver {
                 // they're not supported in enrich policies, anyway, due to bugs.
                 // https://github.com/elastic/elasticsearch/issues/127350
                 // https://github.com/elastic/elasticsearch/issues/137699
-                this.minimumVersion = TransportVersion.minimumCompatible();
+                this.minimumVersion = TransportVersion.current();
             }
             this.connectionError = null;
         }

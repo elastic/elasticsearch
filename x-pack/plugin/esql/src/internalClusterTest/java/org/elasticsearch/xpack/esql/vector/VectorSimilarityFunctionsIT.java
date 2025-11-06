@@ -251,7 +251,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDifferentDimensions() {
-        var randomVector = randomVector(randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * 2));
+        var randomVector = randomVector(randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * 2), false);
         var query = String.format(Locale.ROOT, """
                 FROM test
                 | EVAL similarity = %s(left_vector, %s)
@@ -322,8 +322,12 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     private List<Number> randomVector(int numDims) {
+        return randomVector(numDims, true);
+    }
+
+    private List<Number> randomVector(int numDims, boolean allowNull) {
         assert numDims != 0 : "numDims must be set before calling randomVector()";
-        if (rarely()) {
+        if (allowNull && rarely()) {
             return null;
         }
         List<Number> vector = new ArrayList<>(numDims);

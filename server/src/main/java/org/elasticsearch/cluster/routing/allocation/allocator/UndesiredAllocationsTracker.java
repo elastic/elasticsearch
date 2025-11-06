@@ -25,6 +25,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.TimeValue.ONE_MINUTE;
+import static org.elasticsearch.core.TimeValue.ZERO;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMinutes;
+
 /**
  * Keeps track of a limited number of shards that are currently in undesired allocations. If the
  * shards remain in undesired allocations for longer than a configurable threshold, it will log
@@ -34,12 +39,14 @@ public class UndesiredAllocationsTracker {
 
     private static final Logger logger = LogManager.getLogger(UndesiredAllocationsTracker.class);
 
+    private static final TimeValue FIVE_MINUTES = timeValueMinutes(5);
+
     /**
      * Warning logs will be periodically written if we see a shard that's been in an undesired allocation for this long
      */
     public static final Setting<TimeValue> UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.desired_balance.undesired_duration_logging.threshold",
-        TimeValue.timeValueMinutes(5),
+        FIVE_MINUTES,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -49,8 +56,8 @@ public class UndesiredAllocationsTracker {
      */
     public static final Setting<TimeValue> UNDESIRED_ALLOCATION_DURATION_LOG_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.desired_balance.undesired_duration_logging.interval",
-        TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueMinutes(1),
+        FIVE_MINUTES,
+        ONE_MINUTE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -75,7 +82,7 @@ public class UndesiredAllocationsTracker {
 
     UndesiredAllocationsTracker(ClusterSettings clusterSettings, TimeProvider timeProvider) {
         this.timeProvider = timeProvider;
-        this.undesiredAllocationDurationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.ZERO);
+        this.undesiredAllocationDurationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, ZERO);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATION_DURATION_LOG_INTERVAL_SETTING,
             undesiredAllocationDurationLogInterval::setMinInterval
@@ -172,7 +179,7 @@ public class UndesiredAllocationsTracker {
                 if (shardRouting != null) {
                     logUndesiredShardDetails(
                         shardRouting,
-                        TimeValue.timeValueMillis(currentTimeMillis - undesiredAllocation.undesiredSince()),
+                        timeValueMillis(currentTimeMillis - undesiredAllocation.undesiredSince()),
                         routingNodes,
                         routingAllocation,
                         desiredBalance

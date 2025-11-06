@@ -1528,7 +1528,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 "Should log the NO decisions",
                 UndesiredAllocationsTracker.class.getCanonicalName(),
                 Level.WARN,
-                "[" + shardToPreventMovement + "][0] cannot be allocated on node [data-node-2]: [NO(Blocks allocation on node 2)]"
+                "[" + shardToPreventMovement + "][0] allocation decision for node [data-node-2]: [NO(Blocks allocation on node 2)]"
             )
         );
 

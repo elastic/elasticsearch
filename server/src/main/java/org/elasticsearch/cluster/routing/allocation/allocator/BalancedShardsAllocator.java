@@ -1262,7 +1262,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     assert allocation.isSimulating() == false
                         || allocationDecision.getAllocationStatus() != AllocationStatus.DECIDERS_THROTTLED
                         || shardAssignmentChanged
-                        : "unexpected THROTTLE decision (simulation="
+                        : "unexpected THROTTLE decision (isSimulating="
                             + allocation.isSimulating()
                             + ") with no prior assignment when allocating unassigned shard ["
                             + shard

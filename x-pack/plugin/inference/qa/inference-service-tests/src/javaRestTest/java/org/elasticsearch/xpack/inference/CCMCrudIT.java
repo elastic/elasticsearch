@@ -69,6 +69,28 @@ public class CCMCrudIT extends CCMBaseIT {
         assertTrue(response.isEnabled());
     }
 
+    public void testEnablesCCMTwice_Succeeds() throws IOException {
+        var response = putCCMConfiguration(
+            PutCCMConfigurationAction.Request.createEnabled(
+                new SecureString("key".toCharArray()),
+                TimeValue.THIRTY_SECONDS,
+                TimeValue.THIRTY_SECONDS
+            )
+        );
+
+        assertTrue(response.isEnabled());
+
+        response = putCCMConfiguration(
+            PutCCMConfigurationAction.Request.createEnabled(
+                new SecureString("other_key".toCharArray()),
+                TimeValue.THIRTY_SECONDS,
+                TimeValue.THIRTY_SECONDS
+            )
+        );
+
+        assertTrue(response.isEnabled());
+    }
+
     public void testEnablesCCM_WithExtraFields_Fails() {
         var extraField = "extra_field";
         var requestBody = Strings.format("""

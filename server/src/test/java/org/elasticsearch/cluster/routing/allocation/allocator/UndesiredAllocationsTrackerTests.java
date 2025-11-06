@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -22,6 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.AdvancingTimeProvider;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +34,46 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 public class UndesiredAllocationsTrackerTests extends ESTestCase {
+
+    public void testShardsArePrunedWhenRemovedFromRoutingTable() {
+        final int primaryShards = randomIntBetween(2, 5);
+        final int numberOfIndices = randomIntBetween(2, 5);
+        final int numberOfNodes = randomIntBetween(2, 5);
+
+        final var clusterSettings = ClusterSettings.createBuiltInClusterSettings(
+            Settings.builder()
+                .put(UndesiredAllocationsTracker.MAX_UNDESIRED_ALLOCATIONS_TO_TRACK.getKey(), numberOfIndices * primaryShards)
+                .build()
+        );
+        final var advancingTimeProvider = new AdvancingTimeProvider();
+        final var undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, advancingTimeProvider);
+
+        final var indexNames = IntStream.range(0, numberOfIndices).mapToObj(i -> "index-" + i).toArray(String[]::new);
+        final var state = ClusterStateCreationUtils.state(numberOfNodes, indexNames, primaryShards);
+        final var routingNodes = RoutingNodes.immutable(state.globalRoutingTable(), state.nodes());
+
+        // Mark all primary shards as undesired
+        routingNodes.forEach(routingNode -> {
+            routingNode.forEach(shardRouting -> {
+                if (shardRouting.primary()) {
+                    undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
+                }
+            });
+        });
+        assertEquals(numberOfIndices * primaryShards, undesiredAllocationsTracker.getUndesiredAllocations().size());
+
+        // Simulate an index being deleted
+        ClusterState stateWithIndexRemoved = removeRandomIndex(state);
+
+        // Run cleanup with new RoutingNodes
+        undesiredAllocationsTracker.cleanup(
+            RoutingNodes.immutable(stateWithIndexRemoved.globalRoutingTable(), stateWithIndexRemoved.nodes())
+        );
+        assertEquals((numberOfIndices - 1) * primaryShards, undesiredAllocationsTracker.getUndesiredAllocations().size());
+        undesiredAllocationsTracker.getUndesiredAllocations()
+            .iterator()
+            .forEachRemaining(olc -> assertNotNull(stateWithIndexRemoved.routingTable(ProjectId.DEFAULT).index(olc.key.index())));
+    }
 
     public void testNewestRecordsArePurgedWhenLimitIsDecreased() {
         final var initialMaximum = randomIntBetween(10, 20);
@@ -42,17 +85,17 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         final var indexName = randomIdentifier();
         final var index = new Index(indexName, indexName);
         final var indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        final var discoveryNodesBuilder = DiscoveryNodes.builder();
+        final var discoveryNodes = randomDiscoveryNodes(randomIntBetween(initialMaximum / 2, initialMaximum));
 
         // The shards with the lowest IDs will have the earliest timestamps
         for (int i = 0; i < initialMaximum; i++) {
-            final var routing = createAssignedRouting(index, i, discoveryNodesBuilder);
+            final var routing = createAssignedRouting(index, i, discoveryNodes);
             indexRoutingTableBuilder.addShard(routing);
             undesiredAllocationsTracker.trackUndesiredAllocation(routing);
         }
         final var routingNodes = RoutingNodes.immutable(
             GlobalRoutingTable.builder().put(ProjectId.DEFAULT, RoutingTable.builder().add(indexRoutingTableBuilder).build()).build(),
-            discoveryNodesBuilder.build()
+            discoveryNodes
         );
 
         // Reduce the maximum
@@ -73,9 +116,45 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         assertEquals(IntStream.range(0, reducedMaximum).boxed().collect(Collectors.toSet()), remainingShardIds);
     }
 
-    private ShardRouting createAssignedRouting(Index index, int shardId, DiscoveryNodes.Builder discoveryNodesBuilder) {
-        final var nodeId = randomAlphaOfLength(10);
-        discoveryNodesBuilder.add(DiscoveryNodeUtils.create(nodeId));
+    public void testCannotTrackMoreShardsThanTheLimit() {
+        final int maxToTrack = randomIntBetween(1, 10);
+        final var clusterSettings = ClusterSettings.createBuiltInClusterSettings(
+            Settings.builder().put(UndesiredAllocationsTracker.MAX_UNDESIRED_ALLOCATIONS_TO_TRACK.getKey(), maxToTrack).build()
+        );
+        final var advancingTimeProvider = new AdvancingTimeProvider();
+        final var undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, advancingTimeProvider);
+        final var index = new Index(randomIdentifier(), randomIdentifier());
+
+        final int shardsToAdd = randomIntBetween(maxToTrack + 1, maxToTrack * 2);
+        for (int i = 0; i < shardsToAdd; i++) {
+            final var routing = createAssignedRouting(index, i);
+            undesiredAllocationsTracker.trackUndesiredAllocation(routing);
+        }
+
+        // Only the first {maxToTrack} shards should be tracked
+        assertEquals(maxToTrack, undesiredAllocationsTracker.getUndesiredAllocations().size());
+        final var trackedShardIds = StreamSupport.stream(undesiredAllocationsTracker.getUndesiredAllocations().spliterator(), false)
+            .map(olc -> olc.key.shardId().id())
+            .collect(Collectors.toSet());
+        assertEquals(IntStream.range(0, maxToTrack).boxed().collect(Collectors.toSet()), trackedShardIds);
+    }
+
+    private ClusterState removeRandomIndex(ClusterState state) {
+        RoutingTable originalRoutingTable = state.routingTable(ProjectId.DEFAULT);
+        RoutingTable updatedRoutingTable = RoutingTable.builder(originalRoutingTable)
+            .remove(randomFrom(originalRoutingTable.indicesRouting().keySet()))
+            .build();
+        return ClusterState.builder(state)
+            .routingTable(GlobalRoutingTable.builder().put(ProjectId.DEFAULT, updatedRoutingTable).build())
+            .build();
+    }
+
+    private ShardRouting createAssignedRouting(Index index, int shardId) {
+        return createAssignedRouting(index, shardId, null);
+    }
+
+    private ShardRouting createAssignedRouting(Index index, int shardId, @Nullable DiscoveryNodes discoveryNodes) {
+        final var nodeId = discoveryNodes == null ? randomAlphaOfLength(10) : randomFrom(discoveryNodes.getNodes().keySet());
         return ShardRouting.newUnassigned(
             new ShardId(index, shardId),
             true,
@@ -83,5 +162,13 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, randomIdentifier()),
             randomFrom(ShardRouting.Role.DEFAULT, ShardRouting.Role.INDEX_ONLY)
         ).initialize(nodeId, null, randomNonNegativeLong());
+    }
+
+    private DiscoveryNodes randomDiscoveryNodes(int numberOfNodes) {
+        final var nodes = DiscoveryNodes.builder();
+        for (int i = 0; i < numberOfNodes; i++) {
+            nodes.add(DiscoveryNodeUtils.create("node-" + i));
+        }
+        return nodes.build();
     }
 }

@@ -84,6 +84,18 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
             throw new IllegalArgumentException("Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
         }
 
+        if (path != null) {
+            NestedObjectMapper currentParent = context.nestedScope().getObjectMapper();
+            if (currentParent != null) {
+                String parentPath = currentParent.fullPath();
+                if (parentPath.equals(path) == false && parentPath.startsWith(path + ".") == false) {
+                    throw new IllegalArgumentException(
+                        "Reverse nested path [" + path + "] is not a parent of the current nested scope [" + parentPath + "]"
+                    );
+                }
+            }
+        }
+
         NestedObjectMapper nestedMapper = null;
         if (path != null) {
             nestedMapper = context.nestedLookup().getNestedMappers().get(path);

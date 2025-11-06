@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -80,6 +81,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final IndexSettingProviders indexSettingProviders;
     private final Client client;
+    private final MetadataDataStreamsService metadataDataStreamsService;
 
     /**
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
@@ -99,7 +101,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         DataStreamGlobalRetentionSettings globalRetentionSettings,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         IndexSettingProviders indexSettingProviders,
-        Client client
+        Client client,
+        MetadataDataStreamsService metadataDataStreamsService
     ) {
         super(
             GetDataStreamAction.NAME,
@@ -116,6 +119,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.indexSettingProviders = indexSettingProviders;
         this.client = new OriginSettingClient(client, "stack");
+        this.metadataDataStreamsService = metadataDataStreamsService;
 
         transportService.registerRequestHandler(
             actionName,
@@ -159,7 +163,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                             globalRetentionSettings,
                             dataStreamFailureStoreSettings,
                             indexSettingProviders,
-                            maxTimestamps
+                            maxTimestamps,
+                            metadataDataStreamsService
                         )
                     );
                 }
@@ -180,7 +185,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     globalRetentionSettings,
                     dataStreamFailureStoreSettings,
                     indexSettingProviders,
-                    null
+                    null,
+                    metadataDataStreamsService
                 )
             );
         }
@@ -218,6 +224,12 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
             }
         }
+        if (indexMode == null) {
+            String rawMode = settings.get(IndexSettings.MODE.getKey());
+            if (rawMode != null) {
+                indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
+            }
+        }
         return indexMode;
     }
 
@@ -230,7 +242,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         DataStreamGlobalRetentionSettings globalRetentionSettings,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         IndexSettingProviders indexSettingProviders,
-        @Nullable Map<String, Long> maxTimestamps
+        @Nullable Map<String, Long> maxTimestamps,
+        MetadataDataStreamsService metadataDataStreamsService
     ) {
         List<DataStream> dataStreams = getDataStreams(state.metadata(), indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
@@ -265,7 +278,12 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
                 if (indexTemplate != null) {
-                    Settings settings = dataStream.getEffectiveSettings(state.metadata());
+                    final Settings settings;
+                    try {
+                        settings = metadataDataStreamsService.getEffectiveSettings(state.metadata(), dataStream);
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to get effective settings for data stream: " + dataStream.getName(), e);
+                    }
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
                     if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
                         try {
@@ -277,7 +295,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                                 dataStream.getEffectiveIndexTemplate(state.metadata())
                             );
                         } catch (IOException e) {
-                            throw new RuntimeException(e);
+                            throw new RuntimeException("Failed to determine indexMode for data stream: " + dataStream.getName(), e);
                         }
                     }
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);

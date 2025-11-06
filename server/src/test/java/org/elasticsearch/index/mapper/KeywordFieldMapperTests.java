@@ -582,7 +582,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", false)
             )
         );
+        var keywordMapper = mapper.mappingLookup().getMapper("field");
+        assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
+
         assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+
+        String expected = """
+            {"field":{"type":"keyword","normalizer":"lowercase","normalizer_skip_store_original_value":false}}""";
+        assertThat(keywordMapper.toString(), equalTo(expected));
     }
 
     public void testNormalizerSyntheticSourceSkipStoreOriginalValue() throws IOException {
@@ -591,7 +599,17 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", true)
             )
         );
+        var keywordMapper = mapper.mappingLookup().getMapper("field");
+        assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
+        assertTrue(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
+
         assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+
+        // normalizer_skip_store_original_value is configured, but it is the same as the default value, and therefor it isn't serialized
+        // (See default serializerCheck in Parameter.java)
+        String expected = """
+            {"field":{"type":"keyword","normalizer":"lowercase"}}""";
+        assertThat(keywordMapper.toString(), equalTo(expected));
     }
 
     public void testSkipStoreOriginalValueForLowercaseNormalizer() throws IOException {
@@ -604,6 +622,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
 
         assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        String expected = """
+            {"field":{"type":"keyword","normalizer":"lowercase"}}""";
+        assertThat(keywordMapper.toString(), equalTo(expected));
     }
 
     public void testSkipStoreOriginalValueForCustomNormalizer() throws IOException {
@@ -616,6 +637,26 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertFalse(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
 
         assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        String expected = """
+            {"field":{"type":"keyword","normalizer":"other_lowercase"}}""";
+        assertThat(keywordMapper.toString(), equalTo(expected));
+    }
+
+    public void testSkipStoreOriginalValueForCustomNormalizerOverwriteSkipStoreOriginalValue() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword").field("normalizer", "other_lowercase").field("normalizer_skip_store_original_value", true)
+            )
+        );
+
+        var keywordMapper = mapper.mappingLookup().getMapper("field");
+        assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
+        assertTrue(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
+
+        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        String expected = """
+            {"field":{"type":"keyword","normalizer":"other_lowercase","normalizer_skip_store_original_value":true}}""";
+        assertThat(keywordMapper.toString(), equalTo(expected));
     }
 
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
@@ -1177,5 +1218,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     protected String randomSyntheticSourceKeep() {
         // Only option all keeps array source in ignored source.
         return randomFrom("all");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
     }
 }

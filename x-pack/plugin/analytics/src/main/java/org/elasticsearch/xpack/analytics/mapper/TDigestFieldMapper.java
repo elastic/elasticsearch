@@ -65,6 +65,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class TDigestFieldMapper extends FieldMapper {
     public static final FeatureFlag TDIGEST_FIELD_MAPPER = new FeatureFlag("tdigest_field_mapper");
 
+    public static final String CENTROIDS_NAME = "centroids";
+    public static final String COUNTS_NAME = "counts";
     public static final String CONTENT_TYPE = "tdigest";
 
     private static TDigestFieldMapper toType(FieldMapper in) {
@@ -338,13 +340,13 @@ public class TDigestFieldMapper extends FieldMapper {
             TDigestParser.ParsedHistogram parsedHistogram = TDigestParser.parse(fullPath(), subParser);
 
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            for (int i = 0; i < parsedHistogram.values().size(); i++) {
+            for (int i = 0; i < parsedHistogram.centroids().size(); i++) {
                 long count = parsedHistogram.counts().get(i);
                 assert count >= 0;
                 // we do not add elements with count == 0
                 if (count > 0) {
                     streamOutput.writeVLong(count);
-                    streamOutput.writeLong(Double.doubleToRawLongBits(parsedHistogram.values().get(i)));
+                    streamOutput.writeLong(Double.doubleToRawLongBits(parsedHistogram.centroids().get(i)));
                 }
             }
             BytesRef docValue = streamOutput.bytes().toBytesRef();
@@ -486,14 +488,14 @@ public class TDigestFieldMapper extends FieldMapper {
             b.startObject();
 
             value.reset(binaryValue);
-            b.startArray("centroids");
+            b.startArray(CENTROIDS_NAME);
             while (value.next()) {
                 b.value(value.value());
             }
             b.endArray();
 
             value.reset(binaryValue);
-            b.startArray("counts");
+            b.startArray(COUNTS_NAME);
             while (value.next()) {
                 b.value(value.count());
             }

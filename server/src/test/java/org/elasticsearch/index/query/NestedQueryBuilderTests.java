@@ -39,7 +39,9 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.elasticsearch.index.query.InnerHitBuilderTests.randomNestedInnerHits;
@@ -467,5 +469,18 @@ public class NestedQueryBuilderTests extends AbstractPrefilteredQueryTestCase<Ne
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
+    }
+
+    @Override
+    protected NestedQueryBuilder createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier) {
+        return QueryBuilders.nestedQuery(OBJECT_FIELD_NAME, prefilteredQuerySupplier.get(), ScoreMode.None);
+    }
+
+    @Override
+    protected void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters) {
+        assertThat(rewritten, instanceOf(NestedQueryBuilder.class));
+        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) rewritten;
+        assertThat(nestedQueryBuilder.query(), instanceOf(PrefilteredQuery.class));
+        assertThat(((PrefilteredQuery) nestedQueryBuilder.query()).getPrefilters(), equalTo(prefilters));
     }
 }

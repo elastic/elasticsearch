@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -17,12 +18,17 @@ import org.elasticsearch.test.TransportVersionUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractPrefilteredQueryTestCase<QB extends AbstractQueryBuilder<QB> & PrefilteredQuery<QB>> extends
     AbstractQueryTestCase<QB> {
+
+    protected abstract QB createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier);
+
+    protected abstract void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters);
 
     public void testSerializationPrefiltersBwc() throws Exception {
         QB originalQuery = createTestQueryBuilder();
@@ -64,13 +70,55 @@ public abstract class AbstractPrefilteredQueryTestCase<QB extends AbstractQueryB
         assertThat(deserializedQuery.hashCode(), not(equalTo(originalQuery.hashCode())));
     }
 
-    public static void setRandomTermQueryPrefilters(PrefilteredQuery<?> queryBuilder, String... termFieldNames) {
+    public void testRewriteWithPrefilters() throws IOException {
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        for (int i = 0; i < 100; i++) {
+            QB queryBuilder = createQueryBuilderForPrefilteredRewriteTest(() -> createRandomPrefilteredQuery());
+            if (queryBuilder == null) {
+                return;
+            }
+            setRandomPrefilters(queryBuilder);
+
+            QueryBuilder rewritten = rewriteQuery(queryBuilder, queryRewriteContext, searchExecutionContext);
+
+            assertRewrittenHasPropagatedPrefilters(rewritten, queryBuilder.getPrefilters());
+        }
+    }
+
+    private static void setRandomPrefilters(PrefilteredQuery<?> queryBuilder) {
         List<QueryBuilder> filters = new ArrayList<>();
         int numFilters = randomIntBetween(1, 5);
         for (int i = 0; i < numFilters; i++) {
-            String filterFieldName = randomFrom(termFieldNames);
-            filters.add(QueryBuilders.termQuery(filterFieldName, randomAlphaOfLength(10)));
+            filters.add(randomFrom(randomTermQuery(), createRandomPrefilteredQuery()));
         }
         queryBuilder.setPrefilters(filters);
+    }
+
+    private static QueryBuilder randomTermQuery() {
+        String filterFieldName = randomFrom(KEYWORD_FIELD_NAME, TEXT_FIELD_NAME);
+        return QueryBuilders.termQuery(filterFieldName, randomAlphaOfLength(10));
+    }
+
+    private static QueryBuilder createRandomPrefilteredQuery() {
+        return switch (randomFrom(PrefilteredQueryType.values())) {
+            case BOOL -> QueryBuilders.boolQuery().must(randomTermQuery());
+            case BOOSTING -> QueryBuilders.boostingQuery(randomTermQuery(), randomTermQuery());
+            case CONSTANT_SCORE -> QueryBuilders.constantScoreQuery(randomTermQuery());
+            case DIS_MAX -> QueryBuilders.disMaxQuery().add(randomTermQuery()).add(randomTermQuery());
+            case FUNCTION_SCORE -> QueryBuilders.functionScoreQuery(randomTermQuery());
+            case NESTED -> QueryBuilders.nestedQuery(OBJECT_FIELD_NAME, randomTermQuery(), randomFrom(ScoreMode.values()));
+        };
+    }
+
+    private enum PrefilteredQueryType {
+        // We only include query types that have child queries.
+        BOOL,
+        BOOSTING,
+        CONSTANT_SCORE,
+        DIS_MAX,
+        FUNCTION_SCORE,
+        NESTED
     }
 }

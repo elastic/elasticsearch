@@ -11,9 +11,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -97,6 +99,8 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
         final TestIndex testIndex2 = new TestIndex("test-index-2", Map.of(field, SPARSE_INFERENCE_ID), Map.of());
         final TestIndex testIndex3 = new TestIndex("test-index-3", Map.of(), Map.of(field, Map.of("type", "text")));
         final MatchQueryBuilder matchQuery = new MatchQueryBuilder(field, queryText).boost(3.0f).queryName("bar");
+        List<QueryBuilder> prefilters = randomList(5, () -> RandomQueryBuilder.createQuery(random()));
+        matchQuery.setPrefilters(prefilters);
 
         // Perform coordinator node rewrite
         final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
@@ -137,7 +141,7 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
             queryText,
             null,
             coordinatorIntercepted.inferenceResultsMap
-        ).boost(matchQuery.boost()).queryName(matchQuery.queryName());
+        ).boost(matchQuery.boost()).queryName(matchQuery.queryName()).setPrefilters(prefilters);
 
         // Perform data node rewrite on test index 1
         final QueryRewriteContext indexMetadataContextTestIndex1 = createIndexMetadataContext(

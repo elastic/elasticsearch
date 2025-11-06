@@ -559,20 +559,19 @@ public class SemanticQueryBuilderTests extends AbstractPrefilteredQueryTestCase<
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
-    public void testRewriteWithPrefilters() throws IOException {
-        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        SemanticQueryBuilder queryBuilder = doCreateTestQueryBuilder();
-        setRandomTermQueryPrefilters(queryBuilder, KEYWORD_FIELD_NAME, TEXT_FIELD_NAME);
+    @Override
+    protected SemanticQueryBuilder createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier) {
+        return doCreateTestQueryBuilder();
+    }
 
-        QueryBuilder rewritten = rewriteQuery(queryBuilder, queryRewriteContext, searchExecutionContext);
-
+    @Override
+    protected void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters) {
         assertThat(rewritten, instanceOf(NestedQueryBuilder.class));
         NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) rewritten;
         switch (inferenceResultType) {
             case NONE -> assertThat(nestedQueryBuilder.query(), instanceOf(MatchNoneQueryBuilder.class));
             case SPARSE_EMBEDDING -> assertThat(nestedQueryBuilder.query(), instanceOf(SparseVectorQueryBuilder.class));
-            case TEXT_EMBEDDING -> assertVectorQueryBuilderWithPrefilters(nestedQueryBuilder.query(), queryBuilder.getPrefilters());
+            case TEXT_EMBEDDING -> assertVectorQueryBuilderWithPrefilters(nestedQueryBuilder.query(), prefilters);
             default -> fail("Unexpected inference result type [" + inferenceResultType + "]");
         }
     }

@@ -14,9 +14,12 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.equalTo;
 
 public class BoostingQueryBuilderTests extends AbstractPrefilteredQueryTestCase<BoostingQueryBuilder> {
 
@@ -146,5 +149,22 @@ public class BoostingQueryBuilderTests extends AbstractPrefilteredQueryTestCase<
         );
         e = expectThrows(IllegalStateException.class, () -> queryBuilder2.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    @Override
+    protected BoostingQueryBuilder createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier) {
+        return QueryBuilders.boostingQuery(prefilteredQuerySupplier.get(), prefilteredQuerySupplier.get());
+    }
+
+    @Override
+    protected void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters) {
+        assertThat(rewritten, instanceOf(BoostingQueryBuilder.class));
+        BoostingQueryBuilder boostingQueryBuilder = (BoostingQueryBuilder) rewritten;
+        QueryBuilder positiveQuery = boostingQueryBuilder.positiveQuery();
+        assertThat(positiveQuery, instanceOf(PrefilteredQuery.class));
+        assertThat(((PrefilteredQuery) positiveQuery).getPrefilters(), equalTo(prefilters));
+        QueryBuilder negativeQuery = boostingQueryBuilder.negativeQuery();
+        assertThat(negativeQuery, instanceOf(PrefilteredQuery.class));
+        assertThat(((PrefilteredQuery) negativeQuery).getPrefilters(), equalTo(prefilters));
     }
 }

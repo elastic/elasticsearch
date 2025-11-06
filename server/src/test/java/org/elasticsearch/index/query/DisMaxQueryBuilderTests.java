@@ -21,6 +21,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DisMaxQueryBuilderTests extends AbstractPrefilteredQueryTestCase<DisMaxQueryBuilder> {
     /**
@@ -142,5 +146,20 @@ public class DisMaxQueryBuilderTests extends AbstractPrefilteredQueryTestCase<Di
         QueryBuilder rewrittenAgain = rewritten.rewrite(createSearchExecutionContext());
         assertEquals(rewrittenAgain, expected);
         assertEquals(Rewriteable.rewrite(dismax, createSearchExecutionContext()), expected);
+    }
+
+    @Override
+    protected DisMaxQueryBuilder createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier) {
+        return QueryBuilders.disMaxQuery().add(prefilteredQuerySupplier.get()).add(prefilteredQuerySupplier.get());
+    }
+
+    @Override
+    protected void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters) {
+        assertThat(rewritten, instanceOf(DisMaxQueryBuilder.class));
+        DisMaxQueryBuilder innerQueries = (DisMaxQueryBuilder) rewritten;
+        for (QueryBuilder prefilter : innerQueries.innerQueries()) {
+            assertThat(prefilter, instanceOf(PrefilteredQuery.class));
+            assertThat(((PrefilteredQuery) prefilter).getPrefilters(), equalTo(prefilters));
+        }
     }
 }

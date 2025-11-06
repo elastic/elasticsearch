@@ -16,6 +16,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -117,4 +119,18 @@ public class ConstantScoreQueryBuilderTests extends AbstractPrefilteredQueryTest
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
+
+    @Override
+    protected ConstantScoreQueryBuilder createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier) {
+        return QueryBuilders.constantScoreQuery(prefilteredQuerySupplier.get());
+    }
+
+    @Override
+    protected void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters) {
+        assertThat(rewritten, instanceOf(ConstantScoreQueryBuilder.class));
+        QueryBuilder innerQuery = ((ConstantScoreQueryBuilder) rewritten).innerQuery();
+        assertThat(innerQuery, instanceOf(PrefilteredQuery.class));
+        assertEquals(prefilters, ((PrefilteredQuery<?>) innerQuery).getPrefilters());
+    }
+
 }

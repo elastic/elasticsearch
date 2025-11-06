@@ -102,6 +102,7 @@ public class FieldNameUtils {
         // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
         // Except in KEEP and DROP.
         var keepRefs = AttributeSet.builder();
+        var currentBranchKeepRefs = new Holder<>(AttributeSet.builder());
         var dropWildcardRefs = AttributeSet.builder();
         // fields required to request for lookup joins to work
         var joinRefs = AttributeSet.builder();
@@ -117,10 +118,17 @@ public class FieldNameUtils {
                 // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.
                 var forkRefsResult = AttributeSet.builder();
                 forkRefsResult.addAll(referencesBuilder.get());
+                var parentKeepRefs = AttributeSet.builder();
+                parentKeepRefs.addAll(keepRefs);
 
                 for (var forkBranch : fork.children()) {
+                    // Reset branch-specific state for each fork branch
+                    currentBranchKeepRefs.set(AttributeSet.builder());
+                    currentBranchKeepRefs.get().addAll(parentKeepRefs);
                     referencesBuilder.set(AttributeSet.builder());
+
                     var isNestedFork = forkBranch.forEachDownMayReturnEarly(forEachDownProcessor.get());
+
                     // This assert is just for good measure. FORKs within FORKs is yet not supported.
                     LogicalPlan lastFork = lastSeenFork.get();
                     if (lastFork != null && fork instanceof UnionAll == false && lastFork instanceof UnionAll == false) {
@@ -130,11 +138,24 @@ public class FieldNameUtils {
                         // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
                         assert isNestedFork == false : "Nested FORKs are not yet supported";
                     }
-                    // This is a safety measure for fork where the list of fields returned is empty.
-                    // It can be empty for a branch that does need all the fields. For example "fork (where true) (where a is not null)"
-                    // but it can also be empty for queries where NO fields are needed from ES,
-                    // for example "fork (eval x = 1 | keep x) (eval y = 1 | keep y)" but we cannot establish this yet.
-                    if (referencesBuilder.get().isEmpty()) {
+
+                    // Determine if this fork branch requires all fields from the index (projectAll = true).
+                    // This happens when a branch has no explicit field selection and no KEEP constraints.
+                    //
+                    // We trigger projectAll when ALL of the following conditions are met:
+                    // 1. No KEEP commands in this branch (currentBranchKeepRefs is empty)
+                    // 2. AND either:
+                    //    a) No field references were collected (referencesBuilder is empty), OR
+                    //    b) The branch contains no commands that require explicit field collection
+                    //       (e.g., no PROJECT or STATS commands that would limit field selection)
+                    //
+                    // Examples:
+                    // - "fork (where true) (where a is not null)" → needs all fields (no KEEP, only filters)
+                    // - "fork (eval x = 1 | keep x) (where true)" → needs all fields (second branch has no KEEP)
+                    // - "fork (eval x = 1 | keep x) (eval y = 2 | keep y)" → specific fields only (both branches have KEEP)
+                    if (currentBranchKeepRefs.get().isEmpty()
+                        && (referencesBuilder.get().isEmpty()
+                            || false == forkBranch.anyMatch(forkPlan -> shouldCollectReferencedFields(forkPlan, inlinestatsAggs)))) {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.
                         breakEarly.set(true);
@@ -189,6 +210,7 @@ public class FieldNameUtils {
                     referencesBuilder.get().add(ua);
                     if (p instanceof Keep) {
                         keepRefs.add(ua);
+                        currentBranchKeepRefs.get().add(ua);
                     } else if (p instanceof Drop) {
                         dropWildcardRefs.add(ua);
                     } else {
@@ -197,6 +219,7 @@ public class FieldNameUtils {
                 });
                 if (p instanceof Keep) {
                     keepRefs.addAll(p.references());
+                    currentBranchKeepRefs.get().addAll(p.references());
                 }
             }
 

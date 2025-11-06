@@ -61,12 +61,13 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
     @ClassRule
-    public static MinioTestContainer minio = new MinioTestContainer(
-        USE_FIXTURE,
-        System.getProperty("test.s3.account"),
-        System.getProperty("test.s3.key"),
-        System.getProperty("test.s3.bucket")
-    );
+//    public static MinioTestContainer minio = new MinioTestContainer(
+//        USE_FIXTURE,
+//        System.getProperty("test.s3.account"),
+//        System.getProperty("test.s3.key"),
+//        System.getProperty("test.s3.bucket")
+//    );
+    public static MinioTestContainer minio = null;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -82,6 +83,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.default.access_key", System.getProperty("test.s3.account"));
         secureSettings.setString("s3.client.default.secret_key", System.getProperty("test.s3.key"));
+        secureSettings.setString("s3.client.default.session_token", System.getenv("S3_SESSION"));
         return secureSettings;
     }
 

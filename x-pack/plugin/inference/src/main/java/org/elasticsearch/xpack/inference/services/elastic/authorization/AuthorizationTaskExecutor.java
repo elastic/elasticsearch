@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
@@ -93,6 +94,10 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         authPoller.start();
     }
 
+    @FixForMultiProject(
+        description = "A single cluster can have multiple projects, "
+            + "we'll need to either make a call per project/org or use a bulk authorization api that EIS provides"
+    )
     @Override
     public Scope scope() {
         return Scope.CLUSTER;

@@ -12,12 +12,15 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
@@ -313,6 +316,66 @@ public class AuthorizationPollerTests extends ESTestCase {
         latch.await(TimeValue.THIRTY_SECONDS.getSeconds(), TimeUnit.SECONDS);
 
         assertThat(callbackCount.get(), is(2));
+        verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
+    }
+
+    public void testCallsShutdownAndMarksTaskAsCompleted_WhenSchedulingFails() throws InterruptedException {
+        var mockRegistry = mock(ModelRegistry.class);
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
+        doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                // this is an unknown model id so it won't trigger storing an inference endpoint because
+                                // it doesn't map to a known one
+                                "abc",
+                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
+                            )
+                        )
+                    )
+                )
+            );
+            return Void.TYPE;
+        }).when(mockAuthHandler).getAuthorization(any(), any());
+
+        var mockClient = mock(Client.class);
+
+        var callbackCount = new AtomicInteger(0);
+        var latch = new CountDownLatch(1);
+
+        Runnable callback = () -> {
+            callbackCount.incrementAndGet();
+            latch.countDown();
+        };
+
+        // Simulate scheduling failure by having the settings throw an exception when queried
+        // Throwing an exception should cause the poller to shutdown and mark itself as completed
+        var settingsMock = mock(ElasticInferenceServiceSettings.class);
+        when(settingsMock.isPeriodicAuthorizationEnabled()).thenThrow(new IllegalStateException("failing"));
+
+        var poller = new AuthorizationPoller(
+            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
+            createWithEmptySettings(taskQueue.getThreadPool()),
+            mockAuthHandler,
+            mock(Sender.class),
+            settingsMock,
+            mockRegistry,
+            mockClient,
+            callback
+        );
+        poller.init(mock(PersistentTasksService.class), mock(TaskManager.class), "id", 0);
+        poller.start();
+        taskQueue.runAllRunnableTasks();
+        latch.await(TimeValue.THIRTY_SECONDS.getSeconds(), TimeUnit.SECONDS);
+
+        assertThat(callbackCount.get(), is(1));
+        assertTrue(poller.isShutdown());
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 }

@@ -17,7 +17,9 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
@@ -133,6 +135,17 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
     }
 
+    // Overriding so tests in the same package can access
+    @Override
+    protected void init(
+        PersistentTasksService persistentTasksService,
+        TaskManager taskManager,
+        String persistentTaskId,
+        long allocationId
+    ) {
+        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
+    }
+
     @Override
     protected void onCancelled() {
         shutdown();
@@ -142,9 +155,16 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     // default for testing
     void shutdown() {
         shutdown.set(true);
-        if (lastAuthTask.get() != null) {
-            lastAuthTask.get().cancel();
+
+        var authTask = lastAuthTask.get();
+        if (authTask != null) {
+            authTask.cancel();
         }
+    }
+
+    // default for testing
+    boolean isShutdown() {
+        return shutdown.get();
     }
 
     private void scheduleAuthorizationRequest() {
@@ -177,6 +197,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             );
         } catch (Exception e) {
             logger.warn("Failed scheduling authorization request", e);
+            // Shutdown and complete the task so it will be restarted
+            onCancelled();
         }
     }
 

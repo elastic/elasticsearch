@@ -169,8 +169,7 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of(
-            // TODO enable pruning here
-            new SortShortcutSupport(this::minimalMapping, this::writeField, false),
+            new SortShortcutSupport(this::minimalMapping, this::writeField, true),
             new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
         );
     }

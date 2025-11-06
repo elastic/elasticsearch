@@ -61,8 +61,8 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         TaskType taskType,
         String service,
         ElasticInferenceServiceCompletionServiceSettings serviceSettings,
-        TaskSettings taskSettings,
-        SecretSettings secretSettings,
+        @Nullable TaskSettings taskSettings,
+        @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(
@@ -79,7 +79,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         ElasticInferenceServiceCompletionServiceSettings serviceSettings
     ) {
         super(model, serviceSettings);
-        this.uri = model.uri;
+        this.uri = createUri();
     }
 
     @Override

@@ -2581,6 +2581,12 @@ public class InternalEngine extends Engine {
         if (hasUncommittedChanges()) {
             return false;
         }
+        final var latestCommit = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        // We check if the latest commit is the same as the one we initially read. If not, something changed while we were checking,
+        // so we return false to be safe.
+        if (latestCommit.getGeneration() != segmentCommitInfos.getGeneration()) {
+            return false;
+        }
 
         final var segmentsToMerge = new HashMap<SegmentCommitInfo, Boolean>();
         for (int i = 0; i < segmentCommitInfos.size(); i++) {
@@ -2607,13 +2613,7 @@ public class InternalEngine extends Engine {
         if (mergeSpecification != null && mergeSpecification.merges.isEmpty() == false) {
             return false;
         }
-        if (hasUncommittedChanges()) {
-            return false;
-        }
-        final var latestCommit = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
-        // We check if the latest commit is the same as the one we initially read. If not, something changed while we were checking,
-        // so we return false to be safe.
-        return latestCommit.getGeneration() == segmentCommitInfos.getGeneration();
+        return true;
     }
 
     private IndexCommitRef acquireIndexCommitRef(final Supplier<IndexCommit> indexCommitSupplier) {

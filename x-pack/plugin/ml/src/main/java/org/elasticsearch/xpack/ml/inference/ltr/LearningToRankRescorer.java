@@ -175,11 +175,10 @@ public class LearningToRankRescorer implements Rescorer {
             .floatValue();
 
         List<Explanation> featureExplanations = new ArrayList<>();
-
-        ltrContext.learningToRankConfig.getQueryFeatureExtractorBuilders().forEach(featureExtractor -> {
-            String featureName = featureExtractor.getName();
-            if (extractedFeatures.containsKey(featureName) == false) {
-                featureExplanations.add(Explanation.match(0f, "feature value for [" + featureName + "]"));
+        ltrContext.learningToRankConfig.getFeatureExtractorBuilders().forEach(featureExtractor -> {
+            String featureName = featureExtractor.featureName();
+            if (extractedFeatures.containsKey(featureName) && extractedFeatures.get(featureName) instanceof Number featureValue) {
+                featureExplanations.add(Explanation.match(featureValue, "feature value for [" + featureName + "]"));
             }
         });
 

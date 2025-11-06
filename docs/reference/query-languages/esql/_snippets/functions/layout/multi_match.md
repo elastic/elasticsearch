@@ -3,7 +3,6 @@
 ## `MULTI_MATCH` [esql-multi_match]
 ```{applies_to}
 stack: coming 9.1.0
-Support for optional named parameters is only available from 9.1.0
 serverless: preview
 ```
 

@@ -47,8 +47,6 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -88,13 +86,7 @@ public class Top extends AggregateFunction
         returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
         description = "Collects the top values for a field. Includes repeated values.",
         type = FunctionType.AGGREGATE,
-        examples = @Example(file = "stats_top", tag = "top"),
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.COMING,
-                version = "9.3.0",
-                description = "Support for optional order and outputField parameters is only available from 9.3.0"
-            ) }
+        examples = @Example(file = "stats_top", tag = "top")
     )
     public Top(
         Source source,
@@ -114,7 +106,7 @@ public class Top extends AggregateFunction
             optional = true,
             name = "outputField",
             type = { "double", "integer", "long", "date" },
-            description = "The extra field that, if present, will be the output of the TOP call instead of `field`."
+            description = "The extra field that, if present, will be the output of the TOP call instead of `field`.{applies_to}`stack: ga 9.3.`"
         ) Expression outputField
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, limit, order == null ? Literal.keyword(source, ORDER_ASC) : order, outputField);

@@ -701,9 +701,6 @@ public abstract class DocsV3Support {
                     if (appliesTo.version().isEmpty() == false) {
                         stackEntries.append(" ").append(appliesTo.version());
                     }
-                    if (appliesTo.description().isEmpty() == false) {
-                        stackEntries.append("\n").append(appliesTo.description());
-                    }
                 }
 
                 // Add the stack entries

@@ -882,10 +882,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 listener.onFailure(e);
                 return;
             }
-            ActionListener.respondAndRelease(
-                listener,
-                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
-            );
+            ActionListener.respondAndRelease(listener, new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion()));
         }
 
         // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)
@@ -1008,10 +1005,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     out.close();
                 }
             }
-            ActionListener.respondAndRelease(
-                listener,
-                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
-            );
+            ActionListener.respondAndRelease(listener, new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion()));
         }
 
         private void maybeFreeContext(

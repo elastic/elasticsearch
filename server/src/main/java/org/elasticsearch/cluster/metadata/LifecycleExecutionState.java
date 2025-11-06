@@ -291,12 +291,19 @@ public record LifecycleExecutionState(
         if (json == null) {
             return null;
         }
-        // Avoid no-op truncations: we must append `"}` (2 chars) to the end to keep JSON valid
-        if (json.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH + 2) {
+        if (json.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH) {
             return json;
         }
-        final int actuallyRemovedCharacters = json.length() - MAXIMUM_STEP_INFO_STRING_LENGTH - 2;
-        return Strings.cleanTruncate(json, MAXIMUM_STEP_INFO_STRING_LENGTH) + "... (" + actuallyRemovedCharacters + " chars truncated)\"}";
+        assert json.startsWith("{\"") && json.endsWith("\"}") : "expected more specific JSON format";
+        // we'll now do our best to truncate the JSON and have the result be valid JSON.
+        // a long input JSON should generally only be possible with an exception turned into JSON that's well-formatted.
+        // if we fail to produce valid JSON, we might return invalid JSON in REST API in niche cases, so this isn't catastrophic.
+        final int removedChars = json.length() - MAXIMUM_STEP_INFO_STRING_LENGTH;
+        // -2 to truncate characters within the JSON (before `"}`, which we add back in, so wouldn't actually be truncating anything),
+        // and to avoid invalid JSON if we truncate one character (result would be `"... (1 chars truncated)"}`,
+        // this adds a dangling double-quote).
+        // we don't aim to arrive at a string of exactly MAXIMUM_STEP_INFO_STRING_LENGTH, that's just the condition to apply truncation.
+        return Strings.cleanTruncate(json, MAXIMUM_STEP_INFO_STRING_LENGTH - 2) + "... (" + removedChars + " chars truncated)\"}";
     }
 
     public static class Builder {

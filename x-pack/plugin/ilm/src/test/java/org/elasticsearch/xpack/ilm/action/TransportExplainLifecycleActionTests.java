@@ -292,14 +292,14 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
 
             final String expectedPreviousStepInfoFormat = """
                 {"type":"illegal_argument_exception","reason":"%s"}""";
-            final int jsonCharsBeforeReasonValue = Strings.format(expectedPreviousStepInfoFormat, "").length() - 2; // -2 for `"}`
+            final int jsonBaseLength = Strings.format(expectedPreviousStepInfoFormat, "").length();
             final String expectedReason = Strings.format(
                 "%s... (%d chars truncated)",
-                "a".repeat(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - jsonCharsBeforeReasonValue),
-                jsonCharsBeforeReasonValue
+                "a".repeat(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - jsonBaseLength),
+                jsonBaseLength
             );
             final String expectedPreviousStepInfo = Strings.format(expectedPreviousStepInfoFormat, expectedReason);
-            assertThat(actualPreviousStepInfo, equalTo(expectedPreviousStepInfo));
+            assertEquals(actualPreviousStepInfo, expectedPreviousStepInfo);
         }
     }
 

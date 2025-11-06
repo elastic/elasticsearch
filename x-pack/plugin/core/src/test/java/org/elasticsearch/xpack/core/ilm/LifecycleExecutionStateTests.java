@@ -29,13 +29,15 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         Map<String, String> custom = createCustomMetadata();
         LifecycleExecutionState state = LifecycleExecutionState.fromCustomMetadata(custom);
         assertThat(custom.get("step_info"), equalTo(state.stepInfo()));
-        String longStepInfo = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 100);
+        String longStepInfo = "{\"key\": \""
+            + randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 100)
+            + "\"}";
         LifecycleExecutionState newState = LifecycleExecutionState.builder(state).setStepInfo(longStepInfo).build();
         // Length includes the post suffix (`... (X chars truncated)`)
-        assertThat(newState.stepInfo().length(), equalTo(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 26));
+        assertThat(newState.stepInfo().length(), equalTo(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 25));
         assertThat(
-            newState.stepInfo().substring(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH, 1050),
-            equalTo("... (98 chars truncated)\"}")
+            newState.stepInfo().substring(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - 2, 1049),
+            equalTo("... (111 chars truncated)\"}")
         );
     }
 
@@ -147,19 +149,14 @@ public class LifecycleExecutionStateTests extends ESTestCase {
     }
 
     public void testPotentiallyTruncateLongJsonWithExplanationNotTruncated() {
-        // +2 because with the JSON ending in `"}`, we'll add it back anyway so it's a NOP
-        final String input = randomAlphaOfLengthBetween(0, LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 2);
+        final String input = randomAlphaOfLengthBetween(0, LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH);
         assertSame(input, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));
     }
 
     public void testPotentiallyTruncateLongJsonWithExplanationOneCharTruncated() {
         final String jsonBaseFormat = "{\"key\": \"%s\"}";
         final int baseLength = Strings.format(jsonBaseFormat, "").length();
-        final String value = randomAlphanumericOfLength(
-            // +3 because +1 and +2 are no-ops, they will truncate the end of JSON `"}` and then add it back,
-            // so we need another char to truncate.
-            LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - baseLength + 3
-        );
+        final String value = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - baseLength + 1);
         final String input = Strings.format(jsonBaseFormat, value);
         final String expectedOutput = Strings.format(jsonBaseFormat, value.substring(0, value.length() - 1) + "... (1 chars truncated)");
         assertEquals(expectedOutput, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));
@@ -168,11 +165,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
     public void testPotentiallyTruncateLongJsonWithExplanationTwoCharsTruncated() {
         final String jsonBaseFormat = "{\"key\": \"%s\"}";
         final int baseLength = Strings.format(jsonBaseFormat, "").length();
-        final String value = randomAlphanumericOfLength(
-            // +4 because +1 and +2 are no-ops, they will truncate the end of JSON `"}` and then add it back,
-            // so we need another two chars to truncate.
-            LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - baseLength + 4
-        );
+        final String value = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - baseLength + 2);
         final String input = Strings.format(jsonBaseFormat, value);
         final String expectedOutput = Strings.format(jsonBaseFormat, value.substring(0, value.length() - 2) + "... (2 chars truncated)");
         assertEquals(expectedOutput, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));

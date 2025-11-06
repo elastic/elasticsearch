@@ -142,7 +142,7 @@ public class ILMHistoryItemTests extends ESTestCase {
                         "{\"type\":\"illegal_argument_exception\",\"reason\":\""
                             // We subtract a number of characters here due to the truncation being based
                             // on the length of the whole string, not just the "reason" part.
-                            + longError.substring(0, LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - 47)
+                            + longError.substring(0, LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - 49)
                     )
                 );
                 assertThat((String) item.get("error_details"), matchesPattern(".*\\.\\.\\. \\(\\d+ chars truncated\\).*"));

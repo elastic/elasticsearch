@@ -855,10 +855,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 channelListener.onFailure(e);
                 return;
             }
-            ActionListener.respondAndRelease(
-                channelListener,
-                new BytesTransportResponse(out.moveToBytesReference())
-            );
+            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(out.moveToBytesReference()));
         }
 
         // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)

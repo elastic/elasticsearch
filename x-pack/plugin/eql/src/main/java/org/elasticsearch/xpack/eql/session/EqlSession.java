@@ -125,7 +125,7 @@ public class EqlSession {
         Set<String> fieldNames = fieldNames(parsed);
         IndicesOptions indicesOptions = configuration.indicesOptions();
 
-        //TODO this is for CPS, put it behind a flag
+        // TODO this is for CPS, put it behind a flag
         indicesOptions = IndicesOptions.builder(indicesOptions)
             .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
             .build();

@@ -116,7 +116,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private static Map<String, NodeInfo> nodeToInfo;
 
-    private Map<String, NodeInfo> nodeToInfo() throws IOException {
+    private Map<String, NodeInfo> localNodeToInfo() throws IOException {
         if (nodeToInfo == null) {
             nodeToInfo = fetchNodeToInfo(client(), null);
         }
@@ -164,7 +164,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
      * Map from node name to information about the node.
      */
     protected Map<String, NodeInfo> allNodeToInfo() throws IOException {
-        return nodeToInfo();
+        return localNodeToInfo();
     }
 
     protected static Map<String, NodeInfo> fetchNodeToInfo(RestClient client, String cluster) throws IOException {
@@ -211,14 +211,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @Before
     public void createIndices() throws IOException {
         if (supportsNodeAssignment()) {
-            for (Map.Entry<String, NodeInfo> e : nodeToInfo().entrySet()) {
+            for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {
                 createIndexForNode(client(), e.getKey(), e.getValue().id(), indexMode);
-                // Always create the lookup index so we can test LOOKUP JOIN queries with it
-                createIndexForNode(client(), e.getKey(), e.getValue().id(), IndexMode.LOOKUP);
             }
         } else {
             createIndexForNode(client(), null, null, indexMode);
-            createIndexForNode(client(), null, null, IndexMode.LOOKUP);
         }
     }
 
@@ -238,48 +235,95 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    // TODO: Also add a test for _tsid once we can determine the minimum transport version of all nodes.
     public final void testFetchAll() throws IOException {
         var responseAndCoordinatorVersion = runFromAllQuery("""
             , _id, _ignored, _index_mode, _score, _source, _version
             | LIMIT 1000
             """);
+
         Map<String, Object> response = responseAndCoordinatorVersion.v1();
         TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
-        if ((Boolean) response.get("is_partial")) {
-            throw new AssertionError("partial results: " + response);
-        }
+
+        assertNoPartialResponse(response);
+
         List<?> columns = (List<?>) response.get("columns");
         List<?> values = (List<?>) response.get("values");
 
-        MapMatcher expectedColumns = matchesMap();
-        for (DataType type : DataType.values()) {
-            if (supportedInIndex(type) == false) {
-                continue;
-            }
-            expectedColumns = expectedColumns.entry(fieldName(type), expectedType(type, coordinatorVersion));
-        }
-        expectedColumns = expectedColumns.entry("_id", "keyword")
-            .entry("_ignored", "keyword")
-            .entry("_index", "keyword")
-            .entry("_index_mode", "keyword")
-            .entry("_score", "double")
-            .entry("_source", "_source")
-            .entry("_version", "long")
-            .entry(LOOKUP_ID_FIELD, "integer");
+        MapMatcher expectedColumns = allTypesColumnsMatcher(coordinatorVersion, minVersion(), indexMode, extractPreference, true);
         assertMap(nameToType(columns), expectedColumns);
 
         MapMatcher expectedAllValues = matchesMap();
         for (Map.Entry<String, NodeInfo> e : expectedIndices(indexMode).entrySet()) {
             String indexName = e.getKey();
-            MapMatcher expectedValues = matchesMap();
-            expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
-            for (DataType type : DataType.values()) {
-                if (supportedInIndex(type) == false) {
-                    continue;
-                }
-                expectedValues = expectedValues.entry(fieldName(type), expectedValue(type, coordinatorVersion));
+            MapMatcher expectedValues = allTypesValuesMatcher(
+                coordinatorVersion,
+                minVersion(),
+                indexMode,
+                extractPreference,
+                true,
+                indexName
+            );
+            expectedAllValues = expectedAllValues.entry(indexName, expectedValues);
+        }
+        assertMap(indexToRow(columns, values), expectedAllValues);
+
+        assertMinimumVersionFromAllQueries(responseAndCoordinatorVersion);
+
+        profileLogger.clearProfile();
+    }
+
+    protected static void assertNoPartialResponse(Map<String, Object> response) {
+        if ((Boolean) response.get("is_partial")) {
+            throw new AssertionError("partial results: " + response);
+        }
+    }
+
+    protected static MapMatcher allTypesColumnsMatcher(
+        TransportVersion coordinatorVersion,
+        TransportVersion minimumVersion,
+        IndexMode indexMode,
+        MappedFieldType.FieldExtractPreference extractPreference,
+        boolean expectMetadataFields
+    ) {
+        MapMatcher expectedColumns = matchesMap().entry(LOOKUP_ID_FIELD, "integer");
+        for (DataType type : DataType.values()) {
+            if (supportedInIndex(type) == false) {
+                continue;
             }
+            expectedColumns = expectedColumns.entry(fieldName(type), expectedType(type, coordinatorVersion, minimumVersion, indexMode));
+        }
+        if (expectMetadataFields) {
+            expectedColumns = expectedColumns.entry("_id", "keyword")
+                .entry("_ignored", "keyword")
+                .entry("_index", "keyword")
+                .entry("_index_mode", "keyword")
+                .entry("_score", "double")
+                .entry("_source", "_source")
+                .entry("_version", "long");
+        }
+        return expectedColumns;
+    }
+
+    protected static MapMatcher allTypesValuesMatcher(
+        TransportVersion coordinatorVersion,
+        TransportVersion minimumVersion,
+        IndexMode indexMode,
+        MappedFieldType.FieldExtractPreference extractPreference,
+        boolean expectMetadataFields,
+        String indexName
+    ) {
+        MapMatcher expectedValues = matchesMap();
+        expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
+        for (DataType type : DataType.values()) {
+            if (supportedInIndex(type) == false) {
+                continue;
+            }
+            expectedValues = expectedValues.entry(
+                fieldName(type),
+                expectedValue(type, coordinatorVersion, minimumVersion, indexMode, extractPreference)
+            );
+        }
+        if (expectMetadataFields) {
             expectedValues = expectedValues.entry("_id", any(String.class))
                 .entry("_ignored", nullValue())
                 .entry("_index", indexName)
@@ -287,10 +331,50 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 .entry("_score", 0.0)
                 .entry("_source", matchesMap().extraOk())
                 .entry("_version", 1);
+        }
+
+        return expectedValues;
+    }
+
+    protected static void assertFetchAllResponse(
+        Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion,
+        Map<String, NodeInfo> expectedIndices,
+        TransportVersion minimumVersion,
+        IndexMode indexMode,
+        MappedFieldType.FieldExtractPreference extractPreference,
+        boolean expectMetadataFields
+    ) {
+        Map<String, Object> response = responseAndCoordinatorVersion.v1();
+        TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
+
+        assertNoPartialResponse(response);
+
+        List<?> columns = (List<?>) response.get("columns");
+        List<?> values = (List<?>) response.get("values");
+
+        MapMatcher expectedColumns = allTypesColumnsMatcher(
+            coordinatorVersion,
+            minimumVersion,
+            indexMode,
+            extractPreference,
+            expectMetadataFields
+        );
+        assertMap(nameToType(columns), expectedColumns);
+
+        MapMatcher expectedAllValues = matchesMap();
+        for (Map.Entry<String, NodeInfo> e : expectedIndices.entrySet()) {
+            String indexName = e.getKey();
+            MapMatcher expectedValues = allTypesValuesMatcher(
+                coordinatorVersion,
+                minimumVersion,
+                indexMode,
+                extractPreference,
+                expectMetadataFields,
+                indexName
+            );
             expectedAllValues = expectedAllValues.entry(indexName, expectedValues);
         }
         assertMap(indexToRow(columns, values), expectedAllValues);
-        profileLogger.clearProfile();
     }
 
     /**
@@ -309,6 +393,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     | EVAL k = v_l2_norm(f_dense_vector, [1])  // workaround to enable fetching dense_vector
                     """ + request;
             }
+            var responseAndCoordinatorVersion = runFromAllQuery(request);
+            assertMinimumVersionFromAllQueries(responseAndCoordinatorVersion);
+
             response = runFromAllQuery(request).v1();
             if ((Boolean) response.get("is_partial")) {
                 Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
@@ -376,6 +463,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     | EVAL junk = TO_AGGREGATE_METRIC_DOUBLE(1)  // workaround to enable fetching aggregate_metric_double
                     """ + request;
             }
+            var responseAndCoordinatorVersion = runFromAllQuery(request);
+            assertMinimumVersionFromAllQueries(responseAndCoordinatorVersion);
+
             response = runFromAllQuery(request).v1();
             if ((Boolean) response.get("is_partial")) {
                 Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
@@ -432,7 +522,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         var responseAndCoordinatorVersion = runQuery(
             "FROM *:%mode%*,%mode%* METADATA _index".replace("%mode%", indexMode.toString()) + restOfQuery
         );
-        assertMinimumVersionFromAllQueries(responseAndCoordinatorVersion);
         return responseAndCoordinatorVersion;
     }
 
@@ -443,38 +532,50 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         );
         String query = "ROW x = 1 | LIMIT 1";
         var responseAndCoordinatorVersion = runQuery(query);
-        var responseMap = responseAndCoordinatorVersion.v1();
         var coordinatorVersion = responseAndCoordinatorVersion.v2();
 
-        if (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
-            Integer minimumVersion = (Integer) profile.get("minimumVersion");
-            assertNotNull(minimumVersion);
-            // For ROW commands without commands that reach out to other nodes, the minimum version is given by the coordinator.
-            assertEquals(coordinatorVersion.id(), minimumVersion.intValue());
-        }
+        assertMinimumVersion(coordinatorVersion, responseAndCoordinatorVersion);
     }
 
     // TODO: ROW + local ENRICH
+    @SuppressWarnings("unchecked")
     public void testRowLookupJoin() throws IOException {
-        assumeTrue(
-            "Test has to run only once, skip on other configurations",
-            extractPreference == MappedFieldType.FieldExtractPreference.NONE && indexMode == IndexMode.STANDARD
-        );
-        // TODO: For ccq, we most likely need to strip the remote lookup indices. And also use the local minimum transport version, only.
-        Map<String, NodeInfo> expectedIndices = expectedIndices(IndexMode.LOOKUP);
+        assumeTrue("Test only requires lookup indices", indexMode == IndexMode.LOOKUP);
+        Map<String, NodeInfo> expectedIndices = expectedIndices(IndexMode.LOOKUP, true);
         for (Map.Entry<String, NodeInfo> e : expectedIndices.entrySet()) {
             String indexName = e.getKey();
-            String query = "ROW " + LOOKUP_ID_FIELD + " = 1234 | LOOKUP JOIN " + indexName + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
+            String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | LOOKUP JOIN " + indexName + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
             var responseAndCoordinatorVersion = runQuery(query);
-            var responseMap = responseAndCoordinatorVersion.v1();
-            var coordinatorVersion = responseAndCoordinatorVersion.v2();
+            TransportVersion expectedMinimumVersion = minVersion(true);
 
-            // HERE next, this actually needs fixing in production code.
-            assertMinimumVersionFromAllQueries(responseAndCoordinatorVersion);
+            assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion);
 
-            // TODO: same assert as in testfetchall, I think.
+            Map<String, Object> response = responseAndCoordinatorVersion.v1();
+            TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
+
+            assertNoPartialResponse(response);
+
+            List<?> columns = (List<?>) response.get("columns");
+            List<?> values = (List<?>) response.get("values");
+
+            MapMatcher expectedColumns = allTypesColumnsMatcher(
+                coordinatorVersion,
+                expectedMinimumVersion,
+                indexMode,
+                extractPreference,
+                false
+            );
+            assertMap(nameToType(columns), expectedColumns);
+
+            MapMatcher expectedValues = allTypesValuesMatcher(
+                coordinatorVersion,
+                expectedMinimumVersion,
+                indexMode,
+                extractPreference,
+                false,
+                null
+            );
+            assertMap(nameToValue(names(columns), (List<Object>) values.getFirst()), expectedValues);
         }
     }
 
@@ -511,20 +612,31 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return new Tuple<>(responseMap, coordinatorVersion);
     }
 
-    @SuppressWarnings("unchecked")
     protected void assertMinimumVersionFromAllQueries(Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion)
         throws IOException {
+        assertMinimumVersion(minVersion(), responseAndCoordinatorVersion);
+    }
+
+    /**
+     * @param expectedMinimumVersion the minimum version of all clusters that participate in the query, or the version of the coordinator
+     *                               if the query runs only on the coordinator
+     */
+    @SuppressWarnings("unchecked")
+    protected void assertMinimumVersion(
+        TransportVersion expectedMinimumVersion,
+        Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion
+    ) {
         var responseMap = responseAndCoordinatorVersion.v1();
         var coordinatorVersion = responseAndCoordinatorVersion.v2();
 
         if (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
             Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
-            Integer minimumVersion = (Integer) profile.get("minimumVersion");
+            Integer minimumVersion = (Integer) profile.get("minimumTransportVersion");
             assertNotNull(minimumVersion);
-            if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV)) {
+            if (expectedMinimumVersion.supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV)) {
                 // All nodes are new enough that their field caps responses should contain the minimum transport version
                 // of matching clusters.
-                assertEquals(minVersion().id(), minimumVersion.intValue());
+                assertEquals(expectedMinimumVersion.id(), minimumVersion.intValue());
             } else {
                 // One node is old enough that it doesn't provide version information in the field caps response. We must assume
                 // the oldest compatible version.
@@ -653,8 +765,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
-    // This will become dependent on the minimum transport version of all nodes once we can determine that.
     private Matcher<?> expectedValue(DataType type, TransportVersion coordinatorVersion) throws IOException {
+        return expectedValue(type, coordinatorVersion, minVersion(), indexMode, extractPreference);
+    }
+
+    private static Matcher<?> expectedValue(
+        DataType type,
+        TransportVersion coordinatorVersion,
+        TransportVersion minimumVersion,
+        IndexMode indexMode,
+        MappedFieldType.FieldExtractPreference extractPreference
+    ) {
         return switch (type) {
             case BOOLEAN -> equalTo(true);
             case COUNTER_LONG, LONG, COUNTER_INTEGER, INTEGER, UNSIGNED_LONG, SHORT, BYTE -> equalTo(1);
@@ -667,7 +788,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case DATETIME, DATE_NANOS -> equalTo("2025-01-01T01:00:00.000Z");
             case IP -> equalTo("192.168.0.1");
             case VERSION -> equalTo("1.0.0-SNAPSHOT");
-            case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.DOC_VALUES || syntheticSourceByDefault()
+            case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.DOC_VALUES || syntheticSourceByDefault(indexMode)
                 ? equalTo("POINT (-71.34000004269183 41.1199999647215)")
                 : equalTo("POINT (-71.34 41.12)");
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
@@ -675,7 +796,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case AGGREGATE_METRIC_DOUBLE -> {
                 // See expectedType for an explanation
                 if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
-                    || minVersion().supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
+                    || minimumVersion.supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
                     yield nullValue();
                 }
                 yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
@@ -683,7 +804,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case DENSE_VECTOR -> {
                 // See expectedType for an explanation
                 if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
-                    || minVersion().supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
+                    || minimumVersion.supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
                     yield nullValue();
                 }
                 yield equalTo(List.of(0.5, 10.0, 5.9999995));
@@ -713,7 +834,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         };
     }
 
-    private Map<String, Object> nameToType(List<?> columns) {
+    private static Map<String, Object> nameToType(List<?> columns) {
         Map<String, Object> result = new TreeMap<>();
         for (Object c : columns) {
             Map<?, ?> map = (Map<?, ?>) c;
@@ -722,7 +843,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return result;
     }
 
-    private List<String> names(List<?> columns) {
+    private static List<String> names(List<?> columns) {
         List<String> result = new ArrayList<>();
         for (Object c : columns) {
             Map<?, ?> map = (Map<?, ?>) c;
@@ -731,21 +852,21 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return result;
     }
 
-    private Map<String, Map<String, Object>> indexToRow(List<?> columns, List<?> values) {
+    private static Map<String, Map<String, Object>> indexToRow(List<?> columns, List<?> values) {
         List<String> names = names(columns);
-        int timestampIdx = names.indexOf("_index");
-        if (timestampIdx < 0) {
+        int indexNameIdx = names.indexOf("_index");
+        if (indexNameIdx < 0) {
             throw new IllegalStateException("query didn't return _index");
         }
         Map<String, Map<String, Object>> result = new TreeMap<>();
         for (Object r : values) {
             List<?> row = (List<?>) r;
-            result.put(row.get(timestampIdx).toString(), nameToValue(names, row));
+            result.put(row.get(indexNameIdx).toString(), nameToValue(names, row));
         }
         return result;
     }
 
-    private Map<String, Object> nameToValue(List<String> names, List<?> values) {
+    private static Map<String, Object> nameToValue(List<String> names, List<?> values) {
         Map<String, Object> result = new TreeMap<>();
         for (int i = 0; i < values.size(); i++) {
             result.put(names.get(i), values.get(i));
@@ -753,8 +874,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return result;
     }
 
-    // This will become dependent on the minimum transport version of all nodes once we can determine that.
     private Matcher<String> expectedType(DataType type, TransportVersion coordinatorVersion) throws IOException {
+        return expectedType(type, coordinatorVersion, minVersion(), indexMode);
+    }
+
+    private static Matcher<String> expectedType(
+        DataType type,
+        TransportVersion coordinatorVersion,
+        TransportVersion minimumVersion,
+        IndexMode indexMode
+    ) {
         return switch (type) {
             case COUNTER_DOUBLE, COUNTER_LONG, COUNTER_INTEGER -> {
                 if (indexMode == IndexMode.TIME_SERIES) {
@@ -774,7 +903,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // started to be able to plan for this data type, and will consider it supported if
                 // all nodes are on ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION or newer.
                 if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
-                    || minVersion().supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
+                    || minimumVersion.supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
                     yield equalTo("unsupported");
                 }
                 yield equalTo("aggregate_metric_double");
@@ -782,7 +911,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case DENSE_VECTOR -> {
                 // Same dance as for AGGREGATE_METRIC_DOUBLE
                 if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
-                    || minVersion().supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
+                    || minimumVersion.supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
                     yield equalTo("unsupported");
                 }
                 yield equalTo("dense_vector");
@@ -796,7 +925,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return true;
     }
 
-    private boolean syntheticSourceByDefault() {
+    private static boolean syntheticSourceByDefault(IndexMode indexMode) {
         return switch (indexMode) {
             case TIME_SERIES, LOGSDB -> true;
             case STANDARD, LOOKUP -> false;
@@ -804,9 +933,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private Map<String, NodeInfo> expectedIndices(IndexMode indexMode) throws IOException {
+        return expectedIndices(indexMode, false);
+    }
+
+    private Map<String, NodeInfo> expectedIndices(IndexMode indexMode, boolean onlyLocalCluster) throws IOException {
+        Map<String, NodeInfo> nodeToInfo = onlyLocalCluster ? localNodeToInfo() : allNodeToInfo();
         Map<String, NodeInfo> result = new TreeMap<>();
         if (supportsNodeAssignment()) {
-            for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
+            for (Map.Entry<String, NodeInfo> e : nodeToInfo.entrySet()) {
                 String name = indexName(indexMode, e.getKey());
                 if (e.getValue().cluster != null) {
                     name = e.getValue().cluster + ":" + name;
@@ -814,7 +948,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 result.put(name, e.getValue());
             }
         } else {
-            for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
+            for (Map.Entry<String, NodeInfo> e : nodeToInfo.entrySet()) {
                 String name = indexName(indexMode, null);
                 if (e.getValue().cluster != null) {
                     name = e.getValue().cluster + ":" + name;
@@ -837,6 +971,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     protected TransportVersion minVersion() throws IOException {
-        return allNodeToInfo().values().stream().map(NodeInfo::version).min(Comparator.naturalOrder()).get();
+        return minVersion(false);
+    }
+
+    protected TransportVersion minVersion(boolean onlyLocalCluster) throws IOException {
+        Map<String, NodeInfo> nodeToInfo = onlyLocalCluster ? localNodeToInfo() : allNodeToInfo();
+        return nodeToInfo.values().stream().map(NodeInfo::version).min(Comparator.naturalOrder()).get();
     }
 }

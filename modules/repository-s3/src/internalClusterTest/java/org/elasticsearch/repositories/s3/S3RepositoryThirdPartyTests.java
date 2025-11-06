@@ -61,12 +61,12 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
     @ClassRule
-//    public static MinioTestContainer minio = new MinioTestContainer(
-//        USE_FIXTURE,
-//        System.getProperty("test.s3.account"),
-//        System.getProperty("test.s3.key"),
-//        System.getProperty("test.s3.bucket")
-//    );
+    // public static MinioTestContainer minio = new MinioTestContainer(
+    // USE_FIXTURE,
+    // System.getProperty("test.s3.account"),
+    // System.getProperty("test.s3.key"),
+    // System.getProperty("test.s3.bucket")
+    // );
     public static MinioTestContainer minio = null;
 
     @Override

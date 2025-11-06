@@ -52,7 +52,7 @@ This context-aware design allows Painless to optimize performance and security f
 * **API allowlist:** Permitted classes, methods, and fields from Java and {{es}} APIs  
 * **Return type expectations:** Expected script output format and type constraints
 
-Understanding context-syntax relationships is essential for effective Painless development. For detailed information about context-syntax patterns and practical examples, refer to [Painless syntax-context bridge](docs-content://explore-analyze/scripting/painess-syntax-context-bridge.md).
+Understanding context-syntax relationships is essential for effective Painless development. For detailed information about context-syntax patterns and practical examples, refer to [Painless syntax-context bridge](docs-content://explore-analyze/scripting/painless-syntax-context-bridge.md).
 
 :::{image} images/painless-integration-points.png
 :alt: Painless integration-points

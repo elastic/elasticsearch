@@ -69,6 +69,7 @@ float f = 89.9F; <5>
 4. `double -126.34`
 5. `float 89.9`
 
+## Strings [string-literals]
 
 Use a string literal to specify a [string type](/reference/scripting-languages/painless/painless-types.md#string-type) value with either single-quotes or double-quotes. Use a `"` token to include a double-quote as part of a double-quoted string literal. Use a `'` token to include a single-quote as part of a single-quoted string literal. Use a `\\` token to include a backslash as part of any string literal.
 

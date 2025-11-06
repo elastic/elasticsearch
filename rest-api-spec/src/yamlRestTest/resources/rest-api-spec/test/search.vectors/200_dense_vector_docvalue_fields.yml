@@ -165,6 +165,9 @@ setup:
   - requires:
       cluster_features: [ "mapper.vectors.generic_vector_format" ]
       reason: Needs bfloat16 support
+  - skip:
+      awaits_fix: https://github.com/elastic/elasticsearch/issues/131109
+      reason:     Feature flag not enabled
   - do:
       indices.create:
         index: test-bfloat16

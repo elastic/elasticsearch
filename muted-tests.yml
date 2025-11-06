@@ -258,9 +258,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/122414
-- class: org.elasticsearch.search.SearchWithRejectionsIT
-  method: testOpenContextsAfterRejections
-  issue: https://github.com/elastic/elasticsearch/issues/130821
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test090SecurityCliPackaging
   issue: https://github.com/elastic/elasticsearch/issues/131107
@@ -435,9 +432,6 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=indices.validate_query/20_query_string/validate_query with query_string parameters}
-  issue: https://github.com/elastic/elasticsearch/issues/137391
 - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
   method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
   issue: https://github.com/elastic/elasticsearch/issues/137457
@@ -457,6 +451,25 @@ tests:
 - class: org.elasticsearch.action.IndicesRequestIT
   method: testIndicesStats
   issue: https://github.com/elastic/elasticsearch/issues/137594
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testTopNSimilarityBetweenConstantVectorAndField {functionName=v_l2_norm
+    similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.L2Norm$1@5b068087 elementType=byte}
+  issue: https://github.com/elastic/elasticsearch/issues/137625
+- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
+  method: testGet_ThrowsResourceNotFoundException_WhenCCMIndexDoesNotExist
+  issue: https://github.com/elastic/elasticsearch/issues/137627
+- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
+  method: testGet_ThrowsResourceNotFoundException_WhenCCMConfigurationDocumentDoesNotExist
+  issue: https://github.com/elastic/elasticsearch/issues/137628
+- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
+  method: testGetCCMModel_ThrowsException_WhenStoredModelIsCorrupted
+  issue: https://github.com/elastic/elasticsearch/issues/137629
+- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
+  method: testStoreAndGetCCMModel
+  issue: https://github.com/elastic/elasticsearch/issues/137630
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/137655
 
 # Examples:
 #

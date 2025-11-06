@@ -144,6 +144,8 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         int relocatingFrozenShards = allocation.routingNodes().getRelocatingFrozenShardCount();
         int relocatingShards = allocation.routingNodes().getRelocatingShardCount();
         if (allocation.isSimulating() && relocatingShards >= 2) {
+            // This branch should no longer run after https://github.com/elastic/elasticsearch/pull/134786
+            assert false : "allocation simulation should have returned earlier and not hit throttling";
             // BalancedShardAllocator is prone to perform unnecessary moves when cluster_concurrent_rebalance is set to high values (>2).
             // (See https://github.com/elastic/elasticsearch/issues/87279)
             // Above allocator is used in DesiredBalanceComputer. Since we do not move actual shard data during calculation

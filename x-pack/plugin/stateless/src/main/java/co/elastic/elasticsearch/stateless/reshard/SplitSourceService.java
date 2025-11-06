@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -201,7 +202,13 @@ public class SplitSourceService {
             objectStoreService.copyShard(sourceShardId, targetShardId, sourcePrimaryTerm);
             prepareForHandoff(l, sourceShard, targetShardId);
         }).addListener(listener.delegateResponse((l, e) -> {
-            commitService.markSplitEnding(sourceShardId, targetShardId, true);
+            try {
+                commitService.markSplitEnding(sourceShardId, targetShardId, true);
+            } catch (AlreadyClosedException ignored) {
+                // It's okay to not clean up the splitting flag since the shard is closed anyway
+                // and there will be no new commits.
+                // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
+            }
             l.onFailure(e);
         }));
     }

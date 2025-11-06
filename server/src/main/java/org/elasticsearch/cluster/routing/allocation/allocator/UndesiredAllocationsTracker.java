@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
 
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -19,8 +20,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Keeps track of a limited number of shards that are currently in undesired allocations. If the
@@ -114,6 +119,7 @@ public class UndesiredAllocationsTracker {
                 return true;
             }
         });
+        shrinkIfOversized();
     }
 
     /**
@@ -186,5 +192,27 @@ public class UndesiredAllocationsTracker {
         } finally {
             allocation.setDebugMode(originalDebugMode);
         }
+    }
+
+    /**
+     * If the maximum to track was reduced, and we are tracking more than the new maximum, purge the most recent entries
+     * to bring us under the new limit
+     */
+    private void shrinkIfOversized() {
+        if (undesiredAllocations.size() > maxUndesiredAllocationsToTrack) {
+            final var newestExcessValues = StreamSupport.stream(undesiredAllocations.spliterator(), false)
+                // we need to take a copy from the cursor because the cursors are re-used, so don't work with #sorted
+                .map(cursor -> new Tuple<>(cursor.key, cursor.value))
+                .sorted((a, b) -> Long.compare(b.v2(), a.v2()))
+                .limit(undesiredAllocations.size() - maxUndesiredAllocationsToTrack)
+                .map(Tuple::v1)
+                .collect(Collectors.toSet());
+            undesiredAllocations.removeAll(newestExcessValues::contains);
+        }
+    }
+
+    // visible for testing
+    ObjectLongMap<ShardRouting> getUndesiredAllocations() {
+        return undesiredAllocations.clone();
     }
 }

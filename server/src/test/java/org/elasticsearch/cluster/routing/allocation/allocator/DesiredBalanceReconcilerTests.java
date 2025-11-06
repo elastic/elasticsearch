@@ -57,7 +57,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.TimeProvider;
+import org.elasticsearch.common.time.AdvancingTimeProvider;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -84,7 +84,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -92,7 +91,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -1749,37 +1747,5 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
             .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1000)
             .build();
-    }
-
-    /**
-     * A time-provider that advances each time it's asked the time
-     */
-    private static class AdvancingTimeProvider implements TimeProvider {
-
-        private final AtomicLong currentTimeMillis = new AtomicLong();
-
-        public void advanceByMillis(long milliseconds) {
-            currentTimeMillis.addAndGet(milliseconds);
-        }
-
-        @Override
-        public long relativeTimeInMillis() {
-            return currentTimeMillis.incrementAndGet();
-        }
-
-        @Override
-        public long relativeTimeInNanos() {
-            return NANOSECONDS.toNanos(relativeTimeInMillis());
-        }
-
-        @Override
-        public long rawRelativeTimeInMillis() {
-            return relativeTimeInMillis();
-        }
-
-        @Override
-        public long absoluteTimeInMillis() {
-            throw new UnsupportedOperationException("not supported");
-        }
     }
 }

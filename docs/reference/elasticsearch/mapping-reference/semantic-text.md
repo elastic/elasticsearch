@@ -48,7 +48,7 @@ the field mappings.
 
 :::::::{tab-set}
 
-::::::{tab-item} Using the default ELSER on EIS endpoint on Serverless
+::::::{tab-item} Default ELSER on EIS endpoint on {{serverless-short}}
 
 ```{applies_to}
 serverless: ga
@@ -72,7 +72,7 @@ PUT my-index-000001
 
 ::::::
 
-::::::{tab-item} Using the preconfigured ELSER on EIS endpoint in Cloud
+::::::{tab-item} Preconfigured ELSER on EIS endpoint in Cloud
 
 ```{applies_to}
 stack: ga 9.2
@@ -98,7 +98,7 @@ PUT my-index-000001
 
 ::::::
 
-::::::{tab-item} Using the default ELSER endpoint
+::::::{tab-item} Default ELSER endpoint
 
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
 

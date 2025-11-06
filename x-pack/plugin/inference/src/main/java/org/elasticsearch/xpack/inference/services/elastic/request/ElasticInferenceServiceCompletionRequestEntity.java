@@ -60,4 +60,3 @@ public class ElasticInferenceServiceCompletionRequestEntity implements ToXConten
         return builder;
     }
 }
-

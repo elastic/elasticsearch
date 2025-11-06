@@ -99,4 +99,3 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         );
     }
 }
-

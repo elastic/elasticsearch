@@ -188,4 +188,3 @@ public class ElasticInferenceServiceCompletionRequestTests extends ESTestCase {
         );
     }
 }
-

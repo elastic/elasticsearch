@@ -21,10 +21,7 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 public class ElasticInferenceServiceCompletionRequestEntityTests extends ESTestCase {
 
     public void testToXContent_SingleInput() throws IOException {
-        var entity = new ElasticInferenceServiceCompletionRequestEntity(
-            List.of("What is 2+2?"),
-            "my-model-id"
-        );
+        var entity = new ElasticInferenceServiceCompletionRequestEntity(List.of("What is 2+2?"), "my-model-id");
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
@@ -66,10 +63,7 @@ public class ElasticInferenceServiceCompletionRequestEntityTests extends ESTestC
     }
 
     public void testToXContent_EmptyInput() throws IOException {
-        var entity = new ElasticInferenceServiceCompletionRequestEntity(
-            List.of(""),
-            "my-model-id"
-        );
+        var entity = new ElasticInferenceServiceCompletionRequestEntity(List.of(""), "my-model-id");
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
@@ -87,12 +81,9 @@ public class ElasticInferenceServiceCompletionRequestEntityTests extends ESTestC
     }
 
     public void testToXContent_AlwaysNonStreaming() throws IOException {
-        var entity = new ElasticInferenceServiceCompletionRequestEntity(
-            List.of("test input"),
-            "my-model-id"
-        );
+        var entity = new ElasticInferenceServiceCompletionRequestEntity(List.of("test input"), "my-model-id");
         String xContentString = xContentEntityToString(entity);
-        
+
         // Verify stream is always false
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
@@ -110,12 +101,9 @@ public class ElasticInferenceServiceCompletionRequestEntityTests extends ESTestC
     }
 
     public void testToXContent_AlwaysSetsNToOne() throws IOException {
-        var entity = new ElasticInferenceServiceCompletionRequestEntity(
-            List.of("input1", "input2", "input3"),
-            "my-model-id"
-        );
+        var entity = new ElasticInferenceServiceCompletionRequestEntity(List.of("input1", "input2", "input3"), "my-model-id");
         String xContentString = xContentEntityToString(entity);
-        
+
         // Verify n is always 1 regardless of number of inputs
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
@@ -141,12 +129,9 @@ public class ElasticInferenceServiceCompletionRequestEntityTests extends ESTestC
     }
 
     public void testToXContent_AllMessagesHaveUserRole() throws IOException {
-        var entity = new ElasticInferenceServiceCompletionRequestEntity(
-            List.of("first", "second", "third"),
-            "test-model"
-        );
+        var entity = new ElasticInferenceServiceCompletionRequestEntity(List.of("first", "second", "third"), "test-model");
         String xContentString = xContentEntityToString(entity);
-        
+
         // Verify all messages have "user" role
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
@@ -177,4 +162,3 @@ public class ElasticInferenceServiceCompletionRequestEntityTests extends ESTestC
         return Strings.toString(builder);
     }
 }
-

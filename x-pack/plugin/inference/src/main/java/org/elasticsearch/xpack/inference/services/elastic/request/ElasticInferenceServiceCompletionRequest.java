@@ -90,5 +90,3 @@ public class ElasticInferenceServiceCompletionRequest extends ElasticInferenceSe
         return false;
     }
 }
-
-

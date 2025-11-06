@@ -97,8 +97,8 @@ public class IndexResolver {
      * version from the field caps response. It's meant to be the minimum version determined when resolving {@code FROM}
      * and is required to correctly resolve {@code ENRICH} queries in CCS (enrich policies are resolved locally and thus
      * might have a higher transport version in their field caps response than when resolving the main indices in {@code FROM}).
-     * In case of {@code ROW}, it's also okay to pass in the version from the main index resolution; that will be the coordinator
-     * version, which cannot be higher than the minimum version from the field caps response.
+     * When resolving {@code ENRICH} after {@code ROW}, it's also okay to pass in the version from the main index resolution;
+     * that will be the coordinator version, which cannot be higher than the minimum version from the field caps response.
      * <p>
      * The overall minimum version which is used to determine data type support is passed on to the listener.
      */

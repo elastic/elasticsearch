@@ -470,6 +470,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
   method: testLicenseInvalidForInference {p0=true}
   issue: https://github.com/elastic/elasticsearch/issues/137690
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
+  method: testLicenseInvalidForInference {p0=false}
+  issue: https://github.com/elastic/elasticsearch/issues/137691
 
 # Examples:
 #

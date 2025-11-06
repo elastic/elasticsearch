@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -36,15 +37,55 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         EXISTS
     }
 
-    public sealed interface Stat {}
+    public sealed interface Stat {
+        List<ElementType> tagTypes();
+
+        QueryBuilder filter(QueryBuilder sourceQuery);
+    }
 
     public record BasicStat(String name, StatsType type, QueryBuilder query) implements Stat {
+        @Override
         public QueryBuilder filter(QueryBuilder sourceQuery) {
             return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query)).boost(0.0f);
         }
+
+        @Override
+        public List<ElementType> tagTypes() {
+            return List.of();
+        }
     }
 
-    public record ByStat(AggregateExec aggExec, List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {}
+    public record ByStat(AggregateExec aggExec, List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {
+        public ByStat {
+            if (queryBuilderAndTags.isEmpty()) {
+                throw new IllegalStateException("ByStat must have at least one queryBuilderAndTags");
+            }
+        }
+
+        @Override
+        public QueryBuilder filter(QueryBuilder sourceQuery) {
+            throw new AssertionError("TODO(gal) NOCOMMIT");
+        }
+
+        @Override
+        public List<ElementType> tagTypes() {
+            return List.of(switch (queryBuilderAndTags.getFirst().tags().getFirst()) {
+                case Integer i -> ElementType.INT;
+                case Long l -> ElementType.LONG;
+                default -> throw new IllegalStateException(
+                    "Unsupported tag type in ByStat: " + queryBuilderAndTags.getFirst().tags().getFirst()
+                );
+            });
+        }
+
+        @Override
+        public String toString() {
+            final StringBuffer sb = new StringBuffer("ByStat{");
+            sb.append("queryBuilderAndTags=").append(queryBuilderAndTags);
+            sb.append('}');
+            return sb.toString();
+        }
+    }
 
     private final String indexPattern;
     private final QueryBuilder query;

@@ -395,6 +395,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     public LuceneCountOperator.Factory countSource(
         LocalExecutionPlannerContext context,
         Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+        List<ElementType> tagTypes,
         Expression limit
     ) {
         return new LuceneCountOperator.Factory(
@@ -402,7 +403,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             queryFunction,
             context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
-            List.of(ElementType.LONG),
+            tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
     }

@@ -22,16 +22,20 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -40,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -47,6 +52,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
@@ -276,7 +282,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
     }
 
     private PhysicalPlan rule(AggregateExec aggregateExec, EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
-        PhysicalPlan plan = evalExec;
+        PhysicalPlan plan = aggregateExec;
         // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags, skip them
         // Lookup join is not supported yet
         if (evalExec.child() instanceof EsQueryExec queryExec && queryExec.canSubstituteRoundToWithQueryBuilderAndTags()) {
@@ -306,7 +312,10 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                     );
                     return evalExec;
                 }
-                plan = planRoundTo(roundTo, aggregateExec, evalExec, queryExec, ctx);
+                plan = switch (planRoundTo(roundTo, aggregateExec, evalExec, queryExec, ctx)) {
+                    case FilterExec stats -> stats; // // FIXME(gal, NOCOMMIT) rename
+                    case PhysicalPlan newPlan -> aggregateExec.replaceChild(newPlan);
+                };
             }
         }
         return plan;
@@ -330,14 +339,63 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             return evalExec;
         }
 
-        return new EsStatsQueryExec(
+        // FIXME(gal, NOCOMMIT) document why the null check
+        if (aggregateExec.groupings().size() == 1
+            && aggregateExec.aggregates().size() == 2
+            && aggregateExec.aggregates().get(0) instanceof Alias alias
+            && alias.child() instanceof Count count
+            && count.hasFilter() == false
+            && count.field() instanceof Literal
+            && queryExec.query() == null) {
+            EsStatsQueryExec statsQueryExec = new EsStatsQueryExec(
+                queryExec.source(),
+                queryExec.indexPattern(),
+                queryExec.query(),
+                queryExec.limit(),
+                queryExec.attrs(),
+                List.of(new EsStatsQueryExec.ByStat(aggregateExec, queryBuilderAndTags))
+            );
+            // Wrap with FilterExec to remove empty buckets (keep buckets where count > 0)
+            Attribute outputAttr = statsQueryExec.output().get(1);
+            var zero = new Literal(Source.EMPTY, 0L, DataType.LONG);
+            return new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, outputAttr, zero));
+        }
+        FieldAttribute fieldAttribute = (FieldAttribute) roundTo.field();
+        String tagFieldName = Attribute.rawTemporaryName(
+            // $$fieldName$round_to$dateType
+            fieldAttribute.fieldName().string(),
+            "round_to",
+            roundTo.field().dataType().typeName()
+        );
+        FieldAttribute tagField = new FieldAttribute(
+            roundTo.source(),
+            tagFieldName,
+            new EsField(tagFieldName, roundTo.dataType(), Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        // Add new tag field to attributes/output
+        List<Attribute> newAttributes = new ArrayList<>(queryExec.attrs());
+        newAttributes.add(tagField);
+
+        // create a new EsQueryExec with newAttributes/output and queryBuilderAndTags
+        EsQueryExec queryExecWithTags = new EsQueryExec(
             queryExec.source(),
             queryExec.indexPattern(),
-            queryExec.query(),
+            queryExec.indexMode(),
+            queryExec.indexNameWithModes(),
+            newAttributes,
             queryExec.limit(),
-            queryExec.attrs(),
-            List.of(new EsStatsQueryExec.ByStat(aggregateExec, queryBuilderAndTags))
+            queryExec.sorts(),
+            queryExec.estimatedRowSize(),
+            queryBuilderAndTags
         );
+
+        // Replace RoundTo with new tag field in EvalExec
+        List<Alias> updatedFields = evalExec.fields()
+            .stream()
+            .map(alias -> alias.child() instanceof RoundTo ? alias.replaceChild(tagField) : alias)
+            .toList();
+
+        return new EvalExec(evalExec.source(), queryExecWithTags, updatedFields);
     }
 
     private static List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags(

@@ -176,11 +176,13 @@ public class LuceneCountOperator extends LuceneOperator {
         Block[] blocks = new Block[2 + tagTypes.size()];
         int b = 0;
         try {
-            blocks[b++] = blockFactory.newConstantLongBlockWith(state.totalHits, 1);
-            blocks[b++] = blockFactory.newConstantBooleanBlockWith(true, 1);
+            // by
             for (Object e : tags) {
                 blocks[b++] = BlockUtils.constantBlock(blockFactory, e, 1);
             }
+            // FIXME(gal, NOCOMMIT) another hack
+            blocks[b++] = blockFactory.newConstantLongBlockWith(state.totalHits, 1); // count
+            blocks[b] = blockFactory.newConstantBooleanBlockWith(true, 1); // seen
             Page page = new Page(1, blocks);
             blocks = null;
             return page;

@@ -23,7 +23,7 @@ import java.util.Stack;
  * Rewrites an expression tree to push down conjunctions in the prefilter of {@link Knn} functions.
  * knn functions won't contain other knn functions as a prefilter, to avoid circular dependencies.
  *  Given an expression tree like {@code (A OR B) AND (C AND knn())} this rule will rewrite it to
- *     {@code (A OR B) AND (C AND knn(filterExpressions = [(A OR B), C]))}
+ *     {@code (C AND knn(filterExpressions = [(A OR B), C]))}
 */
 public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.OptimizerRule<Filter> {
 
@@ -57,6 +57,10 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
                 if (newLeft.equals(and.left()) && newRight.equals(and.right())) {
                     yield and;
                 }
+                if (newLeft instanceof Knn ^ newRight instanceof Knn) {
+                    // One side is a knn, the other can be removed as it's already contained in the knn prefilters
+                    yield newLeft instanceof Knn ? newLeft : newRight;
+                }
                 yield and.replaceChildrenSameSize(List.of(newLeft, newRight));
             case Knn knn:
                 // We don't want knn expressions to have other knn expressions as a prefilter to avoid circular dependencies
@@ -64,7 +68,7 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
                     .map(PushDownConjunctionsToKnnPrefilters::removeKnn)
                     .filter(Objects::nonNull)
                     .toList();
-                if (newFilters.equals(knn.filterExpressions())) {
+                if (newFilters.isEmpty() || newFilters.equals(knn.filterExpressions())) {
                     yield knn;
                 }
                 yield knn.withFilters(newFilters);

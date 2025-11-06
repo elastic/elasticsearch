@@ -249,7 +249,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         List<?> columns = (List<?>) response.get("columns");
         List<?> values = (List<?>) response.get("values");
 
-        MapMatcher expectedColumns = allTypesColumnsMatcher(coordinatorVersion, minVersion(), indexMode, extractPreference, true);
+        MapMatcher expectedColumns = allTypesColumnsMatcher(coordinatorVersion, minVersion(), indexMode, extractPreference, true, true);
         assertMap(nameToType(columns), expectedColumns);
 
         MapMatcher expectedAllValues = matchesMap();
@@ -260,6 +260,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 minVersion(),
                 indexMode,
                 extractPreference,
+                true,
                 true,
                 indexName
             );
@@ -283,11 +284,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         TransportVersion minimumVersion,
         IndexMode indexMode,
         MappedFieldType.FieldExtractPreference extractPreference,
-        boolean expectMetadataFields
+        boolean expectMetadataFields,
+        boolean expectNonEnrichableFields
     ) {
         MapMatcher expectedColumns = matchesMap().entry(LOOKUP_ID_FIELD, "integer");
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type) == false) {
+                continue;
+            }
+            if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
                 continue;
             }
             expectedColumns = expectedColumns.entry(fieldName(type), expectedType(type, coordinatorVersion, minimumVersion, indexMode));
@@ -310,12 +315,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         IndexMode indexMode,
         MappedFieldType.FieldExtractPreference extractPreference,
         boolean expectMetadataFields,
+        boolean expectNonEnrichableFields,
         String indexName
     ) {
         MapMatcher expectedValues = matchesMap();
         expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type) == false) {
+                continue;
+            }
+            if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
                 continue;
             }
             expectedValues = expectedValues.entry(
@@ -334,47 +343,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
 
         return expectedValues;
-    }
-
-    protected static void assertFetchAllResponse(
-        Tuple<Map<String, Object>, TransportVersion> responseAndCoordinatorVersion,
-        Map<String, NodeInfo> expectedIndices,
-        TransportVersion minimumVersion,
-        IndexMode indexMode,
-        MappedFieldType.FieldExtractPreference extractPreference,
-        boolean expectMetadataFields
-    ) {
-        Map<String, Object> response = responseAndCoordinatorVersion.v1();
-        TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
-
-        assertNoPartialResponse(response);
-
-        List<?> columns = (List<?>) response.get("columns");
-        List<?> values = (List<?>) response.get("values");
-
-        MapMatcher expectedColumns = allTypesColumnsMatcher(
-            coordinatorVersion,
-            minimumVersion,
-            indexMode,
-            extractPreference,
-            expectMetadataFields
-        );
-        assertMap(nameToType(columns), expectedColumns);
-
-        MapMatcher expectedAllValues = matchesMap();
-        for (Map.Entry<String, NodeInfo> e : expectedIndices.entrySet()) {
-            String indexName = e.getKey();
-            MapMatcher expectedValues = allTypesValuesMatcher(
-                coordinatorVersion,
-                minimumVersion,
-                indexMode,
-                extractPreference,
-                expectMetadataFields,
-                indexName
-            );
-            expectedAllValues = expectedAllValues.entry(indexName, expectedValues);
-        }
-        assertMap(indexToRow(columns, values), expectedAllValues);
     }
 
     /**
@@ -537,7 +505,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMinimumVersion(coordinatorVersion, responseAndCoordinatorVersion);
     }
 
-    // TODO: ROW + local ENRICH
     @SuppressWarnings("unchecked")
     public void testRowLookupJoin() throws IOException {
         assumeTrue("Test only requires lookup indices", indexMode == IndexMode.LOOKUP);
@@ -563,6 +530,50 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 expectedMinimumVersion,
                 indexMode,
                 extractPreference,
+                false,
+                true
+            );
+            assertMap(nameToType(columns), expectedColumns);
+
+            MapMatcher expectedValues = allTypesValuesMatcher(
+                coordinatorVersion,
+                expectedMinimumVersion,
+                indexMode,
+                extractPreference,
+                false,
+                true,
+                null
+            );
+            assertMap(nameToValue(names(columns), (List<Object>) values.getFirst()), expectedValues);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRowEnrich() throws IOException {
+        assumeTrue("Test only requires lookup indices", indexMode == IndexMode.LOOKUP);
+        Map<String, NodeInfo> expectedIndices = expectedIndices(IndexMode.LOOKUP, true);
+        for (Map.Entry<String, NodeInfo> e : expectedIndices.entrySet()) {
+            String policyName = e.getKey() + "_policy";
+            String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | ENRICH " + policyName + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
+            var responseAndCoordinatorVersion = runQuery(query);
+            TransportVersion expectedMinimumVersion = minVersion(true);
+
+            assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion);
+
+            Map<String, Object> response = responseAndCoordinatorVersion.v1();
+            TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
+
+            assertNoPartialResponse(response);
+
+            List<?> columns = (List<?>) response.get("columns");
+            List<?> values = (List<?>) response.get("values");
+
+            MapMatcher expectedColumns = allTypesColumnsMatcher(
+                coordinatorVersion,
+                expectedMinimumVersion,
+                indexMode,
+                extractPreference,
+                false,
                 false
             );
             assertMap(nameToType(columns), expectedColumns);
@@ -572,6 +583,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 expectedMinimumVersion,
                 indexMode,
                 extractPreference,
+                false,
                 false,
                 null
             );
@@ -653,6 +665,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         if (false == indexExists(client, indexName)) {
             createAllTypesIndex(client, indexName, nodeId, mode);
             createAllTypesDoc(client, indexName);
+            // We create an enrich policy for each lookup index. That's a bit of an arbitrary choice, but it's probably a good idea to
+            // create 1 enrich policy per node, so we potentially detect misbehavior that stems from enrich policies being based on indices
+            // that live on newer or older nodes.
+            if (mode == IndexMode.LOOKUP) {
+                createEnrichPolicy(client, indexName);
+            }
         }
     }
 
@@ -765,8 +783,35 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
-    private Matcher<?> expectedValue(DataType type, TransportVersion coordinatorVersion) throws IOException {
-        return expectedValue(type, coordinatorVersion, minVersion(), indexMode, extractPreference);
+    private static void createEnrichPolicy(RestClient client, String indexName) throws IOException {
+        String policyName = indexName + "_policy";
+
+        XContentBuilder policyConfig = JsonXContent.contentBuilder().startObject();
+        {
+            policyConfig.startObject("match");
+
+            policyConfig.field("indices", indexName);
+            policyConfig.field("match_field", LOOKUP_ID_FIELD);
+            List<String> enrichFields = new ArrayList<>();
+            for (DataType type : DataType.values()) {
+                if (supportedInIndex(type) == false || supportedInEnrich(type) == false) {
+                    continue;
+                }
+                enrichFields.add(fieldName(type));
+            }
+            policyConfig.field("enrich_fields", enrichFields);
+
+            policyConfig.endObject();
+        }
+        policyConfig.endObject();
+
+        Request request = new Request("PUT", "_enrich/policy/" + policyName);
+        request.setJsonEntity(Strings.toString(policyConfig));
+        client.performRequest(request);
+
+        Request execute = new Request("PUT", "_enrich/policy/" + policyName + "/_execute");
+        request.addParameter("wait_for_completion", "true");
+        client.performRequest(execute);
     }
 
     private static Matcher<?> expectedValue(
@@ -830,6 +875,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 EXPONENTIAL_HISTOGRAM,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+            default -> true;
+        };
+    }
+
+    /**
+     * Is the type supported in enrich policies?
+     */
+    private static boolean supportedInEnrich(DataType t) {
+        return switch (t) {
+            // Enrich policies don't work with types that have mandatory fields in the mapping.
+            // https://github.com/elastic/elasticsearch/issues/127350
+            case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
+                // https://github.com/elastic/elasticsearch/issues/137699
+                DENSE_VECTOR -> false;
             default -> true;
         };
     }

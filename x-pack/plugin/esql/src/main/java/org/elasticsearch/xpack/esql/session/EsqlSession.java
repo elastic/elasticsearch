@@ -621,6 +621,9 @@ public class EsqlSession {
             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
             false,
             false,
+            // We're just being consistent with the enrich policy resolution here; technically, we don't need to pass the main index
+            // resolution's minimum version, as the coordinator's just going to make another field caps request for the lookup resolution
+            // that comes with the minimum version in the response.
             result.minimumTransportVersion(),
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );

@@ -62,10 +62,10 @@ special_characters:
   token_delimiters: " \t"
   # characters that delimit subTokens within a token (e.g., periods in IPv4 addresses)
   sub_token_delimiters: |-
-    -_:=/.
-  # characters to trim from tokens but keep in the template (e.g., brackets and quotes)
-  # these characters are not considered part of the token's value but are preserved in templates
-  trimmed_characters: |-
+    -+_:=/.
+  # characters that may be found in the boundaries of tokens, but are not considered part of them (e.g., brackets and quotes)
+  # these characters are not considered part of the token if it is identified as a template argument
+  token_boundary_characters: |-
     {}[]();,'%"
 
 # The schema rules are built hierarchically, with each level building upon previous definitions.

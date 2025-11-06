@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.Cha
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.OTHER_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.SUBTOKEN_DELIMITER_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_DELIMITER_CHAR_CODE;
-import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TRIMMED_CHAR_CODE;
+import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_BOUNDARY_CHAR_CODE;
 
 public class SchemaCompiler {
 
@@ -382,13 +382,13 @@ public class SchemaCompiler {
             }
         }
 
-        for (char trimmedChar : schema.getTrimmedCharacters()) {
-            if (trimmedChar < ASCII_RANGE) {
-                // trimmed characters should not invalidate any sub-token, so we use the inclusive sub-token bitmask
-                charToSubTokenBitmask[trimmedChar] = allSubTokenBitmask;
+        for (char tokenBoundaryChar : schema.getTokenBoundaryCharacters()) {
+            if (tokenBoundaryChar < ASCII_RANGE) {
+                // token boundary characters should not invalidate any sub-token, so we use the inclusive sub-token bitmask
+                charToSubTokenBitmask[tokenBoundaryChar] = allSubTokenBitmask;
             } else {
                 throw new IllegalArgumentException(
-                    "Trimmed character '" + trimmedChar + "' is outside the ASCII range and will not be processed."
+                    "Token boundary character '" + tokenBoundaryChar + "' is outside the ASCII range and will not be processed."
                 );
             }
         }
@@ -520,9 +520,9 @@ public class SchemaCompiler {
             }
         }
 
-        for (char trimmed : schema.getTrimmedCharacters()) {
-            if (c == trimmed) {
-                return TRIMMED_CHAR_CODE;
+        for (char tokenBoundaryChar : schema.getTokenBoundaryCharacters()) {
+            if (c == tokenBoundaryChar) {
+                return TOKEN_BOUNDARY_CHAR_CODE;
             }
         }
 

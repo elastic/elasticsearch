@@ -106,7 +106,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("Invalid format - only token delimiters and trimmed characters are allowed between tokens:")
+            containsString("Invalid format - only token delimiters and token boundary characters are allowed between tokens:")
         );
     }
 
@@ -117,7 +117,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("Invalid format - only token delimiters and trimmed characters are allowed between tokens:")
+            containsString("Invalid format - only token delimiters and token boundary characters are allowed between tokens:")
         );
     }
 
@@ -136,7 +136,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("Invalid format - only token delimiters and trimmed characters are allowed between tokens:")
+            containsString("Invalid format - only token delimiters and token boundary characters are allowed between tokens:")
         );
     }
 
@@ -178,7 +178,10 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> PatternUtils.parseMultiTokenFormat("text$", tokenTypes, boundaryChars)
         );
-        assertEquals("Invalid format - only token delimiters and trimmed characters are allowed between tokens: text$", e.getMessage());
+        assertEquals(
+            "Invalid format - only token delimiters and token boundary characters are allowed between tokens: text$",
+            e.getMessage()
+        );
     }
 
     public void testParseMultiTokenFormat_TokensBoundedByDifferentChars() {

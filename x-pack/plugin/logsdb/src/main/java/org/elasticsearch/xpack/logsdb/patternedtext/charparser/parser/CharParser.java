@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.Cha
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.LINE_END_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.SUBTOKEN_DELIMITER_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_DELIMITER_CHAR_CODE;
-import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TRIMMED_CHAR_CODE;
+import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_BOUNDARY_CHAR_CODE;
 
 /**
  * During parsing, the different current bitmasks represent a superset of all applicable types for the currently parsed entity (subToken,
@@ -199,6 +199,7 @@ public final class CharParser implements Parser {
      * @param rawMessage the input message to parse
      * @return an ordered list of typed arguments extracted from the message
      */
+    @SuppressWarnings("fallthrough")
     public List<Argument<?>> parse(String rawMessage) throws ParseException {
         if (rawMessage == null || rawMessage.isEmpty()) {
             return Collections.emptyList();
@@ -241,6 +242,9 @@ public final class CharParser implements Parser {
                     currentSubTokenIntValue = currentSubTokenIntValue * 10 + currentChar - '0';
                     break;
                 case SUBTOKEN_DELIMITER_CHAR_CODE:
+                    if (currentChar == '-' || currentChar == '+') {
+                        // todo: if this is the first char in a sub-token - treat as potential sign for floating point numbers
+                    }
                     // everything we need to do at the end of a subToken we also must do at the end of a token, so we share the logic
                     // in the next case
                 case TOKEN_DELIMITER_CHAR_CODE:
@@ -550,8 +554,11 @@ public final class CharParser implements Parser {
                     }
                     resetSubTokenState();
                     break;
-                case TRIMMED_CHAR_CODE:
-                    // todo - check if this trimmed code in this position within a multi-token is valid
+                case TOKEN_BOUNDARY_CHAR_CODE:
+                    // todo - check if the current char in this position within a multi-token is valid
+                    if (currentChar == '%') {
+                        // todo - just keep that we found the '%' character in this position and take into account when finalizing the token
+                    }
                     break;
                 default:
             }

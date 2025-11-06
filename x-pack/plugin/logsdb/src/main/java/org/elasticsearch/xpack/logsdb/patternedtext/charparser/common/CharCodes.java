@@ -13,7 +13,7 @@ public class CharCodes {
     public static final byte ALPHABETIC_CHAR_CODE = 1;
     public static final byte SUBTOKEN_DELIMITER_CHAR_CODE = 2;
     public static final byte TOKEN_DELIMITER_CHAR_CODE = 3;
-    public static final byte TRIMMED_CHAR_CODE = 4;
+    public static final byte TOKEN_BOUNDARY_CHAR_CODE = 4;
     public static final byte LINE_END_CODE = 5;
     public static final byte OTHER_CHAR_CODE = 6;
 }

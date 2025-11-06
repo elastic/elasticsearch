@@ -12,9 +12,9 @@ import java.util.stream.Collectors;
 
 /**
  * A multi-token format can only contain valid token names prefixed with '$', separated by token delimiters and optionally
- * {@link Schema#getTrimmedCharacters() "trimmed characters"}. The {@link #formatParts} can be a mix of {@link TokenType} instances and
- * literal strings that represent whole parts of the format between tokens, meaning that they may include only
- * {@link Schema#getTokenDelimiters() token delimiters} and {@link Schema#getTrimmedCharacters() trimmed characters}.
+ * {@link Schema#getTokenBoundaryCharacters() "token boundary characters"}. The {@link #formatParts} can be a mix of {@link TokenType}
+ * instances and literal strings that represent whole parts of the format between tokens, meaning that they may include only
+ * {@link Schema#getTokenDelimiters() token delimiters} and {@link Schema#getTokenBoundaryCharacters() token boundary characters}.
  * For convenience, the {@link #tokens} list contains only the {@link TokenType} instances extracted from the format parts, in the
  * order they appear in the format.
  */

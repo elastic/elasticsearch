@@ -35,7 +35,7 @@ public class Schema {
 
     private final char[] tokenDelimiters;
     private final char[] subTokenDelimiters;
-    private final char[] trimmedCharacters;
+    private final char[] tokenBoundaryCharacters;
     private final ArrayList<SubTokenBaseType> subTokenBaseTypes;
     private final ArrayList<SubTokenType> subTokenTypes;
     private final ArrayList<TokenType> tokenTypes;
@@ -61,7 +61,7 @@ public class Schema {
             // we should not trim the token delimiters, as they contain whitespaces
             tokenDelimiters = ((String) specialCharsMap.get("token_delimiters")).toCharArray();
             subTokenDelimiters = getConfigValue(specialCharsMap, "sub_token_delimiters").toCharArray();
-            trimmedCharacters = getConfigValue(specialCharsMap, "trimmed_characters").toCharArray();
+            tokenBoundaryCharacters = getConfigValue(specialCharsMap, "token_boundary_characters").toCharArray();
 
             Map<String, Object> schemaMap = (Map<String, Object>) yamlMap.get("schema");
             subTokenBaseTypes = parseSubTokenBaseTypes((List<Object>) schemaMap.get("sub_token_base_types"));
@@ -187,7 +187,7 @@ public class Schema {
         for (char c : getTokenDelimiters()) {
             boundaryChars.add(c);
         }
-        for (char c : getTrimmedCharacters()) {
+        for (char c : getTokenBoundaryCharacters()) {
             boundaryChars.add(c);
         }
         return boundaryChars;
@@ -201,8 +201,8 @@ public class Schema {
         return subTokenDelimiters;
     }
 
-    public char[] getTrimmedCharacters() {
-        return trimmedCharacters;
+    public char[] getTokenBoundaryCharacters() {
+        return tokenBoundaryCharacters;
     }
 
     public ArrayList<SubTokenBaseType> getSubTokenBaseTypes() {
@@ -265,8 +265,8 @@ public class Schema {
         printCharArray(subTokenDelimiters, sb);
         sb.append("]\n");
 
-        sb.append("    TrimmedCharacters: [");
-        printCharArray(trimmedCharacters, sb);
+        sb.append("    TokenBoundaryCharacters: [");
+        printCharArray(tokenBoundaryCharacters, sb);
         sb.append("]\n\n");
 
         // SubTokenBaseTypes

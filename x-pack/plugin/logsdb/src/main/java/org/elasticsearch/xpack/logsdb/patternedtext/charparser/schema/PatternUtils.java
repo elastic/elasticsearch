@@ -370,7 +370,7 @@ public class PatternUtils {
                     currentPart.append(c);
                 } else {
                     throw new IllegalArgumentException(
-                        "Invalid format - only token delimiters and trimmed characters are allowed between tokens: " + format
+                        "Invalid format - only token delimiters and token boundary characters are allowed between tokens: " + format
                     );
                 }
             }

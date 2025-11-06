@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -22,11 +23,13 @@ import org.hamcrest.Matchers;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
@@ -150,52 +153,84 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
     }
 
     public static List<PeriodTestCaseData> makeTruncPeriodTestCases() {
-        String ts = "2023-02-17T10:25:33.38Z";
-        return List.of(
-            ///
-            /// UTC
-            ///
-            new PeriodTestCaseData(Period.ofDays(1), ts, "UTC", "2023-02-17T00:00:00.00Z"),
-            new PeriodTestCaseData(Period.ofMonths(1), ts, "UTC", "2023-02-01T00:00:00.00Z"),
-            new PeriodTestCaseData(Period.ofYears(1), ts, "UTC", "2023-01-01T00:00:00.00Z"),
-            new PeriodTestCaseData(Period.ofDays(10), ts, "UTC", "2023-02-12T00:00:00.00Z"),
-            // 7 days period should return weekly rounding
-            new PeriodTestCaseData(Period.ofDays(7), ts, "UTC", "2023-02-13T00:00:00.00Z"),
-            // 3 months period should return quarterly
-            new PeriodTestCaseData(Period.ofMonths(3), ts, "UTC", "2023-01-01T00:00:00.00Z"),
-            // arbitrary period of months and years
-            new PeriodTestCaseData(Period.ofMonths(7), ts, "UTC", "2022-11-01T00:00:00.00Z"),
-            new PeriodTestCaseData(Period.ofYears(5), ts, "UTC", "2021-01-01T00:00:00.00Z"),
+        List<PeriodTestCaseData> cases = new ArrayList<>();
 
-            ///
-            /// Timezones
-            ///
-            new PeriodTestCaseData(Period.ofDays(1), "2024-03-01T00:30:00Z", "-03", "2024-02-29T03:00:00Z"),
+        // Add generic cases for either UTC, fixed timezones and timezones with minutes.
+        // Note that we can't do this with variable timezones, as date formats accept only offsets.
+        //
+        // For every unit, we test 2 cases: 1 unit, and multiple units.
+        // Then, for every case, we check 4 boundaries (↑Bucket1, ↓Bucket2, ↑Bucket2, ↓Bucket3) to ensure the exact size of the buckets.
+        final List<String> timezones = List.of("Z", "-08:00", "+04:00", "+11:45", "Europe/Madrid", "America/New_York");
+        Stream.of(
+            // Days
+            new PeriodTestCaseData(Period.ofDays(1), "2023-02-16T23:59:59.99", "", "2023-02-16T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(1), "2023-02-17T00:00:00", "", "2023-02-17T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(1), "2023-02-17T23:59:59.99", "", "2023-02-17T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(1), "2023-02-18T00:00:00", "", "2023-02-18T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(10), "2023-02-11T23:59:59.99", "", "2023-02-02T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(10), "2023-02-12T00:00:00", "", "2023-02-12T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(10), "2023-02-21T23:59:59.99", "", "2023-02-12T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(10), "2023-02-22T00:00:00", "", "2023-02-22T00:00:00"),
+            // Weeks
+            new PeriodTestCaseData(Period.ofDays(7), "2023-02-05T23:59:59.99", "", "2023-01-30T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(7), "2023-02-06T00:00:00", "", "2023-02-06T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(7), "2023-02-12T23:59:59.99", "", "2023-02-06T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(7), "2023-02-13T00:00:00", "", "2023-02-13T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(21), "2023-01-25T23:59:59.99", "", "2023-01-05T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(21), "2023-01-26T00:00:00", "", "2023-01-26T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(21), "2023-02-15T23:59:59.99", "", "2023-01-26T00:00:00"),
+            new PeriodTestCaseData(Period.ofDays(21), "2023-02-16T00:00:00", "", "2023-02-16T00:00:00"),
+            // Months
+            new PeriodTestCaseData(Period.ofMonths(1), "2024-02-29T23:59:59.99", "", "2024-02-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(1), "2024-03-01T00:00:00", "", "2024-03-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(1), "2024-03-31T23:59:59.99", "", "2024-03-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(1), "2024-04-01T00:00:00", "", "2024-04-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(7), "2022-10-31T23:59:59.99", "", "2022-04-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(7), "2022-11-01T00:00:00", "", "2022-11-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(7), "2023-05-31T23:59:59.99", "", "2022-11-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(7), "2023-06-01T00:00:00", "", "2023-06-01T00:00:00"),
+            // Quarters
+            new PeriodTestCaseData(Period.ofMonths(3), "2023-12-31T23:59:59.99", "", "2023-10-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(3), "2024-01-01T00:00:00", "", "2024-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(3), "2024-03-31T23:59:59.99", "", "2024-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(3), "2024-04-01T00:00:00", "", "2024-04-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(6), "2023-12-31T23:59:59.99", "", "2023-07-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(6), "2024-01-01T00:00:00", "", "2024-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(6), "2024-06-30T23:59:59.99", "", "2024-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofMonths(6), "2024-07-01T00:00:00", "", "2024-07-01T00:00:00"),
+            // Years
+            new PeriodTestCaseData(Period.ofYears(1), "2022-12-31T23:59:59.99", "", "2022-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(1), "2023-01-01T00:00:00", "", "2023-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(1), "2023-12-31T23:59:59.99", "", "2023-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(1), "2024-01-01T00:00:00", "", "2024-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(5), "2020-12-31T23:59:59.99", "", "2016-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(5), "2021-01-01T00:00:00", "", "2021-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(5), "2025-12-31T23:59:59.99", "", "2021-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(5), "2026-01-01T00:00:00", "", "2026-01-01T00:00:00")
+        ).forEach(c -> timezones.forEach(timezone -> {
+            // Convert the timezone to the offset in each local time.
+            // This is required as date strings can't have a zone name as its zone.
+            var inputOffset = timezone.startsWith("+") || timezone.startsWith("-")
+                ? timezone
+                : LocalDateTime.parse(c.inputDate()).atZone(ZoneId.of(timezone)).getOffset().getId();
+            var expectedOffset = timezone.startsWith("+") || timezone.startsWith("-")
+                ? timezone
+                : LocalDateTime.parse(c.expectedDate()).atZone(ZoneId.of(timezone)).getOffset().getId();
+            cases.add(
+                new PeriodTestCaseData(c.period(), c.inputDate() + inputOffset, timezone, c.expectedDate() + expectedOffset)
+            );
+        }));
 
+        // Special cases
+        cases.addAll(List.of(
             ///
-            /// Timezone with DST (e.g. New York: -5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)
+            /// DST boundaries (e.g. New York: -5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)
             ///
+            // Days
             new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-09T00:00:00-05:00"),
-            new PeriodTestCaseData(Period.ofMonths(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-01T00:00:00-05:00"),
-            new PeriodTestCaseData(Period.ofYears(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-01-01T00:00:00-05:00"),
-            new PeriodTestCaseData(Period.ofDays(10), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-03T00:00:00-05:00"),
-            new PeriodTestCaseData(Period.ofDays(1), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00"),
-            new PeriodTestCaseData(Period.ofDays(7), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-10-27T00:00:00-04:00"),
-            new PeriodTestCaseData(Period.ofMonths(3), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-10-01T00:00:00-04:00"),
-            new PeriodTestCaseData(Period.ofDays(1), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
-            new PeriodTestCaseData(Period.ofMonths(3), "2025-11-02T05:00:00-05:00", "Europe/Rome", "2025-10-01T00:00:00-04:00"),
-
-            ///
-            /// Partial hours timezones
-            ///
-            new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T07:08:09-05:45", "-05:45", "2025-03-09T00:00:00-05:45"),
-            new PeriodTestCaseData(Period.ofMonths(1), "2025-03-09T07:08:09-05:45", "-05:45", "2025-03-01T00:00:00-05:45"),
-            new PeriodTestCaseData(Period.ofYears(1), "2025-03-09T07:08:09-05:45", "-05:45", "2025-01-01T00:00:00-05:45"),
-            new PeriodTestCaseData(Period.ofDays(10), "2025-03-09T07:08:09-05:45", "-05:45", "2025-03-03T00:00:00-05:45"),
-            new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T07:08:09-05:45", "-05:45", "2025-03-09T00:00:00-05:45"),
-            new PeriodTestCaseData(Period.ofDays(7), "2025-03-09T07:08:09-05:45", "-05:45", "2025-03-03T00:00:00-05:45"),
-            new PeriodTestCaseData(Period.ofMonths(3), "2025-03-09T07:08:09-05:45", "-05:45", "2025-01-01T00:00:00-05:45")
-        );
+            new PeriodTestCaseData(Period.ofDays(1), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00")
+        ));
+        return cases;
     }
 
     private static List<TestCaseSupplier> ofDatePeriod(PeriodTestCaseData data) {

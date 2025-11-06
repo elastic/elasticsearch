@@ -181,8 +181,8 @@ FROM k8s METADATA _tsid
 
 events_received:long | @timestamp:datetime      | cluster:keyword | pod:keyword
 0                    | 2024-05-10T00:04:49.000Z | qa              | one
-0                    | 2024-05-10T00:02:43.000Z | staging         | two
-0                    | 2024-05-10T00:03:13.000Z | staging         | one
+0                    | 2024-05-10T00:09:58.000Z | qa              | three
 0                    | 2024-05-10T00:07:33.000Z | qa              | two
-0                    | 2024-05-10T00:05:16.000Z | prod            | one
+0                    | 2024-05-10T00:03:13.000Z | staging         | one
+0                    | 2024-05-10T00:09:34.000Z | staging         | one
 ;

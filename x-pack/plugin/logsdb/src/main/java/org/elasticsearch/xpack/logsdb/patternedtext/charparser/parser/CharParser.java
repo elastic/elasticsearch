@@ -55,7 +55,7 @@ public final class CharParser implements Parser {
     private final byte[] charToCharType;
 
     private final SubTokenDelimiterCharParsingInfo[] subTokenDelimiterCharParsingInfos;
-    private final SubstringToBitmaskMap subTokenNumericValueRepresentationMap;
+    private final SubstringToIntegerMap subTokenNumericValueRepresentationMap;
 
     // special bitmasks
     private final int intSubTokenBitmask;

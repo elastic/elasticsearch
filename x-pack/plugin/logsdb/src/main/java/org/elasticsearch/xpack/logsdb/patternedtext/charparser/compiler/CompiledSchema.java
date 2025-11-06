@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskReg
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenDelimiterCharParsingInfo;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToBitmaskMap;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.Schema;
 
@@ -49,7 +49,7 @@ public final class CompiledSchema {
     /**
      * A fast-access map for retrieving the numeric value representation for String subTokens.
      */
-    public final SubstringToBitmaskMap subTokenNumericValueRepresentation;
+    public final SubstringToIntegerMap subTokenNumericValueRepresentation;
 
     /**
      * The maximum number of subTokens that can be parsed from a single token.
@@ -148,7 +148,7 @@ public final class CompiledSchema {
         int[] charToSubTokenBitmask,
         byte[] charToCharType,
         SubTokenDelimiterCharParsingInfo[] subTokenDelimiterCharParsingInfos,
-        SubstringToBitmaskMap subTokenNumericValueRepresentation,
+        SubstringToIntegerMap subTokenNumericValueRepresentation,
         int maxSubTokensPerToken,
         int maxTokensPerMultiToken,
         int maxSubTokensPerMultiToken,

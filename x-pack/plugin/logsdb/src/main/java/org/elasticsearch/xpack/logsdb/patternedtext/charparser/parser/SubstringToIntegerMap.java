@@ -19,11 +19,11 @@ import java.util.stream.Collectors;
  *   failing fast on hashcode mismatch) and/or through making the map sparse (e.g. using a trie or a perfect hash function if the set of
  *   keys is known to be static and unchanging).
  */
-public final class SubstringToBitmaskMap implements ToIntFunction<SubstringView> {
+public final class SubstringToIntegerMap implements ToIntFunction<SubstringView> {
 
     private final Map<SubstringView, Integer> map;
 
-    private SubstringToBitmaskMap(Map<SubstringView, Integer> map) {
+    private SubstringToIntegerMap(Map<SubstringView, Integer> map) {
         this.map = map;
     }
 
@@ -77,7 +77,7 @@ public final class SubstringToBitmaskMap implements ToIntFunction<SubstringView>
             return this;
         }
 
-        public Builder addAll(SubstringToBitmaskMap other) {
+        public Builder addAll(SubstringToIntegerMap other) {
             other.map.forEach((key, value) -> this.add(key.toString(), value));
             return this;
         }
@@ -109,7 +109,7 @@ public final class SubstringToBitmaskMap implements ToIntFunction<SubstringView>
          * @return a new SubstringToIntMap instance
          * @throws IllegalArgumentException if the map is empty
          */
-        public SubstringToBitmaskMap build() {
+        public SubstringToIntegerMap build() {
             if (map.isEmpty()) {
                 throw new IllegalArgumentException("Map cannot be null or empty");
             }
@@ -118,7 +118,7 @@ public final class SubstringToBitmaskMap implements ToIntFunction<SubstringView>
                 .stream()
                 .collect(Collectors.toMap(entry -> new SubstringView(entry.getKey()), Map.Entry::getValue));
 
-            return new SubstringToBitmaskMap(Map.copyOf(substringViewMap));
+            return new SubstringToIntegerMap(Map.copyOf(substringViewMap));
         }
     }
 

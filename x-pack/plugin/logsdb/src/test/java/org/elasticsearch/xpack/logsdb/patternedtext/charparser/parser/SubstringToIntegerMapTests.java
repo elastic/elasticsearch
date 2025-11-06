@@ -12,7 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class SubstringToBitmaskMapTests extends ESTestCase {
+public class SubstringToIntegerMapTests extends ESTestCase {
 
     public static final String[] MONTHS = new String[] {
         "Jan",
@@ -28,7 +28,7 @@ public class SubstringToBitmaskMapTests extends ESTestCase {
         "Nov",
         "Dec" };
 
-    public static final SubstringToBitmaskMap MONTH_MAP = SubstringToBitmaskMap.builder()
+    public static final SubstringToIntegerMap MONTH_MAP = SubstringToIntegerMap.builder()
         .addAll(IntStream.range(0, MONTHS.length).boxed().collect(Collectors.toMap(i -> MONTHS[i], i -> i + 1)))
         .build();
 
@@ -36,7 +36,7 @@ public class SubstringToBitmaskMapTests extends ESTestCase {
     public void testMap() {
         String testString = "I love the month of July!";
         SubstringView input = new SubstringView(testString);
-        assertEquals("Value should be -1 for " + input + " in " + testString, -1, MONTH_MAP.applyAsInt(input));
+        assertEquals("Value should be 0 for " + input + " in " + testString, 0, MONTH_MAP.applyAsInt(input));
         int indexOfJul = testString.indexOf("Jul");
         input.set(testString, indexOfJul, indexOfJul + 3);
         assertEquals("Value should be 7 for " + input + " in " + testString, 7, MONTH_MAP.applyAsInt(input));
@@ -52,6 +52,6 @@ public class SubstringToBitmaskMapTests extends ESTestCase {
             assertEquals("Value should match for " + input + " in " + testString, i + 1, MONTH_MAP.applyAsInt(input));
         }
         input.set(1, 5);
-        assertEquals("Value should be -1 for non-matching substring " + input + " in " + testString, -1, MONTH_MAP.applyAsInt(input));
+        assertEquals("Value should be 0 for non-matching substring " + input + " in " + testString, 0, MONTH_MAP.applyAsInt(input));
     }
 }

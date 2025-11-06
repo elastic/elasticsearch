@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToBitmaskMap;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.AndStringConstraint;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.AnyString;
@@ -34,7 +34,7 @@ public class SubstringToBitmaskChainTests extends ESTestCase {
         ToIntFunction<SubstringView> chain = builder.build();
 
         // Should optimize to just a map
-        assertTrue(chain instanceof SubstringToBitmaskMap);
+        assertTrue(chain instanceof SubstringToIntegerMap);
 
         assertEquals(0x01, chain.applyAsInt(new SubstringView("Jan")));
         assertEquals(0x01, chain.applyAsInt(new SubstringView("Feb")));
@@ -48,7 +48,7 @@ public class SubstringToBitmaskChainTests extends ESTestCase {
         ToIntFunction<SubstringView> chain = builder.build();
 
         // Should optimize to just a map
-        assertTrue(chain instanceof SubstringToBitmaskMap);
+        assertTrue(chain instanceof SubstringToIntegerMap);
 
         assertEquals(0x02, chain.applyAsInt(new SubstringView("One")));
         assertEquals(0x02, chain.applyAsInt(new SubstringView("Two")));
@@ -62,7 +62,7 @@ public class SubstringToBitmaskChainTests extends ESTestCase {
         ToIntFunction<SubstringView> chain = builder.build();
 
         // Should optimize to just a map - equals can be represented as a map with a single entry
-        assertTrue(chain instanceof SubstringToBitmaskMap);
+        assertTrue(chain instanceof SubstringToIntegerMap);
 
         assertEquals(0x04, chain.applyAsInt(new SubstringView("test")));
         assertEquals(0x00, chain.applyAsInt(new SubstringView("other")));
@@ -75,7 +75,7 @@ public class SubstringToBitmaskChainTests extends ESTestCase {
         ToIntFunction<SubstringView> chain = builder.build();
 
         // Should not be a map or chain, just the function itself
-        assertFalse(chain instanceof SubstringToBitmaskMap);
+        assertFalse(chain instanceof SubstringToIntegerMap);
         assertFalse(chain instanceof SubstringToBitmaskChain);
 
         assertEquals(0x08, chain.applyAsInt(new SubstringView("abc")));
@@ -89,7 +89,7 @@ public class SubstringToBitmaskChainTests extends ESTestCase {
         ToIntFunction<SubstringView> chain = builder.build();
 
         // Should optimize to a simple function that always returns the bitmask
-        assertFalse(chain instanceof SubstringToBitmaskMap);
+        assertFalse(chain instanceof SubstringToIntegerMap);
         assertFalse(chain instanceof SubstringToBitmaskChain);
 
         assertEquals(0x10, chain.applyAsInt(new SubstringView("anything")));
@@ -108,7 +108,7 @@ public class SubstringToBitmaskChainTests extends ESTestCase {
         ToIntFunction<SubstringView> chain = builder.build();
 
         // Should optimize to just a map
-        assertTrue(chain instanceof SubstringToBitmaskMap);
+        assertTrue(chain instanceof SubstringToIntegerMap);
 
         assertEquals(0x01, chain.applyAsInt(new SubstringView("Jan")));
         assertEquals(0x02, chain.applyAsInt(new SubstringView("Mon")));
@@ -124,7 +124,7 @@ public class SubstringToBitmaskChainTests extends ESTestCase {
 
         ToIntFunction<SubstringView> chain = builder.build();
 
-        assertTrue(chain instanceof SubstringToBitmaskMap);
+        assertTrue(chain instanceof SubstringToIntegerMap);
 
         assertEquals(0x03, chain.applyAsInt(new SubstringView("A"))); // First two bitmasks ORed together
         assertEquals(0x07, chain.applyAsInt(new SubstringView("B"))); // All three bitmasks ORed together
@@ -247,7 +247,7 @@ public class SubstringToBitmaskChainTests extends ESTestCase {
         ToIntFunction<SubstringView> chain = builder.build();
 
         // Should be optimized to a map with ORed bitmask
-        assertTrue(chain instanceof SubstringToBitmaskMap);
+        assertTrue(chain instanceof SubstringToIntegerMap);
 
         assertEquals(0x07, chain.applyAsInt(new SubstringView("test")));
         assertEquals(0x00, chain.applyAsInt(new SubstringView("other")));
@@ -308,7 +308,7 @@ public class SubstringToBitmaskChainTests extends ESTestCase {
 
         // Should be optimized to a simple function
         assertFalse(chain instanceof SubstringToBitmaskChain);
-        assertFalse(chain instanceof SubstringToBitmaskMap);
+        assertFalse(chain instanceof SubstringToIntegerMap);
 
         assertEquals(0xFF, chain.applyAsInt(new SubstringView("anything")));
         assertEquals(0xFF, chain.applyAsInt(new SubstringView("")));

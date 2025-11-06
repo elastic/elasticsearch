@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskReg
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenDelimiterCharParsingInfo;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToBitmaskMap;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TimestampFormat;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TokenType;
@@ -72,7 +72,7 @@ public class SchemaCompiler {
         // for each token format, the last subToken is not identified by a subToken delimiter, but rather by a token delimiter
         ArrayList<SubstringToBitmaskChain.Builder> bitmaskGeneratorForLastSubToken = new ArrayList<>();
         // a global map for all string subToken types, that maps a string value to the corresponding subToken bitmask
-        SubstringToBitmaskMap.Builder subTokenValueToBitmaskMapBuilder = SubstringToBitmaskMap.builder();
+        SubstringToIntegerMap.Builder subTokenValueToBitmaskMapBuilder = SubstringToIntegerMap.builder();
 
         int allSubTokenBitmask = 0;
         int intSubTokenBitmask;

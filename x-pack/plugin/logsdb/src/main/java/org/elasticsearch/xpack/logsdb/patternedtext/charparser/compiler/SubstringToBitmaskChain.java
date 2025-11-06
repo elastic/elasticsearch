@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler;
 
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToBitmaskMap;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.AndStringConstraint;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.AnyString;
@@ -28,7 +28,7 @@ import java.util.function.ToIntFunction;
  * Each function in the chain produces a bitmask that is ORed together to produce the final result.
  * This is a way of applying multiple {@code StringConstraint} evaluations on a given substring into a single bitmask.
  * In order to optimize the evaluation, any map/set based evaluations are combined into a single
- * {@link SubstringToBitmaskMap} evaluation. In addition, any "any string" constraints are combined into a single bitmask that is always
+ * {@link SubstringToIntegerMap} evaluation. In addition, any "any string" constraints are combined into a single bitmask that is always
  * applied.
  * Conceptually, each function in the chain represents the constraints related to a single sub-token from the schema. Some of these
  * may be composite constraints (AND/OR), in which case a single function may represent multiple inner evaluations. Technically, however,
@@ -38,7 +38,7 @@ public class SubstringToBitmaskChain implements ToIntFunction<SubstringView> {
     /**
      * Any string evaluation that matches a map/set pattern can be combined into a single map evaluation for efficiency.
      */
-    private final SubstringToBitmaskMap substringToBitmaskMap;
+    private final SubstringToIntegerMap substringToBitmaskMap;
 
     /**
      * A chain of functions to apply in sequence to produce the combined bitmask.
@@ -53,7 +53,7 @@ public class SubstringToBitmaskChain implements ToIntFunction<SubstringView> {
     @SuppressWarnings("unchecked")
     private SubstringToBitmaskChain(
         List<ToIntFunction<SubstringView>> chainList,
-        SubstringToBitmaskMap substringToBitmaskMap,
+        SubstringToIntegerMap substringToBitmaskMap,
         int anyStringBitmask
     ) {
         this.chain = chainList.toArray(ToIntFunction[]::new);
@@ -74,12 +74,12 @@ public class SubstringToBitmaskChain implements ToIntFunction<SubstringView> {
 
     public static class Builder {
         private final List<ToIntFunction<SubstringView>> chainList;
-        private final SubstringToBitmaskMap.Builder substringToBitmaskMapBuilder;
+        private final SubstringToIntegerMap.Builder substringToBitmaskMapBuilder;
         private int anyStringBitmask;
 
         private Builder() {
             this.chainList = new ArrayList<>();
-            this.substringToBitmaskMapBuilder = SubstringToBitmaskMap.builder();
+            this.substringToBitmaskMapBuilder = SubstringToIntegerMap.builder();
             this.anyStringBitmask = 0;
         }
 
@@ -121,7 +121,7 @@ public class SubstringToBitmaskChain implements ToIntFunction<SubstringView> {
          * @return the built SubstringToBitmaskChain instance
          */
         public ToIntFunction<SubstringView> build() {
-            SubstringToBitmaskMap map = substringToBitmaskMapBuilder.isEmpty() ? null : substringToBitmaskMapBuilder.build();
+            SubstringToIntegerMap map = substringToBitmaskMapBuilder.isEmpty() ? null : substringToBitmaskMapBuilder.build();
             if (chainList.isEmpty() && anyStringBitmask == 0) {
                 return map;
             }

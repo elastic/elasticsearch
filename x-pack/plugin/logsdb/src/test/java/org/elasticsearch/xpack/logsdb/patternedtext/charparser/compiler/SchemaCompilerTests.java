@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskReg
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenDelimiterCharParsingInfo;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToBitmaskMap;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TimestampFormat;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TokenType;
@@ -338,7 +338,7 @@ public class SchemaCompilerTests extends ESTestCase {
         tokenBitmaskForUUID &= compiledSchema.subTokenCountToTokenBitmask[4];
         assertEquals("The combined UUID token bitmask should match the expected UUID bitmask", uuid_bitmask, tokenBitmaskForUUID);
 
-        SubstringToBitmaskMap subTokenNumericValueRepresentation = compiledSchema.subTokenNumericValueRepresentation;
+        SubstringToIntegerMap subTokenNumericValueRepresentation = compiledSchema.subTokenNumericValueRepresentation;
         assertEquals(3, subTokenNumericValueRepresentation.applyAsInt(new SubstringView("Mar")));
         assertEquals(0, subTokenNumericValueRepresentation.applyAsInt(new SubstringView("Mac")));
         assertEquals(200, subTokenNumericValueRepresentation.applyAsInt(new SubstringView("CEST")));

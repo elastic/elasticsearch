@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler;
 
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToBitmaskMap;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.AndStringConstraint;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints.AnyString;
@@ -24,8 +24,8 @@ import java.util.function.ToIntFunction;
 public class SubstringToBitmaskFunctionFactory {
     public static ToIntFunction<SubstringView> from(int bitmask, StringConstraint stringConstraint) {
         return switch (stringConstraint) {
-            case StringToIntMapConstraint constraint -> SubstringToBitmaskMap.builder().addAll(constraint.map().keySet(), bitmask).build();
-            case StringSetConstraint constraint -> SubstringToBitmaskMap.builder().addAll(constraint.keys(), bitmask).build();
+            case StringToIntMapConstraint constraint -> SubstringToIntegerMap.builder().addAll(constraint.map().keySet(), bitmask).build();
+            case StringSetConstraint constraint -> SubstringToIntegerMap.builder().addAll(constraint.keys(), bitmask).build();
             case EqualsStringConstraint constraint -> new ToIntFunction<>() {
                 private final SubstringView target = new SubstringView(constraint.targetValue());
 

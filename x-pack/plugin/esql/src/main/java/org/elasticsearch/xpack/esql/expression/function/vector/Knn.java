@@ -282,7 +282,7 @@ public class Knn extends FullTextFunction
                 // Knn won't be pushed down so it's safe not to translate all filters and check them when creating an evaluator
                 // for the non-pushed down query
                 if (translationAware.translatable(pushdownPredicates) == Translatable.YES) {
-                    filterQueries.add(handler.asQuery(pushdownPredicates, filterExpression).toQueryBuilder());
+                    filterQueries.add(translationAware.asQuery(pushdownPredicates, handler).toQueryBuilder());
                 }
             }
         }

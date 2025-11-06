@@ -570,7 +570,10 @@ public class EsqlSession {
                     preAnalysis.enriches(),
                     executionInfo,
                     r.minimumTransportVersion(),
-                    l.map(r::withEnrichResolution)
+                    l.map(
+                        versionedResolution -> r.withEnrichResolution(versionedResolution.inner())
+                            .withMinimumTransportVersion(versionedResolution.minimumVersion())
+                    )
                 );
             })
             .<PreAnalysisResult>andThen((l, r) -> {
@@ -583,7 +586,9 @@ public class EsqlSession {
     }
 
     /**
-     * Perform a field caps request for each lookup index. Does not update the minimum transport version.
+     * Perform a field caps request for each lookup index.
+     * <p>
+     * Updates the minimum transport version to deal with ROW queries, where the main index resolution does not make a field caps request.
      */
     private void preAnalyzeLookupIndices(
         Iterator<IndexPattern> lookupIndices,

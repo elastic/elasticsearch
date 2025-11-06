@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -82,8 +83,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         EnrichPolicyResolver enrichResolver = mock(EnrichPolicyResolver.class);
         doAnswer(invocation -> {
             Object[] arguments = invocation.getArguments();
-            ActionListener<EnrichResolution> listener = (ActionListener<EnrichResolution>) arguments[arguments.length - 1];
-            listener.onResponse(new EnrichResolution());
+            ActionListener<Versioned<EnrichResolution>> listener = (ActionListener<Versioned<EnrichResolution>>) arguments[arguments.length
+                - 1];
+            listener.onResponse(new Versioned<>(new EnrichResolution(), TransportVersion.current()));
             return null;
         }).when(enrichResolver).resolvePolicies(any(), any(), any(), any());
         return enrichResolver;

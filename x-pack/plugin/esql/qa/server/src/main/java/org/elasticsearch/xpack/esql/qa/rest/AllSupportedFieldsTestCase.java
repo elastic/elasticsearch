@@ -556,12 +556,19 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String policyName = e.getKey() + "_policy";
             String query = "ROW " + LOOKUP_ID_FIELD + " = 123 | ENRICH " + policyName + " ON " + LOOKUP_ID_FIELD + " | LIMIT 1";
             var responseAndCoordinatorVersion = runQuery(query);
-            TransportVersion expectedMinimumVersion = minVersion(true);
-
-            assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion);
-
             Map<String, Object> response = responseAndCoordinatorVersion.v1();
             TransportVersion coordinatorVersion = responseAndCoordinatorVersion.v2();
+            TransportVersion expectedMinimumVersion = minVersion(true);
+
+            Map<String, Object> profile = (Map<String, Object>) response.get("profile");
+            Integer actualMinimumVersion = (Integer) profile.get("minimumTransportVersion");
+            if (minVersion(true).supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
+                // Some nodes don't send back the minimum transport version because they're too old to do that.
+                // In this case, the determined minimum version will be that of the coordinator.
+                || (coordinatorVersion.supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)
+                    && actualMinimumVersion != coordinatorVersion.id())) {
+                assertMinimumVersion(expectedMinimumVersion, responseAndCoordinatorVersion);
+            }
 
             assertNoPartialResponse(response);
 
@@ -645,17 +652,18 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
             Integer minimumVersion = (Integer) profile.get("minimumTransportVersion");
             assertNotNull(minimumVersion);
+            int minimumVersionInt = minimumVersion;
             if (expectedMinimumVersion.supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV)) {
                 // All nodes are new enough that their field caps responses should contain the minimum transport version
                 // of matching clusters.
-                assertEquals(expectedMinimumVersion.id(), minimumVersion.intValue());
+                assertEquals(expectedMinimumVersion.id(), minimumVersionInt);
             } else {
                 // One node is old enough that it doesn't provide version information in the field caps response. We must assume
                 // the oldest compatible version.
                 // Since we got minimumVersion in the profile, the coordinator is on a new version.
                 // Thus, it's on the same version as this code (bwc tests only use 2 different versions) and the oldest compatible version
                 // to the coordinator is given by TransportVersion.minimumCompatible().
-                assertEquals(TransportVersion.minimumCompatible().id(), minimumVersion.intValue());
+                assertEquals(TransportVersion.minimumCompatible().id(), minimumVersionInt);
             }
         }
     }

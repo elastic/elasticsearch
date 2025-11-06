@@ -129,8 +129,12 @@ public class IndexResolver {
                     useAggregateMetricDoubleWhenNotSupported,
                     useDenseVectorWhenNotSupported
                 );
-                // NOCOMMIT: Update logging here as well
-                LOGGER.debug("minimum transport version {} {}", response.caps().minTransportVersion(), info.effectiveMinTransportVersion());
+                LOGGER.debug(
+                    "updated minimum transport version from {} to effective version {} using version {} from field caps response",
+                    minimumVersion,
+                    info.effectiveMinTransportVersion(),
+                    response.caps().minTransportVersion()
+                );
                 l.onResponse(new Versioned<>(mergedMappings(indexPattern, info), info.effectiveMinTransportVersion()));
             })
         );

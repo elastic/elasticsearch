@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.After;
 import org.junit.Before;
 
@@ -453,10 +454,9 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     unresolvedPolicies.add(new UnresolvedPolicy("legacy-policy-1", randomFrom(Enrich.Mode.values())));
                 }
             }
-            PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
-            // NOCOMMIT: We should pass in a sensible transport version in general and also test this with older ones.
+            PlainActionFuture<Versioned<EnrichResolution>> future = new PlainActionFuture<>();
             super.doResolvePolicies(new HashSet<>(clusters), unresolvedPolicies, esqlExecutionInfo, TransportVersion.current(), future);
-            return future.actionGet(30, TimeUnit.SECONDS);
+            return future.actionGet(30, TimeUnit.SECONDS).inner();
         }
 
         @Override

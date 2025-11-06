@@ -70,6 +70,9 @@ public class OpenShiftAiRerankTaskSettings implements TaskSettings {
         OpenShiftAiRerankTaskSettings originalSettings,
         OpenShiftAiRerankTaskSettings requestTaskSettings
     ) {
+        if (requestTaskSettings.isEmpty() || originalSettings.equals(requestTaskSettings)) {
+            return originalSettings;
+        }
         return new OpenShiftAiRerankTaskSettings(
             requestTaskSettings.getTopN() != null ? requestTaskSettings.getTopN() : originalSettings.getTopN(),
             requestTaskSettings.getReturnDocuments() != null
@@ -86,6 +89,9 @@ public class OpenShiftAiRerankTaskSettings implements TaskSettings {
      * @return a constructed {@link OpenShiftAiRerankTaskSettings}
      */
     public static OpenShiftAiRerankTaskSettings of(@Nullable Integer topN, @Nullable Boolean returnDocuments) {
+        if (topN == null && returnDocuments == null) {
+            return EMPTY_SETTINGS;
+        }
         return new OpenShiftAiRerankTaskSettings(topN, returnDocuments);
     }
 

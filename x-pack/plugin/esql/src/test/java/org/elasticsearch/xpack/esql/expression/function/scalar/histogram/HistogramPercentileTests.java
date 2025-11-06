@@ -92,11 +92,6 @@ public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    public void testFold() {
-        super.testFold();
-    }
-
-    @Override
     protected Expression build(Source source, List<Expression> args) {
         return new HistogramPercentile(source, args.get(0), args.get(1));
     }

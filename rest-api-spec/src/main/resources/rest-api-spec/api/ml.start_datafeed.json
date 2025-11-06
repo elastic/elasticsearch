@@ -32,11 +32,11 @@
     },
     "params": {
       "start": {
-        "type": "string",
+        "type": "date",
         "description": "The start time from where the datafeed should begin"
       },
       "end": {
-        "type": "string",
+        "type": "date",
         "description": "The end time when the datafeed should stop. When not set, the datafeed continues in real time"
       },
       "timeout": {

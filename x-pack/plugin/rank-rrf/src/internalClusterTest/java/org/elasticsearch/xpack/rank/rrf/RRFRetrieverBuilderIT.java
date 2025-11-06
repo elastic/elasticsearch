@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -170,18 +171,23 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         }
 
         // test with `from` as the default (-1)
-        int size = randomIntBetween(1, totalDocs);
-        for (int i = 0; i < randomIntBetween(1, 20); i++) {
+        for (int i = 0; i < randomIntBetween(5, 20); i++) {
+            int size = randomIntBetween(1, totalDocs);
             SearchSourceBuilder source = new SearchSourceBuilder();
             source.size(size);
-            assertRRFPagination(source, 0, size, rankWindowSize, rankConstant, expectedDocIds);
+            assertRRFPagination(source, source.from(), size, rankWindowSize, rankConstant, expectedDocIds);
         }
+
+        // and finally test with from = default, and size > {total docs} to be sure
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.size(totalDocs + 2);
+        assertRRFPagination(source, source.from(), totalDocs, rankWindowSize, rankConstant, expectedDocIds);
     }
 
     private void assertRRFPagination(
         SearchSourceBuilder source,
         int from,
-        int size,
+        int expectedSize,
         int rankWindowSize,
         int rankConstant,
         List<String> expectedDocIds
@@ -226,15 +232,21 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             )
         );
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-        int innerFrom = from;
+        int innerFrom = Math.max(from, 0);
+        int originalFrom = from;
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
             assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
             assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
-            assertThat(resp.getHits().getHits().length, lessThanOrEqualTo(size));
-            for (int k = 0; k < Math.min(size, resp.getHits().getHits().length); k++) {
+            assertThat(resp.getHits().getHits().length, lessThanOrEqualTo(expectedSize));
+            for (int k = 0; k < Math.min(expectedSize, resp.getHits().getHits().length); k++) {
                 assertThat(resp.getHits().getAt(k).getId(), equalTo(expectedDocIds.get(k + innerFrom)));
+            }
+
+            if (originalFrom < 0) {
+                // assertThat(source.from(), equalTo(SearchService.DEFAULT_FROM));
+                assertThat(resp.getHits().getHits().length, equalTo(expectedSize));
             }
         });
     }

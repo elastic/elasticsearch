@@ -12,6 +12,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
 
@@ -289,6 +290,18 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public long getLong(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public void serializeExponentialHistogram(int valueIndex, SerializedOutput out, BytesRef scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -84,7 +85,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -107,7 +107,9 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -540,7 +542,8 @@ public final class EsqlTestUtils {
         null,
         new InferenceService(mock(Client.class)),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
-        TEST_PLANNER_SETTINGS
+        TEST_PLANNER_SETTINGS,
+        new CrossProjectModeDecider(Settings.EMPTY)
     );
 
     private static ClusterService createMockClusterService() {
@@ -563,9 +566,9 @@ public final class EsqlTestUtils {
 
     private EsqlTestUtils() {}
 
-    public static Configuration configuration(QueryPragmas pragmas, String query) {
+    public static Configuration configuration(QueryPragmas pragmas, String query, EsqlStatement statement) {
         return new Configuration(
-            DateUtils.UTC,
+            statement.setting(QuerySettings.TIME_ZONE),
             Locale.US,
             null,
             null,
@@ -582,12 +585,16 @@ public final class EsqlTestUtils {
         );
     }
 
+    public static Configuration configuration(QueryPragmas pragmas, String query) {
+        return configuration(pragmas, query, new EsqlStatement(null, List.of()));
+    }
+
     public static Configuration configuration(QueryPragmas pragmas) {
         return configuration(pragmas, StringUtils.EMPTY);
     }
 
     public static Configuration configuration(String query) {
-        return configuration(new QueryPragmas(Settings.EMPTY), query);
+        return configuration(QueryPragmas.EMPTY, query);
     }
 
     public static AnalyzerSettings queryClusterSettings() {
@@ -1028,14 +1035,14 @@ public final class EsqlTestUtils {
             }
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
-            case EXPONENTIAL_HISTOGRAM -> new WriteableExponentialHistogram(EsqlTestUtils.randomExponentialHistogram());
+            case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
     }
 
-    private static ExponentialHistogram randomExponentialHistogram() {
+    public static ExponentialHistogram randomExponentialHistogram() {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
         boolean hasNegativeValues = randomBoolean();
@@ -1055,7 +1062,8 @@ public final class EsqlTestUtils {
             ExponentialHistogramCircuitBreaker.noop(),
             rawValues
         );
-        return histo;
+        // Make the result histogram writeable to allow usage in Literals for testing
+        return new WriteableExponentialHistogram(histo);
     }
 
     static Version randomVersion() {

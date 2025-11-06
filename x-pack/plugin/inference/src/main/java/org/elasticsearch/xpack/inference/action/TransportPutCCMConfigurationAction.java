@@ -23,7 +23,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
-import org.elasticsearch.xpack.core.inference.action.GetCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModel;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
@@ -45,7 +44,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
         ProjectResolver projectResolver
     ) {
         super(
-            GetCCMConfigurationAction.NAME,
+            PutCCMConfigurationAction.NAME,
             transportService,
             clusterService,
             threadPool,

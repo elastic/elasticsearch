@@ -49,6 +49,14 @@ public class PutCCMConfigurationAction extends ActionType<CCMEnabledActionRespon
             return builder.build(masterNodeTimeout, ackTimeout);
         }
 
+        public static Request createEnabled(SecureString apiKey, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            return new Request(Objects.requireNonNull(apiKey), null, masterNodeTimeout, ackTimeout);
+        }
+
+        public static Request createDisabled(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            return new Request(null, Boolean.FALSE, masterNodeTimeout, ackTimeout);
+        }
+
         private final SecureString apiKey;
         private final Boolean enabled;
 

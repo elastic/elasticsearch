@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_CCM_PATH;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CCMCrudIT extends ESRestTestCase {
+public class CCMCrudDisallowedIT extends ESRestTestCase {
 
     static final String PUT_METHOD = "PUT";
     static final String GET_METHOD = "GET";
@@ -45,7 +45,7 @@ public class CCMCrudIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")
-        .setting("xpack.inference.elastic.allow_configuring_ccm", "true")
+        .setting("xpack.inference.elastic.allow_configuring_ccm", "false")
         // This plugin is located in the inference/qa/test-service-plugin package, look for TestInferenceServicePlugin
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
@@ -61,6 +61,8 @@ public class CCMCrudIT extends ESRestTestCase {
         String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
+
+    // TODO always register the ccm endpoints but throw in the transport action logic saying that they are disabled
 
     @After
     public void cleanup() throws IOException {

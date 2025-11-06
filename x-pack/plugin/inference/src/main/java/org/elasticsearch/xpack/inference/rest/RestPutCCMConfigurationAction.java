@@ -13,14 +13,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
-import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_CCM_PATH;
-import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_INFERENCE_ID_PATH;
 
 public class RestPutCCMConfigurationAction extends BaseRestHandler {
     @Override
@@ -30,13 +28,13 @@ public class RestPutCCMConfigurationAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, INFERENCE_CCM_PATH), new Route(PUT, TASK_TYPE_INFERENCE_ID_PATH));
+        return List.of(new Route(PUT, INFERENCE_CCM_PATH));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         if (restRequest.hasContent() == false) {
-            throw new IllegalArgumentException("The api key must be provided in the request body");
+            throw new IllegalArgumentException("The body must be specified when putting the CCM configuration.");
         }
 
         final PutCCMConfigurationAction.Request putReq;
@@ -48,6 +46,6 @@ public class RestPutCCMConfigurationAction extends BaseRestHandler {
             );
         }
 
-        return channel -> client.execute(PutInferenceModelAction.INSTANCE, putReq, new RestToXContentListener<>(channel));
+        return channel -> client.execute(PutCCMConfigurationAction.INSTANCE, putReq, new RestToXContentListener<>(channel));
     }
 }

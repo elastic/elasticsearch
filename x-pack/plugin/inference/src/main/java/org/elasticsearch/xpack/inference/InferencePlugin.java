@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
+import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.inference.action.TransportGetRerankerWindowSizeAc
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
+import org.elasticsearch.xpack.inference.action.TransportPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
@@ -116,6 +118,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
+import org.elasticsearch.xpack.inference.rest.RestPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
@@ -244,7 +247,10 @@ public class InferencePlugin extends Plugin
     public List<ActionHandler> getActions() {
         CCMSettings.ALLOW_CONFIGURING_CCM.get(settings);
         List<ActionHandler> ccmActions = ccmFeature.get().allowConfiguringCcm()
-            ? List.of(new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class))
+            ? List.of(
+                new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
+                new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class)
+            )
             : List.of();
 
         return Stream.of(
@@ -278,7 +284,9 @@ public class InferencePlugin extends Plugin
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        List<RestHandler> ccmHandler = ccmFeature.get().allowConfiguringCcm() ? List.of(new RestGetCCMConfigurationAction()) : List.of();
+        List<RestHandler> ccmHandler = ccmFeature.get().allowConfiguringCcm()
+            ? List.of(new RestGetCCMConfigurationAction(), new RestPutCCMConfigurationAction())
+            : List.of();
         List<RestHandler> handlers = List.of(
             new RestInferenceAction(),
             new RestStreamInferenceAction(threadPoolSetOnce),

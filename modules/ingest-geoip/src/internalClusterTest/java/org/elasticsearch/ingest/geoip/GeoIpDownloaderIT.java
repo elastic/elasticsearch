@@ -163,6 +163,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
         putGeoIpPipeline();
         verifyUpdatedDatabase();
+        awaitAllNodesDownloadedDatabases();
 
         updateClusterSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)));
         updateClusterSettings(
@@ -215,6 +216,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 }
             }
         });
+        awaitAllNodesDownloadedDatabases();
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92888")
@@ -305,6 +307,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertNotNull(task);
             assertNotNull(task.getState());
         });
+        awaitAllNodesDownloadedDatabases();
         putNonGeoipPipeline(pipelineId);
         assertNotNull(getTask().getState()); // removing all geoip processors should not result in the task being stopped
         assertBusy(() -> {
@@ -350,6 +353,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
             );
         }, 2, TimeUnit.MINUTES);
+        awaitAllNodesDownloadedDatabases();
 
         // Remove the created index.
         assertAcked(indicesAdmin().prepareDelete(indexIdentifier).get());
@@ -411,6 +415,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }, 20, TimeUnit.SECONDS);
 
         verifyUpdatedDatabase();
+        awaitAllNodesDownloadedDatabases();
 
         // Disable downloader:
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false));
@@ -453,6 +458,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         // Enable downloader:
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         verifyUpdatedDatabase();
+        awaitAllNodesDownloadedDatabases();
     }
 
     private void verifyUpdatedDatabase() throws Exception {
@@ -470,6 +476,27 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(((Map<?, ?>) source.get("ip-city")).get("city_name"), equalTo("Linköping"));
             assertThat(((Map<?, ?>) source.get("ip-asn")).get("organization_name"), equalTo("Bredband2 AB"));
             assertThat(((Map<?, ?>) source.get("ip-country")).get("country_name"), equalTo("Sweden"));
+        });
+    }
+
+    /**
+     * Waits until all ingest nodes report having downloaded the expected databases. This ensures that all ingest nodes are in a consistent
+     * state and prevents us from deleting databases before they've been downloaded on all nodes.
+     */
+    private void awaitAllNodesDownloadedDatabases() throws Exception {
+        assertBusy(() -> {
+            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
+            assertThat(response.getNodes(), not(empty()));
+
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                if (nodeResponse.getNode().isIngestNode() == false) {
+                    continue;
+                }
+                assertThat(
+                    nodeResponse.getDatabases(),
+                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
+                );
+            }
         });
     }
 

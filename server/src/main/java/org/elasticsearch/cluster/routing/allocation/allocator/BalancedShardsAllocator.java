@@ -704,11 +704,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             lowIdx = 0;
                             highIdx = relevantNodes - 1;
 
-                            assert allocation.isSimulating() == false || routingNodes.getRelocatingShardCount() > 0
-                                : "unexpected THROTTLE decision (simulation="
-                                    + allocation.isSimulating()
-                                    + ") when balancing index ["
+                            assert allocation.isSimulating() == false || routingNodes.getRelocatingShardCount() == 1
+                                : "unexpected relocation shard count ["
+                                    + routingNodes.getRelocatingShardCount()
+                                    + "] when balancing index ["
                                     + index
+                                    + "], isSimulating=["
+                                    + allocation.isSimulating()
+                                    + "], earlyReturn=["
+                                    + completeEarlyOnShardAssignmentChange
                                     + "]";
 
                             if (routingNodes.getRelocatingShardCount() > 0) {

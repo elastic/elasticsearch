@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
@@ -144,12 +145,16 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Expression series = null;
         List<Expression> labelExpressions = new ArrayList<>();
 
+        boolean identifierId = (id != null);
+
         if (id != null) {
             labels.add(new LabelMatcher(NAME, id, LabelMatcher.Matcher.EQ));
+            // TODO: this can be missing and thus
             series = new UnresolvedAttribute(source(seriesMatcher.identifier()), id);
         }
 
         boolean nonEmptyMatcher = id != null;
+        Set<String> seenLabelNames = new LinkedHashSet<>();
 
         PromqlBaseParser.LabelsContext labelsCtx = seriesMatcher.labels();
         if (labelsCtx != null) {
@@ -161,13 +166,22 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                     throw new ParsingException(source(nameCtx), "[:] not allowed in label names [{}]", labelName);
                 }
 
-                // shortcut for specifying the name, check for duplicates
+                // shortcut for specifying the name (no matcher operator)
                 if (labelCtx.kind == null) {
-                    if (id != null) {
+                    if (identifierId) {
                         throw new ParsingException(source(labelCtx), "Metric name must not be defined twice: [{}] or [{}]", id, labelName);
                     }
-                    id = labelName;
-                    series = new UnresolvedAttribute(source(labelCtx), id);
+                    // set id/series from first label-based name
+                    if (id == null) {
+                        id = labelName;
+                        series = new UnresolvedAttribute(source(labelCtx), id);
+                    }
+                    // always add as label matcher
+                    labels.add(new LabelMatcher(NAME, labelName, LabelMatcher.Matcher.EQ));
+                    // add unresolved attribute on first encounter
+                    if (seenLabelNames.add(NAME)) {
+                        labelExpressions.add(new UnresolvedAttribute(source(nameCtx), NAME));
+                    }
                     nonEmptyMatcher = true;
 
                     continue;
@@ -181,23 +195,32 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
                 String labelValue = string(labelCtx.STRING());
                 Source valueCtx = source(labelCtx.STRING());
-                // name cannot be defined twice
+                // __name__ with explicit matcher
                 if (NAME.equals(labelName)) {
-                    if (id != null) {
+                    if (identifierId) {
                         throw new ParsingException(source(nameCtx), "Metric name must not be defined twice: [{}] or [{}]", id, labelValue);
                     }
-                    id = labelValue;
-                    series = new UnresolvedAttribute(valueCtx, id);
+                    // set id/series from first label-based name
+                    if (id == null) {
+                        id = labelValue;
+                        series = new UnresolvedAttribute(valueCtx, id);
+                    }
                 }
-                labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
 
+                // always add label matcher
                 LabelMatcher label = new LabelMatcher(labelName, labelValue, matcher);
-                // require at least one empty non-empty matcher
+                labels.add(label);
+                // add unresolved attribute on first encounter
+                if (seenLabelNames.add(labelName)) {
+                    labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
+                }
+
+                // require at least one non-empty matcher
                 if (nonEmptyMatcher == false && label.matchesEmpty() == false) {
                     nonEmptyMatcher = true;
                 }
-                labels.add(label);
             }
+
             if (nonEmptyMatcher == false) {
                 throw new ParsingException(source(labelsCtx), "Vector selector must contain at least one non-empty matcher");
             }

@@ -173,6 +173,11 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
         var openShiftAiModel = assertCommonModelFields(model, modelIncludesSecrets);
 
         assertThat(openShiftAiModel.getTaskType(), is(TaskType.TEXT_EMBEDDING));
+        assertThat(model, instanceOf(OpenShiftAiEmbeddingsModel.class));
+        var embeddingsModel = (OpenShiftAiEmbeddingsModel) model;
+        assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1536));
+        assertThat(embeddingsModel.getServiceSettings().similarity(), is(SimilarityMeasure.COSINE));
+        assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
     }
 
     private static OpenShiftAiModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {

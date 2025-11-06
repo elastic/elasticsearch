@@ -75,7 +75,7 @@ public class ReindexMetrics {
 
     private Map<String, Object> getAttributes(boolean remote) {
         Map<String, Object> attributes = new HashMap<>();
-        attributes.put(ATTRIBUTE_NAME_SOURCE, remote ? "remote" : "local");
+        attributes.put(ATTRIBUTE_NAME_SOURCE, remote ? ATTRIBUTE_VALUE_SOURCE_REMOTE : ATTRIBUTE_VALUE_SOURCE_LOCAL);
 
         return attributes;
     }

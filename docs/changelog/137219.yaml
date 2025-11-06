@@ -1,0 +1,5 @@
+pr: 137219
+summary: Perform query field validation for rerank task type
+area: Machine Learning
+type: bug
+issues: []

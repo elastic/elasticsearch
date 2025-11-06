@@ -1828,7 +1828,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             Request doc = new Request("POST", indexName + "/_doc?refresh=true");
             doc.setJsonEntity("""
                 {
-                    "other_field": "unrelated data"
+                    "other_field": "elasticsearch"
                 }
                 """);
             client().performRequest(doc);

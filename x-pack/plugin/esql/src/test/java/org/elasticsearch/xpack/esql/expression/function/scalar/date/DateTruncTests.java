@@ -74,6 +74,12 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         public long inputDateAsMillis() {
             return Instant.parse(inputDate).toEpochMilli();
         }
+
+        public long inputDateAsNanos() {
+            long millis = inputDateAsMillis();
+            assumeTrue("Before epoch dates can't be converted to nanos", millis >= 0);
+            return DateUtils.toNanoSeconds(inputDateAsMillis());
+        }
     }
 
     public record DurationTestCaseData(Duration duration, String inputDate, @Nullable String zoneIdString, String expectedDate) {
@@ -93,6 +99,12 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
 
         public long inputDateAsMillis() {
             return Instant.parse(inputDate).toEpochMilli();
+        }
+
+        public long inputDateAsNanos() {
+            long millis = inputDateAsMillis();
+            assumeTrue("Before epoch dates can't be converted to nanos", millis >= 0);
+            return DateUtils.toNanoSeconds(inputDateAsMillis());
         }
     }
 
@@ -205,7 +217,12 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             new PeriodTestCaseData(Period.ofYears(5), "2020-12-31T23:59:59.99", "", "2016-01-01T00:00:00"),
             new PeriodTestCaseData(Period.ofYears(5), "2021-01-01T00:00:00", "", "2021-01-01T00:00:00"),
             new PeriodTestCaseData(Period.ofYears(5), "2025-12-31T23:59:59.99", "", "2021-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofYears(5), "2026-01-01T00:00:00", "", "2026-01-01T00:00:00")
+            new PeriodTestCaseData(Period.ofYears(5), "2026-01-01T00:00:00", "", "2026-01-01T00:00:00"),
+            // Negative years
+            new PeriodTestCaseData(Period.ofYears(4), "-0004-12-31T23:59:59.99", "", "-0007-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(4), "-0003-01-01T00:00:00", "", "-0003-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(4), "-0001-12-31T23:59:59.99", "", "-0003-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(4), "0001-01-01T00:00:00", "", "0001-01-01T00:00:00")
         ).forEach(c -> timezones.forEach(timezone -> {
             // Convert the timezone to the offset in each local time.
             // This is required as date strings can't have a zone name as its zone.
@@ -253,7 +270,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral(),
-                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(data.inputDateAsMillis()), DataType.DATE_NANOS, "date")
+                        new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "date")
                     ),
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATE_NANOS,
@@ -284,7 +301,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral(),
-                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(data.inputDateAsMillis()), DataType.DATE_NANOS, "date")
+                        new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "date")
                     ),
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                     DataType.DATE_NANOS,

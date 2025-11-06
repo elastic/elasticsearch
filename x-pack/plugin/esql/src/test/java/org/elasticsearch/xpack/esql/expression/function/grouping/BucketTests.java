@@ -162,11 +162,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         List.of(DataType.DATE_NANOS, DataType.DATE_PERIOD),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
-                                new TestCaseSupplier.TypedData(
-                                    DateUtils.toNanoSeconds(data.inputDateAsMillis()),
-                                    DataType.DATE_NANOS,
-                                    "field"
-                                ),
+                                new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "field"),
                                 new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral()
                             ),
                             Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
@@ -199,11 +195,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         List.of(DataType.DATE_NANOS, DataType.TIME_DURATION),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
-                                new TestCaseSupplier.TypedData(
-                                    DateUtils.toNanoSeconds(data.inputDateAsMillis()),
-                                    DataType.DATE_NANOS,
-                                    "field"
-                                ),
+                                new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "field"),
                                 new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral()
                             ),
                             Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),

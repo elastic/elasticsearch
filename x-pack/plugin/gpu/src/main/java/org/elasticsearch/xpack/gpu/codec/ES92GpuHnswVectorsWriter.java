@@ -178,6 +178,8 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             var started = System.nanoTime();
             var fieldInfo = field.fieldInfo;
 
+            CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction());
+
             var numVectors = field.flatFieldVectorsWriter.getVectors().size();
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
                 if (logger.isDebugEnabled()) {
@@ -190,11 +192,10 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 // Will not be indexed on the GPU
                 flushFieldWithMockGraph(fieldInfo, numVectors, sortMap);
             } else {
-                var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
                 try (
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT, distanceType)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT, cagraIndexParams)
                     )
                 ) {
                     var builder = CuVSMatrix.deviceBuilder(
@@ -207,7 +208,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         builder.addVector(vector);
                     }
                     try (var dataset = builder.build()) {
-                        flushFieldWithGpuGraph(resourcesHolder, fieldInfo, dataset, sortMap);
+                        flushFieldWithGpuGraph(resourcesHolder, fieldInfo, dataset, sortMap, cagraIndexParams);
                     }
                 }
             }
@@ -225,13 +226,18 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void flushFieldWithGpuGraph(ResourcesHolder resourcesHolder, FieldInfo fieldInfo, CuVSMatrix dataset, Sorter.DocMap sortMap)
-        throws IOException {
+    private void flushFieldWithGpuGraph(
+        ResourcesHolder resourcesHolder,
+        FieldInfo fieldInfo,
+        CuVSMatrix dataset,
+        Sorter.DocMap sortMap,
+        CagraIndexParams cagraIndexParams
+    ) throws IOException {
         if (sortMap == null) {
-            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
+            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
         } else {
             // TODO: use sortMap
-            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
+            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
         }
     }
 
@@ -263,14 +269,19 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         return total;
     }
 
-    private void generateGpuGraphAndWriteMeta(ResourcesHolder resourcesHolder, FieldInfo fieldInfo, CuVSMatrix dataset) throws IOException {
+    private void generateGpuGraphAndWriteMeta(
+        ResourcesHolder resourcesHolder,
+        FieldInfo fieldInfo,
+        CuVSMatrix dataset,
+        CagraIndexParams cagraIndexParams
+    ) throws IOException {
         try {
             assert dataset.size() >= MIN_NUM_VECTORS_FOR_GPU_BUILD;
 
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             final HnswGraph graph;
-            try (var index = buildGPUIndex(resourcesHolder.resources(), fieldInfo.getVectorSimilarityFunction(), dataset)) {
+            try (var index = buildGPUIndex(resourcesHolder.resources(), cagraIndexParams, dataset)) {
                 assert index != null : "GPU index should be built for field: " + fieldInfo.name;
                 var deviceGraph = index.getGraph();
                 var graphSize = deviceGraph.size() * deviceGraph.columns() * Integer.BYTES;
@@ -308,8 +319,23 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private CagraIndexParams.CuvsDistanceType cagraDistanceFromSimFun(VectorSimilarityFunction similarityFunction) {
-        return switch (similarityFunction) {
+    private CagraIndex buildGPUIndex(
+        CuVSResourceManager.ManagedCuVSResources cuVSResources,
+        CagraIndexParams cagraIndexParams,
+        CuVSMatrix dataset
+    ) throws Throwable {
+        long startTime = System.nanoTime();
+        var indexBuilder = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(cagraIndexParams);
+        var index = indexBuilder.build();
+        cuVSResourceManager.finishedComputation(cuVSResources);
+        if (logger.isDebugEnabled()) {
+            logger.debug("Carga index created in: {} ms; #num vectors: {}", (System.nanoTime() - startTime) / 1_000_000.0, dataset.size());
+        }
+        return index;
+    }
+
+    private CagraIndexParams createCagraIndexParams(VectorSimilarityFunction similarityFunction) {
+        CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
             case DOT_PRODUCT -> {
@@ -323,47 +349,15 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 yield CagraIndexParams.CuvsDistanceType.InnerProduct;
             }
         };
-    }
 
-    private CagraIndex buildGPUIndex(
-        CuVSResourceManager.ManagedCuVSResources cuVSResources,
-        VectorSimilarityFunction similarityFunction,
-        CuVSMatrix dataset
-    ) throws Throwable {
-        CagraIndexParams.CuvsDistanceType distanceType = cagraDistanceFromSimFun(similarityFunction);
-
-        final CagraIndexParams params;
-        int numCPUThreads = 1;  // TODO: how many CPU threads we can use?
-        // IVF_PQ doesn't support Cosine distance in CUVS 25.10
-        // TODO: Remove this check on distance when updating to CUVS 25.12+
-        if ((distanceType != CagraIndexParams.CuvsDistanceType.CosineExpanded) && (cuVSResources.useIVFPQ || dataset.size() >= 5e6)) {
-            var ivfPqParams = CuVSIvfPqParamsFactory.create(dataset, distanceType);
-            params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
-                .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ)
-                .withCuVSIvfPqParams(ivfPqParams)
-                .withMetric(distanceType)
-                .build();
-            if (cuVSResources.useIVFPQ && logger.isDebugEnabled()) {
-                logger.debug("Using IVF_PQ algorithm due to insufficient GPU memory");
-            }
-        } else {
-            params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
-                .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
-                .withGraphDegree(M)
-                .withIntermediateGraphDegree(beamWidth)
-                .withNNDescentNumIterations(5)
-                .withMetric(distanceType)
-                .build();
-        }
-
-        long startTime = System.nanoTime();
-        var indexBuilder = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(params);
-        var index = indexBuilder.build();
-        cuVSResourceManager.finishedComputation(cuVSResources);
-        if (logger.isDebugEnabled()) {
-            logger.debug("Carga index created in: {} ms; #num vectors: {}", (System.nanoTime() - startTime) / 1_000_000.0, dataset.size());
-        }
-        return index;
+        // TODO: expose cagra index params for algorithm, NNDescentNumIterations
+        return new CagraIndexParams.Builder().withNumWriterThreads(1) // TODO: how many CPU threads we can use?
+            .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
+            .withGraphDegree(M)
+            .withIntermediateGraphDegree(beamWidth)
+            .withNNDescentNumIterations(5)
+            .withMetric(distanceType)
+            .build();
     }
 
     private HnswGraph writeGraph(CuVSMatrix cagraGraph, int[][] levelNodeOffsets) throws IOException {
@@ -520,6 +514,9 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         var vectorValues = randomScorerSupplier == null
             ? null
             : VectorsFormatReflectionUtils.getByteScoringSupplierVectorOrNull(randomScorerSupplier);
+
+        CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction());
+
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
             var input = FilterIndexInput.unwrapOnlyTest(slice);
@@ -549,15 +546,14 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         );
                     }
 
-                    var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
                     try (
                         var dataset = DatasetUtilsImpl.fromMemorySegment(packedSegment, numVectors, packedRowSize, dataType);
                         var resourcesHolder = new ResourcesHolder(
                             cuVSResourceManager,
-                            cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
+                            cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
                         )
                     ) {
-                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
+                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
                     }
                 }
             } else {
@@ -574,15 +570,14 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     builder.addVector(vector);
                 }
 
-                var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
                 try (
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
                     )
                 ) {
-                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
+                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
                 }
             }
         } else {
@@ -596,15 +591,14 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 builder.addVector(byteVectorValues.vectorValue(iterator.index()));
             }
 
-            var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
             try (
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
+                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
                 )
             ) {
-                generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
+                generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
             }
         }
     }
@@ -618,21 +612,22 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         var vectorValues = randomScorerSupplier == null
             ? null
             : VectorsFormatReflectionUtils.getFloatScoringSupplierVectorOrNull(randomScorerSupplier);
+        CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction());
+
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
             var input = FilterIndexInput.unwrapOnlyTest(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                 // Direct access to mmapped file
-                var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
                 try (
                     var dataset = DatasetUtils.getInstance()
                         .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
                     )
                 ) {
-                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
+                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
                 }
             } else {
                 logger.info(
@@ -648,15 +643,14 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     builder.addVector(vector);
                 }
 
-                var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
                 try (
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
                     )
                 ) {
-                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
+                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
                 }
             }
         } else {
@@ -671,15 +665,14 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 float[] vector = floatVectorValues.vectorValue(iterator.index());
                 builder.addVector(vector);
             }
-            var distanceType = cagraDistanceFromSimFun(fieldInfo.getVectorSimilarityFunction());
             try (
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, distanceType)
+                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
                 )
             ) {
-                generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
+                generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
             }
         }
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -280,15 +281,27 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
 
     @Override
     protected AmazonBedrockChatCompletionTaskSettings mutateInstance(AmazonBedrockChatCompletionTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AmazonBedrockChatCompletionTaskSettingsTests::createRandom);
+        var temperature = instance.temperature();
+        var topP = instance.topP();
+        var topK = instance.topK();
+        var maxNewTokens = instance.maxNewTokens();
+        switch (randomInt(3)) {
+            case 0 -> temperature = randomValueOtherThan(temperature, ESTestCase::randomOptionalDouble);
+            case 1 -> topP = randomValueOtherThan(topP, ESTestCase::randomOptionalDouble);
+            case 2 -> topK = randomValueOtherThan(topK, ESTestCase::randomOptionalDouble);
+            case 3 -> maxNewTokens = randomValueOtherThan(maxNewTokens, ESTestCase::randomNonNegativeIntOrNull);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AmazonBedrockChatCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
     }
 
     private static AmazonBedrockChatCompletionTaskSettings createRandom() {
         return new AmazonBedrockChatCompletionTaskSettings(
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Integer[] { null, randomNonNegativeInt() })
+            randomOptionalDouble(),
+            randomOptionalDouble(),
+            randomOptionalDouble(),
+            randomNonNegativeIntOrNull()
         );
     }
+
 }

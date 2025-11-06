@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.gpu.codec;
 import com.nvidia.cuvs.CagraIndexParams;
 import com.nvidia.cuvs.CuVSMatrix;
 import com.nvidia.cuvs.CuVSResources;
-import com.nvidia.cuvs.GPUInfoProvider;
 import com.nvidia.cuvs.spi.CuVSProvider;
 
 import org.elasticsearch.core.Strings;
@@ -47,17 +46,8 @@ public interface CuVSResourceManager {
      * <p>A manager can use the given parameters, numVectors and dims, to estimate the potential
      * effect on GPU memory and compute usage to determine whether to give out
      * another resource or wait for a resources to be returned before giving out another.
-     *
-     * <p>If the required memory exceeds the available GPU memory:
-     * - If distanceType is NOT CosineExpanded, the resource's useIVFPQ flag will be set to true
-     *   to indicate that IVF_PQ algorithm should be used instead of the default algorithm.
-     * - If distanceType is CosineExpanded, an error will be thrown since IVF_PQ doesn't support
-     *   Cosine distance in CUVS 25.10. This limitation should be removed when updating to CUVS 25.12+.
      */
-    // numVectors and dims are currently unused, but could be used along with GPU metadata,
-    // memory, generation, etc, when acquiring for 10M x 1536 dims, or 100,000 x 128 dims,
-    // to give out a resources or not.
-    ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams.CuvsDistanceType distanceType)
+    ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams)
         throws InterruptedException;
 
     /** Marks the resources as finished with regard to compute. */
@@ -88,31 +78,31 @@ public interface CuVSResourceManager {
         static class Holder {
             static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(
                 MAX_RESOURCES,
-                CuVSProvider.provider().gpuInfoProvider()
+                new RealGPUMemoryService(CuVSProvider.provider().gpuInfoProvider())
             );
         }
 
         private final ManagedCuVSResources[] pool;
         private final int capacity;
-        private final GPUInfoProvider gpuInfoProvider;
+        private final GPUMemoryService gpuMemoryService;
         private int createdCount;
 
         ReentrantLock lock = new ReentrantLock();
         Condition enoughResourcesCondition = lock.newCondition();
 
-        public PoolingCuVSResourceManager(int capacity, GPUInfoProvider gpuInfoProvider) {
+        PoolingCuVSResourceManager(int capacity, GPUMemoryService gpuMemoryService) {
             if (capacity < 1 || capacity > MAX_RESOURCES) {
                 throw new IllegalArgumentException("Resource count must be between 1 and " + MAX_RESOURCES);
             }
             this.capacity = capacity;
-            this.gpuInfoProvider = gpuInfoProvider;
+            this.gpuMemoryService = gpuMemoryService;
             this.pool = new ManagedCuVSResources[MAX_RESOURCES];
         }
 
         private ManagedCuVSResources getResourceFromPool() {
             for (int i = 0; i < createdCount; ++i) {
                 var res = pool[i];
-                if (res.locked == false) {
+                if (res.isLocked() == false) {
                     return res;
                 }
             }
@@ -128,7 +118,7 @@ public interface CuVSResourceManager {
             int lockedResources = 0;
             for (int i = 0; i < createdCount; ++i) {
                 var res = pool[i];
-                if (res.locked) {
+                if (res.isLocked()) {
                     lockedResources++;
                 }
             }
@@ -136,57 +126,40 @@ public interface CuVSResourceManager {
         }
 
         @Override
-        public ManagedCuVSResources acquire(
-            int numVectors,
-            int dims,
-            CuVSMatrix.DataType dataType,
-            CagraIndexParams.CuvsDistanceType distanceType
-        ) throws InterruptedException {
+        public ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams)
+            throws InterruptedException {
             try {
                 var started = System.nanoTime();
                 lock.lock();
 
                 boolean allConditionsMet = false;
                 ManagedCuVSResources res = null;
+
+                long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims, dataType, cagraIndexParams);
+                logger.debug(
+                    "Estimated memory for [{}] vectors, [{}] dims of type [{}] is [{} B]",
+                    numVectors,
+                    dims,
+                    dataType.name(),
+                    requiredMemoryInBytes
+                );
+
                 while (allConditionsMet == false) {
                     res = getResourceFromPool();
 
                     final boolean enoughMemory;
                     if (res != null) {
-                        long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims, dataType);
-                        logger.debug(
-                            "Estimated memory for [{}] vectors, [{}] dims of type [{}] is [{} B]",
-                            numVectors,
-                            dims,
-                            dataType.name(),
-                            requiredMemoryInBytes
-                        );
-
                         // Check immutable constraints
-                        long totalDeviceMemoryInBytes = gpuInfoProvider.getCurrentInfo(res).totalDeviceMemoryInBytes();
-                        if (requiredMemoryInBytes > totalDeviceMemoryInBytes) {
-                            // IVF_PQ doesn't support Cosine distance in CUVS 25.10
-                            // TODO: Remove this check when updating to CUVS 25.12+
-                            if (distanceType == CagraIndexParams.CuvsDistanceType.CosineExpanded) {
-                                String message = Strings.format(
-                                    "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
-                                    numVectors,
-                                    dims,
-                                    totalDeviceMemoryInBytes
-                                );
-                                logger.error(message);
-                                throw new IllegalArgumentException(message);
-                            }
-                            // For non-Cosine distances, use IVF_PQ algorithm
+                        long totalMemoryInBytes = gpuMemoryService.totalMemoryInBytes(res);
+                        if (requiredMemoryInBytes > totalMemoryInBytes) {
                             String message = Strings.format(
-                                "Requested GPU memory for [%d] vectors, [%d] dims exceeds GPU total memory [%d B], using IVF_PQ algorithm",
+                                "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
                                 numVectors,
                                 dims,
-                                totalDeviceMemoryInBytes
+                                totalMemoryInBytes
                             );
-                            logger.warn(message);
-                            res.useIVFPQ = true;
-                            break;
+                            logger.error(message);
+                            throw new IllegalArgumentException(message);
                         }
 
                         // If no resource in the pool is locked, short circuit to avoid livelock
@@ -196,9 +169,9 @@ public interface CuVSResourceManager {
                         }
 
                         // Check resources availability
-                        long freeDeviceMemoryInBytes = gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes();
-                        enoughMemory = requiredMemoryInBytes <= freeDeviceMemoryInBytes;
-                        logger.debug("Free device memory [{} B], enoughMemory[{}]", freeDeviceMemoryInBytes, enoughMemory);
+                        long availableMemoryInBytes = gpuMemoryService.availableMemoryInBytes(res);
+                        enoughMemory = requiredMemoryInBytes <= availableMemoryInBytes;
+                        logger.debug("Free device memory [{} B], enoughMemory[{}]", availableMemoryInBytes, enoughMemory);
                     } else {
                         logger.debug("No resources available in pool");
                         enoughMemory = false;
@@ -211,19 +184,33 @@ public interface CuVSResourceManager {
                 }
                 var elapsed = started - System.nanoTime();
                 logger.debug("Resource acquired in [{}ms]", elapsed / 1_000_000.0);
-                res.locked = true;
+                gpuMemoryService.reserveMemory(requiredMemoryInBytes);
+                res.lock(() -> gpuMemoryService.releaseMemory(requiredMemoryInBytes));
                 return res;
             } finally {
                 lock.unlock();
             }
         }
 
-        private long estimateRequiredMemory(int numVectors, int dims, CuVSMatrix.DataType dataType) {
+        private long estimateRequiredMemory(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams) {
             int elementTypeBytes = switch (dataType) {
                 case FLOAT -> Float.BYTES;
                 case INT, UINT -> Integer.BYTES;
                 case BYTE -> Byte.BYTES;
             };
+
+            if (cagraIndexParams.getCagraGraphBuildAlgo() == CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ
+                && cagraIndexParams.getCuVSIvfPqParams() != null
+                && cagraIndexParams.getCuVSIvfPqParams().getIndexParams() != null
+                && cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getPqDim() != 0) {
+                // See https://docs.rapids.ai/api/cuvs/nightly/neighbors/ivfpq/#index-device-memory
+                var pqDim = cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getPqDim();
+                var pqBits = cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getPqBits();
+                var numClusters = cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getnLists();
+                var approximatedIvfBytes = numVectors * (pqDim * (pqBits / 8.0) + elementTypeBytes) + (long) numClusters * Integer.BYTES;
+                return (long) (GPU_COMPUTATION_MEMORY_FACTOR * approximatedIvfBytes);
+            }
+
             return (long) (GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * elementTypeBytes);
         }
 
@@ -244,8 +231,8 @@ public interface CuVSResourceManager {
             logger.debug("Releasing resources to pool");
             try {
                 lock.lock();
-                assert resources.locked;
-                resources.locked = false;
+                assert resources.isLocked();
+                resources.unlock();
                 enoughResourcesCondition.signalAll();
             } finally {
                 lock.unlock();
@@ -265,9 +252,9 @@ public interface CuVSResourceManager {
     /** A managed resource. Cannot be closed. */
     final class ManagedCuVSResources implements CuVSResources {
 
-        final CuVSResources delegate;
-        boolean locked = false;
-        boolean useIVFPQ = false;
+        private final CuVSResources delegate;
+        private static final Runnable NOT_LOCKED = () -> {};
+        private Runnable unlockAction = NOT_LOCKED;
 
         ManagedCuVSResources(CuVSResources resources) {
             this.delegate = resources;
@@ -296,6 +283,19 @@ public interface CuVSResourceManager {
         @Override
         public String toString() {
             return "ManagedCuVSResources[delegate=" + delegate + "]";
+        }
+
+        void lock(Runnable unlockAction) {
+            this.unlockAction = unlockAction;
+        }
+
+        void unlock() {
+            unlockAction.run();
+            unlockAction = NOT_LOCKED;
+        }
+
+        boolean isLocked() {
+            return unlockAction != NOT_LOCKED;
         }
     }
 }

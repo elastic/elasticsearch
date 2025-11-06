@@ -38,7 +38,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
@@ -61,7 +60,6 @@ import static org.mockito.Mockito.mock;
 
 public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -123,7 +121,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
@@ -187,7 +185,10 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             );
 
             var failureCauseMessage = "Required [data]";
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)
+            );
             assertThat(
                 thrownException.getMessage(),
                 is(
@@ -260,7 +261,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
             assertThat(webServer.requests(), hasSize(1));
@@ -332,7 +333,10 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var failureCauseMessage = "Required [choices]";
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)
+            );
             assertThat(
                 thrownException.getMessage(),
                 is(
@@ -420,7 +424,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(2));
@@ -512,7 +516,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(2));
@@ -589,7 +593,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
@@ -660,7 +664,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(
                 result.asMap(),
                 is(
@@ -733,7 +737,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 listener
             );
 
-            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
             assertThat(thrownException.getMessage(), is("""
                 Failed to send OpenShift AI rerank request from inference entity id [inferenceEntityId]. Cause: Required [results]"""));
         }

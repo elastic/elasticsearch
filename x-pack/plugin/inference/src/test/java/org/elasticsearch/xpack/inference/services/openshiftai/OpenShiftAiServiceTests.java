@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -35,6 +34,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -102,7 +102,6 @@ import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
 
 public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -398,7 +397,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent(XContentHelper.stripWhitespace("""
                 {
                     "id": "chatcmpl-8425dd3d-78f3-4143-93cb-dd576ab8ae26",
@@ -522,7 +521,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoEvents().hasErrorMatching(e -> {
                 e = unwrapCause(e);
@@ -688,7 +687,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 listener
             );
 
-            var results = listener.actionGet(TIMEOUT);
+            var results = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             assertThat(results, hasSize(2));
             {
@@ -811,7 +810,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 listener
             );
 
-            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
+            return InferenceEventsAssertion.assertThat(listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)).hasFinishedStream();
         }
     }
 

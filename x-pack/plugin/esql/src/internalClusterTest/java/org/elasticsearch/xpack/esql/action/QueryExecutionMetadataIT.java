@@ -22,8 +22,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class QueryExecutionMetadataIT extends AbstractCrossClusterTestCase {
-    protected static final String IDX_ALIAS = "alias1";
-    protected static final String FILTERED_IDX_ALIAS = "alias-filtered-1";
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -36,109 +34,99 @@ public class QueryExecutionMetadataIT extends AbstractCrossClusterTestCase {
         super.assertClusterInfoSuccess(clusterInfo, numShards);
     }
 
-    protected EsqlQueryResponse runQuery(String query) {
+    protected EsqlQueryResponse runQueryWithMetadata(String query, Boolean includeExecutionMetadata) {
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
-        request.includeExecutionMetadata(true);
+        if (includeExecutionMetadata != null) {
+            request.includeExecutionMetadata(includeExecutionMetadata);
+        }
         return runQuery(request);
     }
 
     public void testLocal() throws Exception {
-        Map<String, Object> testClusterInfo = setupTwoClusters();
-        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
-
-        try (EsqlQueryResponse resp = runQuery("from logs-* | stats sum (v)")) {
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0), equalTo(List.of(45L)));
-
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertNotNull(executionInfo);
-            assertThat(executionInfo.isCrossClusterSearch(), is(false));
-            long overallTookMillis = executionInfo.overallTook().millis();
-            assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-            assertThat(executionInfo.includeExecutionMetadata(), equalTo(true));
-
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(LOCAL_CLUSTER)));
-
-            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertClusterInfoSuccess(localCluster, localNumShards, overallTookMillis);
-
-            // ensure that the _clusters metadata is always present (since includeExecutionMetadata is true)
-            assertClusterMetadataInResponse(resp);
-        }
+        testQuery(true, false, 45L);
     }
 
     public void testRemote() throws Exception {
-        Map<String, Object> testClusterInfo = setupTwoClusters();
-        int remoteNumShards = (Integer) testClusterInfo.get("remote1.num_shards");
-
-        try (EsqlQueryResponse resp = runQuery("from c*:logs-* | stats sum (v)")) {
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0), equalTo(List.of(285L)));
-
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertNotNull(executionInfo);
-            assertThat(executionInfo.isCrossClusterSearch(), is(true));
-            long overallTookMillis = executionInfo.overallTook().millis();
-            assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-            assertThat(executionInfo.includeExecutionMetadata(), equalTo(true));
-
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1)));
-
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertClusterInfoSuccess(remoteCluster, remoteNumShards, overallTookMillis);
-
-            // ensure that the _clusters metadata is always present (since includeExecutionMetadata is true)
-            assertClusterMetadataInResponse(resp);
-        }
+        testQuery(false, true, 285L);
     }
 
     public void testLocalAndRemote() throws Exception {
+        testQuery(true, true, 330L);
+    }
+
+    protected void testQuery(boolean local, boolean remote, long nRecords) throws Exception {
+        if (local == false && remote == false) {
+            throw new IllegalArgumentException("At least one of local or remote must be true");
+        }
+        StringBuilder query = new StringBuilder("from ");
+        if (local) {
+            query.append("logs-*");
+            if (remote) {
+                query.append(",");
+            }
+        }
+        if (remote) {
+            query.append("c*:logs-*");
+        }
+        query.append(" | stats sum (v)");
         Map<String, Object> testClusterInfo = setupTwoClusters();
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote1.num_shards");
 
-        try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-* | stats sum (v)")) {
+        boolean includeMetadata = randomBoolean();
+        try (EsqlQueryResponse resp = runQueryWithMetadata(query.toString(), includeMetadata)) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(1));
-            assertThat(values.get(0), equalTo(List.of(330L)));
+            assertThat(values.get(0), equalTo(List.of(nRecords)));
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);
-            assertThat(executionInfo.isCrossClusterSearch(), is(true));
+            assertThat(executionInfo.isCrossClusterSearch(), is(remote));
             long overallTookMillis = executionInfo.overallTook().millis();
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-            assertThat(executionInfo.includeExecutionMetadata(), equalTo(true));
+            assertThat(executionInfo.includeExecutionMetadata(), equalTo(includeMetadata));
 
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
+            if (remote && local) {
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
+            } else if (remote) {
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1)));
+            } else {
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(LOCAL_CLUSTER)));
+            }
 
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertClusterInfoSuccess(remoteCluster, remoteNumShards, overallTookMillis);
+            if (remote) {
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertClusterInfoSuccess(remoteCluster, remoteNumShards, overallTookMillis);
+            }
 
-            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertClusterInfoSuccess(localCluster, localNumShards, overallTookMillis);
+            if (local) {
+                EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+                assertClusterInfoSuccess(localCluster, localNumShards, overallTookMillis);
+            }
 
-            // ensure that the _clusters metadata is always present (since includeExecutionMetadata is true)
-            assertClusterMetadataInResponse(resp);
+            assertClusterMetadataInResponse(resp, includeMetadata);
         }
     }
 
-    private static void assertClusterMetadataInResponse(EsqlQueryResponse resp) {
+    private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean present) {
         try {
             final Map<String, Object> esqlResponseAsMap = XContentTestUtils.convertToMap(resp);
             final Object clusters = esqlResponseAsMap.get("_clusters");
 
-            assertNotNull(clusters);
-            // test a few entries to ensure it looks correct (other tests do a full analysis of the metadata in the response)
-            @SuppressWarnings("unchecked")
-            Map<String, Object> inner = (Map<String, Object>) clusters;
-            assertTrue(inner.containsKey("total"));
-            assertTrue(inner.containsKey("details"));
+            if (present) {
+                assertNotNull(clusters);
+                // test a few entries to ensure it looks correct (other tests do a full analysis of the metadata in the response)
+                @SuppressWarnings("unchecked")
+                Map<String, Object> inner = (Map<String, Object>) clusters;
+                assertTrue(inner.containsKey("total"));
+                assertTrue(inner.containsKey("details"));
+            } else {
+                assertNull(clusters);
+            }
 
         } catch (IOException e) {
             fail("Could not convert ESQL response to Map: " + e);

@@ -735,8 +735,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(thrownException.getMessage(), is("""
-                Failed to send OpenShift AI rerank request from inference entity id [inferenceEntityId]. Cause: Failed to find required\
-                 field [results] in Cohere rerank response"""));
+                Failed to send OpenShift AI rerank request from inference entity id [inferenceEntityId]. Cause: Required [results]"""));
         }
         assertRerankActionCreator(documents);
     }

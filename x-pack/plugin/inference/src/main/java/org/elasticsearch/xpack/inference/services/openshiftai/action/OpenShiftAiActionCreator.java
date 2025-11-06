@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.cohere.CohereResponseHandler;
-import org.elasticsearch.xpack.inference.services.cohere.response.CohereRankedResponseEntity;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIResponseHandler;
+import org.elasticsearch.xpack.inference.services.jinaai.response.JinaAIRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModel;
@@ -57,11 +57,10 @@ public class OpenShiftAiActionCreator implements OpenShiftAiActionVisitor {
         "OpenShift AI completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    // OpenShift AI Rerank task uses the same response format as Cohere, therefore we can reuse the CohereResponseHandler
-    private static final ResponseHandler RERANK_HANDLER = new CohereResponseHandler(
+    // OpenShift AI Rerank task uses the same response format as JinaAI, therefore we can reuse the JinaAIResponseHandler
+    private static final ResponseHandler RERANK_HANDLER = new JinaAIResponseHandler(
         "OpenShift AI rerank",
-        (request, response) -> CohereRankedResponseEntity.fromResponse(response),
-        false
+        (request, response) -> JinaAIRerankResponseEntity.fromResponse(response)
     );
 
     private final Sender sender;
@@ -122,11 +121,11 @@ public class OpenShiftAiActionCreator implements OpenShiftAiActionVisitor {
                 inputs.getChunks(),
                 inputs.getReturnDocuments(),
                 inputs.getTopN(),
-                model
+                overriddenModel
             ),
             QueryAndDocsInputs.class
         );
-        var errorMessage = buildErrorMessage(TaskType.RERANK, model.getInferenceEntityId());
+        var errorMessage = buildErrorMessage(TaskType.RERANK, overriddenModel.getInferenceEntityId());
         return new SenderExecutableAction(sender, manager, errorMessage);
     }
 

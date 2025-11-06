@@ -138,53 +138,40 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         }
         Object o = visit(ctx.expression());
 
-        return switch (o) {
-            case Duration duration -> duration;
-            case Literal l -> throw new ParsingException(
-                source(ctx),
-                "Expected literals to be already converted to duration, got [{}]",
-                l.value()
-            );
+        // unwrap expressions to get the underlying value
+        o = switch (o) {
             case LogicalPlan plan -> {
                 // Scalar arithmetic has been folded and wrapped in LiteralSelector
                 if (plan instanceof LiteralSelector literalSelector) {
-                    Literal literal = literalSelector.literal();
-                    Object value = literal.value();
-
-                    // Handle Duration
-                    if (value instanceof Duration duration) {
-                        yield duration;
-                    }
-
-                    // Handle numeric scalars interpreted as seconds
-                    if (value instanceof Number num) {
-                        long seconds = num.longValue();
-                        if (seconds <= 0) {
-                            throw new ParsingException(source(ctx), "Duration must be positive, got [{}]s", seconds);
-                        }
-                        yield Duration.ofSeconds(seconds);
-                    }
-
-                    throw new ParsingException(
-                        source(ctx),
-                        "Expected duration or numeric value, got [{}]",
-                        value.getClass().getSimpleName()
-                    );
+                    yield literalSelector.literal().value();
                 }
-
-                // Non-literal LogicalPlan
-                throw new ParsingException(source(ctx), "Duration must be a constant expression");
+                throw new ParsingException(
+                    source(ctx),
+                    "Expected duration or numeric value, got [{}]",
+                    plan.getClass().getSimpleName()
+                );
             }
+            case Literal l -> l.value();
             case Expression e -> {
                 // Fallback for Expression (shouldn't happen with new logic)
                 if (e.foldable()) {
-                    Object folded = e.fold(FoldContext.small());
-                    if (folded instanceof Duration duration) {
-                        yield duration;
-                    }
+                    yield e.fold(FoldContext.small());
                 }
                 // otherwise bail out
                 throw new ParsingException(source(ctx), "Expected a duration, got [{}]", source(ctx).text());
+            }
+            default -> o;
+        };
+
+        return switch (o) {
+            case Duration duration -> duration;
+            // Handle numeric scalars interpreted as seconds
+            case Number num -> {
+                long seconds = num.longValue();
+                if (seconds <= 0) {
+                    throw new ParsingException(source(ctx), "Duration must be positive, got [{}]s", seconds);
+                }
+                yield Duration.ofSeconds(seconds);
             }
             default -> throw new ParsingException(source(ctx), "Expected a duration, got [{}]", source(ctx).text());
         };

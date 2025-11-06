@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
@@ -98,6 +99,7 @@ public class ElasticInferenceService extends SenderService {
     private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
         TaskType.CHAT_COMPLETION,
+        TaskType.COMPLETION,
         TaskType.RERANK,
         TaskType.TEXT_EMBEDDING
     );
@@ -129,6 +131,7 @@ public class ElasticInferenceService extends SenderService {
      */
     private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
+        TaskType.COMPLETION,
         TaskType.RERANK,
         TaskType.TEXT_EMBEDDING
     );
@@ -188,7 +191,7 @@ public class ElasticInferenceService extends SenderService {
         return Map.of(
             DEFAULT_CHAT_COMPLETION_MODEL_ID_V1,
             new DefaultModelConfig(
-                new ElasticInferenceServiceCompletionModel(
+                new ElasticInferenceServiceChatCompletionModel(
                     DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
                     TaskType.CHAT_COMPLETION,
                     NAME,
@@ -303,7 +306,7 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (model instanceof ElasticInferenceServiceCompletionModel == false) {
+        if (model instanceof ElasticInferenceServiceChatCompletionModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
@@ -313,8 +316,8 @@ public class ElasticInferenceService extends SenderService {
         // generating a different "traceparent" as every task and every REST request creates a new span).
         var currentTraceInfo = getCurrentTraceInfo();
 
-        var completionModel = (ElasticInferenceServiceCompletionModel) model;
-        var overriddenModel = ElasticInferenceServiceCompletionModel.of(completionModel, inputs.getRequest());
+        var completionModel = (ElasticInferenceServiceChatCompletionModel) model;
+        var overriddenModel = ElasticInferenceServiceChatCompletionModel.of(completionModel, inputs.getRequest());
         var errorMessage = constructFailedToSendRequestMessage(
             String.format(Locale.ROOT, "%s completions", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );
@@ -506,7 +509,17 @@ public class ElasticInferenceService extends SenderService {
                 context,
                 chunkingSettings
             );
-            case CHAT_COMPLETION -> new ElasticInferenceServiceCompletionModel(
+            case CHAT_COMPLETION -> new ElasticInferenceServiceChatCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                elasticInferenceServiceComponents,
+                context
+            );
+            case COMPLETION -> new ElasticInferenceServiceCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,

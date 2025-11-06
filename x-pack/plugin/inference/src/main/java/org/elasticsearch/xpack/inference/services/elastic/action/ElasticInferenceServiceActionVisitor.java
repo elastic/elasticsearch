@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.inference.services.elastic.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+
+import java.util.Map;
 
 public interface ElasticInferenceServiceActionVisitor {
 
@@ -19,4 +22,6 @@ public interface ElasticInferenceServiceActionVisitor {
     ExecutableAction create(ElasticInferenceServiceRerankModel model);
 
     ExecutableAction create(ElasticInferenceServiceDenseTextEmbeddingsModel model);
+
+    ExecutableAction create(ElasticInferenceServiceCompletionModel model, Map<String, Object> taskSettings);
 }

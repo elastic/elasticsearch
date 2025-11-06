@@ -55,7 +55,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
@@ -499,7 +499,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 thrownException.getMessage(),
                 is(
                     "Inference entity [model_id] does not support task type [chat_completion] "
-                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, rerank]. "
+                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, rerank, completion]. "
                         + "The task type for the inference entity is chat_completion, "
                         + "please use the _inference/chat_completion/model_id/_stream URL."
                 )
@@ -734,7 +734,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
 
             // Create completion model
-            var model = new ElasticInferenceServiceCompletionModel(
+            var model = new ElasticInferenceServiceChatCompletionModel(
                 "id",
                 TaskType.CHAT_COMPLETION,
                 "elastic",
@@ -1369,7 +1369,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
             webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(responseJson));
-            var model = new ElasticInferenceServiceCompletionModel(
+            var model = new ElasticInferenceServiceChatCompletionModel(
                 "id",
                 TaskType.COMPLETION,
                 "elastic",

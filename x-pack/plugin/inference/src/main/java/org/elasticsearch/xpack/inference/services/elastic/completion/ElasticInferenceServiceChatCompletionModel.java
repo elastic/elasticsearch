@@ -16,32 +16,40 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceExecutableActionModel;
-import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionVisitor;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
 
-/**
- * Adapter model for COMPLETION task type that converts simple text inputs into chat messages
- * and uses the chat completion endpoint.
- */
-public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServiceExecutableActionModel {
+public class ElasticInferenceServiceChatCompletionModel extends ElasticInferenceServiceModel {
+
+    public static ElasticInferenceServiceChatCompletionModel of(
+        ElasticInferenceServiceChatCompletionModel model,
+        UnifiedCompletionRequest request
+    ) {
+        var originalModelServiceSettings = model.getServiceSettings();
+        var overriddenServiceSettings = new ElasticInferenceServiceCompletionServiceSettings(
+            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId())
+        );
+
+        return new ElasticInferenceServiceChatCompletionModel(model, overriddenServiceSettings);
+    }
 
     private final URI uri;
 
-    public ElasticInferenceServiceCompletionModel(
+    public ElasticInferenceServiceChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secrets,
+        Map<String, Object> secrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context
     ) {
@@ -56,13 +64,22 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         );
     }
 
-    public ElasticInferenceServiceCompletionModel(
+    public ElasticInferenceServiceChatCompletionModel(
+        ElasticInferenceServiceChatCompletionModel model,
+        ElasticInferenceServiceCompletionServiceSettings serviceSettings
+    ) {
+        super(model, serviceSettings);
+        this.uri = createUri();
+
+    }
+
+    public ElasticInferenceServiceChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         ElasticInferenceServiceCompletionServiceSettings serviceSettings,
-        TaskSettings taskSettings,
-        SecretSettings secretSettings,
+        @Nullable TaskSettings taskSettings,
+        @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(
@@ -71,15 +88,9 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
             serviceSettings,
             elasticInferenceServiceComponents
         );
-        this.uri = createUri();
-    }
 
-    public ElasticInferenceServiceCompletionModel(
-        ElasticInferenceServiceCompletionModel model,
-        ElasticInferenceServiceCompletionServiceSettings serviceSettings
-    ) {
-        super(model, serviceSettings);
-        this.uri = model.uri;
+        this.uri = createUri();
+
     }
 
     @Override
@@ -93,7 +104,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
 
     private URI createUri() throws ElasticsearchStatusException {
         try {
-            // Use the same chat endpoint as CHAT_COMPLETION
+            // TODO, consider transforming the base URL into a URI for better error handling.
             return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/chat");
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
@@ -109,8 +120,5 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         }
     }
 
-    @Override
-    public ExecutableAction accept(ElasticInferenceServiceActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
-    }
+    // TODO create/refactor the Configuration class to be extensible for different task types (i.e completion, sparse embeddings).
 }

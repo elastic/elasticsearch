@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -20,13 +21,17 @@ import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInfere
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceCompletionRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDenseTextEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRerankRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -43,6 +48,11 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
     static final ResponseHandler RERANK_HANDLER = new ElasticInferenceServiceResponseHandler(
         "elastic rerank",
         (request, response) -> ElasticInferenceServiceRerankResponseEntity.fromResponse(response)
+    );
+
+    static final ResponseHandler COMPLETION_HANDLER = new ElasticInferenceServiceResponseHandler(
+        "elastic completion",
+        OpenAiChatCompletionResponseEntity::fromResponse
     );
 
     private final Sender sender;
@@ -107,5 +117,26 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
 
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Elastic dense text embeddings");
         return new SenderExecutableAction(sender, manager, failedToSendRequestErrorMessage);
+    }
+
+    @Override
+    public ExecutableAction create(ElasticInferenceServiceCompletionModel model, Map<String, Object> taskSettings) {
+        var threadPool = serviceComponents.threadPool();
+
+        var manager = new GenericRequestManager<>(
+            threadPool,
+            model,
+            COMPLETION_HANDLER,
+            (chatCompletionInput) -> new ElasticInferenceServiceCompletionRequest(
+                chatCompletionInput.getInputs(),
+                model,
+                traceContext,
+                extractRequestMetadataFromThreadContext(threadPool.getThreadContext())
+            ),
+            ChatCompletionInput.class
+        );
+
+        var errorMessage = constructFailedToSendRequestMessage(Strings.format("%s completion", ELASTIC_INFERENCE_SERVICE_IDENTIFIER));
+        return new SenderExecutableAction(sender, manager, errorMessage);
     }
 }

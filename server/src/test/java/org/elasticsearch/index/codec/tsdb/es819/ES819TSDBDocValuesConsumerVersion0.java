@@ -88,7 +88,7 @@ final class ES819TSDBDocValuesConsumerVersion0 extends XDocValuesConsumer {
             CodecUtil.writeIndexHeader(
                 data,
                 dataCodec,
-                ES819TSDBDocValuesFormat.VERSION_CURRENT,
+                ES819TSDBDocValuesFormat.VERSION_START, // Test with version 0 rather than current
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -97,7 +97,7 @@ final class ES819TSDBDocValuesConsumerVersion0 extends XDocValuesConsumer {
             CodecUtil.writeIndexHeader(
                 meta,
                 metaCodec,
-                ES819TSDBDocValuesFormat.VERSION_CURRENT,
+                ES819TSDBDocValuesFormat.VERSION_START, // Test with version 0 rather than current
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );

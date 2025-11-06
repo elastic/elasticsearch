@@ -117,6 +117,15 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         return codec;
     }
 
+    public void testBinaryCompressionFeatureFlag() {
+        ES819TSDBDocValuesFormat docValueFormat = new ES819TSDBDocValuesFormat();
+        if (ES819TSDBDocValuesFormat.BINARY_DV_COMPRESSION_FEATURE_FLAG) {
+            assertThat(docValueFormat.binaryDVCompressionMode, equalTo(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
+        } else {
+            assertThat(docValueFormat.binaryDVCompressionMode, equalTo(BinaryDVCompressionMode.NO_COMPRESS));
+        }
+    }
+
     // Test with data large enough to require multiple binary doc value blocks
     public void testBlockWiseBinarySparse() throws Exception {
         String timestampField = "@timestamp";

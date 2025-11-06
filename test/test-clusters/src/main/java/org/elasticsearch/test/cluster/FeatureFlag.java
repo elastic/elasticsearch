@@ -26,7 +26,8 @@ public enum FeatureFlag {
         Version.fromString("9.2.0"),
         null
     ),
-    RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null);
+    RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
+    BINARY_DOC_VALUE_COMPRESSION("es.binary_dv_compression_feature_flag_enabled=true", Version.fromString("9.3.0"), null);
 
     public final String systemProperty;
     public final Version from;

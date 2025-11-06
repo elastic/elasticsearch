@@ -2573,7 +2573,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean isForceMergeOptimisticallyNoOp(int maxNumSegments, boolean onlyExpungeDeletes) throws IOException {
+    public boolean preForceMergeNoOpCheck(int maxNumSegments, boolean onlyExpungeDeletes) throws IOException {
         if (onlyExpungeDeletes && maxNumSegments >= 0) {
             throw new IllegalArgumentException("only_expunge_deletes and max_num_segments are mutually exclusive");
         }

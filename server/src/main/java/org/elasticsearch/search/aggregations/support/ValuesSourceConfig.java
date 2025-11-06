@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -431,6 +432,7 @@ public class ValuesSourceConfig {
      */
     public boolean alignsWithSearchIndex() {
         boolean hasDocValuesSkipper = fieldType() instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
+        boolean isTimestampField = fieldContext() != null && DataStream.TIMESTAMP_FIELD_NAME.equals(fieldContext().field());
         return script() == null
             && missing() == null
             && fieldType() != null

@@ -99,6 +99,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testEmpty() throws Exception {
@@ -289,7 +290,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      */
     public void testMergingQueries() throws IOException {
         DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("test");
-        Query topLevelQuery = ft.rangeQuery("2020-01-01", "2020-02-01", true, true, null, null, null, mock(SearchExecutionContext.class));
+        var context = mock(SearchExecutionContext.class);
+        when(context.getIndexSettings()).thenReturn(createIndexSettings());
+        Query topLevelQuery = ft.rangeQuery("2020-01-01", "2020-02-01", true, true, null, null, null, context);
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder(
             "t",
             // The range query will be wrapped in IndexOrDocValuesQuery by the date field type

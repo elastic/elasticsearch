@@ -545,7 +545,7 @@ serverless: ga
 ```
 
 :::{important}
-The recommended method for retrieving embeddings differs between {{es}} versions 9.2 and earlier.
+Starting with {{es}} 9.2, the recommended method for retrieving embeddings has changed from that used in previous versions.
 For instructions on retrieving embeddings in versions earlier than 9.2, refer to [Returning semantic field embeddings using `fields`](#return-embeddings-fields).
 :::
 

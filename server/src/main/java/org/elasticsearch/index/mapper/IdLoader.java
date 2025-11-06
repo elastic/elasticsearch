@@ -59,9 +59,9 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     }
                 }
             }
-            return IdLoader.createTsIdLoader(indexRouting, routingPaths, indexSettings.useTimeSeriesSyntheticId());
+            return createTsIdLoader(indexRouting, routingPaths, indexSettings.useTimeSeriesSyntheticId());
         } else {
-            return IdLoader.fromLeafStoredFieldLoader();
+            return fromLeafStoredFieldLoader();
         }
     }
 

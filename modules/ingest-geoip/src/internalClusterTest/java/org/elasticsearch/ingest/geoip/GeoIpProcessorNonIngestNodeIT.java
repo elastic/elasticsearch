@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -30,6 +31,7 @@ import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
+@ESTestCase.WithoutEntitlements // some tests with geo use command line
 public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
 
     @Override

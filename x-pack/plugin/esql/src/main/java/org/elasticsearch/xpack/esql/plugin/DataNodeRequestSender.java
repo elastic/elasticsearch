@@ -27,10 +27,8 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchShardTarget;
@@ -547,8 +545,7 @@ abstract class DataNodeRequestSender {
                     .filter(shard -> shard.active() && shard.isSearchable())
                     .map(shard -> project.cluster().nodes().get(shard.currentNodeId()))
                     .toList();
-            } catch (Exception ex) {
-                assert ex instanceof IndexNotFoundException || ex instanceof ShardNotFoundException : new AssertionError(ex);
+            } catch (Exception ignored) {
                 continue;
             }
             nodes.put(shardId, allocatedNodes);

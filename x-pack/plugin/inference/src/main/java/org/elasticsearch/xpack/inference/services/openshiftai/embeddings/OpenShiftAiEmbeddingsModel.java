@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * Represents an OpenShift AI embeddings model for inference.
- * This class extends the OpenShiftAiModel and provides specific configurations and settings for embeddings tasks.
+ * This class extends the {@link OpenShiftAiModel} and provides specific configurations and settings for embeddings tasks.
  */
 public class OpenShiftAiEmbeddingsModel extends OpenShiftAiModel {
 

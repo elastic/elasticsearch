@@ -8,15 +8,20 @@
 package org.elasticsearch.xpack.inference.services.openshiftai.rerank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.hamcrest.Matchers.containsString;
 
 public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<OpenShiftAiRerankTaskSettings> {
@@ -95,6 +100,59 @@ public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializa
         OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
         assertEquals(7, updatedSettings.getTopN().intValue());
+    }
+
+    public void testToXContent_WritesAllValues() throws IOException {
+        Integer topN = 2;
+        Boolean doReturnDocuments = true;
+
+        testToXContent(topN, doReturnDocuments, """
+            {
+                "top_n":2,
+                "return_documents":true
+            }
+            """);
+    }
+
+    public void testToXContent_EmptyValues() throws IOException {
+        Integer topN = null;
+        Boolean doReturnDocuments = null;
+
+        testToXContent(topN, doReturnDocuments, """
+            {}
+            """);
+    }
+
+    public void testToXContent_OnlyTopN() throws IOException {
+        Integer topN = 2;
+        Boolean doReturnDocuments = null;
+
+        testToXContent(topN, doReturnDocuments, """
+            {
+                "top_n":2
+            }
+            """);
+    }
+
+    public void testToXContent_OnlyReturnDocuments() throws IOException {
+        Integer topN = null;
+        Boolean doReturnDocuments = true;
+
+        testToXContent(topN, doReturnDocuments, """
+            {
+                "return_documents":true
+            }
+            """);
+    }
+
+    private static void testToXContent(Integer topN, Boolean doReturnDocuments, String expectedString) throws IOException {
+        var taskSettings = new OpenShiftAiRerankTaskSettings(topN, doReturnDocuments);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        taskSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(expectedString));
     }
 
     @Override

@@ -19,9 +19,23 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.util.Map;
 
+/**
+ * Represents an OpenShift AI rerank model.
+ * This class extends the {@link OpenShiftAiModel} and provides specific configurations for rerank tasks.
+ */
 public class OpenShiftAiRerankModel extends OpenShiftAiModel {
+
+    /**
+     * Creates a new {@link OpenShiftAiRerankModel} with updated task settings if they differ from the existing ones.
+     * @param model the existing OpenShift AI rerank model
+     * @param taskSettings the new task settings to apply
+     * @return a new {@link OpenShiftAiRerankModel} with updated task settings, or the original model if settings are unchanged
+     */
     public static OpenShiftAiRerankModel of(OpenShiftAiRerankModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = OpenShiftAiRerankTaskSettings.fromMap(taskSettings);
+        if (requestTaskSettings.isEmpty() || requestTaskSettings.equals(model.getTaskSettings())) {
+            return model;
+        }
         return new OpenShiftAiRerankModel(model, OpenShiftAiRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 

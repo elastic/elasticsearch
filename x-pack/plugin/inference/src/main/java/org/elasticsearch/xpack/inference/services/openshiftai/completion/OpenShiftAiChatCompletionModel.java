@@ -23,7 +23,7 @@ import java.util.Objects;
 
 /**
  * Represents an OpenShift AI chat completion model.
- * This class extends the OpenShiftAiModel and provides specific configurations for chat completion tasks.
+ * This class extends the {@link OpenShiftAiModel} and provides specific configurations for chat completion tasks.
  */
 public class OpenShiftAiChatCompletionModel extends OpenShiftAiModel {
 
